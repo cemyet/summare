@@ -71,7 +71,7 @@ export function AnnualReportChat() {
               <div className="flex items-center justify-between h-8">
                 <div className="flex items-center">
                   <img 
-                    src="/Summare logo.png"
+                    src="/logo.png"
                     alt="Summare" 
                     className="h-8 w-auto"
                   />
