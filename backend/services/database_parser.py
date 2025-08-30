@@ -21,6 +21,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 
 # Feature flags
 USE_168X_RECLASS = os.getenv("USE_168X_RECLASS", "1") == "1"  # default ON
+USE_296X_RECLASS = os.getenv("USE_296X_RECLASS", "1") == "1"  # default ON
 
 class DatabaseParser:
     """Database-driven parser for financial data"""
@@ -281,7 +282,7 @@ class DatabaseParser:
                 else:
                     # Single account
                     if account_spec in accounts:
-                        total -= accounts[account_str]
+                        total -= accounts[account_spec]
         
         # Apply sign based on SE file data structure
         # All account balances from 2000-8989 need to be reversed regardless of balance_type
@@ -645,18 +646,20 @@ class DatabaseParser:
                         break
         
         # Apply 168x and 296x reclass before storing calculated values
-        if USE_168X_RECLASS and sie_text:
+        if sie_text:
             try:
-                self._reclassify_168x_short_term_group_receivables(
-                    sie_text=sie_text,
-                    br_rows=results,
-                    current_accounts=current_accounts
-                )
-                self._reclassify_296x_short_term_group_liabilities(
-                    sie_text=sie_text,
-                    br_rows=results,
-                    current_accounts=current_accounts
-                )
+                if USE_168X_RECLASS:
+                    self._reclassify_168x_short_term_group_receivables(
+                        sie_text=sie_text,
+                        br_rows=results,
+                        current_accounts=current_accounts
+                    )
+                if USE_296X_RECLASS:
+                    self._reclassify_296x_short_term_group_liabilities(
+                        sie_text=sie_text,
+                        br_rows=results,
+                        current_accounts=current_accounts
+                    )
             except Exception as e:
                 print(f"BR reclass skipped due to error: {e}")
         
@@ -924,10 +927,22 @@ class DatabaseParser:
                     return r
             return None
 
-        row_351 = _find_by_id(br_rows, 351) or next((r for r in br_rows if "koncernföretag" in _norm(r.get("label") or "")), None)
-        row_352 = _find_by_id(br_rows, 352) or next((r for r in br_rows if "intresseföretag" in _norm(r.get("label") or "")), None)
-        row_353 = _find_by_id(br_rows, 353) or next((r for r in br_rows if "övriga företag" in _norm(r.get("label") or "")), None)
-        row_354 = _find_by_id(br_rows, 354) or next((r for r in br_rows if "övriga kortfristiga fordringar" in _norm(r.get("label") or "")), None)
+        def _find_by_label(rows: List[Dict[str, Any]], text: str):
+            n = _norm(text)
+            for r in rows:
+                lbl = _norm(r.get("label") or r.get("row_title") or "")
+                if lbl == n:
+                    return r
+            for r in rows:
+                lbl = _norm(r.get("label") or r.get("row_title") or "")
+                if n in lbl:
+                    return r
+            return None
+
+        row_351 = _find_by_id(br_rows, 351) or _find_by_label(br_rows, "Kortfristiga fordringar hos koncernföretag")
+        row_352 = _find_by_id(br_rows, 352) or _find_by_label(br_rows, "Kortfristiga fordringar hos intresseföretag och gemensamt styrda företag")
+        row_353 = _find_by_id(br_rows, 353) or _find_by_label(br_rows, "Kortfristiga fordringar hos övriga företag som det finns ett ägarintresse i")
+        row_354 = _find_by_id(br_rows, 354) or _find_by_label(br_rows, "Övriga kortfristiga fordringar")
 
         added = 0.0
         if row_351 and alloc["koncern"]:
