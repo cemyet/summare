@@ -47,9 +47,20 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
     """
 
     # ---------- Utils ----------
+    def _fix_mojibake(s: str) -> str:
+        # minimal, targeted fixes we've seen in your files
+        # "Ñ" shows up where "ä" should be; "î" where "ö" should be
+        return (s or "").translate(str.maketrans({
+            "Ñ": "ä", "ñ": "ä",
+            "î": "ö", "Î": "Ö",
+            "Õ": "å", "õ": "å",
+        }))
+
     def _normalize(s: str) -> str:
+        # replace old _normalize with this one
         if not s:
             return ""
+        s = _fix_mojibake(s)
         s = unicodedata.normalize("NFKD", s)
         s = "".join(ch for ch in s if not unicodedata.combining(ch))
         s = s.lower().replace("\u00a0", " ").replace("\t", " ")
@@ -94,12 +105,20 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
         return bool(FORDR_PAT.search(t))
 
     def is_aat_text(t: str) -> bool:
-        return any(w in t for w in ("aktieagartillskott", "aktieägartillskott", "villkorat", "ovillkorat"))
+        # robust: catches normal & mojibaked variants + generic "tillsk…"
+        return (
+            "tillsk" in t or
+            "aktieagartillskott" in t or
+            "aktiengartillskott" in t or  # covers "Ñ" → "n" mojibake path
+            "villkorat" in t or
+            "ovillkorat" in t
+        )
 
     def is_andelar_koncern_text(t: str) -> bool:
-        # kräver både koncern/dotter OCH andel/aktie
-        return (any(w in t for w in ("koncern", "koncernforetag", "koncernföretag", "dotter", "subsidiary"))
-                and any(w in t for w in ("andel", "andelar", "aktie", "aktier")))
+        return (
+            any(w in t for w in ("koncern", "koncernforetag", "koncernföretag", "dotter", "subsidiary"))
+            and any(w in t for w in ("andel", "andelar", "aktie", "aktier"))
+        )
 
     def is_ack_ned_andelar_text(t: str) -> bool:
         # Viktigt: träffar INTE på "Holtback" längre
@@ -112,6 +131,22 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
     andel_set = set()    # accounts representing shares in koncern
     aat_set   = set()    # accounts representing AAT in koncern
     imp_set   = set()    # acc impairment shares (primarily 1318, possibly others with clear text)
+
+    # --- after you've filled konto_name[...] add brand-token learning from 131x ---
+    def _tokens(t: str) -> set[str]:
+        words = re.findall(r"[a-zåäö]{3,}", t)
+        stop = {
+            "aktie", "aktier", "andel", "andelar",
+            "koncern", "koncernforetag", "koncernföretag", "dotter", "ab", "kb", "hb",
+            "holding", "group", "ack", "ackumulerade", "nedskrivningar", "nedskrivning",
+            "sv", "ovriga", "övriga", "and", "utl", "ftg", "foretag", "företag"
+        }
+        return {w for w in words if w not in stop}
+
+    brand_tokens_131x = set()
+    for acct in range(1310, 1318+1):
+        t = konto_name.get(acct, "")
+        brand_tokens_131x |= _tokens(t)
 
     # 1) 1310–1318
     for acct in range(1310, 1318+1):
@@ -136,8 +171,14 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
             continue
         if is_aat_text(t):
             aat_set.add(acct)
-        elif is_andelar_koncern_text(t):
+            continue
+        if is_andelar_koncern_text(t):
             andel_set.add(acct)
+            continue
+        # fallback: tie to 131x companies by shared tokens (e.g., "ellen")
+        if _tokens(t) & brand_tokens_131x:
+            # treat as AAT (most common for 132x when linked by name)
+            aat_set.add(acct)
         # acc-impair in 132x interpreted as receivables-related — left out
 
     # 3) Capture possibly misplaced acc impairment shares in 131x via text
