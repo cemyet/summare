@@ -798,24 +798,70 @@ class DatabaseParser:
             s = re.sub(r"\s+", " ", s).strip()
             return s
 
-        STOP = {
-            "andel", "andelar", "aktie", "aktier", "koncernföretag", "koncernforetag",
-            "koncern", "dotter", "intresseföretag", "intresseforetag", "gemensamt",
-            "styrda", "företag", "foretag", "ovriga", "övriga", "ägarintresse", "agarintresse",
-            "fordran", "fordringar", "ränta", "ranta", "lån", "lan", "avräkning", "avrakning",
-            "kortfristiga", "långfristiga", "langfristiga", "hos", "i", "m", "ab", "kb", "hb",
-            "holding", "group", "bolag", "aktiebolag", "as", "oy", "gmbh", "ltd", "inc", "co"
-        }
+        # ---------- Pattern-based classification with company name extraction ----------
+        def _classify_account_name(name: str) -> str | None:
+            """Classify account name using pattern matching"""
+            name_norm = _norm(name)
+            
+            # Pattern 1: övriga + (företag|ftg) + (ägarintresse|ägarint|ägarintr)
+            ovriga_patterns = [
+                r"övriga.*företag.*ägarintresse", r"ovriga.*foretag.*agarintresse",
+                r"övriga.*ftg.*ägarint", r"ovriga.*ftg.*agarint",
+                r"ägarintresse.*övriga.*företag", r"agarintresse.*ovriga.*foretag"
+            ]
+            if any(re.search(p, name_norm) for p in ovriga_patterns):
+                return "ovriga"
+            
+            # Pattern 2: intresseföretag OR (intr* + företag) OR (gemensamt + styrda)
+            intresse_patterns = [
+                r"intresseföretag", r"intresseforetag", r"intresseftg",
+                r"intr\w*.*företag", r"intr\w*.*foretag", r"intr\w*.*ftg",
+                r"gemensamt.*styrda", r"gem\w*.*styrda"
+            ]
+            if any(re.search(p, name_norm) for p in intresse_patterns):
+                return "intresse"
+            
+            # Pattern 3: koncern/dotter/moder
+            koncern_patterns = [
+                r"koncern", r"dotter", r"moder"
+            ]
+            if any(re.search(p, name_norm) for p in koncern_patterns):
+                return "koncern"
+            
+            return None
 
-        def _tokens_from_name(name: str) -> set[str]:
-            name = _norm(name)
-            # split on non-letters/digits (keep åäö as letters)
-            parts = re.split(r"[^a-z0-9åäö]+", name)
-            toks = {p for p in parts if len(p) >= 3 and p not in STOP and not p.isdigit()}
-            return toks
+        def _extract_company_names(name: str) -> set[str]:
+            """Extract company names from account description"""
+            name_norm = _norm(name)
+            
+            # Remove common prefixes/suffixes to isolate company names
+            # Pattern: "prefix, CompanyName AB" or "prefix CompanyName"
+            clean = re.sub(r'^(andelar?\s+i\s+|aktier?\s+|ack\s+nedskrivn?\w*\s+|villkorade?\s+|ovillkorade?\s+|aktieägartillskott\s*)', '', name_norm)
+            clean = re.sub(r'^(koncernföretag|koncernforetag|intresseföretag|intresseforetag|dotterfîretag|dotterforetag)\s*,?\s*', '', clean)
+            
+            # Split on comma and extract meaningful parts
+            parts = [p.strip() for p in clean.split(',')]
+            company_names = set()
+            
+            for part in parts:
+                # Remove company suffixes but keep the core name
+                core = re.sub(r'\s+(ab|kb|hb|holding|aktiebolag)$', '', part)
+                if len(core) >= 3 and not re.match(r'^(andelar?|aktier?|ack|villkorade?|ovillkorade?)$', core):
+                    # Split into meaningful tokens (2+ chars)
+                    tokens = re.findall(r'[a-zåäö]{2,}', core)
+                    company_names.update(tokens)
+            
+            return company_names
 
-        # ---------- read #KONTO names and build token buckets ----------
+        # ---------- Build classification buckets ----------
         konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"', re.IGNORECASE)
+        
+        # Company name sets for each bucket
+        koncern_companies: set[str] = set()
+        intresse_companies: set[str] = set()
+        ovriga_companies: set[str] = set()
+        
+        # Pattern-based classification results
         koncern_toks: set[str] = set()
         intresse_toks: set[str] = set()
         ovriga_toks: set[str] = set()
@@ -840,13 +886,20 @@ class DatabaseParser:
             bucket = _bucket_for_acct(acct)
             if not bucket:
                 continue
-            toks = _tokens_from_name(nm)
+            
+            # Extract company names for this account
+            company_names = _extract_company_names(nm)
+            
+            # Add to appropriate bucket
             if bucket == "koncern":
-                koncern_toks |= toks
+                koncern_companies |= company_names
+                koncern_toks |= company_names
             elif bucket == "intresse":
-                intresse_toks |= toks
+                intresse_companies |= company_names
+                intresse_toks |= company_names
             elif bucket == "ovriga":
-                ovriga_toks |= toks
+                ovriga_companies |= company_names
+                ovriga_toks |= company_names
 
         # if we found no tokens at all, nothing to do safely
         if not (koncern_toks or intresse_toks or ovriga_toks):
@@ -877,9 +930,18 @@ class DatabaseParser:
                 return
             t = _norm(cur_text)
             hits = set()
-            if any(tok and tok in t for tok in koncern_toks):  hits.add("koncern")
-            if any(tok and tok in t for tok in intresse_toks): hits.add("intresse")
-            if any(tok and tok in t for tok in ovriga_toks):   hits.add("ovriga")
+            
+            # Method 1: Pattern-based classification of voucher text
+            pattern_class = _classify_account_name(t)
+            if pattern_class:
+                hits.add(pattern_class)
+            
+            # Method 2: Company name matching
+            if any(tok and tok in t for tok in koncern_companies):  hits.add("koncern")
+            if any(tok and tok in t for tok in intresse_companies): hits.add("intresse")
+            if any(tok and tok in t for tok in ovriga_companies):   hits.add("ovriga")
+            
+            # Only classify if we have exactly one match (unambiguous)
             if len(hits) == 1:
                 b = next(iter(hits))
                 flow[b] += cur_mov_168
@@ -915,7 +977,7 @@ class DatabaseParser:
         abs_total = sum(abs(v) for v in flow.values())
         if abs_total < 0.5:
             # fallback: try #KONTO names of 168x themselves
-            # if a 168x kontonamn contains bucket words/tokens → attribute that whole account UB
+            # Use pattern matching and company name matching on 168x account names
             acct_name = {}
             for raw in sie_text.splitlines():
                 m = konto_re.match(raw.strip())
@@ -923,19 +985,37 @@ class DatabaseParser:
                     acct = int(m.group(1))
                     nm = m.group(2) or ""
                     if 1680 <= acct <= 1689:
-                        acct_name[acct] = _norm(nm)
+                        acct_name[acct] = nm
+            
             alloc = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
             for a in range(1680, 1690):
                 ub = float(current_accounts.get(str(a), 0.0))
                 if abs(ub) < 0.5:
                     continue
                 nm = acct_name.get(a, "")
-                if any(tok in nm for tok in koncern_toks):
-                    alloc["koncern"] += ub
-                elif any(tok in nm for tok in intresse_toks):
-                    alloc["intresse"] += ub
-                elif any(tok in nm for tok in ovriga_toks):
-                    alloc["ovriga"] += ub
+                if not nm:
+                    continue
+                
+                # Method 1: Pattern-based classification
+                pattern_class = _classify_account_name(nm)
+                if pattern_class:
+                    alloc[pattern_class] += ub
+                    continue
+                
+                # Method 2: Company name matching
+                nm_norm = _norm(nm)
+                matches = set()
+                if any(company in nm_norm for company in koncern_companies):
+                    matches.add("koncern")
+                if any(company in nm_norm for company in intresse_companies):
+                    matches.add("intresse")
+                if any(company in nm_norm for company in ovriga_companies):
+                    matches.add("ovriga")
+                
+                # Only allocate if unambiguous match
+                if len(matches) == 1:
+                    bucket = next(iter(matches))
+                    alloc[bucket] += ub
             # cap to total_168_ub (safety)
             cap = sum(alloc.values())
             if cap > total_168_ub and cap > 0:
