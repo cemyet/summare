@@ -644,7 +644,7 @@ class DatabaseParser:
                         result['previous_amount'] = previous_amount
                         break
         
-        # Apply 168x reclass before storing calculated values
+        # Apply 168x and 296x reclass before storing calculated values
         if USE_168X_RECLASS and sie_text:
             try:
                 self._reclassify_168x_short_term_group_receivables(
@@ -652,8 +652,13 @@ class DatabaseParser:
                     br_rows=results,
                     current_accounts=current_accounts
                 )
+                self._reclassify_296x_short_term_group_liabilities(
+                    sie_text=sie_text,
+                    br_rows=results,
+                    current_accounts=current_accounts
+                )
             except Exception as e:
-                print(f"168x reclass skipped due to error: {e}")
+                print(f"BR reclass skipped due to error: {e}")
         
         # Store calculated values in database for future use
         self.store_calculated_values(results, 'BR')
@@ -935,6 +940,211 @@ class DatabaseParser:
         if row_354 and added:
             cur = float(row_354.get("current_amount") or 0.0)
             row_354["current_amount"] = max(0.0, cur - added)
+    
+    # ----------------- 296x → 410/411/412 BR RECLASS (uses SIE text) -----------------
+    def _reclassify_296x_short_term_group_liabilities(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float]) -> None:
+        """
+        Reclassify accrued interest payables (2960–2969) from generic short-term
+        liabilities to:
+          410 Kortfristiga skulder till koncernföretag
+          411 Kortfristiga skulder till intresseföretag och gemensamt styrda företag
+          412 Kortfristiga skulder till övriga företag som det finns ett ägarintresse i
+
+        Rules (same philosophy as 168x):
+          • Learn company names/tokens from 13xx kontonamn:
+               1310–1329 => koncern
+               1330–1335, 1338–1345, 1348 => intresse
+               1336–1337, 1346–1347 => övriga (ägarlänkade)
+          • Strict text patterns on the 296x kontonamn:
+               övr/ovr + (företag|foretag|ftg) + (ägarintresse-variant) => övriga
+               "intresseföretag/intresseforetag/intresseftg" OR (intr* + företag/ftg) OR (gem* + styrda) => intresse
+               koncern|dotter|moder => koncern
+          • Contextual match on company phrases (e.g. "rh property", "flying parking", "guldkula", "dare").
+          • Per-account deterministic: whole UB of each 296x goes to one bucket or stays put if ambiguous.
+          • Convert 296x UB to BR sign (liability => add -UB).
+          • Subtract the reclassed sum from source row (prefer "Upplupna kostnader och förutbetalda intäkter").
+        """
+        import re, unicodedata
+
+        def _norm(s: str) -> str:
+            if not s: return ""
+            s = unicodedata.normalize("NFKD", s)
+            s = "".join(ch for ch in s if not unicodedata.combining(ch))
+            s = s.lower().replace("\u00a0", " ").replace("\t", " ")
+            return re.sub(r"\s+", " ", s).strip()
+
+        def _tokens(name: str) -> set[str]:
+            n = _norm(name)
+            words = re.findall(r"[a-zåäö]{2,}", n)
+            stop = {
+                "andel","andelar","aktie","aktier","ack","nedskrivn","nedskrivningar",
+                "villkorade","ovillkorade","aktieagartillskott","aktieägartillskott",
+                "koncernforetag","koncernföretag","intresseforetag","intresseföretag",
+                "dotterforetag","dotterföretag","gemensamt","styrda","ovriga","övriga",
+                "agarintresse","ägarintresse","foretag","företag","hos","det","finns","ett",
+                "kortfristiga","langfristiga","långfristiga","fordringar","fordran",
+                # legal/generic suffixes
+                "ab","kb","hb","oy","as","gmbh","bv","ltd","group","holding"
+            }
+            return {w for w in words if w not in stop}
+
+        def _company_phrases(name: str) -> set[str]:
+            n = _norm(name)
+            part = n.split(",", 1)[1].strip() if "," in n else n
+            part = re.sub(r"\b(andel(ar)?|aktier?|aktieagartillskott|aktieägartillskott|ack(umulerade)?|nedskrivningar?|kortfristiga|fordringar?)\b", " ", part)
+            part = re.sub(r"\b(ab|kb|hb|oy|as|gmbh|bv|ltd)\b\.?", " ", part)
+            words = re.findall(r"[a-zåäö]{2,}", part)
+            if not words: 
+                return set()
+            phrase = " ".join(words)
+            shards = set()
+            for i in range(len(words)-1):
+                shards.add(f"{words[i]} {words[i+1]}")
+            return {phrase} | shards
+
+        def _classify_by_patterns(text_norm: str) -> str | None:
+            # Övriga m. ägarintresse: must have all three components
+            has_ovr = bool(re.search(r"\b(övr|ovr)(iga)?\b", text_norm))
+            has_f   = bool(re.search(r"\b(företag|foretag|ftg)\b", text_norm))
+            has_ai  = bool(re.search(r"\b(ägarintresse|agarintresse|ägarint|agarint|ägarintr|agarintr)\b", text_norm))
+            if has_ovr and has_f and has_ai:
+                return "ovriga"
+            # Intresse
+            if re.search(r"\b(intresseföretag|intresseforetag|intresseftg)\b", text_norm):
+                return "intresse"
+            if re.search(r"\bintr\w+\b", text_norm) and has_f:
+                return "intresse"
+            if re.search(r"\bgem\w+\b", text_norm) and re.search(r"\bstyrda\b", text_norm):
+                return "intresse"
+            # Koncern
+            if re.search(r"\b(koncern|dotter|moder)\b", text_norm):
+                return "koncern"
+            return None
+
+        # any 296x UB at all?
+        total_296_raw = sum(float(current_accounts.get(str(a), 0.0)) for a in range(2960, 2970))
+        # Convert to BR sign (liabilities shown positive in BR)
+        total_296_br = -total_296_raw
+        if abs(total_296_br) < 0.5:
+            return
+
+        # learn company names from 13xx
+        konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"', re.IGNORECASE)
+        name_296x: dict[int, str] = {}
+
+        def _bucket_for_13xx(acct: int) -> str | None:
+            if 1310 <= acct <= 1329: return "koncern"
+            if (1330 <= acct <= 1335) or (1338 <= acct <= 1345) or acct == 1348: return "intresse"
+            if (1336 <= acct <= 1337) or (1346 <= acct <= 1347): return "ovriga"
+            return None
+
+        koncern_keys, intresse_keys, ovriga_keys = set(), set(), set()
+        koncern_phr,  intresse_phr,  ovriga_phr  = set(), set(), set()
+
+        for raw in sie_text.splitlines():
+            m = konto_re.match(raw.strip())
+            if not m:
+                continue
+            acct = int(m.group(1)); nm = m.group(2) or ""
+            if 2960 <= acct <= 2969:
+                name_296x[acct] = nm
+            b = _bucket_for_13xx(acct)
+            if not b:
+                continue
+            toks = _tokens(nm)
+            phr  = _company_phrases(nm)
+            if b == "koncern":
+                koncern_keys |= toks;  koncern_phr |= phr
+            elif b == "intresse":
+                intresse_keys |= toks; intresse_phr |= phr
+            else:
+                ovriga_keys |= toks;   ovriga_phr |= phr
+
+        if not (koncern_keys or intresse_keys or ovriga_keys or koncern_phr or intresse_phr or ovriga_phr):
+            return
+
+        # per-account deterministic allocation
+        alloc = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+        for a in range(2960, 2970):
+            ub_raw = float(current_accounts.get(str(a), 0.0))
+            if abs(ub_raw) < 0.5:
+                continue
+            # convert single-account UB to BR sign (liability => positive)
+            ub_br = -ub_raw
+            nm = name_296x.get(a, "") or ""
+            nmn = _norm(nm)
+
+            cat = _classify_by_patterns(nmn)
+            if cat:
+                alloc[cat] += ub_br
+                continue
+
+            # phrase matching first (unambiguous)
+            hits = set()
+            if any(p and p in nmn for p in koncern_phr):   hits.add("koncern")
+            if any(p and p in nmn for p in intresse_phr):  hits.add("intresse")
+            if any(p and p in nmn for p in ovriga_phr):    hits.add("ovriga")
+            if len(hits) == 1:
+                alloc[next(iter(hits))] += ub_br
+                continue
+            if len(hits) > 1:
+                # ambiguous → leave in source row
+                continue
+
+            # token overlap fallback (unambiguous only)
+            toks = _tokens(nm)
+            s_k = len(toks & koncern_keys)
+            s_i = len(toks & intresse_keys)
+            s_o = len(toks & ovriga_keys)
+            rank = sorted([("koncern", s_k), ("intresse", s_i), ("ovriga", s_o)], key=lambda x: x[1], reverse=True)
+            if rank[0][1] > 0 and rank[0][1] > rank[1][1]:
+                alloc[rank[0][0]] += ub_br
+            # else: ambiguous/no signal → no reclass for this account
+
+        # --- mutate BR rows ---
+        def _find_by_id(rows: List[Dict[str, Any]], rid: int):
+            for r in rows:
+                if str(r.get("id")) == str(rid):
+                    return r
+            return None
+
+        def _find_by_label(rows: List[Dict[str, Any]], text: str):
+            n = _norm(text)
+            for r in rows:
+                lbl = _norm(r.get("label") or r.get("row_title") or "")
+                if lbl == n:
+                    return r
+            for r in rows:
+                lbl = _norm(r.get("label") or r.get("row_title") or "")
+                if n in lbl:
+                    return r
+            return None
+
+        row_410 = _find_by_id(br_rows, 410) or _find_by_label(br_rows, "Kortfristiga skulder till koncernföretag")
+        row_411 = _find_by_id(br_rows, 411) or _find_by_label(br_rows, "Kortfristiga skulder till intresseföretag och gemensamt styrda företag")
+        row_412 = _find_by_id(br_rows, 412) or _find_by_label(br_rows, "Kortfristiga skulder till övriga företag som det finns ett ägarintresse i")
+
+        # source row (where 296x sits today)
+        row_src = (
+            _find_by_label(br_rows, "Upplupna kostnader och förutbetalda intäkter")
+            or _find_by_label(br_rows, "Upplupna kostnader")
+            or _find_by_id(br_rows, 418)  # common id in some mappings
+            or _find_by_label(br_rows, "Övriga kortfristiga skulder")
+            or _find_by_id(br_rows, 415)
+        )
+
+        added = 0.0
+        if row_410 and alloc["koncern"]:
+            row_410["current_amount"] = float(row_410.get("current_amount") or 0.0) + alloc["koncern"]; added += alloc["koncern"]
+        if row_411 and alloc["intresse"]:
+            row_411["current_amount"] = float(row_411.get("current_amount") or 0.0) + alloc["intresse"]; added += alloc["intresse"]
+        if row_412 and alloc["ovriga"]:
+            row_412["current_amount"] = float(row_412.get("current_amount") or 0.0) + alloc["ovriga"];   added += alloc["ovriga"]
+
+        # reduce source row by same total (not below zero)
+        if row_src and added:
+            cur = float(row_src.get("current_amount") or 0.0)
+            row_src["current_amount"] = max(0.0, cur - added)
     
     def _get_level_from_style(self, style: str) -> int:
         """Get hierarchy level from style"""
