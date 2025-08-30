@@ -82,7 +82,8 @@ class ReportGenerator:
             
             # Parse RR and BR data using new parser
             rr_data = self.database_parser.parse_rr_data(current_accounts, previous_accounts)
-            br_data = self.database_parser.parse_br_data(current_accounts, previous_accounts)
+            # Use koncern-aware BR parsing for automatic reconciliation with K2 notes
+            br_data = self.database_parser.parse_br_data_with_koncern(se_content, current_accounts, previous_accounts, rr_data)
             
             # Parse INK2 data (tax calculations)
             ink2_data = self.database_parser.parse_ink2_data(

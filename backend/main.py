@@ -101,7 +101,8 @@ async def upload_se_file(file: UploadFile = File(...)):
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
         
         # Pass RR data to BR parsing so calculated values from RR are available
-        br_data = parser.parse_br_data(current_accounts, previous_accounts, rr_data)
+        # Use koncern-aware BR parsing for automatic reconciliation with K2 notes
+        br_data = parser.parse_br_data_with_koncern(se_content, current_accounts, previous_accounts, rr_data)
         
         # Parse INK2 data (tax calculations) - pass RR data for variable references
         ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data)
@@ -304,7 +305,8 @@ async def test_parser(file: UploadFile = File(...)):
         current_accounts, previous_accounts, current_ib_accounts, previous_ib_accounts = parser.parse_account_balances(se_content)
         company_info = parser.extract_company_info(se_content)
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
-        br_data = parser.parse_br_data(current_accounts, previous_accounts)
+        # Use koncern-aware BR parsing for automatic reconciliation with K2 notes
+        br_data = parser.parse_br_data_with_koncern(se_content, current_accounts, previous_accounts, rr_data)
         
         print(f"Parsed {len(current_accounts)} current year accounts, {len(previous_accounts)} previous year accounts")
         print(f"Generated {len(rr_data)} RR items, {len(br_data)} BR items")

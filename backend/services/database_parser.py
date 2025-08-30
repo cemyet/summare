@@ -648,6 +648,100 @@ class DatabaseParser:
         
         return results
     
+    def reclass_using_koncern_note(self, br_rows: list[dict], koncern_note: dict, *, verbose: bool = True) -> list[dict]:
+        """
+        Make BR consistent with KONCERN note (K2):
+        - Force 'Andelar i koncernföretag' to match NOTE 'red_varde_koncern'
+          (row_id 329 / variable_name 'AndelarKoncernForetag').
+        - Offset the same delta by decreasing koncern receivables:
+          first 'FordringarKoncernForetagLang' (row_id 330), then
+          'FordringarKoncernForetagKort' (row_id 351).
+        - Only current year is adjusted; previous_amount is left as-is.
+        """
+
+        def _find(var: str = None, rid: int | None = None):
+            for r in br_rows:
+                if var and r.get('variable_name') == var:
+                    return r
+                if rid is not None and str(r.get('id')) == str(rid):
+                    return r
+            return None
+
+        if not koncern_note or 'red_varde_koncern' not in koncern_note:
+            if verbose:
+                print("KONCERN reclass skipped: no note or no 'red_varde_koncern'.")
+            return br_rows
+
+        target_book = float(koncern_note.get('red_varde_koncern') or 0.0)
+        if abs(target_book) < 0.5:
+            if verbose:
+                print("KONCERN reclass: red_varde_koncern is ~0 → nothing to do.")
+            return br_rows
+
+        # Rows we touch (verified against your BR CSV export)
+        row_andelar = _find(var='AndelarKoncernForetag') or _find(rid=329)
+        row_fordr_L = _find(var='FordringarKoncernForetagLang') or _find(rid=330)
+        row_fordr_K = _find(var='FordringarKoncernForetagKort') or _find(rid=351)
+
+        if not row_andelar:
+            if verbose:
+                print("KONCERN reclass aborted: 'AndelarKoncernForetag' not found in BR rows.")
+            return br_rows
+
+        current_andelar = float(row_andelar.get('current_amount') or 0.0)
+        delta = target_book - current_andelar
+        if abs(delta) < 0.5:
+            if verbose:
+                print(f"KONCERN reclass: Δ≈0 (andelar {current_andelar:.0f} ≈ note {target_book:.0f}).")
+            return br_rows
+
+        # 1) Force Andelar to NOTE
+        row_andelar['current_amount'] = current_andelar + delta
+        if verbose:
+            print(f"KONCERN reclass: AndelarKoncernForetag {current_andelar:.0f} → {row_andelar['current_amount']:.0f} (Δ={delta:.0f}).")
+
+        # 2) Offset the same Δ from koncern receivables so assets total stays unchanged
+        remaining = delta
+
+        def _pull_from(row: dict | None, amount: float) -> float:
+            if row is None or abs(amount) < 0.5:
+                return amount
+            cur = float(row.get('current_amount') or 0.0)
+            row['current_amount'] = cur - amount
+            return 0.0
+
+        if abs(remaining) >= 0.5:
+            remaining = _pull_from(row_fordr_L, remaining)
+        if abs(remaining) >= 0.5:
+            remaining = _pull_from(row_fordr_K, remaining)
+
+        if verbose and abs(remaining) >= 0.5:
+            print("KONCERN reclass warning: Could not offset full Δ via koncern receivables "
+                  f"(leftover {remaining:.0f}). Check BR mappings for #330/#351.")
+        return br_rows
+
+    def parse_br_data_with_koncern(self,
+                                   se_content: str,
+                                   current_accounts: Dict[str, float],
+                                   previous_accounts: Dict[str, float] = None,
+                                   rr_data: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """Regular BR parsing + KONCERN-note reconciliation for Andelar/fordringar."""
+        # 1) Normal BR
+        br_rows = self.parse_br_data(current_accounts, previous_accounts, rr_data=rr_data)
+
+        # 2) Parse KONCERN note and reconcile
+        try:
+            from .koncern_k2_parser import parse_koncern_k2_from_sie_text
+            koncern_note = parse_koncern_k2_from_sie_text(se_content, debug=False)
+        except Exception as e:
+            print(f"KONCERN note parse failed: {e}")
+            return br_rows
+
+        if os.getenv("BR_USE_KONCERN_NOTE", "true").lower() == "true":
+            br_rows = self.reclass_using_koncern_note(br_rows, koncern_note, verbose=True)
+
+        return br_rows
+    
     def _get_level_from_style(self, style: str) -> int:
         """Get hierarchy level from style"""
         style_map = {
