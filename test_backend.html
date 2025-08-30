@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Backend Test</title>
+</head>
+<body>
+    <h1>Test Backend Connection</h1>
+    
+    <h2>Health Check</h2>
+    <button onclick="testHealth()">Test Health</button>
+    <div id="health-result"></div>
+    
+    <h2>Test Parser</h2>
+    <input type="file" id="fileInput" accept=".se,.SE">
+    <button onclick="testParser()">Test Parser</button>
+    <div id="parser-result"></div>
+    
+    <script>
+        async function testHealth() {
+            try {
+                const response = await fetch('https://raketrapport.se/health');
+                const data = await response.json();
+                document.getElementById('health-result').innerHTML = 
+                    `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('health-result').innerHTML = 
+                    `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function testParser() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file first');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('https://raketrapport.se/test-parser', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                document.getElementById('parser-result').innerHTML = 
+                    `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('parser-result').innerHTML = 
+                    `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html> 

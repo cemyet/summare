@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Svenska Årsredovisning Design System - Inspirerat av svenska färger och modern fintech design */
+
+@layer base {
+  :root {
+    /* Custom color palette with exact specifications */
+    --background: 42 33% 98%; /* #fdfbf8 */
+    --foreground: 245 7% 25%; /* #3f3f47 */
+
+    /* Cards and surfaces */
+    --card: 42 33% 98%;
+    --card-foreground: 245 7% 25%;
+
+    /* Popover and tooltips */
+    --popover: 42 33% 98%;
+    --popover-foreground: 245 7% 25%;
+
+    /* Primary - Keep existing brown for accent elements */
+    --primary: 30 35% 45%;
+    --primary-foreground: 42 33% 98%;
+    --primary-hover: 30 35% 40%;
+
+    /* Secondary - Soft beige for user bubbles */
+    --secondary: 42 25% 95%;
+    --secondary-foreground: 245 7% 25%;
+
+    /* Muted - Soft beige bubble color #f8f4ee */
+    --muted: 42 25% 95%; /* #f8f4ee */
+    --muted-foreground: 245 7% 25%;
+
+    /* Accent - Warm gold */
+    --accent: 35 25% 80%;
+    --accent-foreground: 245 7% 25%;
+
+    /* Success - Muted green */
+    --success: 142 30% 45%;
+    --success-foreground: 42 33% 98%;
+
+    /* Destructive - Muted red */
+    --destructive: 0 50% 55%;
+    --destructive-foreground: 42 33% 98%;
+
+    /* Borders and inputs */
+    --border: 40 15% 88%;
+    --input: 40 15% 88%;
+    --ring: 30 35% 45%;
+
+    --radius: 0.75rem;
+
+    /* Gradients for visual depth */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(30 35% 35%));
+    --gradient-accent: linear-gradient(135deg, hsl(var(--accent)), hsl(35 25% 70%));
+    --gradient-bg: linear-gradient(135deg, hsl(var(--background)), hsl(42 25% 95%));
+
+    /* Shadows for elegance */
+    --shadow-soft: 0 2px 8px hsla(245 7% 25% / 0.04);
+    --shadow-medium: 0 4px 12px hsla(245 7% 25% / 0.08);
+    --shadow-strong: 0 8px 24px hsla(245 7% 25% / 0.12);
+
+    /* Chat-specific colors */
+    --chat-user: 30 35% 45%;
+    --chat-bot: 42 33% 98%;
+    --chat-bg: 42 33% 97%;
+
+    /* Sidebar colors */
+    --sidebar-background: 42 33% 97%;
+    --sidebar-foreground: 245 7% 25%;
+    --sidebar-primary: 30 35% 45%;
+    --sidebar-primary-foreground: 42 33% 98%;
+    --sidebar-accent: 42 25% 95%;
+    --sidebar-accent-foreground: 245 7% 25%;
+    --sidebar-border: 40 15% 88%;
+    --sidebar-ring: 30 35% 45%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif !important;
+  }
+  
+  .chat-message,
+  .chat-message * {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif !important;
+  }
+  
+  /* Force Inter font for all chat elements */
+  [class*="chat"], 
+  [class*="message"] {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif !important;
+  }
+}
