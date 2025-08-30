@@ -783,8 +783,13 @@ class DatabaseParser:
         # ---------- quick exits ----------
         # total UB on 1680–1689 (current year)
         total_168_ub = 0.0
+        print(f"DEBUG: Checking 168x accounts:")
         for a in range(1680, 1690):
-            total_168_ub += float(current_accounts.get(str(a), 0.0))
+            ub = float(current_accounts.get(str(a), 0.0))
+            if abs(ub) > 0.5:
+                print(f"DEBUG: Account {a} has UB: {ub}")
+            total_168_ub += ub
+        print(f"DEBUG: Total 168x UB: {total_168_ub}")
         if abs(total_168_ub) < 0.5:
             return  # nothing to reclass
 
@@ -831,27 +836,32 @@ class DatabaseParser:
             return None
 
         def _extract_company_names(name: str) -> set[str]:
-            """Extract company names from account description"""
+            """Extract company identifiers from account description - focus on actual company names"""
             name_norm = _norm(name)
+            print(f"DEBUG: Extracting from '{name}' → normalized: '{name_norm}'")
             
-            # Remove common prefixes/suffixes to isolate company names
-            # Pattern: "prefix, CompanyName AB" or "prefix CompanyName"
-            clean = re.sub(r'^(andelar?\s+i\s+|aktier?\s+|ack\s+nedskrivn?\w*\s+|villkorade?\s+|ovillkorade?\s+|aktieägartillskott\s*)', '', name_norm)
-            clean = re.sub(r'^(koncernföretag|koncernforetag|intresseföretag|intresseforetag|dotterfîretag|dotterforetag)\s*,?\s*', '', clean)
+            # Simple approach: extract all meaningful words, ignore relationship words
+            # Split on common separators and extract company identifiers
+            words = re.findall(r'[a-zåäö]{2,}', name_norm)
             
-            # Split on comma and extract meaningful parts
-            parts = [p.strip() for p in clean.split(',')]
-            company_names = set()
+            # Filter out financial/relationship terms but keep company identifiers
+            financial_terms = {
+                'andelar', 'andel', 'aktier', 'aktie', 'ack', 'nedskrivn', 'nedskrivningar',
+                'villkorade', 'ovillkorade', 'aktieagartillskott', 'koncernforetag', 'koncernföretag',
+                'intresseforetag', 'intresseföretag', 'dotterforetag', 'dotterföretag', 'dotterfîretag',
+                'kortfristiga', 'langfristiga', 'långfristiga', 'fordringar', 'fordran',
+                'koncern', 'intresse', 'gemensamt', 'styrda', 'ovriga', 'övriga', 'agarintresse', 'ägarintresse',
+                'foretag', 'företag', 'hos', 'det', 'finns', 'ett', 'som'
+            }
             
-            for part in parts:
-                # Remove company suffixes but keep the core name
-                core = re.sub(r'\s+(ab|kb|hb|holding|aktiebolag)$', '', part)
-                if len(core) >= 3 and not re.match(r'^(andelar?|aktier?|ack|villkorade?|ovillkorade?)$', core):
-                    # Split into meaningful tokens (2+ chars)
-                    tokens = re.findall(r'[a-zåäö]{2,}', core)
-                    company_names.update(tokens)
+            company_identifiers = set()
+            for word in words:
+                if len(word) >= 2 and word not in financial_terms:
+                    company_identifiers.add(word)
             
-            return company_names
+            print(f"DEBUG: All words: {words}")
+            print(f"DEBUG: Company identifiers: {company_identifiers}")
+            return company_identifiers
 
         # ---------- Build classification buckets ----------
         konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"', re.IGNORECASE)
@@ -894,12 +904,18 @@ class DatabaseParser:
             if bucket == "koncern":
                 koncern_companies |= company_names
                 koncern_toks |= company_names
+                if company_names:  # Debug logging
+                    print(f"DEBUG: Added koncern companies from {acct}: {company_names}")
             elif bucket == "intresse":
                 intresse_companies |= company_names
                 intresse_toks |= company_names
+                if company_names:  # Debug logging
+                    print(f"DEBUG: Added intresse companies from {acct}: {company_names}")
             elif bucket == "ovriga":
                 ovriga_companies |= company_names
                 ovriga_toks |= company_names
+                if company_names:  # Debug logging
+                    print(f"DEBUG: Added ovriga companies from {acct}: {company_names}")
 
         # if we found no tokens at all, nothing to do safely
         if not (koncern_toks or intresse_toks or ovriga_toks):
@@ -1005,17 +1021,29 @@ class DatabaseParser:
                 # Method 2: Company name matching
                 nm_norm = _norm(nm)
                 matches = set()
+                print(f"DEBUG: Checking 168x account {a} '{nm}' (normalized: '{nm_norm}')")
+                print(f"DEBUG: Available koncern companies: {koncern_companies}")
+                print(f"DEBUG: Available intresse companies: {intresse_companies}")
+                
                 if any(company in nm_norm for company in koncern_companies):
                     matches.add("koncern")
+                    print(f"DEBUG: Matched koncern for account {a}")
                 if any(company in nm_norm for company in intresse_companies):
                     matches.add("intresse")
+                    print(f"DEBUG: Matched intresse for account {a}")
                 if any(company in nm_norm for company in ovriga_companies):
                     matches.add("ovriga")
+                    print(f"DEBUG: Matched ovriga for account {a}")
                 
                 # Only allocate if unambiguous match
                 if len(matches) == 1:
                     bucket = next(iter(matches))
                     alloc[bucket] += ub
+                    print(f"DEBUG: Allocated {ub} to {bucket} bucket for account {a}")
+                elif len(matches) > 1:
+                    print(f"DEBUG: Ambiguous match for account {a}: {matches}")
+                else:
+                    print(f"DEBUG: No match for account {a}")
             # cap to total_168_ub (safety)
             cap = sum(alloc.values())
             if cap > total_168_ub and cap > 0:
@@ -1030,12 +1058,17 @@ class DatabaseParser:
         i_amt = float(alloc.get("intresse", 0.0))
         o_amt = float(alloc.get("ovriga", 0.0))
 
+        print(f"DEBUG: Raw allocation - koncern: {k_amt}, intresse: {i_amt}, ovriga: {o_amt}")
+        print(f"DEBUG: Total allocated: {k_amt + i_amt + o_amt}, Total 168x UB: {total_168_ub}")
+
         # final safety: numerical drift
         scale = 1.0
         s_alloc = k_amt + i_amt + o_amt
         if s_alloc > 0:
             scale = min(1.0, total_168_ub / s_alloc + 1e-12)
         k_amt *= scale; i_amt *= scale; o_amt *= scale
+        
+        print(f"DEBUG: Final allocation after scaling - koncern: {k_amt}, intresse: {i_amt}, ovriga: {o_amt}")
 
         # ---------- mutate BR rows (current year only) ----------
         def _find_row_contains(rows: List[Dict[str, Any]], needle: str) -> Optional[Dict[str, Any]]:
