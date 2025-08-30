@@ -4,6 +4,9 @@ Replaces hardcoded BR_STRUCTURE and RR_STRUCTURE with database queries
 """
 
 import os
+import re
+import unicodedata
+import math
 from typing import Dict, List, Any, Optional
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -15,6 +18,9 @@ load_dotenv()
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_ANON_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
+
+# Feature flags
+USE_168X_RECLASS = os.getenv("USE_168X_RECLASS", "1") == "1"  # default ON
 
 class DatabaseParser:
     """Database-driven parser for financial data"""
@@ -564,7 +570,7 @@ class DatabaseParser:
         
         return 0
     
-    def parse_br_data(self, current_accounts: Dict[str, float], previous_accounts: Dict[str, float] = None, rr_data: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def parse_br_data(self, current_accounts: Dict[str, float], previous_accounts: Dict[str, float] = None, rr_data: List[Dict[str, Any]] = None, sie_text: Optional[str] = None) -> List[Dict[str, Any]]:
         """Parse BR (Balansräkning) data using database mappings"""
         if not self.br_mappings:
             return []
@@ -637,6 +643,17 @@ class DatabaseParser:
                         result['current_amount'] = current_amount
                         result['previous_amount'] = previous_amount
                         break
+        
+        # Apply 168x reclass before storing calculated values
+        if USE_168X_RECLASS and sie_text:
+            try:
+                self._reclassify_168x_short_term_group_receivables(
+                    sie_text=sie_text,
+                    br_rows=results,
+                    current_accounts=current_accounts
+                )
+            except Exception as e:
+                print(f"168x reclass skipped due to error: {e}")
         
         # Store calculated values in database for future use
         self.store_calculated_values(results, 'BR')
@@ -726,8 +743,8 @@ class DatabaseParser:
                                    previous_accounts: Dict[str, float] = None,
                                    rr_data: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """Regular BR parsing + KONCERN-note reconciliation for Andelar/fordringar."""
-        # 1) Normal BR
-        br_rows = self.parse_br_data(current_accounts, previous_accounts, rr_data=rr_data)
+        # 1) Normal BR (with 168x reclass)
+        br_rows = self.parse_br_data(current_accounts, previous_accounts, rr_data=rr_data, sie_text=se_content)
 
         # 2) Parse KONCERN note and reconcile
         try:
@@ -741,6 +758,238 @@ class DatabaseParser:
             br_rows = self.reclass_using_koncern_note(br_rows, koncern_note, verbose=True)
 
         return br_rows
+    
+    # ----------------- 168x → 351/352/353 BR RECLASS (uses SIE text) -----------------
+    def _reclassify_168x_short_term_group_receivables(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float]) -> None:
+        """
+        Reclassify Övriga kortfristiga fordringar (row 354) to group receivable rows
+        (351/352/353) when 1680–1689 are used for counterparties that match
+        name snippets found in 13xx kontonamn.
+
+        Heuristic:
+          1) Build token sets from #KONTO names in:
+             - 1310–1329 → koncern
+             - 1330–1335, 1338–1345, 1348 → intresse/gemensamt styrda
+             - 1336–1337, 1346–1347 → övriga m. ägarintresse
+          2) Scan verifikat with 1680–1689 lines; if header text matches tokens
+             from exactly one bucket, attribute that voucher's 168x movement to that bucket.
+          3) Convert movement proportions → UB allocation (cap to total 168x UB).
+          4) Adjust BR rows:
+             - add to: 351/352/353
+             - subtract the same total from: 354 (not below zero).
+        Only current year amounts are touched.
+        """
+
+        # ---------- quick exits ----------
+        # total UB on 1680–1689 (current year)
+        total_168_ub = 0.0
+        for a in range(1680, 1690):
+            total_168_ub += float(current_accounts.get(str(a), 0.0))
+        if abs(total_168_ub) < 0.5:
+            return  # nothing to reclass
+
+        # ---------- helpers ----------
+        def _norm(s: str) -> str:
+            if not s:
+                return ""
+            s = unicodedata.normalize("NFKD", s)
+            s = "".join(ch for ch in s if not unicodedata.combining(ch))
+            s = s.lower().replace("\u00a0", " ").replace("\t", " ")
+            s = re.sub(r"\s+", " ", s).strip()
+            return s
+
+        STOP = {
+            "andel", "andelar", "aktie", "aktier", "koncernföretag", "koncernforetag",
+            "koncern", "dotter", "intresseföretag", "intresseforetag", "gemensamt",
+            "styrda", "företag", "foretag", "ovriga", "övriga", "ägarintresse", "agarintresse",
+            "fordran", "fordringar", "ränta", "ranta", "lån", "lan", "avräkning", "avrakning",
+            "kortfristiga", "långfristiga", "langfristiga", "hos", "i", "m", "ab", "kb", "hb",
+            "holding", "group", "bolag", "aktiebolag", "as", "oy", "gmbh", "ltd", "inc", "co"
+        }
+
+        def _tokens_from_name(name: str) -> set[str]:
+            name = _norm(name)
+            # split on non-letters/digits (keep åäö as letters)
+            parts = re.split(r"[^a-z0-9åäö]+", name)
+            toks = {p for p in parts if len(p) >= 3 and p not in STOP and not p.isdigit()}
+            return toks
+
+        # ---------- read #KONTO names and build token buckets ----------
+        konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"', re.IGNORECASE)
+        koncern_toks: set[str] = set()
+        intresse_toks: set[str] = set()
+        ovriga_toks: set[str] = set()
+
+        def _bucket_for_acct(acct: int) -> str | None:
+            if 1310 <= acct <= 1329:
+                return "koncern"
+            # intresse/gemensamt: 1330–1335 + 1338–1345 + 1348
+            if (1330 <= acct <= 1335) or (1338 <= acct <= 1345) or (acct == 1348):
+                return "intresse"
+            # övriga ägarintresse: 1336–1337 + 1346–1347
+            if (1336 <= acct <= 1337) or (1346 <= acct <= 1347):
+                return "ovriga"
+            return None
+
+        for raw in sie_text.splitlines():
+            m = konto_re.match(raw.strip())
+            if not m:
+                continue
+            acct = int(m.group(1))
+            nm = m.group(2) or ""
+            bucket = _bucket_for_acct(acct)
+            if not bucket:
+                continue
+            toks = _tokens_from_name(nm)
+            if bucket == "koncern":
+                koncern_toks |= toks
+            elif bucket == "intresse":
+                intresse_toks |= toks
+            elif bucket == "ovriga":
+                ovriga_toks |= toks
+
+        # if we found no tokens at all, nothing to do safely
+        if not (koncern_toks or intresse_toks or ovriga_toks):
+            return
+
+        # ---------- scan vouchers & movements on 168x ----------
+        ver_header_re = re.compile(r'^#VER\s+\S+\s+\d+\s+\d{8}(?:\s+(?:"([^"]*)"|(.+)))?\s*$', re.IGNORECASE)
+        trans_re = re.compile(
+            r'^#(?:BTRANS|RTRANS|TRANS)\s+'
+            r'(\d{3,4})'
+            r'(?:\s+\{.*?\})?'
+            r'\s+(-?(?:\d{1,3}(?:[ \u00A0]?\d{3})*|\d+)(?:[.,]\d+)?)'
+            r'(?:\s+\d{8})?'
+            r'(?:\s+".*?")?'
+            r'\s*$',
+            re.IGNORECASE
+        )
+        in_block = False
+        cur_text = ""
+        cur_mov_168 = 0.0
+
+        # raw movement attribution (signed); we'll use absolute proportions later
+        flow = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+
+        def flush_voucher():
+            nonlocal cur_text, cur_mov_168
+            if abs(cur_mov_168) < 0.5:
+                return
+            t = _norm(cur_text)
+            hits = set()
+            if any(tok and tok in t for tok in koncern_toks):  hits.add("koncern")
+            if any(tok and tok in t for tok in intresse_toks): hits.add("intresse")
+            if any(tok and tok in t for tok in ovriga_toks):   hits.add("ovriga")
+            if len(hits) == 1:
+                b = next(iter(hits))
+                flow[b] += cur_mov_168
+            # ambiguous → ignore; we only classify clean hits
+            cur_text = ""
+            cur_mov_168 = 0.0
+
+        for raw in sie_text.splitlines():
+            s = raw.strip()
+            if s.startswith("#VER"):
+                flush_voucher()
+                m = ver_header_re.match(s)
+                cur_text = (m.group(1) or m.group(2) or "") if m else ""
+                continue
+            if s == "{":
+                in_block = True
+                continue
+            if s == "}":
+                in_block = False
+                flush_voucher()
+                continue
+            if in_block:
+                mt = trans_re.match(s)
+                if not mt:
+                    continue
+                acct = int(mt.group(1))
+                amt = float(mt.group(2).replace(" ", "").replace(",", "."))
+                if 1680 <= acct <= 1689:
+                    # movement on 168x within voucher
+                    cur_mov_168 += amt
+
+        # ---------- convert flows to UB allocation ----------
+        abs_total = sum(abs(v) for v in flow.values())
+        if abs_total < 0.5:
+            # fallback: try #KONTO names of 168x themselves
+            # if a 168x kontonamn contains bucket words/tokens → attribute that whole account UB
+            acct_name = {}
+            for raw in sie_text.splitlines():
+                m = konto_re.match(raw.strip())
+                if m:
+                    acct = int(m.group(1))
+                    nm = m.group(2) or ""
+                    if 1680 <= acct <= 1689:
+                        acct_name[acct] = _norm(nm)
+            alloc = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+            for a in range(1680, 1690):
+                ub = float(current_accounts.get(str(a), 0.0))
+                if abs(ub) < 0.5:
+                    continue
+                nm = acct_name.get(a, "")
+                if any(tok in nm for tok in koncern_toks):
+                    alloc["koncern"] += ub
+                elif any(tok in nm for tok in intresse_toks):
+                    alloc["intresse"] += ub
+                elif any(tok in nm for tok in ovriga_toks):
+                    alloc["ovriga"] += ub
+            # cap to total_168_ub (safety)
+            cap = sum(alloc.values())
+            if cap > total_168_ub and cap > 0:
+                k = total_168_ub / cap
+                for b in alloc:
+                    alloc[b] *= k
+        else:
+            # proportionally distribute total_168_ub by absolute flows
+            alloc = {b: total_168_ub * (abs(v) / abs_total) for b, v in flow.items()}
+
+        k_amt = float(alloc.get("koncern", 0.0))
+        i_amt = float(alloc.get("intresse", 0.0))
+        o_amt = float(alloc.get("ovriga", 0.0))
+
+        # final safety: numerical drift
+        scale = 1.0
+        s_alloc = k_amt + i_amt + o_amt
+        if s_alloc > 0:
+            scale = min(1.0, total_168_ub / s_alloc + 1e-12)
+        k_amt *= scale; i_amt *= scale; o_amt *= scale
+
+        # ---------- mutate BR rows (current year only) ----------
+        def _find_row_contains(rows: List[Dict[str, Any]], needle: str) -> Optional[Dict[str, Any]]:
+            n = _norm(needle)
+            for r in rows:
+                title = _norm(r.get("label") or r.get("row_title") or "")
+                if title == n:
+                    return r
+            # fallback: substring
+            for r in rows:
+                title = _norm(r.get("label") or r.get("row_title") or "")
+                if n in title:
+                    return r
+            return None
+
+        row_351 = _find_row_contains(br_rows, "Kortfristiga fordringar hos koncernföretag")
+        row_352 = _find_row_contains(br_rows, "Kortfristiga fordringar hos intresseföretag och gemensamt styrda företag")
+        row_353 = _find_row_contains(br_rows, "Kortfristiga fordringar hos övriga företag som det finns ett ägarintresse i")
+        row_354 = _find_row_contains(br_rows, "Övriga kortfristiga fordringar")
+
+        added_total = 0.0
+        if row_351 and k_amt:
+            row_351["current_amount"] = float(row_351.get("current_amount") or 0.0) + k_amt
+            added_total += k_amt
+        if row_352 and i_amt:
+            row_352["current_amount"] = float(row_352.get("current_amount") or 0.0) + i_amt
+            added_total += i_amt
+        if row_353 and o_amt:
+            row_353["current_amount"] = float(row_353.get("current_amount") or 0.0) + o_amt
+            added_total += o_amt
+
+        if row_354 and added_total:
+            cur = float(row_354.get("current_amount") or 0.0)
+            row_354["current_amount"] = max(0.0, cur - added_total)
     
     def _get_level_from_style(self, style: str) -> int:
         """Get hierarchy level from style"""
