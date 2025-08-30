@@ -281,6 +281,15 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         // Preserve existing numeric value if not being edited
         preservedAmounts.justering_sarskild_loneskatt = companyData.justeringSarskildLoneskatt;
         console.log('Preserving existing justering_sarskild_loneskatt:', companyData.justeringSarskildLoneskatt);
+      } else {
+        // Check if there's an existing INK_sarskild_loneskatt value in the current ink2_data that needs to be preserved
+        const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+        const existingSarskildRow = currentData.find((item: any) => item.variable_name === 'INK_sarskild_loneskatt');
+        if (existingSarskildRow && existingSarskildRow.amount && existingSarskildRow.amount !== 0) {
+          // Preserve the existing value by converting it to justering_sarskild_loneskatt
+          preservedAmounts.justering_sarskild_loneskatt = existingSarskildRow.amount;
+          console.log('Preserving existing INK_sarskild_loneskatt from ink2_data:', existingSarskildRow.amount);
+        }
       }
       
       // Call backend API to recalculate INK2 values using API service
