@@ -761,348 +761,180 @@ class DatabaseParser:
     
     # ----------------- 168x → 351/352/353 BR RECLASS (uses SIE text) -----------------
     def _reclassify_168x_short_term_group_receivables(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float]) -> None:
-        """
-        Reclassify Övriga kortfristiga fordringar (row 354) to group receivable rows
-        (351/352/353) when 1680–1689 are used for counterparties that match
-        name snippets found in 13xx kontonamn.
+        import re, unicodedata
 
-        Heuristic:
-          1) Build token sets from #KONTO names in:
-             - 1310–1329 → koncern
-             - 1330–1335, 1338–1345, 1348 → intresse/gemensamt styrda
-             - 1336–1337, 1346–1347 → övriga m. ägarintresse
-          2) Scan verifikat with 1680–1689 lines; if header text matches tokens
-             from exactly one bucket, attribute that voucher's 168x movement to that bucket.
-          3) Convert movement proportions → UB allocation (cap to total 168x UB).
-          4) Adjust BR rows:
-             - add to: 351/352/353
-             - subtract the same total from: 354 (not below zero).
-        Only current year amounts are touched.
-        """
-
-        # ---------- quick exits ----------
-        # total UB on 1680–1689 (current year)
-        total_168_ub = 0.0
-        print(f"DEBUG: Checking 168x accounts:")
-        for a in range(1680, 1690):
-            ub = float(current_accounts.get(str(a), 0.0))
-            if abs(ub) > 0.5:
-                print(f"DEBUG: Account {a} has UB: {ub}")
-            total_168_ub += ub
-        print(f"DEBUG: Total 168x UB: {total_168_ub}")
-        if abs(total_168_ub) < 0.5:
-            return  # nothing to reclass
-
-        # ---------- helpers ----------
         def _norm(s: str) -> str:
-            if not s:
-                return ""
+            if not s: return ""
             s = unicodedata.normalize("NFKD", s)
             s = "".join(ch for ch in s if not unicodedata.combining(ch))
             s = s.lower().replace("\u00a0", " ").replace("\t", " ")
-            s = re.sub(r"\s+", " ", s).strip()
-            return s
+            return re.sub(r"\s+", " ", s).strip()
 
-        # ---------- Pattern-based classification with company name extraction ----------
-        def _classify_account_name(name: str) -> str | None:
-            """Classify account name using pattern matching"""
-            name_norm = _norm(name)
-            
-            # Pattern 1: övriga + (företag|ftg) + (ägarintresse|ägarint|ägarintr)
-            ovriga_patterns = [
-                r"övriga.*företag.*ägarintresse", r"ovriga.*foretag.*agarintresse",
-                r"övriga.*ftg.*ägarint", r"ovriga.*ftg.*agarint",
-                r"ägarintresse.*övriga.*företag", r"agarintresse.*ovriga.*foretag"
-            ]
-            if any(re.search(p, name_norm) for p in ovriga_patterns):
-                return "ovriga"
-            
-            # Pattern 2: intresseföretag OR (intr* + företag) OR (gemensamt + styrda)
-            intresse_patterns = [
-                r"intresseföretag", r"intresseforetag", r"intresseftg",
-                r"intr\w*.*företag", r"intr\w*.*foretag", r"intr\w*.*ftg",
-                r"gemensamt.*styrda", r"gem\w*.*styrda"
-            ]
-            if any(re.search(p, name_norm) for p in intresse_patterns):
-                return "intresse"
-            
-            # Pattern 3: koncern/dotter/moder
-            koncern_patterns = [
-                r"koncern", r"dotter", r"moder"
-            ]
-            if any(re.search(p, name_norm) for p in koncern_patterns):
-                return "koncern"
-            
-            return None
-
-        def _extract_company_names(name: str) -> set[str]:
-            """Extract company identifiers from account description - focus on actual company names"""
-            name_norm = _norm(name)
-            print(f"DEBUG: Extracting from '{name}' → normalized: '{name_norm}'")
-            
-            # Simple approach: extract all meaningful words, ignore relationship words
-            # Split on common separators and extract company identifiers
-            words = re.findall(r'[a-zåäö]{2,}', name_norm)
-            
-            # Filter out financial/relationship terms but keep company identifiers
-            financial_terms = {
-                'andelar', 'andel', 'aktier', 'aktie', 'ack', 'nedskrivn', 'nedskrivningar',
-                'villkorade', 'ovillkorade', 'aktieagartillskott', 'koncernforetag', 'koncernföretag',
-                'intresseforetag', 'intresseföretag', 'dotterforetag', 'dotterföretag', 'dotterfîretag',
-                'kortfristiga', 'langfristiga', 'långfristiga', 'fordringar', 'fordran',
-                'koncern', 'intresse', 'gemensamt', 'styrda', 'ovriga', 'övriga', 'agarintresse', 'ägarintresse',
-                'foretag', 'företag', 'hos', 'det', 'finns', 'ett', 'som'
+        def _tokens(name: str) -> set[str]:
+            n = _norm(name)
+            words = re.findall(r"[a-zåäö]{2,}", n)
+            stop = {
+                # relationship/financial
+                "andel","andelar","aktie","aktier","ack","nedskrivn","nedskrivningar",
+                "villkorade","ovillkorade","aktieagartillskott","aktieägartillskott",
+                "koncernforetag","koncernföretag","intresseforetag","intresseföretag",
+                "dotterforetag","dotterföretag","gemensamt","styrda","ovriga","övriga",
+                "agarintresse","ägarintresse","foretag","företag","hos","det","finns","ett",
+                "kortfristiga","langfristiga","långfristiga","fordringar","fordran",
+                # very generic legal forms
+                "ab","kb","hb","oy","as","gmbh","bv","ltd","group","holding"
             }
-            
-            company_identifiers = set()
-            for word in words:
-                if len(word) >= 2 and word not in financial_terms:
-                    company_identifiers.add(word)
-            
-            print(f"DEBUG: All words: {words}")
-            print(f"DEBUG: Company identifiers: {company_identifiers}")
-            return company_identifiers
+            return {w for w in words if w not in stop}
 
-        # ---------- Build classification buckets ----------
-        konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"', re.IGNORECASE)
-        
-        # Company name sets for each bucket
-        koncern_companies: set[str] = set()
-        intresse_companies: set[str] = set()
-        ovriga_companies: set[str] = set()
-        
-        # Pattern-based classification results
-        koncern_toks: set[str] = set()
-        intresse_toks: set[str] = set()
-        ovriga_toks: set[str] = set()
+        def _company_phrases(name: str) -> set[str]:
+            """
+            Extract clean company phrase(s) from kontonamn:
+            - prefer part after comma; otherwise use full string minus relationship words & legal suffixes.
+            - keep 2+ letter words; join into 'brand phrases' like 'rh property', 'flying parking'.
+            """
+            n = _norm(name)
+            part = n.split(",", 1)[1].strip() if "," in n else n
+            # remove common relationship lead-ins
+            part = re.sub(r"\b(andel(ar)?|aktier|aktieagartillskott|aktieägartillskott|ack(umulerade)?|nedskrivningar?|kortfristiga|fordringar?)\b", " ", part)
+            # drop legal suffixes at end
+            part = re.sub(r"\b(ab|kb|hb|oy|as|gmbh|bv|ltd)\b\.?", " ", part)
+            words = re.findall(r"[a-zåäö]{2,}", part)
+            if not words: 
+                return set()
+            # assemble a single main phrase, and also include 2-gram shards for robustness
+            phrase = " ".join(words)
+            shards = set()
+            for i in range(len(words)-1):
+                shards.add(f"{words[i]} {words[i+1]}")
+            return {phrase} | shards
 
-        def _bucket_for_acct(acct: int) -> str | None:
-            if 1310 <= acct <= 1329:
-                return "koncern"
-            # intresse/gemensamt: 1330–1335 + 1338–1345 + 1348
-            if (1330 <= acct <= 1335) or (1338 <= acct <= 1345) or (acct == 1348):
-                return "intresse"
-            # övriga ägarintresse: 1336–1337 + 1346–1347
-            if (1336 <= acct <= 1337) or (1346 <= acct <= 1347):
+        # --- strict pattern classification for voucher/account texts ---
+        def _classify_by_patterns(text_norm: str) -> str | None:
+            # Övriga m. ägarintresse: need ALL three components
+            has_ovr = bool(re.search(r"\b(övr|ovr)(iga)?\b", text_norm))
+            has_f = bool(re.search(r"\b(företag|foretag|ftg)\b", text_norm))
+            has_ai = bool(re.search(r"\b(ägarintresse|agarintresse|ägarint|agarint|ägarintr|agarintr)\b", text_norm))
+            if has_ovr and has_f and has_ai:
                 return "ovriga"
+
+            # Intresse: keyword or combos
+            if re.search(r"\b(intresseföretag|intresseforetag|intresseftg)\b", text_norm):
+                return "intresse"
+            if re.search(r"\bintr\w+\b", text_norm) and has_f:
+                return "intresse"
+            if re.search(r"\bgem\w+\b", text_norm) and re.search(r"\bstyrda\b", text_norm):
+                return "intresse"
+
+            # Koncern: koncern/dotter/moder
+            if re.search(r"\b(koncern|dotter|moder)\b", text_norm):
+                return "koncern"
+
             return None
+
+        # ---------- quick exit: any 168x UB? ----------
+        total_168_ub = sum(float(current_accounts.get(str(a), 0.0)) for a in range(1680, 1690))
+        if abs(total_168_ub) < 0.5:
+            return
+
+        konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"', re.IGNORECASE)
+
+        # learn tokens & phrases from 13xx
+        koncern_keys, intresse_keys, ovriga_keys = set(), set(), set()
+        koncern_phr,  intresse_phr,  ovriga_phr  = set(), set(), set()
+
+        def _bucket_for_13xx(acct: int) -> str | None:
+            if 1310 <= acct <= 1329: return "koncern"
+            if (1330 <= acct <= 1335) or (1338 <= acct <= 1345) or acct == 1348: return "intresse"
+            if (1336 <= acct <= 1337) or (1346 <= acct <= 1347): return "ovriga"
+            return None
+
+        # also map 168x kontonamn for per-account classification
+        name_168x: dict[int, str] = {}
 
         for raw in sie_text.splitlines():
             m = konto_re.match(raw.strip())
-            if not m:
+            if not m: 
                 continue
             acct = int(m.group(1))
             nm = m.group(2) or ""
-            bucket = _bucket_for_acct(acct)
-            if not bucket:
+            if 1680 <= acct <= 1689:
+                name_168x[acct] = nm
+            b = _bucket_for_13xx(acct)
+            if not b:
                 continue
-            
-            # Extract company names for this account
-            company_names = _extract_company_names(nm)
-            
-            # Add to appropriate bucket
-            if bucket == "koncern":
-                koncern_companies |= company_names
-                koncern_toks |= company_names
-                if company_names:  # Debug logging
-                    print(f"DEBUG: Added koncern companies from {acct}: {company_names}")
-            elif bucket == "intresse":
-                intresse_companies |= company_names
-                intresse_toks |= company_names
-                if company_names:  # Debug logging
-                    print(f"DEBUG: Added intresse companies from {acct}: {company_names}")
-            elif bucket == "ovriga":
-                ovriga_companies |= company_names
-                ovriga_toks |= company_names
-                if company_names:  # Debug logging
-                    print(f"DEBUG: Added ovriga companies from {acct}: {company_names}")
+            toks = _tokens(nm)
+            phr  = _company_phrases(nm)
+            if b == "koncern":
+                koncern_keys |= toks;  koncern_phr |= phr
+            elif b == "intresse":
+                intresse_keys |= toks; intresse_phr |= phr
+            else:
+                ovriga_keys |= toks;   ovriga_phr |= phr
 
-        # if we found no tokens at all, nothing to do safely
-        if not (koncern_toks or intresse_toks or ovriga_toks):
+        if not (koncern_keys or intresse_keys or ovriga_keys or koncern_phr or intresse_phr or ovriga_phr):
             return
 
-        # ---------- scan vouchers & movements on 168x ----------
-        ver_header_re = re.compile(r'^#VER\s+\S+\s+\d+\s+\d{8}(?:\s+(?:"([^"]*)"|(.+)))?\s*$', re.IGNORECASE)
-        trans_re = re.compile(
-            r'^#(?:BTRANS|RTRANS|TRANS)\s+'
-            r'(\d{3,4})'
-            r'(?:\s+\{.*?\})?'
-            r'\s+(-?(?:\d{1,3}(?:[ \u00A0]?\d{3})*|\d+)(?:[.,]\d+)?)'
-            r'(?:\s+\d{8})?'
-            r'(?:\s+".*?")?'
-            r'\s*$',
-            re.IGNORECASE
-        )
-        in_block = False
-        cur_text = ""
-        cur_mov_168 = 0.0
+        # ---- per-account deterministic classification ----
+        alloc = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
 
-        # raw movement attribution (signed); we'll use absolute proportions later
-        flow = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+        for a in range(1680, 1690):
+            ub = float(current_accounts.get(str(a), 0.0))
+            if abs(ub) < 0.5:
+                continue
+            nm = name_168x.get(a, "") or ""
+            nmn = _norm(nm)
 
-        def flush_voucher():
-            nonlocal cur_text, cur_mov_168
-            if abs(cur_mov_168) < 0.5:
-                return
-            t = _norm(cur_text)
+            # 1) strict pattern match on the 168x name itself
+            cat = _classify_by_patterns(nmn)
+            if cat:
+                alloc[cat] += ub
+                continue
+
+            # 2) phrase (company name) matching – unambiguous only
             hits = set()
-            
-            # Method 1: Pattern-based classification of voucher text
-            pattern_class = _classify_account_name(t)
-            if pattern_class:
-                hits.add(pattern_class)
-            
-            # Method 2: Company name matching
-            if any(tok and tok in t for tok in koncern_companies):  hits.add("koncern")
-            if any(tok and tok in t for tok in intresse_companies): hits.add("intresse")
-            if any(tok and tok in t for tok in ovriga_companies):   hits.add("ovriga")
-            
-            # Only classify if we have exactly one match (unambiguous)
+            if any(p and p in nmn for p in koncern_phr):   hits.add("koncern")
+            if any(p and p in nmn for p in intresse_phr):  hits.add("intresse")
+            if any(p and p in nmn for p in ovriga_phr):    hits.add("ovriga")
             if len(hits) == 1:
-                b = next(iter(hits))
-                flow[b] += cur_mov_168
-            # ambiguous → ignore; we only classify clean hits
-            cur_text = ""
-            cur_mov_168 = 0.0
-
-        for raw in sie_text.splitlines():
-            s = raw.strip()
-            if s.startswith("#VER"):
-                flush_voucher()
-                m = ver_header_re.match(s)
-                cur_text = (m.group(1) or m.group(2) or "") if m else ""
+                alloc[next(iter(hits))] += ub
                 continue
-            if s == "{":
-                in_block = True
+            if len(hits) > 1:
+                # ambiguous → leave in 354
                 continue
-            if s == "}":
-                in_block = False
-                flush_voucher()
-                continue
-            if in_block:
-                mt = trans_re.match(s)
-                if not mt:
-                    continue
-                acct = int(mt.group(1))
-                amt = float(mt.group(2).replace(" ", "").replace(",", "."))
-                if 1680 <= acct <= 1689:
-                    # movement on 168x within voucher
-                    cur_mov_168 += amt
 
-        # ---------- convert flows to UB allocation ----------
-        abs_total = sum(abs(v) for v in flow.values())
-        if abs_total < 0.5:
-            # fallback: try #KONTO names of 168x themselves
-            # Use pattern matching and company name matching on 168x account names
-            acct_name = {}
-            for raw in sie_text.splitlines():
-                m = konto_re.match(raw.strip())
-                if m:
-                    acct = int(m.group(1))
-                    nm = m.group(2) or ""
-                    if 1680 <= acct <= 1689:
-                        acct_name[acct] = nm
-            
-            alloc = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
-            for a in range(1680, 1690):
-                ub = float(current_accounts.get(str(a), 0.0))
-                if abs(ub) < 0.5:
-                    continue
-                nm = acct_name.get(a, "")
-                if not nm:
-                    continue
-                
-                # Method 1: Pattern-based classification
-                pattern_class = _classify_account_name(nm)
-                if pattern_class:
-                    alloc[pattern_class] += ub
-                    continue
-                
-                # Method 2: Company name matching
-                nm_norm = _norm(nm)
-                matches = set()
-                print(f"DEBUG: Checking 168x account {a} '{nm}' (normalized: '{nm_norm}')")
-                print(f"DEBUG: Available koncern companies: {koncern_companies}")
-                print(f"DEBUG: Available intresse companies: {intresse_companies}")
-                
-                if any(company in nm_norm for company in koncern_companies):
-                    matches.add("koncern")
-                    print(f"DEBUG: Matched koncern for account {a}")
-                if any(company in nm_norm for company in intresse_companies):
-                    matches.add("intresse")
-                    print(f"DEBUG: Matched intresse for account {a}")
-                if any(company in nm_norm for company in ovriga_companies):
-                    matches.add("ovriga")
-                    print(f"DEBUG: Matched ovriga for account {a}")
-                
-                # Only allocate if unambiguous match
-                if len(matches) == 1:
-                    bucket = next(iter(matches))
-                    alloc[bucket] += ub
-                    print(f"DEBUG: Allocated {ub} to {bucket} bucket for account {a}")
-                elif len(matches) > 1:
-                    print(f"DEBUG: Ambiguous match for account {a}: {matches}")
-                else:
-                    print(f"DEBUG: No match for account {a}")
-            # cap to total_168_ub (safety)
-            cap = sum(alloc.values())
-            if cap > total_168_ub and cap > 0:
-                k = total_168_ub / cap
-                for b in alloc:
-                    alloc[b] *= k
-        else:
-            # proportionally distribute total_168_ub by absolute flows
-            alloc = {b: total_168_ub * (abs(v) / abs_total) for b, v in flow.items()}
+            # 3) token overlap fallback
+            toks = _tokens(nm)
+            s_k = len(toks & koncern_keys)
+            s_i = len(toks & intresse_keys)
+            s_o = len(toks & ovriga_keys)
+            ranked = sorted([("koncern", s_k), ("intresse", s_i), ("ovriga", s_o)], key=lambda x: x[1], reverse=True)
+            if ranked[0][1] > 0 and ranked[0][1] > ranked[1][1]:
+                alloc[ranked[0][0]] += ub
+            # else ambiguous/no signal → stays in 354
 
-        k_amt = float(alloc.get("koncern", 0.0))
-        i_amt = float(alloc.get("intresse", 0.0))
-        o_amt = float(alloc.get("ovriga", 0.0))
-
-        print(f"DEBUG: Raw allocation - koncern: {k_amt}, intresse: {i_amt}, ovriga: {o_amt}")
-        print(f"DEBUG: Total allocated: {k_amt + i_amt + o_amt}, Total 168x UB: {total_168_ub}")
-
-        # final safety: numerical drift
-        scale = 1.0
-        s_alloc = k_amt + i_amt + o_amt
-        if s_alloc > 0:
-            scale = min(1.0, total_168_ub / s_alloc + 1e-12)
-        k_amt *= scale; i_amt *= scale; o_amt *= scale
-        
-        print(f"DEBUG: Final allocation after scaling - koncern: {k_amt}, intresse: {i_amt}, ovriga: {o_amt}")
-
-        # ---------- mutate BR rows (current year only) ----------
-        def _find_row_contains(rows: List[Dict[str, Any]], needle: str) -> Optional[Dict[str, Any]]:
-            n = _norm(needle)
+        # ---- mutate BR rows (current year only) ----
+        def _find_by_id(rows: List[Dict[str, Any]], rid: int):
             for r in rows:
-                title = _norm(r.get("label") or r.get("row_title") or "")
-                if title == n:
-                    return r
-            # fallback: substring
-            for r in rows:
-                title = _norm(r.get("label") or r.get("row_title") or "")
-                if n in title:
+                if str(r.get("id")) == str(rid):
                     return r
             return None
 
-        row_351 = _find_row_contains(br_rows, "Kortfristiga fordringar hos koncernföretag")
-        row_352 = _find_row_contains(br_rows, "Kortfristiga fordringar hos intresseföretag och gemensamt styrda företag")
-        row_353 = _find_row_contains(br_rows, "Kortfristiga fordringar hos övriga företag som det finns ett ägarintresse i")
-        row_354 = _find_row_contains(br_rows, "Övriga kortfristiga fordringar")
+        row_351 = _find_by_id(br_rows, 351) or next((r for r in br_rows if "koncernföretag" in _norm(r.get("label") or "")), None)
+        row_352 = _find_by_id(br_rows, 352) or next((r for r in br_rows if "intresseföretag" in _norm(r.get("label") or "")), None)
+        row_353 = _find_by_id(br_rows, 353) or next((r for r in br_rows if "övriga företag" in _norm(r.get("label") or "")), None)
+        row_354 = _find_by_id(br_rows, 354) or next((r for r in br_rows if "övriga kortfristiga fordringar" in _norm(r.get("label") or "")), None)
 
-        added_total = 0.0
-        if row_351 and k_amt:
-            row_351["current_amount"] = float(row_351.get("current_amount") or 0.0) + k_amt
-            added_total += k_amt
-        if row_352 and i_amt:
-            row_352["current_amount"] = float(row_352.get("current_amount") or 0.0) + i_amt
-            added_total += i_amt
-        if row_353 and o_amt:
-            row_353["current_amount"] = float(row_353.get("current_amount") or 0.0) + o_amt
-            added_total += o_amt
+        added = 0.0
+        if row_351 and alloc["koncern"]:
+            row_351["current_amount"] = float(row_351.get("current_amount") or 0.0) + alloc["koncern"]; added += alloc["koncern"]
+        if row_352 and alloc["intresse"]:
+            row_352["current_amount"] = float(row_352.get("current_amount") or 0.0) + alloc["intresse"]; added += alloc["intresse"]
+        if row_353 and alloc["ovriga"]:
+            row_353["current_amount"] = float(row_353.get("current_amount") or 0.0) + alloc["ovriga"];   added += alloc["ovriga"]
 
-        if row_354 and added_total:
+        if row_354 and added:
             cur = float(row_354.get("current_amount") or 0.0)
-            row_354["current_amount"] = max(0.0, cur - added_total)
+            row_354["current_amount"] = max(0.0, cur - added)
     
     def _get_level_from_style(self, style: str) -> int:
         """Get hierarchy level from style"""
