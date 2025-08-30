@@ -36,7 +36,10 @@ app.add_middleware(
         "https://raketrapport.se",
         "https://www.raketrapport.se",
         "https://raket-arsredovisning.vercel.app",
-        "https://raketrapport-production.up.railway.app"  # Railway backend URL
+        "https://raketrapport-production.up.railway.app",  # Railway backend URL
+        "https://summare.se",
+        "https://www.summare.se",
+        "https://summare.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
