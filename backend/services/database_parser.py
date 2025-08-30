@@ -1018,22 +1018,28 @@ class DatabaseParser:
             return {phrase} | shards
 
         def _classify_by_patterns(text_norm: str) -> str | None:
-            # Övriga m. ägarintresse: must have all three components
+            # KONCERN cues
+            if re.search(r"\b(koncern|dotter|moder)\b", text_norm):
+                return "koncern"
+            # Treat common shorthand as intra-group (koncern)
+            if re.search(r"\b(intern(a)?|intragroup|intra|koncernintern(a)?|koncernmellan\w*|group|holding)\b", text_norm):
+                return "koncern"
+
+            # INTRESSE cues
+            if re.search(r"\b(intresseföretag|intresseforetag|intresseftg)\b", text_norm):
+                return "intresse"
+            if re.search(r"\bintr\w+\b", text_norm) and re.search(r"\b(företag|foretag|ftg)\b", text_norm):
+                return "intresse"
+            if re.search(r"\bgem\w+\b", text_norm) and re.search(r"\bstyrda\b", text_norm):
+                return "intresse"
+
+            # ÖVRIGA m. ägarintresse ⇒ must have all three components
             has_ovr = bool(re.search(r"\b(övr|ovr)(iga)?\b", text_norm))
             has_f   = bool(re.search(r"\b(företag|foretag|ftg)\b", text_norm))
             has_ai  = bool(re.search(r"\b(ägarintresse|agarintresse|ägarint|agarint|ägarintr|agarintr)\b", text_norm))
             if has_ovr and has_f and has_ai:
                 return "ovriga"
-            # Intresse
-            if re.search(r"\b(intresseföretag|intresseforetag|intresseftg)\b", text_norm):
-                return "intresse"
-            if re.search(r"\bintr\w+\b", text_norm) and has_f:
-                return "intresse"
-            if re.search(r"\bgem\w+\b", text_norm) and re.search(r"\bstyrda\b", text_norm):
-                return "intresse"
-            # Koncern
-            if re.search(r"\b(koncern|dotter|moder)\b", text_norm):
-                return "koncern"
+
             return None
 
         # any 296x UB at all?
@@ -1135,18 +1141,59 @@ class DatabaseParser:
                     return r
             return None
 
-        row_410 = _find_by_id(br_rows, 410) or _find_by_label(br_rows, "Kortfristiga skulder till koncernföretag")
-        row_411 = _find_by_id(br_rows, 411) or _find_by_label(br_rows, "Kortfristiga skulder till intresseföretag och gemensamt styrda företag")
-        row_412 = _find_by_id(br_rows, 412) or _find_by_label(br_rows, "Kortfristiga skulder till övriga företag som det finns ett ägarintresse i")
+        def _find_by_tokens(rows: List[Dict[str, Any]], must_have: set[str], any_of: list[set[str]] | None = None):
+            for r in rows:
+                lbl = _norm(r.get("label") or r.get("row_title") or "")
+                words = set(lbl.split())
+                if not must_have.issubset(words):
+                    continue
+                if any_of and not any(opt.issubset(words) for opt in any_of):
+                    continue
+                return r
+            return None
+
+        row_410 = (
+            _find_by_id(br_rows, 410)
+            or _find_by_label(br_rows, "Kortfristiga skulder till koncernföretag")
+            or _find_by_tokens(br_rows, must_have={"skulder", "koncernforetag"})
+        )
+
+        row_411 = (
+            _find_by_id(br_rows, 411)
+            or _find_by_label(br_rows, "Kortfristiga skulder till intresseföretag och gemensamt styrda företag")
+            or _find_by_tokens(
+                br_rows,
+                must_have={"skulder"},
+                any_of=[{"intresseforetag"}, {"gemensamt","styrda"}]
+            )
+        )
+
+        row_412 = (
+            _find_by_id(br_rows, 412)
+            or _find_by_label(br_rows, "Kortfristiga skulder till övriga företag som det finns ett ägarintresse i")
+            or _find_by_tokens(
+                br_rows,
+                must_have={"skulder"},
+                any_of=[{"ovriga","foretag","agarintresse"}, {"foretag","agarintresse"}]
+            )
+        )
 
         # source row (where 296x sits today)
         row_src = (
             _find_by_label(br_rows, "Upplupna kostnader och förutbetalda intäkter")
             or _find_by_label(br_rows, "Upplupna kostnader")
-            or _find_by_id(br_rows, 418)  # common id in some mappings
+            or _find_by_tokens(br_rows, must_have={"upplupna"}, any_of=[{"kostnader"}, {"rantekostnader"}, {"utgiftsrantor"}, {"ranta"}])
             or _find_by_label(br_rows, "Övriga kortfristiga skulder")
+            or _find_by_id(br_rows, 418)
             or _find_by_id(br_rows, 415)
         )
+
+        print(f"296x reclass → koncern={alloc['koncern']:.0f}, intresse={alloc['intresse']:.0f}, övriga={alloc['ovriga']:.0f}")
+        print("Targets:",
+              f"410={'OK' if row_410 else 'MISS'}",
+              f"411={'OK' if row_411 else 'MISS'}",
+              f"412={'OK' if row_412 else 'MISS'}",
+              f"SRC={'OK' if row_src else 'MISS'}")
 
         added = 0.0
         if row_410 and alloc["koncern"]:
