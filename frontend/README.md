@@ -32,9 +32,21 @@ cd <YOUR_PROJECT_NAME>
 # Step 3: Install the necessary dependencies.
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Set up environment variables (optional)
+# Create a .env file in the frontend directory to override the default API URL
+echo "VITE_API_URL=https://api.summare.se" > .env
+
+# Step 5: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
+
+## Environment Variables
+
+The frontend uses the following environment variables:
+
+- `VITE_API_URL`: The base URL for the API backend (defaults to `https://api.summare.se`)
+  - For summare.se deployment: `https://api.summare.se`
+  - For raketrapport.se deployment: `https://api.raketrapport.se`
 
 **Edit a file directly in GitHub**
 
