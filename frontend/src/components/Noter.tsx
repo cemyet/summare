@@ -198,32 +198,32 @@ export function Noter({ noterData, fiscalYear, previousYear }: NoterProps) {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="font-semibold">Anläggningstillgångar</TableHead>
-                          <TableHead className="font-semibold text-right">År</TableHead>
+                          <TableHead className="font-semibold py-2">Anläggningstillgångar</TableHead>
+                          <TableHead className="font-semibold text-right py-2">År</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         <TableRow>
-                          <TableCell>Byggnader & mark</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="py-1">Byggnader & mark</TableCell>
+                          <TableCell className="text-right py-1">
                             {avskrtidBygg !== null ? avskrtidBygg : '-'}
                           </TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell>Maskiner och andra tekniska anläggningar</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="py-1">Maskiner och andra tekniska anläggningar</TableCell>
+                          <TableCell className="text-right py-1">
                             {avskrtidMask !== null ? avskrtidMask : '-'}
                           </TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell>Inventarier, verktyg och installationer</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="py-1">Inventarier, verktyg och installationer</TableCell>
+                          <TableCell className="text-right py-1">
                             {avskrtidInv !== null ? avskrtidInv : '-'}
                           </TableCell>
                         </TableRow>
                         <TableRow>
-                          <TableCell>Övriga materiella anläggningstillgångar</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="py-1">Övriga materiella anläggningstillgångar</TableCell>
+                          <TableCell className="text-right py-1">
                             {avskrtidOvriga !== null ? avskrtidOvriga : '-'}
                           </TableCell>
                         </TableRow>
