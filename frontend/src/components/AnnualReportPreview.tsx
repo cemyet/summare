@@ -490,12 +490,17 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       );
     }
 
-    // Use structured data from Python if available
-    const headerData = companyInfo || {
-      organization_number: companyData.organizationNumber || 'XXX XXX-XXXX',
-      fiscal_year: companyData.fiscalYear || new Date().getFullYear(),
-      company_name: 'Företag AB',
-      location: companyData.location || 'Stockholm',
+    // Use structured data from Python if available, with fallbacks
+    // Priority for organization number: scraped data > SE file data > fallback
+    const scrapedOrgNumber = (companyData as any).scrapedCompanyData?.orgnr;
+    const seFileOrgNumber = companyInfo?.organization_number;
+    const fallbackOrgNumber = (companyData as any).organizationNumber;
+    
+    const headerData = {
+      organization_number: scrapedOrgNumber || seFileOrgNumber || fallbackOrgNumber || 'Ej tillgängligt',
+      fiscal_year: companyInfo?.fiscal_year || companyData.fiscalYear || new Date().getFullYear(),
+      company_name: companyInfo?.company_name || (companyData as any).companyName || 'Företag AB',
+      location: companyInfo?.location || companyData.location || 'Stockholm',
       date: companyData.date || new Date().toLocaleDateString('sv-SE')
     };
 
@@ -506,7 +511,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
           <h1 className="text-2xl font-bold text-foreground">Årsredovisning</h1>
           <h2 className="text-xl font-semibold text-foreground mt-2">{headerData.company_name}</h2>
           <p className="text-sm text-muted-foreground">
-            Organisationsnummer: {headerData.organization_number || 'Ej tillgängligt'}
+            Organisationsnummer: {headerData.organization_number}
           </p>
           <p className="text-sm text-muted-foreground">
             Räkenskapsår: {headerData.fiscal_year}
@@ -968,6 +973,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             noterData={companyData.noterData}
             fiscalYear={companyData.fiscalYear}
             previousYear={companyData.fiscalYear ? companyData.fiscalYear - 1 : undefined}
+            companyData={companyData}
           />
         )}
 

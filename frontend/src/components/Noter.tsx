@@ -30,9 +30,10 @@ interface NoterProps {
   noterData: NoterItem[];
   fiscalYear?: number;
   previousYear?: number;
+  companyData?: any; // Add companyData to access scraped data
 }
 
-export function Noter({ noterData, fiscalYear, previousYear }: NoterProps) {
+export function Noter({ noterData, fiscalYear, previousYear, companyData }: NoterProps) {
   const [blockToggles, setBlockToggles] = useState<Record<string, boolean>>({});
   const [selectedItem, setSelectedItem] = useState<NoterItem | null>(null);
 
@@ -183,7 +184,7 @@ export function Noter({ noterData, fiscalYear, previousYear }: NoterProps) {
                 <div key={block} className="space-y-4 pt-4">
                   {/* Note 1 heading without toggle */}
                   <div className="border-b pb-1">
-                    <h3 className="font-semibold text-lg">{blockHeading}</h3>
+                    <h3 className="font-semibold text-lg" style={{paddingTop: '15px'}}>{blockHeading}</h3>
                   </div>
                   
                   {/* Insert text from row_id 3 after heading */}
@@ -234,10 +235,39 @@ export function Noter({ noterData, fiscalYear, previousYear }: NoterProps) {
               );
             }
             
+            // Special handling for Note 2 (Medelantalet anställda) - no toggle, use scraped data
+            if (block === 'NOT2') {
+              // Get employee count from scraped data (first value from "Antal anställda")
+              const scrapedEmployeeCount = companyData?.scrapedCompanyData?.nyckeltal?.["Antal anställda"]?.[0] || 0;
+              
+              return (
+                <div key={block} className="space-y-2 pt-4">
+                  {/* Note 2 heading without toggle */}
+                  <div className="border-b pb-1">
+                    <h3 className="font-semibold text-lg" style={{paddingTop: '15px'}}>{blockHeading}</h3>
+                  </div>
+                  
+                  {/* Column Headers - same as BR/RR */}
+                  <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
+                    <span></span>
+                    <span className="text-right">{fiscalYear || new Date().getFullYear()}</span>
+                    <span className="text-right">{previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+                  </div>
+
+                  {/* Employee count row */}
+                  <div className="grid gap-4" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
+                    <span className="text-sm">Medelantalet anställda under året</span>
+                    <span className="text-right text-sm">{scrapedEmployeeCount}</span>
+                    <span className="text-right text-sm">{scrapedEmployeeCount}</span>
+                  </div>
+                </div>
+              );
+            }
+            
             return (
               <div key={block} className="space-y-2 pt-4">
                 <div className="flex items-center justify-between border-b pb-1">
-                  <h3 className="font-semibold text-lg">{blockHeading}</h3>
+                  <h3 className="font-semibold text-lg" style={{paddingTop: '15px'}}>{blockHeading}</h3>
                   <div className="flex items-center space-x-2">
                   <label 
                   htmlFor={`toggle-${block}`} 
