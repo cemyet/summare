@@ -64,8 +64,14 @@ def clean_number(val: str):
     except ValueError:
         return val
 
+def clean_orgnr_for_url(orgnr: str) -> str:
+    """Remove dash from organization number for rating.se URLs"""
+    if not orgnr: return orgnr
+    return orgnr.replace("-", "")
+
 def scrape_numbers(orgnr: str) -> dict:
-    url = BASE_NUMBERS.format(orgnr=orgnr)
+    clean_orgnr = clean_orgnr_for_url(orgnr)
+    url = BASE_NUMBERS.format(orgnr=clean_orgnr)
     print(f"DEBUG: Fetching numbers from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
     print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
@@ -92,7 +98,8 @@ def scrape_numbers(orgnr: str) -> dict:
     return nyckeltal
 
 def scrape_people(orgnr: str) -> dict:
-    url = BASE_PEOPLE.format(orgnr=orgnr)
+    clean_orgnr = clean_orgnr_for_url(orgnr)
+    url = BASE_PEOPLE.format(orgnr=clean_orgnr)
     print(f"DEBUG: Fetching people from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
     print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
@@ -112,7 +119,8 @@ def scrape_people(orgnr: str) -> dict:
     return data
 
 def scrape_overview(orgnr: str) -> dict:
-    url = BASE_OVERVIEW.format(orgnr=orgnr)
+    clean_orgnr = clean_orgnr_for_url(orgnr)
+    url = BASE_OVERVIEW.format(orgnr=clean_orgnr)
     print(f"DEBUG: Fetching overview from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
     print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
@@ -152,7 +160,8 @@ def scrape_overview(orgnr: str) -> dict:
     return data
 
 def scrape_biz(orgnr: str) -> dict:
-    url = BASE_BIZ.format(orgnr=orgnr)
+    clean_orgnr = clean_orgnr_for_url(orgnr)
+    url = BASE_BIZ.format(orgnr=clean_orgnr)
     print(f"DEBUG: Fetching business info from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
     print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
