@@ -1696,8 +1696,6 @@ class DatabaseParser:
                         amount = round(amount, 0)
                     # IMPORTANT: Store calculated values for later formulas
                     ink_values[variable_name] = amount
-                    if variable_name in ['INK_skattemassigt_resultat', 'INK_beraknad_skatt']:
-                        print(f"Calculated {variable_name}: {amount} (available ink_values: {list(ink_values.keys())})")
                 
                 # Keep only essential debug for important tax calculations
                 
@@ -1820,7 +1818,7 @@ class DatabaseParser:
             result = -justering
             # Round to 0 decimals for tax module
             result = round(result, 0)
-            print(f"INK_sarskild_loneskatt: justering={justering}, result={result}")
+
             return result
         
 
@@ -1847,7 +1845,6 @@ class DatabaseParser:
             )
             # Apply FLOOR(total, 100) - round down to nearest 100 per Skatteverket rules
             floored_total = int(total // 100) * 100
-            print(f"INK_skattemassigt_resultat: raw_total={total}, floored={floored_total}")
             return float(floored_total)
         if variable_name == 'INK4.15':
             def v(name: str) -> float:

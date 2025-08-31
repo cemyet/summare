@@ -197,28 +197,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // Safe access; never destructure undefined
   const cd = companyData as CompanyData;
   
-  // Debug logging at the top to confirm mounting
-  console.log('🔍 AnnualReportPreview MOUNTED');
-  console.log('🔍 Props:', {
-    editableAmounts,
-    currentStep,
-    hasOnDataUpdate: !!onDataUpdate,
-    companyDataKeys: Object.keys(cd)
-  });
-  console.log('🔍 Rendering flags:', {
-    showTaxPreview: cd.showTaxPreview,
-    showRRBR: cd.showRRBR,
-    taxEditingEnabled: cd.taxEditingEnabled,
-    editableAmounts: cd.editableAmounts
-  });
-
   // Requirement 2: inputs become editable when taxEditingEnabled OR editableAmounts is true
   const isEditing = Boolean(cd.taxEditingEnabled || editableAmounts);
-  console.log('🔍 isEditing calculated as:', isEditing, '(taxEditingEnabled:', cd.taxEditingEnabled, 'editableAmounts:', editableAmounts, ')');
 
   // Requirement 1: render when showTaxPreview OR showRRBR is true
   if (!cd.showTaxPreview && !cd.showRRBR) {
-    console.log('🔍 AnnualReportPreview mounted but not rendering (both showTaxPreview and showRRBR are false)');
     return null;
   }
   

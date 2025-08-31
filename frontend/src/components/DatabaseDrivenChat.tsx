@@ -141,12 +141,10 @@ interface ChatFlowResponse {
       
       // Use updated ink2Data if provided, otherwise use global data, otherwise use companyData.ink2Data
       const ink2DataToUse = updatedInk2Data || globalInk2Data || companyData.ink2Data;
-      console.log('🔍 API call - ink2DataToUse:', ink2DataToUse?.length, 'items');
       if (ink2DataToUse && ink2DataToUse.length > 0) {
         const inkBeraknadSkattItem = ink2DataToUse.find((item: any) => 
           item.variable_name === 'INK_beraknad_skatt'
         );
-        console.log('🔍 API call - inkBeraknadSkattItem:', inkBeraknadSkattItem);
       }
       const response: ChatFlowResponse = await apiService.getChatFlowStep(stepNumber);
       
