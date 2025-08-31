@@ -103,63 +103,16 @@ async def upload_se_file(file: UploadFile = File(...)):
         # Scrape additional company information from rating.se
         scraped_company_data = {}
         try:
-            print(f"DEBUG: Scraping company data for: {company_info.get('organization_number')} / {company_info.get('company_name')}")
-            print(f"DEBUG: About to call get_company_info_with_search...")
+
             scraped_company_data = get_company_info_with_search(
                 orgnr=company_info.get('organization_number'),
                 company_name=company_info.get('company_name')
             )
-            print(f"DEBUG: Scraper returned: {type(scraped_company_data)}, keys: {list(scraped_company_data.keys()) if isinstance(scraped_company_data, dict) else 'Not a dict'}")
-            print(f"DEBUG: Successfully scraped company data for orgnr: {scraped_company_data.get('orgnr', 'N/A')}")
+
             
-            # Debug printout of fetched data
-            print("=" * 60)
-            print("DEBUG: SCRAPED COMPANY DATA:")
-            print("=" * 60)
-            if scraped_company_data.get('error'):
-                print(f"ERROR: {scraped_company_data['error']}")
-            else:
-                print(f"Organization Number: {scraped_company_data.get('orgnr', 'N/A')}")
-                print(f"Company Name: {scraped_company_data.get('company_name', 'N/A')}")
-                print(f"Säte: {scraped_company_data.get('säte', 'N/A')}")
-                print(f"VD: {scraped_company_data.get('vd', 'N/A')}")
-                print(f"Moderbolag: {scraped_company_data.get('moderbolag', 'N/A')}")
-                print(f"Antal dotterbolag: {scraped_company_data.get('antal_dotterbolag', 'N/A')}")
-                
-                # Print nyckeltal (key figures)
-                nyckeltal = scraped_company_data.get('nyckeltal', {})
-                if nyckeltal:
-                    print("\nNYCKELTAL:")
-                    for key, values in nyckeltal.items():
-                        print(f"  {key}: {values}")
-                
-                # Print styrelse (board)
-                styrelse = scraped_company_data.get('styrelse', [])
-                if styrelse:
-                    print(f"\nSTYRELSE ({len(styrelse)} members):")
-                    for i, member in enumerate(styrelse[:5], 1):  # Show first 5
-                        print(f"  {i}. {member}")
-                    if len(styrelse) > 5:
-                        print(f"  ... and {len(styrelse) - 5} more")
-                
-                # Print business description (truncated)
-                beskrivning = scraped_company_data.get('verksamhetsbeskrivning', '')
-                if beskrivning:
-                    truncated = beskrivning[:200] + "..." if len(beskrivning) > 200 else beskrivning
-                    print(f"\nVERKSAMHETSBESKRIVNING: {truncated}")
-                
-                # Print subsidiaries
-                dotterbolag = scraped_company_data.get('dotterbolag', [])
-                if dotterbolag:
-                    print(f"\nDOTTERBOLAG ({len(dotterbolag)}):")
-                    for i, sub in enumerate(dotterbolag[:3], 1):  # Show first 3
-                        print(f"  {i}. {sub.get('name', 'N/A')} ({sub.get('orgnr', 'N/A')})")
-                    if len(dotterbolag) > 3:
-                        print(f"  ... and {len(dotterbolag) - 3} more")
-            print("=" * 60)
+
         except Exception as e:
-            print(f"WARNING: Could not scrape company data: {e}")
-            print(f"DEBUG: Exception details: {type(e).__name__}: {str(e)}")
+
             scraped_company_data = {"error": str(e)}
         
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
@@ -174,9 +127,9 @@ async def upload_se_file(file: UploadFile = File(...)):
         # Parse Noter data (notes) - pass SE content and user toggles if needed
         try:
             noter_data = parser.parse_noter_data(se_content)
-            print(f"Successfully parsed {len(noter_data)} Noter items")
+
         except Exception as e:
-            print(f"Error parsing Noter data: {e}")
+
             noter_data = []
         
         # Calculate pension tax variables for frontend
@@ -195,9 +148,9 @@ async def upload_se_file(file: UploadFile = File(...)):
             try:
                 # Store the parsed financial data
                 stored_ids = parser.store_financial_data(company_id, fiscal_year, rr_data, br_data)
-                print(f"Stored financial data with IDs: {stored_ids}")
+
             except Exception as e:
-                print(f"Warning: Could not store financial data: {e}")
+
                 stored_ids = {}
         
         # Rensa upp temporär fil
@@ -232,8 +185,7 @@ async def upload_se_file(file: UploadFile = File(...)):
         import traceback
         error_detail = f"Fel vid laddning av fil: {str(e)}"
         full_traceback = traceback.format_exc()
-        print(f"ERROR in upload_se_file: {error_detail}")
-        print(f"Full traceback: {full_traceback}")
+
         # Return more detailed error for debugging (you may want to remove this in production)
         raise HTTPException(status_code=500, detail=f"Fel vid laddning av fil: {str(e)} | Traceback: {full_traceback}")
 
@@ -373,63 +325,16 @@ async def test_parser(file: UploadFile = File(...)):
         # Scrape additional company information from rating.se
         scraped_company_data = {}
         try:
-            print(f"DEBUG: Scraping company data for: {company_info.get('organization_number')} / {company_info.get('company_name')}")
-            print(f"DEBUG: About to call get_company_info_with_search...")
+
             scraped_company_data = get_company_info_with_search(
                 orgnr=company_info.get('organization_number'),
                 company_name=company_info.get('company_name')
             )
-            print(f"DEBUG: Scraper returned: {type(scraped_company_data)}, keys: {list(scraped_company_data.keys()) if isinstance(scraped_company_data, dict) else 'Not a dict'}")
-            print(f"DEBUG: Successfully scraped company data for orgnr: {scraped_company_data.get('orgnr', 'N/A')}")
+
             
-            # Debug printout of fetched data
-            print("=" * 60)
-            print("DEBUG: SCRAPED COMPANY DATA:")
-            print("=" * 60)
-            if scraped_company_data.get('error'):
-                print(f"ERROR: {scraped_company_data['error']}")
-            else:
-                print(f"Organization Number: {scraped_company_data.get('orgnr', 'N/A')}")
-                print(f"Company Name: {scraped_company_data.get('company_name', 'N/A')}")
-                print(f"Säte: {scraped_company_data.get('säte', 'N/A')}")
-                print(f"VD: {scraped_company_data.get('vd', 'N/A')}")
-                print(f"Moderbolag: {scraped_company_data.get('moderbolag', 'N/A')}")
-                print(f"Antal dotterbolag: {scraped_company_data.get('antal_dotterbolag', 'N/A')}")
-                
-                # Print nyckeltal (key figures)
-                nyckeltal = scraped_company_data.get('nyckeltal', {})
-                if nyckeltal:
-                    print("\nNYCKELTAL:")
-                    for key, values in nyckeltal.items():
-                        print(f"  {key}: {values}")
-                
-                # Print styrelse (board)
-                styrelse = scraped_company_data.get('styrelse', [])
-                if styrelse:
-                    print(f"\nSTYRELSE ({len(styrelse)} members):")
-                    for i, member in enumerate(styrelse[:5], 1):  # Show first 5
-                        print(f"  {i}. {member}")
-                    if len(styrelse) > 5:
-                        print(f"  ... and {len(styrelse) - 5} more")
-                
-                # Print business description (truncated)
-                beskrivning = scraped_company_data.get('verksamhetsbeskrivning', '')
-                if beskrivning:
-                    truncated = beskrivning[:200] + "..." if len(beskrivning) > 200 else beskrivning
-                    print(f"\nVERKSAMHETSBESKRIVNING: {truncated}")
-                
-                # Print subsidiaries
-                dotterbolag = scraped_company_data.get('dotterbolag', [])
-                if dotterbolag:
-                    print(f"\nDOTTERBOLAG ({len(dotterbolag)}):")
-                    for i, sub in enumerate(dotterbolag[:3], 1):  # Show first 3
-                        print(f"  {i}. {sub.get('name', 'N/A')} ({sub.get('orgnr', 'N/A')})")
-                    if len(dotterbolag) > 3:
-                        print(f"  ... and {len(dotterbolag) - 3} more")
-            print("=" * 60)
+
         except Exception as e:
-            print(f"WARNING: Could not scrape company data: {e}")
-            print(f"DEBUG: Exception details: {type(e).__name__}: {str(e)}")
+
             scraped_company_data = {"error": str(e)}
         
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
@@ -448,9 +353,9 @@ async def test_parser(file: UploadFile = File(...)):
             try:
                 # Store the parsed financial data
                 stored_ids = parser.store_financial_data(company_id, fiscal_year, rr_data, br_data)
-                print(f"Stored financial data with IDs: {stored_ids}")
+
             except Exception as e:
-                print(f"Warning: Could not store financial data: {e}")
+
                 stored_ids = {}
         
         # Rensa upp temporär fil

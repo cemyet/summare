@@ -162,7 +162,7 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
     ACC_IMP_SET = m["ACC_IMP"]
 
     if debug:
-        print(f"DEBUG INTRESSEFTG: ASSET={sorted(ASSET_SET)} CONTRIB={sorted(CONTRIB_SET)} ACC_IMP={sorted(ACC_IMP_SET)}")
+        pass
 
     # IB / UB (from SIE)
     intresseftg_ib            = _get_balance(lines, 'IB', ASSET_SET | CONTRIB_SET)
@@ -217,7 +217,7 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
         RES_D = sum(amt  for a,amt in txs if a in RES_SHARE_SET and amt > 0) # D 813x/8240
 
         if debug and (A_D > 0 or A_K > 0 or C_D > 0 or C_K > 0 or RES_K > 0 or RES_D > 0 or IMP_D > 0 or IMP_K > 0):
-            print(f"DEBUG INTRESSEFTG {key}: A_D={A_D}, A_K={A_K}, C_D={C_D}, C_K={C_K}, RES_K={RES_K}, RES_D={RES_D}, IMP_D={IMP_D}, IMP_K={IMP_K}, text='{text}'")
+            pass
 
         # Resultatandel (signed)
         res_plus  = min(A_D, RES_K) if (A_D > 0 and RES_K > 0) else 0.0
@@ -225,7 +225,7 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
         resultatandel_intresseftg += (res_plus - res_minus)
 
         if debug and (res_plus > 0 or res_minus > 0):
-            print(f"DEBUG INTRESSEFTG {key}: resultatandel += {res_plus - res_minus} (res_plus={res_plus}, res_minus={res_minus})")
+            pass
 
         # Inköp (remaining D asset after res_plus)
         inc_amount = max(0.0, A_D - res_plus)
@@ -233,21 +233,23 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
             if "fusion" in text:
                 fusion_intresseftg += inc_amount
                 if debug:
-                    print(f"DEBUG INTRESSEFTG {key}: fusion += {inc_amount}")
+                    pass
             else:
                 inkop_intresseftg += inc_amount
                 if debug:
-                    print(f"DEBUG INTRESSEFTG {key}: inkop += {inc_amount}")
+                    pass
+
 
         # AAT flows (separate from sales)
         if C_D > 0:
             aktieagartillskott_lamnad_intresseftg += C_D
             if debug:
-                print(f"DEBUG INTRESSEFTG {key}: aktieägartillskott_lämnad += {C_D}")
+                pass
         if C_K > 0:
             aktieagartillskott_aterbetald_intresseftg += C_K
             if debug:
-                print(f"DEBUG INTRESSEFTG {key}: aktieägartillskott_återbetald += {C_K}")
+                pass
+
 
         # Försäljning av andelar – HB/KB two-step flow handling
         rem_andel_K = max(0.0, A_K - res_minus)
@@ -270,10 +272,8 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
                     aterfor_nedskr_fsg_intresseftg += IMP_D
                     IMP_D = 0.0
                     if debug:
-                        print(f"DEBUG INTRESSEFTG {key}: aterfor_nedskr_fsg += {IMP_D} (real sale)")
+                        pass
                 fsg_intresseftg -= rem_andel_K  # negative by convention
-                if debug:
-                    print(f"DEBUG INTRESSEFTG {key}: fsg -= {rem_andel_K} (real sale)")
             else:
                 # No sale P&L – likely HB/KB cash settlement
                 is_payout_prior_share = (
@@ -286,46 +286,54 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
                     # Book as negative result share (cash settlement of prior-year partnership share)
                     resultatandel_intresseftg -= rem_andel_K
                     if debug:
-                        print(f"DEBUG INTRESSEFTG {key}: resultatandel -= {rem_andel_K} (HB/KB cash settlement)")
+                        pass
+
                 elif kw_sale:
                     # Fallback: text explicitly indicates sale despite missing P&L
                     fsg_intresseftg -= rem_andel_K
                     if debug:
-                        print(f"DEBUG INTRESSEFTG {key}: fsg -= {rem_andel_K} (sale by text)")
+                        pass
+
                 else:
                     # Conservative default: treat as cash settlement
                     resultatandel_intresseftg -= rem_andel_K
                     if debug:
-                        print(f"DEBUG INTRESSEFTG {key}: resultatandel -= {rem_andel_K} (default: cash settlement)")
+                        pass
+
 
         # Nedskrivningar / återföringar (ej försäljning)
         if IMP_D > 0:
             if "fusion" in text:
                 aterfor_nedskr_fusion_intresseftg += IMP_D
                 if debug:
-                    print(f"DEBUG INTRESSEFTG {key}: aterfor_nedskr_fusion += {IMP_D}")
+                    pass
+
             else:
                 aterfor_nedskr_intresseftg += IMP_D
                 if debug:
-                    print(f"DEBUG INTRESSEFTG {key}: aterfor_nedskr += {IMP_D}")
+                    pass
+
         if IMP_K > 0:
             arets_nedskr_intresseftg += IMP_K
             if debug:
-                print(f"DEBUG INTRESSEFTG {key}: arets_nedskr += {IMP_K}")
+                pass
+
 
         # Omklass (assets) – enkel heuristik
         asset_signals = (RES_K > 0 or RES_D > 0 or IMP_D > 0 or IMP_K > 0 or C_D > 0 or C_K > 0)
         if A_D > 0 and A_K > 0 and not asset_signals:
             omklass_intresseftg += (A_D - A_K)
             if debug:
-                print(f"DEBUG INTRESSEFTG {key}: omklass += {A_D - A_K}")
+                pass
+
         # Omklass ack nedskr (sällsynt)
         if sum(amt for a,amt in txs if a in ACC_IMP_SET and amt > 0) > 0 and \
            sum(-amt for a,amt in txs if a in ACC_IMP_SET and amt < 0) > 0 and \
            not (A_D > 0 or A_K > 0 or RES_K > 0 or RES_D > 0 or C_D > 0 or C_K > 0):
             omklass_nedskr_intresseftg += (IMP_D - IMP_K)
             if debug:
-                print(f"DEBUG INTRESSEFTG {key}: omklass_nedskr += {IMP_D - IMP_K}")
+                pass
+
 
     # ---- Final UB from SIE (#UB) as per policy ----
     intresseftg_ub = cost_ub_actual
@@ -334,24 +342,8 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
     red_varde_intresseftg = intresseftg_ub + ack_nedskr_intresseftg_ub
 
     if debug:
-        print(f"DEBUG INTRESSEFTG K2: Final results:")
-        print(f"  intresseftg_ib: {intresseftg_ib}")
-        print(f"  inkop_intresseftg: {inkop_intresseftg}")
-        print(f"  fusion_intresseftg: {fusion_intresseftg}")
-        print(f"  fsg_intresseftg: {fsg_intresseftg}")
-        print(f"  aktieagartillskott_lamnad_intresseftg: {aktieagartillskott_lamnad_intresseftg}")
-        print(f"  aktieagartillskott_aterbetald_intresseftg: {aktieagartillskott_aterbetald_intresseftg}")
-        print(f"  resultatandel_intresseftg: {resultatandel_intresseftg}")
-        print(f"  omklass_intresseftg: {omklass_intresseftg}")
-        print(f"  intresseftg_ub: {intresseftg_ub}")
-        print(f"  ack_nedskr_intresseftg_ib: {ack_nedskr_intresseftg_ib}")
-        print(f"  arets_nedskr_intresseftg: {arets_nedskr_intresseftg}")
-        print(f"  aterfor_nedskr_intresseftg: {aterfor_nedskr_intresseftg}")
-        print(f"  aterfor_nedskr_fsg_intresseftg: {aterfor_nedskr_fsg_intresseftg}")
-        print(f"  aterfor_nedskr_fusion_intresseftg: {aterfor_nedskr_fusion_intresseftg}")
-        print(f"  omklass_nedskr_intresseftg: {omklass_nedskr_intresseftg}")
-        print(f"  ack_nedskr_intresseftg_ub: {ack_nedskr_intresseftg_ub}")
-        print(f"  red_varde_intresseftg: {red_varde_intresseftg}")
+        pass
+
 
     return {
         # Cost roll-forward

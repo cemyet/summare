@@ -149,7 +149,7 @@ def parse_fordringar_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = F
             IMP_SET.add(a)
 
     if debug:
-        print(f"[FORDRINTRE] ASSET_SET={sorted(ASSET_SET)} IMP_SET={sorted(IMP_SET)} (SRU=7232; excluding ack+ned names)")
+        pass
 
     # Get IB/UB factual balances
     fordr_intresse_ib = _get_balance(lines, "IB", ASSET_SET)
@@ -264,10 +264,7 @@ def parse_fordringar_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = F
     red_varde_fordr_intresse = fordr_intresse_ub + ack_nedskr_fordr_intresse_ub
 
     if debug:
-        print(f"[FORDRINTRE] IB={fordr_intresse_ib} UB={fordr_intresse_ub} AIB={ack_nedskr_fordr_intresse_ib} AUB={ack_nedskr_fordr_intresse_ub}")
-        print(f"[FORDRINTRE] +nya={nya_fordr_intresse} +fusion={fusion_fordr_intresse} -reglerade={reglerade_fordr_intresse} -bortskr={bortskrivna_fordr_intresse} ±omklass={omklass_fordr_intresse}")
-        print(f"[FORDRINTRE] nedskr: år={arets_nedskr_fordr_intresse} återf(reg)={aterfor_nedskr_reglerade_fordr_intresse} återf(fusion)={aterfor_nedskr_fusion_fordr_intresse} återf(bortskr)={aterfor_nedskr_bortskrivna_fordr_intresse} återf(övrigt)={aterfor_nedskr_fordr_intresse} omklass={omklass_nedskr_fordr_intresse}")
-        print(f"[FORDRINTRE] red_värde={red_varde_fordr_intresse}")
+        pass
 
     return {
         # Cost roll-forward

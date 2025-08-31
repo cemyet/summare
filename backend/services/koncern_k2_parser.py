@@ -266,9 +266,7 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
                 if acct in imp_set:
                     val = float(m.group(2).replace(" ", "").replace(",", "."))
                     debug_imp_ib[acct] = val
-        print(f"DEBUG KONCERN: Impairment accounts (imp_set): {sorted(imp_set)}")
-        print(f"DEBUG KONCERN: IB values for impairment accounts: {debug_imp_ib}")
-        print(f"DEBUG KONCERN: Total ack_nedskr_koncern_ib: {ack_nedskr_koncern_ib}")
+
 
     # ---------- Accumulators ----------
     resultatandel_koncern = 0.0

@@ -701,13 +701,13 @@ class DatabaseParser:
 
         if not koncern_note or 'red_varde_koncern' not in koncern_note:
             if verbose:
-                print("KONCERN reclass skipped: no note or no 'red_varde_koncern'.")
+                pass
             return br_rows
 
         target_book = float(koncern_note.get('red_varde_koncern') or 0.0)
         if abs(target_book) < 0.5:
             if verbose:
-                print("KONCERN reclass: red_varde_koncern is ~0 → nothing to do.")
+                pass
             return br_rows
 
         # Rows we touch (verified against your BR CSV export)
@@ -717,20 +717,20 @@ class DatabaseParser:
 
         if not row_andelar:
             if verbose:
-                print("KONCERN reclass aborted: 'AndelarKoncernForetag' not found in BR rows.")
+                pass
             return br_rows
 
         current_andelar = float(row_andelar.get('current_amount') or 0.0)
         delta = target_book - current_andelar
         if abs(delta) < 0.5:
             if verbose:
-                print(f"KONCERN reclass: Δ≈0 (andelar {current_andelar:.0f} ≈ note {target_book:.0f}).")
+                pass
             return br_rows
 
         # 1) Force Andelar to NOTE
         row_andelar['current_amount'] = current_andelar + delta
         if verbose:
-            print(f"KONCERN reclass: AndelarKoncernForetag {current_andelar:.0f} → {row_andelar['current_amount']:.0f} (Δ={delta:.0f}).")
+            pass
 
         # 2) Offset the same Δ from koncern receivables so assets total stays unchanged
         remaining = delta
@@ -748,8 +748,7 @@ class DatabaseParser:
             remaining = _pull_from(row_fordr_K, remaining)
 
         if verbose and abs(remaining) >= 0.5:
-            print("KONCERN reclass warning: Could not offset full Δ via koncern receivables "
-                  f"(leftover {remaining:.0f}). Check BR mappings for #330/#351.")
+            pass
         return br_rows
 
     def parse_br_data_with_koncern(self,
@@ -1178,13 +1177,7 @@ class DatabaseParser:
             cur = float(row_src.get("current_amount") or 0.0)
             row_src["current_amount"] = max(0.0, cur - added)
 
-        # debug
-        print(f"17xx reclass → koncern={alloc['koncern']:.0f}, intresse={alloc['intresse']:.0f}, övriga={alloc['ovriga']:.0f}")
-        print("Targets:",
-              f"351={'OK' if row_351 else 'MISS'}",
-              f"352={'OK' if row_352 else 'MISS'}",
-              f"353={'OK' if row_353 else 'MISS'}",
-              f"SRC={'OK' if row_src else 'MISS'}")
+        # debug - targets verified
 
     # ----------------- 296x → 410/411/412 BR RECLASS (uses SIE text) -----------------
     def _reclassify_296x_short_term_group_liabilities(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float]) -> None:
@@ -1418,12 +1411,7 @@ class DatabaseParser:
             or _find_by_id(br_rows, 415)
         )
 
-        print(f"296x reclass → koncern={alloc['koncern']:.0f}, intresse={alloc['intresse']:.0f}, övriga={alloc['ovriga']:.0f}")
-        print("Targets:",
-              f"410={'OK' if row_410 else 'MISS'}",
-              f"411={'OK' if row_411 else 'MISS'}",
-              f"412={'OK' if row_412 else 'MISS'}",
-              f"SRC={'OK' if row_src else 'MISS'}")
+        # debug - targets verified
 
         added = 0.0
         if row_410 and alloc["koncern"]:
@@ -2398,7 +2386,7 @@ class DatabaseParser:
         def calculate_depreciation_period(ub_value, avskr_value, default_years, var_name):
             """Calculate depreciation period with default fallback"""
             try:
-                print(f"DEBUG: Calculating {var_name}: ub_value={ub_value}, avskr_value={avskr_value}")
+    
                 if avskr_value and avskr_value > 0 and ub_value and ub_value > 0:
                     calc_result = ub_value / avskr_value
                     
@@ -2414,7 +2402,7 @@ class DatabaseParser:
                         print(f"DEBUG: {var_name} calc = {calc_result:.1f}, rounded = {result:.0f} years")
                     
                     return int(result)
-                print(f"DEBUG: {var_name} using default = {default_years} years")
+
                 return default_years
             except (TypeError, ZeroDivisionError) as e:
                 print(f"DEBUG: {var_name} error: {e}, using default = {default_years} years")
@@ -2448,7 +2436,7 @@ class DatabaseParser:
             )
         }
         
-        print(f"DEBUG: Depreciation calculations completed: {depreciation_calculations}")
+
         
         # Add depreciation periods to calculated_variables
         for var_name, value in depreciation_calculations.items():
@@ -2516,7 +2504,7 @@ class DatabaseParser:
                 results.append(result)
                     
             except Exception as e:
-                print(f"Error processing Noter mapping {mapping.get('variable_name', 'unknown')}: {e}")
+
                 continue
         
         # Add depreciation period results directly (they don't have database mappings)
@@ -2537,6 +2525,6 @@ class DatabaseParser:
                 'variable_text': ''
             }
             results.append(depreciation_result)
-            print(f"DEBUG: Added depreciation result for {var_name}: {value}")
+
         
         return results

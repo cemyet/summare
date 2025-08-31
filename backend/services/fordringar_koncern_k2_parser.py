@@ -143,7 +143,7 @@ def parse_fordringar_koncern_k2_from_sie_text(sie_text: str, debug: bool = False
             IMP_SET.add(a)
 
     if debug:
-        print(f"[FORDRKONC] ASSET_SET={sorted(ASSET_SET)} IMP_SET={sorted(IMP_SET)} (SRU=7232; excluding ack+ned names)")
+        pass
 
     # Get IB/UB factual balances
     fordr_koncern_ib = _get_balance(lines, "IB", ASSET_SET)
@@ -258,10 +258,7 @@ def parse_fordringar_koncern_k2_from_sie_text(sie_text: str, debug: bool = False
     red_varde_fordr_koncern = fordr_koncern_ub + ack_nedskr_fordr_koncern_ub
 
     if debug:
-        print(f"[FORDRKONC] IB={fordr_koncern_ib} UB={fordr_koncern_ub} AIB={ack_nedskr_fordr_koncern_ib} AUB={ack_nedskr_fordr_koncern_ub}")
-        print(f"[FORDRKONC] +nya={nya_fordr_koncern} +fusion={fusion_fordr_koncern} -reglerade={reglerade_fordr_koncern} -bortskr={bortskrivna_fordr_koncern} ±omklass={omklass_fordr_koncern}")
-        print(f"[FORDRKONC] nedskr: år={arets_nedskr_fordr_koncern} återf(reg)={aterfor_nedskr_reglerade_fordr_koncern} återf(fusion)={aterfor_nedskr_fusion_fordr_koncern} återf(bortskr)={aterfor_nedskr_bortskrivna_fordr_koncern} återf(övrigt)={aterfor_nedskr_fordr_koncern} omklass={omklass_nedskr_fordr_koncern}")
-        print(f"[FORDRKONC] red_värde={red_varde_fordr_koncern}")
+        pass
 
     return {
         # Cost roll-forward

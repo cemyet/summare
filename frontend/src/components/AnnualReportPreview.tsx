@@ -504,14 +504,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       date: companyData.date || new Date().toLocaleDateString('sv-SE')
     };
     
-    // Debug log to see what data we're getting
-    console.log('🔍 Header data debug:', {
-      scrapedOrgNumber,
-      seFileOrgNumber,
-      fallbackOrgNumber,
-      finalOrgNumber: headerData.organization_number,
-      scrapedData: (companyData as any)?.scraped_company_data
-    });
+
 
     return (
       <div className="space-y-6">

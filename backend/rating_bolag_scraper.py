@@ -29,7 +29,7 @@ def search_organization_number(company_name: str) -> Optional[str]:
         
         # Try allabolag.se search first
         search_url = f"https://www.allabolag.se/what/{requests.utils.quote(search_name)}"
-        print(f"DEBUG: Searching for orgnr at: {search_url}")
+
         r = requests.get(search_url, timeout=20, headers=HEADERS)
         
         if r.status_code == 200:
@@ -40,7 +40,7 @@ def search_organization_number(company_name: str) -> Optional[str]:
         
         # Fallback: try ratsit.se search
         ratsit_search_url = f"https://www.ratsit.se/sok/foretag/{requests.utils.quote(search_name)}"
-        print(f"DEBUG: Fallback search at: {ratsit_search_url}")
+
         r2 = requests.get(ratsit_search_url, timeout=20, headers=HEADERS)
         
         if r2.status_code == 200:
@@ -51,7 +51,7 @@ def search_organization_number(company_name: str) -> Optional[str]:
                 return orgnr_match.group(1)
                 
     except Exception as e:
-        print(f"Error searching for organization number: {e}")
+        pass
     
     return None
 
@@ -72,14 +72,12 @@ def clean_orgnr_for_url(orgnr: str) -> str:
 def scrape_numbers(orgnr: str) -> dict:
     clean_orgnr = clean_orgnr_for_url(orgnr)
     url = BASE_NUMBERS.format(orgnr=clean_orgnr)
-    print(f"DEBUG: Fetching numbers from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
-    print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
     soup = BeautifulSoup(r.text, "html.parser")
 
     nyckeltal = {}
     rows = soup.select("td.label")
-    print(f"DEBUG: Found {len(rows)} label rows")
+
     for row in rows:
         label = row.get_text(strip=True)
         values = []
@@ -100,9 +98,7 @@ def scrape_numbers(orgnr: str) -> dict:
 def scrape_people(orgnr: str) -> dict:
     clean_orgnr = clean_orgnr_for_url(orgnr)
     url = BASE_PEOPLE.format(orgnr=clean_orgnr)
-    print(f"DEBUG: Fetching people from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
-    print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
     soup = BeautifulSoup(r.text, "html.parser")
 
     data = {"styrelse": [], "vd": None}
@@ -121,9 +117,7 @@ def scrape_people(orgnr: str) -> dict:
 def scrape_overview(orgnr: str) -> dict:
     clean_orgnr = clean_orgnr_for_url(orgnr)
     url = BASE_OVERVIEW.format(orgnr=clean_orgnr)
-    print(f"DEBUG: Fetching overview from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
-    print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
     soup = BeautifulSoup(r.text, "html.parser")
 
     data = {"company_name": None,"moderbolag": None,"moderbolag_orgnr": None,"antal_dotterbolag": None,"säte": None}
@@ -162,9 +156,7 @@ def scrape_overview(orgnr: str) -> dict:
 def scrape_biz(orgnr: str) -> dict:
     clean_orgnr = clean_orgnr_for_url(orgnr)
     url = BASE_BIZ.format(orgnr=clean_orgnr)
-    print(f"DEBUG: Fetching business info from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
-    print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
     soup = BeautifulSoup(r.text, "html.parser")
 
     data = {"verksamhetsbeskrivning": None}
@@ -299,16 +291,16 @@ def get_company_info_with_search(orgnr: Optional[str] = None, company_name: Opti
     try:
         # If no orgnr provided, try to find it using company name
         if not orgnr and company_name:
-            print(f"Searching for organization number for: {company_name}")
+
             orgnr = search_organization_number(company_name)
             if not orgnr:
-                print(f"Could not find organization number for: {company_name}")
+
                 return {
                     "error": "Organization number not found",
                     "company_name": company_name,
                     "orgnr": None
                 }
-            print(f"Found organization number: {orgnr}")
+
         
         # If we still don't have orgnr, return error
         if not orgnr:
@@ -321,7 +313,7 @@ def get_company_info_with_search(orgnr: Optional[str] = None, company_name: Opti
         return get_company_info(orgnr)
         
     except Exception as e:
-        print(f"Error getting company info: {e}")
+
         return {
             "error": str(e),
             "orgnr": orgnr,

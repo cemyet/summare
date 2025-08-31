@@ -184,7 +184,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                 <div key={block} className="space-y-4 pt-4">
                   {/* Note 1 heading without toggle */}
                   <div className="border-b pb-1">
-                    <h3 className="font-semibold text-lg" style={{paddingTop: '15px'}}>{blockHeading}</h3>
+                    <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
                   </div>
                   
                   {/* Insert text from row_id 3 after heading */}
@@ -237,21 +237,14 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             
             // Special handling for Note 2 (Medelantalet anställda) - no toggle, use scraped data
             if (block === 'NOT2') {
-              // Debug log to see what data we're getting
-              console.log('🔍 NOT2 Debug - companyData:', companyData);
-              console.log('🔍 NOT2 Debug - scraped_company_data:', (companyData as any)?.scraped_company_data);
-              console.log('🔍 NOT2 Debug - nyckeltal:', (companyData as any)?.scraped_company_data?.nyckeltal);
-              console.log('🔍 NOT2 Debug - Antal anställda:', (companyData as any)?.scraped_company_data?.nyckeltal?.["Antal anställda"]);
-              
               // Get employee count from scraped data (first value from "Antal anställda")
               const scrapedEmployeeCount = (companyData as any)?.scraped_company_data?.nyckeltal?.["Antal anställda"]?.[0] || 0;
-              console.log('🔍 NOT2 Debug - Final scrapedEmployeeCount:', scrapedEmployeeCount);
               
               return (
                 <div key={block} className="space-y-2 pt-4">
                   {/* Note 2 heading without toggle */}
                   <div className="border-b pb-1">
-                    <h3 className="font-semibold text-lg" style={{paddingTop: '15px'}}>{blockHeading}</h3>
+                    <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
                   </div>
                   
                   {/* Column Headers - same as BR/RR */}
@@ -274,7 +267,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             return (
               <div key={block} className="space-y-2 pt-4">
                 <div className="flex items-center justify-between border-b pb-1">
-                  <h3 className="font-semibold text-lg" style={{paddingTop: '15px'}}>{blockHeading}</h3>
+                  <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
                   <div className="flex items-center space-x-2">
                   <label 
                   htmlFor={`toggle-${block}`} 
