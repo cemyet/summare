@@ -29,6 +29,7 @@ def search_organization_number(company_name: str) -> Optional[str]:
         
         # Try allabolag.se search first
         search_url = f"https://www.allabolag.se/what/{requests.utils.quote(search_name)}"
+        print(f"DEBUG: Searching for orgnr at: {search_url}")
         r = requests.get(search_url, timeout=20, headers=HEADERS)
         
         if r.status_code == 200:
@@ -39,6 +40,7 @@ def search_organization_number(company_name: str) -> Optional[str]:
         
         # Fallback: try ratsit.se search
         ratsit_search_url = f"https://www.ratsit.se/sok/foretag/{requests.utils.quote(search_name)}"
+        print(f"DEBUG: Fallback search at: {ratsit_search_url}")
         r2 = requests.get(ratsit_search_url, timeout=20, headers=HEADERS)
         
         if r2.status_code == 200:
@@ -91,7 +93,9 @@ def scrape_numbers(orgnr: str) -> dict:
 
 def scrape_people(orgnr: str) -> dict:
     url = BASE_PEOPLE.format(orgnr=orgnr)
+    print(f"DEBUG: Fetching people from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
+    print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
     soup = BeautifulSoup(r.text, "html.parser")
 
     data = {"styrelse": [], "vd": None}
@@ -109,7 +113,9 @@ def scrape_people(orgnr: str) -> dict:
 
 def scrape_overview(orgnr: str) -> dict:
     url = BASE_OVERVIEW.format(orgnr=orgnr)
+    print(f"DEBUG: Fetching overview from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
+    print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
     soup = BeautifulSoup(r.text, "html.parser")
 
     data = {"company_name": None,"moderbolag": None,"moderbolag_orgnr": None,"antal_dotterbolag": None,"säte": None}
@@ -147,7 +153,9 @@ def scrape_overview(orgnr: str) -> dict:
 
 def scrape_biz(orgnr: str) -> dict:
     url = BASE_BIZ.format(orgnr=orgnr)
+    print(f"DEBUG: Fetching business info from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
+    print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
     soup = BeautifulSoup(r.text, "html.parser")
 
     data = {"verksamhetsbeskrivning": None}
