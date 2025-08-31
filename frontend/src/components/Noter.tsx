@@ -23,6 +23,7 @@ interface NoterItem {
   always_show: boolean;
   toggle_show: boolean;
   style: string;
+  variable_text?: string;
 }
 
 interface NoterProps {
@@ -160,6 +161,78 @@ export function Noter({ noterData, fiscalYear, previousYear }: NoterProps) {
             // Get first row title for block heading
             const firstRowTitle = blockItems[0]?.row_title || block;
             const blockHeading = `Not ${firstRowTitle}`;
+            
+            // Special handling for Note 1 (Redovisningsprinciper)
+            if (block === 'NOT1') {
+              // Find the heading item (row_id 2) and text item (row_id 3)
+              const headingItem = blockItems.find(item => item.row_id === 2);
+              const textItem = blockItems.find(item => item.row_id === 3);
+              
+              // Find depreciation period values from noterData
+              const getDepreciationValue = (variableName: string) => {
+                const item = noterData.find(item => item.variable_name === variableName);
+                return item ? item.current_amount : null;
+              };
+              
+              const avskrtidBygg = getDepreciationValue('avskrtid_bygg');
+              const avskrtidMask = getDepreciationValue('avskrtid_mask');
+              const avskrtidInv = getDepreciationValue('avskrtid_inv');
+              const avskrtidOvriga = getDepreciationValue('avskrtid_ovriga');
+              
+              return (
+                <div key={block} className="space-y-4">
+                  {/* Note 1 heading without toggle */}
+                  <div className="border-b pb-1">
+                    <h3 className="font-semibold text-lg">{blockHeading}</h3>
+                  </div>
+                  
+                  {/* Insert text from row_id 3 after heading */}
+                  {textItem?.variable_text && (
+                    <div className="text-sm leading-relaxed">
+                      {textItem.variable_text}
+                    </div>
+                  )}
+                  
+                  {/* Depreciation table with only two columns */}
+                  <div className="space-y-2">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="font-semibold">Anläggningstillgångar</TableHead>
+                          <TableHead className="font-semibold text-right">År</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>Byggnader & mark</TableCell>
+                          <TableCell className="text-right">
+                            {avskrtidBygg !== null ? avskrtidBygg : '-'}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Maskiner och andra tekniska anläggningar</TableCell>
+                          <TableCell className="text-right">
+                            {avskrtidMask !== null ? avskrtidMask : '-'}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Inventarier, verktyg och installationer</TableCell>
+                          <TableCell className="text-right">
+                            {avskrtidInv !== null ? avskrtidInv : '-'}
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>Övriga materiella anläggningstillgångar</TableCell>
+                          <TableCell className="text-right">
+                            {avskrtidOvriga !== null ? avskrtidOvriga : '-'}
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              );
+            }
             
             return (
               <div key={block} className="space-y-2">

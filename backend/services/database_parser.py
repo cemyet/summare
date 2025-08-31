@@ -2399,6 +2399,47 @@ class DatabaseParser:
                     'previous': previous_amount
                 }
         
+        # Calculate depreciation periods for Note 1
+        def calculate_depreciation_period(ib_value, avskr_value, default_years):
+            """Calculate depreciation period with default fallback"""
+            try:
+                if avskr_value and avskr_value > 0 and ib_value and ib_value > 0:
+                    return round(ib_value / avskr_value)
+                return default_years
+            except (TypeError, ZeroDivisionError):
+                return default_years
+        
+        # Add depreciation period calculations
+        depreciation_calculations = {
+            'avskrtid_bygg': calculate_depreciation_period(
+                calculated_variables.get('bygg_ib', {}).get('current', 0),
+                calculated_variables.get('arets_avskr_bygg', {}).get('current', 0),
+                20
+            ),
+            'avskrtid_mask': calculate_depreciation_period(
+                calculated_variables.get('maskiner_ib', {}).get('current', 0),
+                calculated_variables.get('arets_avskr_maskiner', {}).get('current', 0),
+                5
+            ),
+            'avskrtid_inv': calculate_depreciation_period(
+                calculated_variables.get('inventarier_ib', {}).get('current', 0),
+                calculated_variables.get('arets_avskr_inventarier', {}).get('current', 0),
+                3
+            ),
+            'avskrtid_ovriga': calculate_depreciation_period(
+                calculated_variables.get('ovrmat_ib', {}).get('current', 0),
+                calculated_variables.get('arets_avskr_ovrmat', {}).get('current', 0),
+                3
+            )
+        }
+        
+        # Add depreciation periods to calculated_variables
+        for var_name, value in depreciation_calculations.items():
+            calculated_variables[var_name] = {
+                'current': value,
+                'previous': value  # Same value for both years since it's a period calculation
+            }
+        
         # Build final results (return all rows, let frontend handle filtering like RR/BR do)
         for mapping in sorted_mappings:
             try:
@@ -2452,7 +2493,8 @@ class DatabaseParser:
                     'block': mapping.get('block', ''),
                     'style': mapping.get('style', 'NORMAL'),
                     'always_show': always_show,
-                    'toggle_show': toggle_show
+                    'toggle_show': toggle_show,
+                    'variable_text': mapping.get('variable_text', '')
                 }
                 results.append(result)
                     

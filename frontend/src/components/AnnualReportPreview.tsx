@@ -50,6 +50,7 @@ interface CompanyData {
     always_show: boolean;
     toggle_show: boolean;
     style: string;
+    variable_text?: string;
   }>;
   seFileData?: SEData & {
     current_accounts?: Record<string, number>;
