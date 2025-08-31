@@ -2401,8 +2401,18 @@ class DatabaseParser:
                 print(f"DEBUG: Calculating {var_name}: ub_value={ub_value}, avskr_value={avskr_value}")
                 if avskr_value and avskr_value > 0 and ub_value and ub_value > 0:
                     calc_result = ub_value / avskr_value
-                    result = round(calc_result, 0)
-                    print(f"DEBUG: {var_name} calc = {calc_result:.1f}, rounded = {result:.0f} years")
+                    
+                    # Special rounding for maskiner and inventarier groups
+                    if var_name in ['avskrtid_mask', 'avskrtid_inv']:
+                        # Round to nearest of [3, 5, 10, 15, 20, 25]
+                        allowed_values = [3, 5, 10, 15, 20, 25]
+                        result = min(allowed_values, key=lambda x: abs(x - calc_result))
+                        print(f"DEBUG: {var_name} calc = {calc_result:.1f}, rounded to nearest allowed = {result} years")
+                    else:
+                        # Regular rounding for other groups
+                        result = round(calc_result, 0)
+                        print(f"DEBUG: {var_name} calc = {calc_result:.1f}, rounded = {result:.0f} years")
+                    
                     return int(result)
                 print(f"DEBUG: {var_name} using default = {default_years} years")
                 return default_years

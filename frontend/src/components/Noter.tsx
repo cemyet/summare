@@ -180,7 +180,7 @@ export function Noter({ noterData, fiscalYear, previousYear }: NoterProps) {
               const avskrtidOvriga = getDepreciationValue('avskrtid_ovriga');
               
               return (
-                <div key={block} className="space-y-4">
+                <div key={block} className="space-y-4 pt-4">
                   {/* Note 1 heading without toggle */}
                   <div className="border-b pb-1">
                     <h3 className="font-semibold text-lg">{blockHeading}</h3>
@@ -235,7 +235,7 @@ export function Noter({ noterData, fiscalYear, previousYear }: NoterProps) {
             }
             
             return (
-              <div key={block} className="space-y-2">
+              <div key={block} className="space-y-2 pt-4">
                 <div className="flex items-center justify-between border-b pb-1">
                   <h3 className="font-semibold text-lg">{blockHeading}</h3>
                   <div className="flex items-center space-x-2">
