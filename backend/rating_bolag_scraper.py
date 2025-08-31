@@ -64,11 +64,14 @@ def clean_number(val: str):
 
 def scrape_numbers(orgnr: str) -> dict:
     url = BASE_NUMBERS.format(orgnr=orgnr)
+    print(f"DEBUG: Fetching numbers from: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
+    print(f"DEBUG: Response status: {r.status_code}, Content length: {len(r.text)}")
     soup = BeautifulSoup(r.text, "html.parser")
 
     nyckeltal = {}
     rows = soup.select("td.label")
+    print(f"DEBUG: Found {len(rows)} label rows")
     for row in rows:
         label = row.get_text(strip=True)
         values = []

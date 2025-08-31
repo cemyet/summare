@@ -15,8 +15,6 @@ from services.supabase_service import SupabaseService
 from services.database_parser import DatabaseParser
 from services.supabase_database import db
 from services.bolagsverket_service import BolagsverketService
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rating_bolag_scraper import get_company_info_with_search
 from models.schemas import (
     ReportRequest, ReportResponse, CompanyData, 
@@ -106,10 +104,12 @@ async def upload_se_file(file: UploadFile = File(...)):
         scraped_company_data = {}
         try:
             print(f"DEBUG: Scraping company data for: {company_info.get('organization_number')} / {company_info.get('company_name')}")
+            print(f"DEBUG: About to call get_company_info_with_search...")
             scraped_company_data = get_company_info_with_search(
                 orgnr=company_info.get('organization_number'),
                 company_name=company_info.get('company_name')
             )
+            print(f"DEBUG: Scraper returned: {type(scraped_company_data)}, keys: {list(scraped_company_data.keys()) if isinstance(scraped_company_data, dict) else 'Not a dict'}")
             print(f"DEBUG: Successfully scraped company data for orgnr: {scraped_company_data.get('orgnr', 'N/A')}")
             
             # Debug printout of fetched data
@@ -374,10 +374,12 @@ async def test_parser(file: UploadFile = File(...)):
         scraped_company_data = {}
         try:
             print(f"DEBUG: Scraping company data for: {company_info.get('organization_number')} / {company_info.get('company_name')}")
+            print(f"DEBUG: About to call get_company_info_with_search...")
             scraped_company_data = get_company_info_with_search(
                 orgnr=company_info.get('organization_number'),
                 company_name=company_info.get('company_name')
             )
+            print(f"DEBUG: Scraper returned: {type(scraped_company_data)}, keys: {list(scraped_company_data.keys()) if isinstance(scraped_company_data, dict) else 'Not a dict'}")
             print(f"DEBUG: Successfully scraped company data for orgnr: {scraped_company_data.get('orgnr', 'N/A')}")
             
             # Debug printout of fetched data
