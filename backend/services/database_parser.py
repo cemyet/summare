@@ -2395,14 +2395,15 @@ class DatabaseParser:
                 }
         
         # Calculate depreciation periods for Note 1
-        def calculate_depreciation_period(ib_value, avskr_value, default_years, var_name):
+        def calculate_depreciation_period(ub_value, avskr_value, default_years, var_name):
             """Calculate depreciation period with default fallback"""
             try:
-                print(f"DEBUG: Calculating {var_name}: ib_value={ib_value}, avskr_value={avskr_value}")
-                if avskr_value and avskr_value > 0 and ib_value and ib_value > 0:
-                    result = round(ib_value / avskr_value)
-                    print(f"DEBUG: {var_name} calculated = {result} years")
-                    return result
+                print(f"DEBUG: Calculating {var_name}: ub_value={ub_value}, avskr_value={avskr_value}")
+                if avskr_value and avskr_value > 0 and ub_value and ub_value > 0:
+                    calc_result = ub_value / avskr_value
+                    result = round(calc_result, 0)
+                    print(f"DEBUG: {var_name} calc = {calc_result:.1f}, rounded = {result:.0f} years")
+                    return int(result)
                 print(f"DEBUG: {var_name} using default = {default_years} years")
                 return default_years
             except (TypeError, ZeroDivisionError) as e:
@@ -2412,25 +2413,25 @@ class DatabaseParser:
         # Add depreciation period calculations
         depreciation_calculations = {
             'avskrtid_bygg': calculate_depreciation_period(
-                calculated_variables.get('bygg_ib', {}).get('current', 0),
+                calculated_variables.get('bygg_ub', {}).get('current', 0),
                 calculated_variables.get('arets_avskr_bygg', {}).get('current', 0),
                 20,
                 'avskrtid_bygg'
             ),
             'avskrtid_mask': calculate_depreciation_period(
-                calculated_variables.get('maskiner_ib', {}).get('current', 0),
+                calculated_variables.get('maskiner_ub', {}).get('current', 0),
                 calculated_variables.get('arets_avskr_maskiner', {}).get('current', 0),
                 5,
                 'avskrtid_mask'
             ),
             'avskrtid_inv': calculate_depreciation_period(
-                calculated_variables.get('inventarier_ib', {}).get('current', 0),
+                calculated_variables.get('inventarier_ub', {}).get('current', 0),
                 calculated_variables.get('arets_avskr_inventarier', {}).get('current', 0),
                 3,
                 'avskrtid_inv'
             ),
             'avskrtid_ovriga': calculate_depreciation_period(
-                calculated_variables.get('ovrmat_ib', {}).get('current', 0),
+                calculated_variables.get('ovrmat_ub', {}).get('current', 0),
                 calculated_variables.get('arets_avskr_ovrmat', {}).get('current', 0),
                 3,
                 'avskrtid_ovriga'
