@@ -237,8 +237,15 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             
             // Special handling for Note 2 (Medelantalet anställda) - no toggle, use scraped data
             if (block === 'NOT2') {
+              // Debug log to see what data we're getting
+              console.log('🔍 NOT2 Debug - companyData:', companyData);
+              console.log('🔍 NOT2 Debug - scraped_company_data:', (companyData as any)?.scraped_company_data);
+              console.log('🔍 NOT2 Debug - nyckeltal:', (companyData as any)?.scraped_company_data?.nyckeltal);
+              console.log('🔍 NOT2 Debug - Antal anställda:', (companyData as any)?.scraped_company_data?.nyckeltal?.["Antal anställda"]);
+              
               // Get employee count from scraped data (first value from "Antal anställda")
-              const scrapedEmployeeCount = companyData?.scrapedCompanyData?.nyckeltal?.["Antal anställda"]?.[0] || 0;
+              const scrapedEmployeeCount = (companyData as any)?.scraped_company_data?.nyckeltal?.["Antal anställda"]?.[0] || 0;
+              console.log('🔍 NOT2 Debug - Final scrapedEmployeeCount:', scrapedEmployeeCount);
               
               return (
                 <div key={block} className="space-y-2 pt-4">

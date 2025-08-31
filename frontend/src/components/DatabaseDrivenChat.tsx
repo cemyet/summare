@@ -1004,6 +1004,7 @@ interface ChatFlowResponse {
     // Update company data with all extracted information
     onDataUpdate({ 
       seFileData: fileData.data,
+      scraped_company_data: fileData.data?.scraped_company_data, // Add scraped company data
       results: extractedResults,
       sumAretsResultat: sumAretsResultat,
       sumFrittEgetKapital: sumFrittEgetKapital,

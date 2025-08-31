@@ -16,6 +16,7 @@ interface CompanyData {
   date: string;
   boardMembers: Array<{ name: string; personalNumber: string }>;
   seFileData?: any; // Store processed SE file data
+  scraped_company_data?: any; // Store scraped company data from rating_bolag_scraper
   organizationNumber?: string; // From SE file
   fiscalYear?: number; // From SE file
   companyName?: string; // From SE file

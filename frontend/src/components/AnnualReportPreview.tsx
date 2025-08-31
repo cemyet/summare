@@ -492,7 +492,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
     // Use structured data from Python if available, with fallbacks
     // Priority for organization number: scraped data > SE file data > fallback
-    const scrapedOrgNumber = (companyData as any).scrapedCompanyData?.orgnr;
+    const scrapedOrgNumber = (companyData as any).scraped_company_data?.orgnr;
     const seFileOrgNumber = companyInfo?.organization_number;
     const fallbackOrgNumber = (companyData as any).organizationNumber;
     
@@ -503,6 +503,15 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       location: companyInfo?.location || companyData.location || 'Stockholm',
       date: companyData.date || new Date().toLocaleDateString('sv-SE')
     };
+    
+    // Debug log to see what data we're getting
+    console.log('🔍 Header data debug:', {
+      scrapedOrgNumber,
+      seFileOrgNumber,
+      fallbackOrgNumber,
+      finalOrgNumber: headerData.organization_number,
+      scrapedData: (companyData as any)?.scraped_company_data
+    });
 
     return (
       <div className="space-y-6">
@@ -515,9 +524,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
           </p>
           <p className="text-sm text-muted-foreground">
             Räkenskapsår: {headerData.fiscal_year}
-          </p>
-          <p className="text-sm text-muted-foreground mt-1">
-            {[headerData.location, headerData.date].filter(Boolean).join(', ')}
           </p>
         </div>
 
