@@ -2224,12 +2224,8 @@ class DatabaseParser:
         koncern_k2_data = parse_koncern_k2_from_sie_text(se_content, debug=False)
         
         # Get precise INTRESSEFTG calculations from transaction analysis
-        print("DEBUG: Starting INTRESSEFTG K2 parser...")
         from .intresseftg_k2_parser import parse_intresseftg_k2_from_sie_text
-        print("DEBUG: INTRESSEFTG K2 parser imported successfully")
-        intresseftg_k2_data = parse_intresseftg_k2_from_sie_text(se_content, debug=True)
-        print(f"DEBUG: INTRESSEFTG K2 data calculated successfully: {len(intresseftg_k2_data)} variables")
-        print(f"DEBUG: INTRESSEFTG K2 data: {intresseftg_k2_data}")
+        intresseftg_k2_data = parse_intresseftg_k2_from_sie_text(se_content, debug=False)
         
         # Get precise BYGG calculations from transaction analysis
         from .bygg_k2_parser import parse_bygg_k2_from_sie_text
@@ -2292,7 +2288,6 @@ class DatabaseParser:
                 'current': value,
                 'previous': 0.0
             }
-            print(f"DEBUG: Pre-loaded INTRESSEFTG K2 variable {var_name}: {value}")
             
         for var_name, value in bygg_k2_data.items():
             calculated_variables[var_name] = {
@@ -2400,13 +2395,18 @@ class DatabaseParser:
                 }
         
         # Calculate depreciation periods for Note 1
-        def calculate_depreciation_period(ib_value, avskr_value, default_years):
+        def calculate_depreciation_period(ib_value, avskr_value, default_years, var_name):
             """Calculate depreciation period with default fallback"""
             try:
+                print(f"DEBUG: Calculating {var_name}: ib_value={ib_value}, avskr_value={avskr_value}")
                 if avskr_value and avskr_value > 0 and ib_value and ib_value > 0:
-                    return round(ib_value / avskr_value)
+                    result = round(ib_value / avskr_value)
+                    print(f"DEBUG: {var_name} calculated = {result} years")
+                    return result
+                print(f"DEBUG: {var_name} using default = {default_years} years")
                 return default_years
-            except (TypeError, ZeroDivisionError):
+            except (TypeError, ZeroDivisionError) as e:
+                print(f"DEBUG: {var_name} error: {e}, using default = {default_years} years")
                 return default_years
         
         # Add depreciation period calculations
@@ -2414,24 +2414,30 @@ class DatabaseParser:
             'avskrtid_bygg': calculate_depreciation_period(
                 calculated_variables.get('bygg_ib', {}).get('current', 0),
                 calculated_variables.get('arets_avskr_bygg', {}).get('current', 0),
-                20
+                20,
+                'avskrtid_bygg'
             ),
             'avskrtid_mask': calculate_depreciation_period(
                 calculated_variables.get('maskiner_ib', {}).get('current', 0),
                 calculated_variables.get('arets_avskr_maskiner', {}).get('current', 0),
-                5
+                5,
+                'avskrtid_mask'
             ),
             'avskrtid_inv': calculate_depreciation_period(
                 calculated_variables.get('inventarier_ib', {}).get('current', 0),
                 calculated_variables.get('arets_avskr_inventarier', {}).get('current', 0),
-                3
+                3,
+                'avskrtid_inv'
             ),
             'avskrtid_ovriga': calculate_depreciation_period(
                 calculated_variables.get('ovrmat_ib', {}).get('current', 0),
                 calculated_variables.get('arets_avskr_ovrmat', {}).get('current', 0),
-                3
+                3,
+                'avskrtid_ovriga'
             )
         }
+        
+        print(f"DEBUG: Depreciation calculations completed: {depreciation_calculations}")
         
         # Add depreciation periods to calculated_variables
         for var_name, value in depreciation_calculations.items():
@@ -2501,5 +2507,25 @@ class DatabaseParser:
             except Exception as e:
                 print(f"Error processing Noter mapping {mapping.get('variable_name', 'unknown')}: {e}")
                 continue
+        
+        # Add depreciation period results directly (they don't have database mappings)
+        for var_name, value in depreciation_calculations.items():
+            depreciation_result = {
+                'row_id': 9000 + len(results),  # High row_id to avoid conflicts
+                'row_title': f'Avskrivningstid {var_name}',
+                'current_amount': value,
+                'previous_amount': value,
+                'variable_name': var_name,
+                'show_tag': False,
+                'accounts_included': '',
+                'account_details': None,
+                'block': 'NOT1',
+                'style': 'NORMAL',
+                'always_show': True,
+                'toggle_show': False,
+                'variable_text': ''
+            }
+            results.append(depreciation_result)
+            print(f"DEBUG: Added depreciation result for {var_name}: {value}")
         
         return results
