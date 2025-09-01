@@ -530,13 +530,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       return item.always_show === true;
     }
     
-    // NEW LOGIC: If amount is 0 for both years, hide unless always_show = true
+    // NEW LOGIC: If amount is 0 for both years, hide unless always_show = true OR has note number
     const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0 && item.current_amount !== -0) ||
                             (item.previous_amount !== null && item.previous_amount !== 0 && item.previous_amount !== -0);
     const isAlwaysShow = item.always_show === true; // Use database field
+    const hasNoteNumber = item.note_number !== undefined && item.note_number !== null; // Has note reference
     
-    // Show if: (has non-zero amount) OR (always_show = true)
-    return hasNonZeroAmount || isAlwaysShow;
+    // Show if: (has non-zero amount) OR (always_show = true) OR (has note number)
+    return hasNonZeroAmount || isAlwaysShow || hasNoteNumber;
   };
 
   // Helper function to get note value for specific rows
