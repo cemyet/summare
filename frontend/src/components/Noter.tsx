@@ -175,22 +175,28 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               }
               
               // Check visibility toggles for blocks that have them
+              // Note: For EVENTUAL and SAKERHET, we don't set isVisible = false here
+              // because we want to show the header with opacity, just not count in numbering
+              
+              blockVisibility[block] = { isVisible };
+              
+              // Assign note numbers to visible blocks (except NOT1 and NOT2 which are fixed)
+              // Also exclude EVENTUAL and SAKERHET if their visibility toggles are off
+              let shouldGetNumber = isVisible && block !== 'NOT1' && block !== 'NOT2';
+              
               if (block === 'EVENTUAL') {
                 const eventualToggleKey = `eventual-visibility`;
                 const isEventualVisible = blockToggles[eventualToggleKey] !== false;
-                if (!isEventualVisible) isVisible = false;
+                if (!isEventualVisible) shouldGetNumber = false;
               }
               
               if (block === 'SAKERHET') {
                 const sakerhetToggleKey = `sakerhet-visibility`;
                 const isSakerhetVisible = blockToggles[sakerhetToggleKey] !== false;
-                if (!isSakerhetVisible) isVisible = false;
+                if (!isSakerhetVisible) shouldGetNumber = false;
               }
               
-              blockVisibility[block] = { isVisible };
-              
-              // Assign note numbers to visible blocks (except NOT1 and NOT2 which are fixed)
-              if (isVisible && block !== 'NOT1' && block !== 'NOT2') {
+              if (shouldGetNumber) {
                 blockVisibility[block].noteNumber = noteNumber++;
               }
             });
