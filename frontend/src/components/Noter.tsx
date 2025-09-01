@@ -278,6 +278,13 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   <div className="border-b pb-1">
                     <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
                   </div>
+                  
+                  {/* Always show moderbolag text at the start if company has parent company */}
+                  {moderbolag && (
+                    <div className="text-sm leading-relaxed">
+                      Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolagOrgnr} med säte i {sate}, som upprättar koncernredovisning.
+                    </div>
+                  )}
 
                   {/* Noter Rows */}
                   {visibleItems.map((item, index) => {
@@ -332,12 +339,6 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                           </span>
                         </div>
                         
-                        {/* Add moderbolag text after row 534 if moderbolag exists */}
-                        {item.row_id === 534 && moderbolag && (
-                          <div className="text-sm leading-relaxed">
-                            Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolagOrgnr} med säte i {sate}, som upprättar koncernredovisning.
-                          </div>
-                        )}
                       </React.Fragment>
                     );
                   })}
