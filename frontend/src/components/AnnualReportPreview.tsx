@@ -211,6 +211,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
   const [originalAmounts, setOriginalAmounts] = useState<Record<string, number>>({});
   const [recalculatedData, setRecalculatedData] = useState<any[]>([]);
+  const [brDataWithNotes, setBrDataWithNotes] = useState<any[]>([]);
 
   // Get new database-driven parser data (moved up to avoid initialization errors)
   const seFileData = cd.seFileData;
@@ -218,6 +219,31 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const brData = seFileData?.br_data || [];
   const ink2Data = cd.ink2Data || seFileData?.ink2_data || [];
   const companyInfo = seFileData?.company_info || {};
+
+  // Load BR data with note numbers when brData changes
+  useEffect(() => {
+    const loadBrDataWithNotes = async () => {
+      if (brData.length > 0) {
+        try {
+          const response = await apiService.addNoteNumbersToBr({ br_data: brData });
+          if (response.success) {
+            setBrDataWithNotes(response.br_data);
+          } else {
+            // Fallback to original brData if API fails
+            setBrDataWithNotes(brData);
+          }
+        } catch (error) {
+          console.error('Error loading BR data with note numbers:', error);
+          // Fallback to original brData if API fails
+          setBrDataWithNotes(brData);
+        }
+      } else {
+        setBrDataWithNotes([]);
+      }
+    };
+
+    loadBrDataWithNotes();
+  }, [brData]);
 
   // Capture original amounts when isEditing becomes true (for undo functionality)
   useEffect(() => {
@@ -435,16 +461,23 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   };
 
   // Helper function to get note value for specific rows
-  const getNoteValue = (label: string): string => {
-    if (label === 'Personalkostnader') {
+  const getNoteValue = (item: any): string => {
+    // Check if this item has a note number from the backend
+    if (item.note_number) {
+      return item.note_number.toString();
+    }
+    
+    // Fallback for specific labels (legacy support)
+    if (item.label === 'Personalkostnader') {
       return '2';
     }
+    
     return '';
   };
 
   const getPreviewContent = () => {
     // Show empty state only if we have no data and are at step 0
-    if (currentStep === 0 && !rrData.length && !brData.length) {
+    if (currentStep === 0 && !rrData.length && !brDataWithNotes.length) {
       return (
         <div className="text-center py-20">
           <div className="text-muted-foreground mb-4">
@@ -459,7 +492,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
 
     // Show preview content if we have data, regardless of currentStep
-    if (!rrData.length && !brData.length) {
+    if (!rrData.length && !brDataWithNotes.length) {
       return (
         <div className="text-center py-20">
           <div className="text-muted-foreground mb-4">
@@ -587,9 +620,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             </div>
 
             {/* Balance Sheet Rows */}
-            {brData.length > 0 ? (
-              brData.map((item, index) => {
-                if (!shouldShowRow(item, showAllBR, brData)) {
+            {brDataWithNotes.length > 0 ? (
+              brDataWithNotes.map((item, index) => {
+                if (!shouldShowRow(item, showAllBR, brDataWithNotes)) {
                   return null;
                 }
                 
@@ -603,7 +636,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   >
                     <span className="text-muted-foreground">{item.label}</span>
                     <span className="text-right font-medium">
-                      {getNoteValue(item.label)}
+                      {getNoteValue(item)}
                     </span>
                     <span className="text-right font-medium">
                       {formatAmountDisplay(item.current_amount)}

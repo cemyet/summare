@@ -993,6 +993,36 @@ async def submit_management_report(report_request: ManagementReportRequest):
         print(f"Error submitting management report: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/add-note-numbers-to-br")
+async def add_note_numbers_to_br(request: dict):
+    """
+    Add note numbers to BR data based on br_not mappings.
+    Uses fixed note numbering for static notes (NOT1, NOT2, BYGG, etc.).
+    
+    Expected request format:
+    {
+        "br_data": [...]  # BR data array
+    }
+    """
+    try:
+        br_data = request.get('br_data', [])
+        
+        if not br_data:
+            raise HTTPException(status_code=400, detail="br_data is required")
+        
+        # Initialize parser and add note numbers
+        parser = DatabaseParser()
+        updated_br_data = parser.add_note_numbers_to_br_data(br_data)
+        
+        return {
+            "success": True,
+            "br_data": updated_br_data
+        }
+        
+    except Exception as e:
+        print(f"Error adding note numbers to BR: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 if __name__ == "__main__":
     import uvicorn
     import os

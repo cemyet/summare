@@ -11,6 +11,7 @@ export const API_ENDPOINTS = {
   userReports: `${API_BASE_URL}/user-reports`,
   downloadReport: `${API_BASE_URL}/download-report`,
   recalculateInk2: `${API_BASE_URL}/api/recalculate-ink2`,
+  addNoteNumbersToBr: `${API_BASE_URL}/api/add-note-numbers-to-br`,
   chatFlow: `${API_BASE_URL}/api/chat-flow`,
   // Förvaltningsberättelse endpoints
   managementReportTemplate: `${API_BASE_URL}/forvaltningsberattelse/template`,

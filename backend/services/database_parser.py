@@ -84,7 +84,7 @@ class DatabaseParser:
             self.accounts_lookup = {}
             for acc in accounts_response.data:
                 acc_id = acc.get('account_id')
-                text = acc.get('account_text') or f"Konto {acc_id}"
+                text = acc.get('account_text') or f"Konto {acc_id}" 
                 # int key
                 try:
                     self.accounts_lookup[int(acc_id)] = text
@@ -1585,6 +1585,58 @@ class DatabaseParser:
         except Exception as e:
             print(f"Error updating formula for row {row_id}: {e}")
             return False
+    
+    def add_note_numbers_to_br_data(self, br_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Add note numbers to BR data based on br_not mappings from noter table.
+        Uses fixed note numbering since only static notes (NOT1, NOT2, BYGG, etc.) 
+        are inserted into BR, not the toggleable ones (EVENTUAL, SAKERHET, OVRIGA).
+        
+        Returns:
+            BR data with note numbers added to appropriate rows
+        """
+        if not self.noter_mappings:
+            return br_data
+        
+        # Define fixed note numbers for blocks that have br_not values
+        # NOT1 = 1, NOT2 = 2, then sequential numbering for other blocks
+        block_note_numbers = {
+            'NOT1': 1,
+            'NOT2': 2,
+            'BYGG': 3,
+            'MASKIN': 4,
+            'INV': 5,
+            'MAT': 6,
+            'LVP': 7,
+            'KONCERN': 8,
+            'INTRESSEFTG': 9,
+            'OVRIGA_FORDRINGAR': 10,
+            'OVRIGA_K2': 11
+        }
+        
+        # Create mapping from br_not row_id to note number
+        br_note_mapping = {}
+        for noter_mapping in self.noter_mappings:
+            br_not = noter_mapping.get('br_not')
+            block = noter_mapping.get('block')
+            
+            # Only process blocks that have br_not values and are in our fixed numbering
+            if br_not and block and block in block_note_numbers:
+                br_note_mapping[br_not] = block_note_numbers[block]
+        
+        # Add note numbers to BR data
+        updated_br_data = []
+        for br_item in br_data:
+            br_item_copy = br_item.copy()
+            br_row_id = br_item.get('id')
+            
+            # If this BR row should have a note number, add it
+            if br_row_id in br_note_mapping:
+                br_item_copy['note_number'] = br_note_mapping[br_row_id]
+            
+            updated_br_data.append(br_item_copy)
+        
+        return updated_br_data
     
     def parse_ink2_data(self, current_accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, br_data: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """

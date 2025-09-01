@@ -138,6 +138,15 @@ class ApiService {
     });
   }
 
+  async addNoteNumbersToBr(data: {
+    br_data: any[];
+  }): Promise<{ success: boolean; br_data: any[] }> {
+    return this.makeRequest(API_ENDPOINTS.addNoteNumbersToBr, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Förvaltningsberättelse API methods
   async getManagementReportTemplate(): Promise<{ success: boolean; template: any; message: string }> {
     return this.makeRequest(API_ENDPOINTS.managementReportTemplate);
