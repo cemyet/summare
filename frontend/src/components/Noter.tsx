@@ -357,14 +357,14 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                     <h3 className={`font-semibold text-lg ${!isEventualVisible ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
                       {blockHeading}
                     </h3>
-                    <div className={`ml-2 flex items-center ${!isEventualVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)'}}>
+                    <div className={`ml-2 flex items-center ${!isEventualVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '3px'}}>
                       <Switch
                         checked={isEventualVisible}
                         onCheckedChange={(checked) => 
                           setBlockToggles(prev => ({ ...prev, [eventualToggleKey]: checked }))
                         }
                       />
-                      <span className="ml-2 text-sm font-medium">Visa not</span>
+                      <span className="ml-2 font-medium" style={{fontSize: '16px'}}>Visa not</span>
                     </div>
                   </div>
                   
