@@ -199,8 +199,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="font-semibold py-2">Anläggningstillgångar</TableHead>
-                          <TableHead className="font-semibold text-right py-2">År</TableHead>
+                          <TableHead className="font-semibold py-1">Anläggningstillgångar</TableHead>
+                          <TableHead className="font-semibold text-right py-1">År</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
