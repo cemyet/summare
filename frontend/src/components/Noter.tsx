@@ -147,7 +147,12 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             const blockItems = groupedItems[block];
             const visibleItems = getVisibleItems(blockItems);
             
-            if (visibleItems.length === 0) return null;
+            // For OVRIGA block, always show if there's moderbolag data, even if no rows are visible
+            const scrapedData = (companyData as any)?.scraped_company_data;
+            const moderbolag = scrapedData?.moderbolag;
+            const shouldShowOvrigaForModerbolag = block === 'OVRIGA' && moderbolag;
+            
+            if (visibleItems.length === 0 && !shouldShowOvrigaForModerbolag) return null;
 
             // Hide specific blocks if all amounts are zero
             const blocksToHideIfZero = ['KONCERN', 'INTRESSEFTG', 'BYGG', 'MASKIN', 'INV', 'MAT', 'LVP'];
