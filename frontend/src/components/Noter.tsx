@@ -334,7 +334,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                         
                         {/* Add moderbolag text after row 534 if moderbolag exists */}
                         {item.row_id === 534 && moderbolag && (
-                          <div className="text-sm leading-relaxed mt-2 mb-2 -ml-4">
+                          <div className="text-sm leading-relaxed">
                             Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolagOrgnr} med säte i {sate}, som upprättar koncernredovisning.
                           </div>
                         )}
@@ -345,82 +345,100 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               );
             }
             
-            // Special handling for EVENTUAL block - no toggle, but keep standard layout
+            // Special handling for EVENTUAL block - custom visibility toggle
             if (block === 'EVENTUAL') {
+              const eventualToggleKey = `eventual-visibility`;
+              const isEventualVisible = blockToggles[eventualToggleKey] !== false; // Default to true
+              
               return (
                 <div key={block} className="space-y-2 pt-4">
-                  {/* EVENTUAL heading without toggle */}
-                  <div className="border-b pb-1">
-                    <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
+                  {/* EVENTUAL heading with custom visibility toggle */}
+                  <div className="border-b pb-1 flex items-center">
+                    <h3 className={`font-semibold text-lg ${!isEventualVisible ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
+                      {blockHeading}
+                    </h3>
+                    <span className="ml-2 text-sm font-medium">Visa not</span>
+                    <Switch
+                      className="ml-2"
+                      checked={isEventualVisible}
+                      onCheckedChange={(checked) => 
+                        setBlockToggles(prev => ({ ...prev, [eventualToggleKey]: checked }))
+                      }
+                    />
                   </div>
                   
-                  {/* Column Headers - same as BR/RR */}
-                  <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
-                    <span></span>
-                    <span className="text-right">{fiscalYear || new Date().getFullYear()}</span>
-                    <span className="text-right">{previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
-                  </div>
-
-                  {/* Noter Rows - same grid system as BR/RR */}
-                  {visibleItems.map((item, index) => {
-                    // Use same style system as BR/RR
-                    const getStyleClasses = (style?: string) => {
-                      const baseClasses = 'grid gap-4';
-                      let additionalClasses = '';
-                      const s = style || 'NORMAL';
-                      
-                      // Bold styles
-                      const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
-                      if (boldStyles.includes(s)) {
-                        additionalClasses += ' font-semibold';
-                      }
-                      
-                      // Line styles
-                      const lineStyles = ['S2','S3','TS2','TS3'];
-                      if (lineStyles.includes(s)) {
-                        additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
-                      }
-                      
-                      return {
-                        className: `${baseClasses}${additionalClasses}`,
-                        style: { gridTemplateColumns: '4fr 1fr 1fr' }
-                      };
-                    };
-
-                    const formatAmountDisplay = (amount: number) => {
-                      if (amount === 0) return '0 kr';
-                      const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      });
-                      const sign = amount < 0 ? '-' : '';
-                      return `${sign}${formatted} kr`;
-                    };
-
-                    const currentStyle = item.style || 'NORMAL';
-                    const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(currentStyle);
-                    
-                    return (
-                      <div 
-                        key={index} 
-                        className={getStyleClasses(currentStyle).className}
-                        style={getStyleClasses(currentStyle).style}
-                      >
-                        <span className="text-muted-foreground">
-                          {item.row_title}
-                          {item.show_tag && (
-                            <AccountDetailsDialog item={item} />
-                          )}
-                        </span>
-                        <span className="text-right font-medium">
-                          {isHeading ? '' : formatAmountDisplay(item.current_amount)}
-                        </span>
-                        <span className="text-right font-medium">
-                          {isHeading ? '' : formatAmountDisplay(item.previous_amount)}
-                        </span>
+                  {/* Only show content if toggle is on */}
+                  {isEventualVisible && (
+                    <>
+                      {/* Column Headers - same as BR/RR */}
+                      <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
+                        <span></span>
+                        <span className="text-right">{fiscalYear || new Date().getFullYear()}</span>
+                        <span className="text-right">{previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
                       </div>
-                    );
-                  })}
+
+                      {/* Noter Rows - same grid system as BR/RR */}
+                      {visibleItems.map((item, index) => {
+                        // Use same style system as BR/RR
+                        const getStyleClasses = (style?: string) => {
+                          const baseClasses = 'grid gap-4';
+                          let additionalClasses = '';
+                          const s = style || 'NORMAL';
+                          
+                          // Bold styles
+                          const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
+                          if (boldStyles.includes(s)) {
+                            additionalClasses += ' font-semibold';
+                          }
+                          
+                          // Line styles
+                          const lineStyles = ['S2','S3','TS2','TS3'];
+                          if (lineStyles.includes(s)) {
+                            additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+                          }
+                          
+                          return {
+                            className: `${baseClasses}${additionalClasses}`,
+                            style: { gridTemplateColumns: '4fr 1fr 1fr' }
+                          };
+                        };
+
+                        const formatAmountDisplay = (amount: number) => {
+                          if (amount === 0) return '0 kr';
+                          const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          });
+                          const sign = amount < 0 ? '-' : '';
+                          return `${sign}${formatted} kr`;
+                        };
+
+                        const currentStyle = item.style || 'NORMAL';
+                        const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(currentStyle);
+                        
+                        return (
+                          <div 
+                            key={index} 
+                            className={getStyleClasses(currentStyle).className}
+                            style={getStyleClasses(currentStyle).style}
+                          >
+                            <span className="text-muted-foreground">
+                              {item.row_title}
+                              {item.show_tag && (
+                                <AccountDetailsDialog item={item} />
+                              )}
+                            </span>
+                            <span className="text-right font-medium">
+                              {isHeading ? '' : formatAmountDisplay(item.current_amount)}
+                            </span>
+                            <span className="text-right font-medium">
+                              {isHeading ? '' : formatAmountDisplay(item.previous_amount)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
                 </div>
               );
             }
