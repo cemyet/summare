@@ -444,6 +444,124 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               );
             }
             
+            // Special handling for SAKERHET block - custom visibility toggle + regular toggle
+            if (block === 'SAKERHET') {
+              const sakerhetToggleKey = `sakerhet-visibility`;
+              const isSakerhetVisible = blockToggles[sakerhetToggleKey] !== false; // Default to true
+              
+              return (
+                <div key={block} className="space-y-2 pt-4">
+                  <div className="flex items-center justify-between border-b pb-1">
+                    <div className="flex items-center">
+                      <h3 className={`font-semibold text-lg ${!isSakerhetVisible ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
+                        {blockHeading}
+                      </h3>
+                      <div className={`ml-2 flex items-center ${!isSakerhetVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
+                        <Switch
+                          checked={isSakerhetVisible}
+                          onCheckedChange={(checked) => 
+                            setBlockToggles(prev => ({ ...prev, [sakerhetToggleKey]: checked }))
+                          }
+                        />
+                        <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
+                      </div>
+                    </div>
+                    {/* Keep the regular "Visa alla rader" toggle */}
+                    {isSakerhetVisible && (
+                      <div className="flex items-center space-x-2">
+                        <label 
+                          htmlFor={`toggle-${block}`} 
+                          className="text-sm font-medium cursor-pointer"
+                        >
+                          Visa alla rader
+                        </label>
+                        <Switch
+                          id={`toggle-${block}`}
+                          checked={blockToggles[block] || false}
+                          onCheckedChange={(checked) => 
+                            setBlockToggles(prev => ({ ...prev, [block]: checked }))
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Only show content if visibility toggle is on */}
+                  {isSakerhetVisible && (
+                    <>
+                      {/* Column Headers - same as BR/RR */}
+                      <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
+                        <span></span>
+                        <span className="text-right">{fiscalYear || new Date().getFullYear()}</span>
+                        <span className="text-right">{previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+                      </div>
+
+                      {/* Noter Rows - same grid system as BR/RR */}
+                      {getVisibleItems(blockItems).map((item, index) => {
+                        // Use same style system as BR/RR
+                        const getStyleClasses = (style?: string) => {
+                          const baseClasses = 'grid gap-4';
+                          let additionalClasses = '';
+                          const s = style || 'NORMAL';
+                          
+                          // Bold styles
+                          const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
+                          if (boldStyles.includes(s)) {
+                            additionalClasses += ' font-semibold';
+                          }
+                          
+                          // Line styles
+                          const lineStyles = ['S2','S3','TS2','TS3'];
+                          if (lineStyles.includes(s)) {
+                            additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+                          }
+                          
+                          return {
+                            className: `${baseClasses}${additionalClasses}`,
+                            style: { gridTemplateColumns: '4fr 1fr 1fr' }
+                          };
+                        };
+
+                        const formatAmountDisplay = (amount: number) => {
+                          if (amount === 0) return '0 kr';
+                          const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          });
+                          const sign = amount < 0 ? '-' : '';
+                          return `${sign}${formatted} kr`;
+                        };
+
+                        const currentStyle = item.style || 'NORMAL';
+                        const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(currentStyle);
+                        
+                        return (
+                          <div 
+                            key={index} 
+                            className={getStyleClasses(currentStyle).className}
+                            style={getStyleClasses(currentStyle).style}
+                          >
+                            <span className="text-muted-foreground">
+                              {item.row_title}
+                              {item.show_tag && (
+                                <AccountDetailsDialog item={item} />
+                              )}
+                            </span>
+                            <span className="text-right font-medium">
+                              {isHeading ? '' : formatAmountDisplay(item.current_amount)}
+                            </span>
+                            <span className="text-right font-medium">
+                              {isHeading ? '' : formatAmountDisplay(item.previous_amount)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+                </div>
+              );
+            }
+            
             return (
               <div key={block} className="space-y-2 pt-4">
                 <div className="flex items-center justify-between border-b pb-1">
