@@ -1610,8 +1610,9 @@ class DatabaseParser:
             'LVP': 7,
             'KONCERN': 8,
             'INTRESSEFTG': 9,
-            'OVRIGA_FORDRINGAR': 10,
-            'OVRIGA_K2': 11
+            'FORDRKONC': 10,
+            'FORDRINTRE': 11,
+            'FORDROVRFTG': 12
         }
         
         # Create mapping from br_not row_id to note number
@@ -1623,6 +1624,10 @@ class DatabaseParser:
             # Only process blocks that have br_not values and are in our fixed numbering
             if br_not and block and block in block_note_numbers:
                 br_note_mapping[br_not] = block_note_numbers[block]
+                print(f"DEBUG: Mapping br_not {br_not} (block {block}) to note number {block_note_numbers[block]}")
+        
+        print(f"DEBUG: Created br_note_mapping: {br_note_mapping}")
+        print(f"DEBUG: Processing {len(br_data)} BR items")
         
         # Add note numbers to BR data
         updated_br_data = []
@@ -1632,7 +1637,9 @@ class DatabaseParser:
             
             # If this BR row should have a note number, add it
             if br_row_id in br_note_mapping:
-                br_item_copy['note_number'] = br_note_mapping[br_row_id]
+                note_number = br_note_mapping[br_row_id]
+                br_item_copy['note_number'] = note_number
+                print(f"DEBUG: Added note number {note_number} to BR row {br_row_id} ({br_item.get('label', 'No label')})")
             
             updated_br_data.append(br_item_copy)
         
