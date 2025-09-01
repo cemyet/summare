@@ -143,30 +143,78 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
       
       <CardContent>
         <div className="space-y-6">
-          {blocks.map(block => {
-            const blockItems = groupedItems[block];
-            const visibleItems = getVisibleItems(blockItems);
+          {(() => {
+            // First pass: determine which blocks will be visible and calculate note numbers
+            let noteNumber = 3; // Start at 3 since NOT1=1 and NOT2=2 are fixed
+            const blockVisibility: Record<string, { isVisible: boolean; noteNumber?: number }> = {};
             
-            // For OVRIGA block, always show if there's moderbolag data, even if no rows are visible
-            const scrapedData = (companyData as any)?.scraped_company_data;
-            const moderbolag = scrapedData?.moderbolag;
-            const shouldShowOvrigaForModerbolag = block === 'OVRIGA' && moderbolag;
+            blocks.forEach(block => {
+              const blockItems = groupedItems[block];
+              const visibleItems = getVisibleItems(blockItems);
+              
+              // For OVRIGA block, always show if there's moderbolag data
+              const scrapedData = (companyData as any)?.scraped_company_data;
+              const moderbolag = scrapedData?.moderbolag;
+              const shouldShowOvrigaForModerbolag = block === 'OVRIGA' && moderbolag;
+              
+              // Check if block should be visible
+              let isVisible = true;
+              
+              if (visibleItems.length === 0 && !shouldShowOvrigaForModerbolag) {
+                isVisible = false;
+              }
+              
+              // Hide specific blocks if all amounts are zero
+              const blocksToHideIfZero = ['KONCERN', 'INTRESSEFTG', 'BYGG', 'MASKIN', 'INV', 'MAT', 'LVP'];
+              if (blocksToHideIfZero.includes(block)) {
+                const hasNonZeroAmount = blockItems.some(item => 
+                  (item.current_amount !== 0 && item.current_amount !== null) || 
+                  (item.previous_amount !== 0 && item.previous_amount !== null)
+                );
+                if (!hasNonZeroAmount) isVisible = false;
+              }
+              
+              // Check visibility toggles for blocks that have them
+              if (block === 'EVENTUAL') {
+                const eventualToggleKey = `eventual-visibility`;
+                const isEventualVisible = blockToggles[eventualToggleKey] !== false;
+                if (!isEventualVisible) isVisible = false;
+              }
+              
+              if (block === 'SAKERHET') {
+                const sakerhetToggleKey = `sakerhet-visibility`;
+                const isSakerhetVisible = blockToggles[sakerhetToggleKey] !== false;
+                if (!isSakerhetVisible) isVisible = false;
+              }
+              
+              blockVisibility[block] = { isVisible };
+              
+              // Assign note numbers to visible blocks (except NOT1 and NOT2 which are fixed)
+              if (isVisible && block !== 'NOT1' && block !== 'NOT2') {
+                blockVisibility[block].noteNumber = noteNumber++;
+              }
+            });
             
-            if (visibleItems.length === 0 && !shouldShowOvrigaForModerbolag) return null;
-
-            // Hide specific blocks if all amounts are zero
-            const blocksToHideIfZero = ['KONCERN', 'INTRESSEFTG', 'BYGG', 'MASKIN', 'INV', 'MAT', 'LVP'];
-            if (blocksToHideIfZero.includes(block)) {
-              const hasNonZeroAmount = blockItems.some(item => 
-                (item.current_amount !== 0 && item.current_amount !== null) || 
-                (item.previous_amount !== 0 && item.previous_amount !== null)
-              );
-              if (!hasNonZeroAmount) return null;
-            }
-            
-            // Get first row title for block heading
-            const firstRowTitle = blockItems[0]?.row_title || block;
-            const blockHeading = `Not ${firstRowTitle}`;
+            // Second pass: render the blocks with correct numbering
+            return blocks.map(block => {
+              const blockItems = groupedItems[block];
+              const visibleItems = getVisibleItems(blockItems);
+              const visibility = blockVisibility[block];
+              
+              if (!visibility.isVisible) return null;
+              
+              // Get first row title for block heading
+              const firstRowTitle = blockItems[0]?.row_title || block;
+              let blockHeading = `Not ${firstRowTitle}`;
+              
+              // Apply note numbering
+              if (block === 'NOT1') {
+                blockHeading = `Not 1 ${firstRowTitle}`;
+              } else if (block === 'NOT2') {
+                blockHeading = `Not 2 ${firstRowTitle}`;
+              } else if (visibility.noteNumber) {
+                blockHeading = `Not ${visibility.noteNumber} ${firstRowTitle}`;
+              }
             
             // Special handling for Note 1 (Redovisningsprinciper)
             if (block === 'NOT1') {
@@ -658,7 +706,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                 })}
               </div>
             );
-          })}
+          });
+          })()}
           
           {blocks.every(block => getVisibleItems(groupedItems[block]).length === 0) && (
             <div className="text-center text-gray-500 py-4">
