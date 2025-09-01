@@ -357,14 +357,15 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                     <h3 className={`font-semibold text-lg ${!isEventualVisible ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
                       {blockHeading}
                     </h3>
-                    <span className="ml-2 text-sm font-medium">Visa not</span>
-                    <Switch
-                      className="ml-2"
-                      checked={isEventualVisible}
-                      onCheckedChange={(checked) => 
-                        setBlockToggles(prev => ({ ...prev, [eventualToggleKey]: checked }))
-                      }
-                    />
+                    <div className={`ml-2 flex items-center ${!isEventualVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)'}}>
+                      <Switch
+                        checked={isEventualVisible}
+                        onCheckedChange={(checked) => 
+                          setBlockToggles(prev => ({ ...prev, [eventualToggleKey]: checked }))
+                        }
+                      />
+                      <span className="ml-2 text-sm font-medium">Visa not</span>
+                    </div>
                   </div>
                   
                   {/* Only show content if toggle is on */}
