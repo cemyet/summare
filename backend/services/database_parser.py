@@ -1598,11 +1598,11 @@ class DatabaseParser:
         if not self.noter_mappings:
             return br_data
         
-        # Define fixed note numbers for blocks that have br_not values
-        # NOT1 = 1, NOT2 = 2, then sequential numbering for other blocks
+        # Define fixed note numbers for blocks that are placed in BR
+        # NOT1 and NOT2 are not placed in BR
+        # EVENTUAL, SAKERHET, OVRIGA are not placed in BR
+        # Only these blocks get note numbers in BR:
         block_note_numbers = {
-            'NOT1': 1,
-            'NOT2': 2,
             'BYGG': 3,
             'MASKIN': 4,
             'INV': 5,
