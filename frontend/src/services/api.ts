@@ -140,6 +140,7 @@ class ApiService {
 
   async addNoteNumbersToBr(data: {
     br_data: any[];
+    note_numbers?: Record<string, number>;
   }): Promise<{ success: boolean; br_data: any[] }> {
     return this.makeRequest(API_ENDPOINTS.addNoteNumbersToBr, {
       method: 'POST',

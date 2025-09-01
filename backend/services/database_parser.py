@@ -1586,11 +1586,16 @@ class DatabaseParser:
             print(f"Error updating formula for row {row_id}: {e}")
             return False
     
-    def add_note_numbers_to_br_data(self, br_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def add_note_numbers_to_br_data(self, br_data: List[Dict[str, Any]], dynamic_note_numbers: Dict[str, int] = None) -> List[Dict[str, Any]]:
         """
         Add note numbers to BR data based on br_not mappings from noter table.
-        Uses fixed note numbering since only static notes (NOT1, NOT2, BYGG, etc.) 
-        are inserted into BR, not the toggleable ones (EVENTUAL, SAKERHET, OVRIGA).
+        Uses dynamic note numbering from frontend - only notes that are actually visible
+        and numbered in the Noter section get their numbers inserted into BR.
+        
+        Args:
+            br_data: List of BR data items
+            dynamic_note_numbers: Dict mapping block names to their actual note numbers from frontend
+                                 e.g., {'BYGG': 3, 'KONCERN': 5} (only for visible notes)
         
         Returns:
             BR data with note numbers added to appropriate rows
@@ -1598,22 +1603,8 @@ class DatabaseParser:
         if not self.noter_mappings:
             return br_data
         
-        # Define fixed note numbers for blocks that are placed in BR
-        # NOT1 and NOT2 are not placed in BR
-        # EVENTUAL, SAKERHET, OVRIGA are not placed in BR
-        # Only these blocks get note numbers in BR:
-        block_note_numbers = {
-            'BYGG': 3,
-            'MASKIN': 4,
-            'INV': 5,
-            'MAT': 6,
-            'LVP': 7,
-            'KONCERN': 8,
-            'INTRESSEFTG': 9,
-            'FORDRKONC': 10,
-            'FORDRINTRE': 11,
-            'FORDROVRFTG': 12
-        }
+        # Use dynamic note numbers from frontend, or empty dict if not provided
+        block_note_numbers = dynamic_note_numbers or {}
         
         # Create mapping from br_not row_id to note number
         br_note_mapping = {}

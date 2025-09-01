@@ -220,12 +220,91 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const ink2Data = cd.ink2Data || seFileData?.ink2_data || [];
   const companyInfo = seFileData?.company_info || {};
 
+  // Calculate dynamic note numbers based on Noter visibility logic
+  const calculateDynamicNoteNumbers = () => {
+    const noterData = cd.noterData || [];
+    if (!noterData.length) return {};
+
+    // Group items by block
+    const groupedItems = noterData.reduce((acc: Record<string, any[]>, item: any) => {
+      const block = item.block || 'OTHER';
+      if (!acc[block]) acc[block] = [];
+      acc[block].push(item);
+      return acc;
+    }, {});
+
+    const blocks = Object.keys(groupedItems);
+    let noteNumber = 3; // Start at 3 since NOT1=1 and NOT2=2 are fixed
+    const noteNumbers: Record<string, number> = {};
+
+    // Helper function to get visible items (simplified version of Noter logic)
+    const getVisibleItems = (items: any[]) => {
+      if (!items) return [];
+      return items.filter(item => {
+        if (!item.always_show) {
+          const hasNonZeroAmount = (item.current_amount !== 0 && item.current_amount !== null) || 
+                                 (item.previous_amount !== 0 && item.previous_amount !== null);
+          return hasNonZeroAmount;
+        }
+        return true;
+      });
+    };
+
+    blocks.forEach(block => {
+      const blockItems = groupedItems[block];
+      const visibleItems = getVisibleItems(blockItems);
+      
+      // For OVRIGA block, always show if there's moderbolag data
+      const scrapedData = (cd as any)?.scraped_company_data;
+      const moderbolag = scrapedData?.moderbolag;
+      const shouldShowOvrigaForModerbolag = block === 'OVRIGA' && moderbolag;
+      
+      // Check if block should be visible
+      let isVisible = true;
+      
+      if (visibleItems.length === 0 && !shouldShowOvrigaForModerbolag) {
+        isVisible = false;
+      }
+      
+      // Hide specific blocks if all amounts are zero
+      const blocksToHideIfZero = ['KONCERN', 'INTRESSEFTG', 'BYGG', 'MASKIN', 'INV', 'MAT', 'LVP'];
+      if (blocksToHideIfZero.includes(block)) {
+        const hasNonZeroAmount = blockItems.some(item => 
+          (item.current_amount !== 0 && item.current_amount !== null) || 
+          (item.previous_amount !== 0 && item.previous_amount !== null)
+        );
+        if (!hasNonZeroAmount) isVisible = false;
+      }
+      
+      // Assign note numbers to visible blocks (exclude NOT1, NOT2, EVENTUAL, SAKERHET, OVRIGA)
+      let shouldGetNumber = isVisible && 
+                           block !== 'NOT1' && 
+                           block !== 'NOT2' && 
+                           block !== 'EVENTUAL' && 
+                           block !== 'SAKERHET' && 
+                           block !== 'OVRIGA';
+      
+      if (shouldGetNumber) {
+        noteNumbers[block] = noteNumber++;
+      }
+    });
+
+    return noteNumbers;
+  };
+
   // Load BR data with note numbers when brData changes
   useEffect(() => {
     const loadBrDataWithNotes = async () => {
       if (brData.length > 0) {
         try {
-          const response = await apiService.addNoteNumbersToBr({ br_data: brData });
+          // Calculate dynamic note numbers based on Noter visibility
+          const dynamicNoteNumbers = calculateDynamicNoteNumbers();
+          console.log('Dynamic note numbers for BR:', dynamicNoteNumbers);
+          
+          const response = await apiService.addNoteNumbersToBr({ 
+            br_data: brData,
+            note_numbers: dynamicNoteNumbers
+          });
           if (response.success) {
             setBrDataWithNotes(response.br_data);
           } else {
@@ -243,7 +322,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     };
 
     loadBrDataWithNotes();
-  }, [brData]);
+  }, [brData, cd.noterData]);
 
   // Capture original amounts when isEditing becomes true (for undo functionality)
   useEffect(() => {

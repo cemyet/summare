@@ -997,22 +997,28 @@ async def submit_management_report(report_request: ManagementReportRequest):
 async def add_note_numbers_to_br(request: dict):
     """
     Add note numbers to BR data based on br_not mappings.
-    Uses fixed note numbering for static notes (NOT1, NOT2, BYGG, etc.).
+    Uses dynamic note numbering from frontend - only visible notes get numbers.
     
     Expected request format:
     {
-        "br_data": [...]  # BR data array
+        "br_data": [...],  # BR data array
+        "note_numbers": {  # Dynamic note numbers from frontend (only for visible notes)
+            "BYGG": 3,
+            "KONCERN": 5,
+            ...
+        }
     }
     """
     try:
         br_data = request.get('br_data', [])
+        note_numbers = request.get('note_numbers', {})
         
         if not br_data:
             raise HTTPException(status_code=400, detail="br_data is required")
         
         # Initialize parser and add note numbers
         parser = DatabaseParser()
-        updated_br_data = parser.add_note_numbers_to_br_data(br_data)
+        updated_br_data = parser.add_note_numbers_to_br_data(br_data, note_numbers)
         
         return {
             "success": True,
