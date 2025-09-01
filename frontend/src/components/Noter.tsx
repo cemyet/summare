@@ -334,7 +334,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                         
                         {/* Add moderbolag text after row 534 if moderbolag exists */}
                         {item.row_id === 534 && moderbolag && (
-                          <div className="text-sm leading-relaxed mt-2 mb-2 p-3 bg-gray-50 rounded">
+                          <div className="text-sm leading-relaxed mt-2 mb-2 -ml-4">
                             Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolagOrgnr} med säte i {sate}, som upprättar koncernredovisning.
                           </div>
                         )}
