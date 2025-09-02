@@ -212,6 +212,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const [originalAmounts, setOriginalAmounts] = useState<Record<string, number>>({});
   const [recalculatedData, setRecalculatedData] = useState<any[]>([]);
   const [brDataWithNotes, setBrDataWithNotes] = useState<any[]>([]);
+  const [rrDataWithNotes, setRrDataWithNotes] = useState<any[]>([]);
 
   // Get new database-driven parser data (moved up to avoid initialization errors)
   const seFileData = cd.seFileData;
@@ -236,6 +237,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     const blocks = Object.keys(groupedItems);
     let noteNumber = 3; // Start at 3 since NOT1=1 and NOT2=2 are fixed
     const noteNumbers: Record<string, number> = {};
+
+    // Add fixed note numbers
+    noteNumbers['NOT1'] = 1;
+    noteNumbers['NOT2'] = 2;
 
     // Helper function to get visible items (simplified version of Noter logic)
     const getVisibleItems = (items: any[]) => {
@@ -292,37 +297,42 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     return noteNumbers;
   };
 
-  // Load BR data with note numbers when brData changes
+  // Load BR and RR data with note numbers when data changes
   useEffect(() => {
-    const loadBrDataWithNotes = async () => {
-      if (brData.length > 0) {
+    const loadDataWithNotes = async () => {
+      if (brData.length > 0 || rrData.length > 0) {
         try {
           // Calculate dynamic note numbers based on Noter visibility
           const dynamicNoteNumbers = calculateDynamicNoteNumbers();
-          console.log('Dynamic note numbers for BR:', dynamicNoteNumbers);
+          console.log('Dynamic note numbers for BR/RR:', dynamicNoteNumbers);
           
           const response = await apiService.addNoteNumbersToBr({ 
             br_data: brData,
+            rr_data: rrData,
             note_numbers: dynamicNoteNumbers
           });
           if (response.success) {
-            setBrDataWithNotes(response.br_data);
+            setBrDataWithNotes(response.br_data || brData);
+            setRrDataWithNotes(response.rr_data || rrData);
           } else {
-            // Fallback to original brData if API fails
+            // Fallback to original data if API fails
             setBrDataWithNotes(brData);
+            setRrDataWithNotes(rrData);
           }
         } catch (error) {
-          console.error('Error loading BR data with note numbers:', error);
-          // Fallback to original brData if API fails
+          console.error('Error loading financial data with note numbers:', error);
+          // Fallback to original data if API fails
           setBrDataWithNotes(brData);
+          setRrDataWithNotes(rrData);
         }
       } else {
         setBrDataWithNotes([]);
+        setRrDataWithNotes([]);
       }
     };
 
-    loadBrDataWithNotes();
-  }, [brData, cd.noterData]);
+    loadDataWithNotes();
+  }, [brData, rrData, cd.noterData]);
 
   // Capture original amounts when isEditing becomes true (for undo functionality)
   useEffect(() => {
@@ -547,11 +557,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       return item.note_number.toString();
     }
     
-    // Fallback for specific labels (legacy support)
-    if (item.label === 'Personalkostnader') {
-      return '2';
-    }
-    
     return '';
   };
 
@@ -641,8 +646,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
             {/* Income Statement Rows */}
             {rrData.length > 0 ? (
-              rrData.map((item, index) => {
-                if (!shouldShowRow(item, showAllRR, rrData)) {
+              (rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData).map((item, index) => {
+                if (!shouldShowRow(item, showAllRR, rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData)) {
                   return null;
                 }
                 

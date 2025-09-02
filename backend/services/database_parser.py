@@ -1636,6 +1636,83 @@ class DatabaseParser:
         
         return updated_br_data
     
+    def add_note_numbers_to_financial_data(self, br_data: List[Dict[str, Any]], rr_data: List[Dict[str, Any]], dynamic_note_numbers: Dict[str, int] = None) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Add note numbers to both BR and RR data based on mappings from noter table.
+        Uses dynamic note numbering from frontend - only notes that are actually visible
+        and numbered in the Noter section get their numbers inserted.
+        
+        Args:
+            br_data: List of BR data items
+            rr_data: List of RR data items  
+            dynamic_note_numbers: Dict mapping block names to their actual note numbers from frontend
+                                 e.g., {'BYGG': 3, 'KONCERN': 5, 'NOT2': 2} (only for visible notes)
+        
+        Returns:
+            Dict with updated BR and RR data: {'br_data': [...], 'rr_data': [...]}
+        """
+        if not self.noter_mappings:
+            return {'br_data': br_data, 'rr_data': rr_data}
+        
+        # Use dynamic note numbers from frontend, or empty dict if not provided
+        block_note_numbers = dynamic_note_numbers or {}
+        
+        # Create mapping from br_not row_id to note number (for BR)
+        br_note_mapping = {}
+        # Create mapping for RR - NOT2 goes to Personalkostnader (row_id 252)
+        rr_note_mapping = {}
+        
+        for noter_mapping in self.noter_mappings:
+            br_not = noter_mapping.get('br_not')
+            block = noter_mapping.get('block')
+            
+            # Handle BR mappings (blocks with br_not values)
+            if br_not and block and block in block_note_numbers:
+                br_note_mapping[br_not] = block_note_numbers[block]
+                print(f"DEBUG: Mapping br_not {br_not} (block {block}) to note number {block_note_numbers[block]}")
+        
+        # Handle RR mappings - NOT2 goes to Personalkostnader (row_id 252)
+        if 'NOT2' in block_note_numbers:
+            rr_note_mapping[252] = block_note_numbers['NOT2']  # Personalkostnader
+            print(f"DEBUG: Mapping RR row_id 252 (Personalkostnader) to note number {block_note_numbers['NOT2']}")
+        
+        print(f"DEBUG: Created br_note_mapping: {br_note_mapping}")
+        print(f"DEBUG: Created rr_note_mapping: {rr_note_mapping}")
+        print(f"DEBUG: Processing {len(br_data)} BR items and {len(rr_data)} RR items")
+        
+        # Add note numbers to BR data
+        updated_br_data = []
+        for br_item in br_data:
+            br_item_copy = br_item.copy()
+            br_row_id = br_item.get('id')
+            
+            # If this BR row should have a note number, add it
+            if br_row_id in br_note_mapping:
+                note_number = br_note_mapping[br_row_id]
+                br_item_copy['note_number'] = note_number
+                print(f"DEBUG: Added note number {note_number} to BR row {br_row_id} ({br_item.get('label', 'No label')})")
+            
+            updated_br_data.append(br_item_copy)
+        
+        # Add note numbers to RR data
+        updated_rr_data = []
+        for rr_item in rr_data:
+            rr_item_copy = rr_item.copy()
+            rr_row_id = rr_item.get('id')
+            
+            # If this RR row should have a note number, add it
+            if rr_row_id in rr_note_mapping:
+                note_number = rr_note_mapping[rr_row_id]
+                rr_item_copy['note_number'] = note_number
+                print(f"DEBUG: Added note number {note_number} to RR row {rr_row_id} ({rr_item.get('label', 'No label')})")
+            
+            updated_rr_data.append(rr_item_copy)
+        
+        return {
+            'br_data': updated_br_data,
+            'rr_data': updated_rr_data
+        }
+    
     def parse_ink2_data(self, current_accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, br_data: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         """
         Parse INK2 tax calculation data using database mappings.

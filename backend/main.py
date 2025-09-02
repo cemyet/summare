@@ -996,37 +996,51 @@ async def submit_management_report(report_request: ManagementReportRequest):
 @app.post("/api/add-note-numbers-to-br")
 async def add_note_numbers_to_br(request: dict):
     """
-    Add note numbers to BR data based on br_not mappings.
+    Add note numbers to both BR and RR data based on mappings.
     Uses dynamic note numbering from frontend - only visible notes get numbers.
     
     Expected request format:
     {
         "br_data": [...],  # BR data array
+        "rr_data": [...],  # RR data array (optional)
         "note_numbers": {  # Dynamic note numbers from frontend (only for visible notes)
             "BYGG": 3,
             "KONCERN": 5,
+            "NOT2": 2,  # Goes to RR Personalkostnader
             ...
         }
     }
     """
     try:
         br_data = request.get('br_data', [])
+        rr_data = request.get('rr_data', [])
         note_numbers = request.get('note_numbers', {})
         
-        if not br_data:
-            raise HTTPException(status_code=400, detail="br_data is required")
+        if not br_data and not rr_data:
+            raise HTTPException(status_code=400, detail="Either br_data or rr_data is required")
         
-        # Initialize parser and add note numbers
+        # Initialize parser and add note numbers to both BR and RR
         parser = DatabaseParser()
-        updated_br_data = parser.add_note_numbers_to_br_data(br_data, note_numbers)
+        
+        # If only BR data provided, use old function for backward compatibility
+        if br_data and not rr_data:
+            updated_br_data = parser.add_note_numbers_to_br_data(br_data, note_numbers)
+            return {
+                "success": True,
+                "br_data": updated_br_data
+            }
+        
+        # Use new function that handles both BR and RR
+        result = parser.add_note_numbers_to_financial_data(br_data, rr_data, note_numbers)
         
         return {
             "success": True,
-            "br_data": updated_br_data
+            "br_data": result['br_data'],
+            "rr_data": result['rr_data']
         }
         
     except Exception as e:
-        print(f"Error adding note numbers to BR: {str(e)}")
+        print(f"Error adding note numbers to financial data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
