@@ -238,13 +238,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     let noteNumber = 3; // Start at 3 since NOT1=1 and NOT2=2 are fixed
     const noteNumbers: Record<string, number> = {};
 
-    // Add fixed note numbers only if blocks exist
-    if (blocks.includes('NOT1')) {
-      noteNumbers['NOT1'] = 1;
-    }
-    if (blocks.includes('NOT2')) {
-      noteNumbers['NOT2'] = 2;
-    }
+    // Add fixed note numbers - these are always included
+    noteNumbers['NOT1'] = 1;
+    noteNumbers['NOT2'] = 2;
 
     // Helper function to get visible items (simplified version of Noter logic)
     const getVisibleItems = (items: any[]) => {
