@@ -296,6 +296,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
     console.log('Final note numbers calculated:', noteNumbers);
     console.log('Available blocks:', blocks);
+    console.log('NoterData length:', noterData.length);
+    console.log('GroupedItems:', Object.keys(groupedItems));
     return noteNumbers;
   };
 
@@ -307,6 +309,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
           // Calculate dynamic note numbers based on Noter visibility
           const dynamicNoteNumbers = calculateDynamicNoteNumbers();
           console.log('Dynamic note numbers for BR/RR:', dynamicNoteNumbers);
+          console.log('Sending to API - BR data length:', brData.length);
+          console.log('Sending to API - RR data length:', rrData.length);
+          console.log('RR data sample:', rrData.slice(0, 3));
           
           const response = await apiService.addNoteNumbersToBr({ 
             br_data: brData,
@@ -314,6 +319,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             note_numbers: dynamicNoteNumbers
           });
           if (response.success) {
+            console.log('API Response - BR data length:', response.br_data?.length || 0);
+            console.log('API Response - RR data length:', response.rr_data?.length || 0);
+            console.log('API Response - RR data sample with notes:', response.rr_data?.slice(0, 5));
             setBrDataWithNotes(response.br_data || brData);
             setRrDataWithNotes(response.rr_data || rrData);
           } else {
