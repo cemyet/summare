@@ -1671,10 +1671,13 @@ class DatabaseParser:
                 br_note_mapping[br_not] = block_note_numbers[block]
                 print(f"DEBUG: Mapping br_not {br_not} (block {block}) to note number {block_note_numbers[block]}")
         
-        # Handle RR mappings - NOT2 goes to Personalkostnader (row_id 252)
+        # Handle RR mappings - NOT2 goes to Personalkostnader (id=13)
         if 'NOT2' in block_note_numbers:
-            rr_note_mapping[252] = block_note_numbers['NOT2']  # Personalkostnader
-            print(f"DEBUG: Mapping RR row_id 252 (Personalkostnader) to note number {block_note_numbers['NOT2']}")
+            rr_note_mapping[13] = block_note_numbers['NOT2']  # Personalkostnader
+            print(f"DEBUG: Mapping RR id 13 (Personalkostnader) to note number {block_note_numbers['NOT2']}")
+            print(f"DEBUG: NOT2 found in block_note_numbers: {block_note_numbers.get('NOT2')}")
+        else:
+            print(f"DEBUG: NOT2 not found in block_note_numbers: {list(block_note_numbers.keys())}")
         
         print(f"DEBUG: Created br_note_mapping: {br_note_mapping}")
         print(f"DEBUG: Created rr_note_mapping: {rr_note_mapping}")
@@ -1699,6 +1702,10 @@ class DatabaseParser:
         for rr_item in rr_data:
             rr_item_copy = rr_item.copy()
             rr_row_id = rr_item.get('id')
+            
+            # Debug: Print all RR items to see their structure
+            if rr_item.get('label') and 'Personal' in rr_item.get('label', ''):
+                print(f"DEBUG: Found RR item with 'Personal' in label: id={rr_item.get('id')}, row_id={rr_item.get('row_id')} - {rr_item.get('label')}")
             
             # If this RR row should have a note number, add it
             if rr_row_id in rr_note_mapping:
