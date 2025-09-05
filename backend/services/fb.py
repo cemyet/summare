@@ -248,8 +248,8 @@ class ForvaltningsberattelseFB:
         reservfond_ub = self._get_br_value(br_data, 'Reservfond', use_previous_year=False)
         uppskrfond_ib = self._get_br_value(br_data, 'Uppskrivningsfond', use_previous_year=True)
         uppskrfond_ub = self._get_br_value(br_data, 'Uppskrivningsfond', use_previous_year=False)
-        balansresultat_ib = self._get_br_value(br_data, 'SumFrittEgetKapital', use_previous_year=True)
-        balansresultat_ub = self._get_br_value(br_data, 'SumFrittEgetKapital', use_previous_year=False)
+        balansresultat_ib = self._get_br_value(br_data, 'BalanseratResultat', use_previous_year=False)
+        balansresultat_ub = self._get_br_value(br_data, 'BalanseratResultat', use_previous_year=False)
         arets_resultat_ib = self._get_br_value(br_data, 'AretsResultat', use_previous_year=True)
         arets_resultat_ub = self._get_br_value(br_data, 'AretsResultat', use_previous_year=False)
         
@@ -298,7 +298,7 @@ class ForvaltningsberattelseFB:
             'fb_balansresultat_fondemission': 0.0,  # Editable field, default 0
             'fb_balansresultat_balanseras_nyrakning': balansresultat_balanseras,
             'fb_balansresultat_ub': balansresultat_ub,
-            'fb_balansresultat_ub_red_varde': balansresultat_ub,
+            'fb_balansresultat_ub_red_varde': self._get_br_value(br_data, 'BalanseratResultat', use_previous_year=False),
             
             # Årets resultat
             'fb_aretsresultat_ib': arets_resultat_ib,
