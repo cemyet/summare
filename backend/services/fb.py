@@ -484,21 +484,30 @@ class ForvaltningsberattelseFB:
     
     def format_table_for_display(self, table_rows: List[Dict[str, Any]]) -> str:
         """Format the table for console display"""
+        def format_amount_display(amount: float) -> str:
+            """Format amount to match frontend Noter NORMAL style"""
+            if amount == 0:
+                return "0 kr"
+            # Use Swedish locale formatting (space as thousands separator)
+            formatted = f"{abs(amount):,.0f}".replace(",", " ")
+            sign = "-" if amount < 0 else ""
+            return f"{sign}{formatted} kr"
+        
         output = []
         output.append("FÖRÄNDRING I EGET KAPITAL")
-        output.append("=" * 120)
-        output.append(f"{'':30} {'Aktiekapital':>15} {'Reservfond':>15} {'Uppskr.fond':>15} {'Bal.resultat':>15} {'Årets res.':>15} {'Totalt':>15}")
-        output.append("-" * 120)
+        output.append("=" * 140)
+        output.append(f"{'':30} {'Aktiekapital':>20} {'Reservfond':>20} {'Uppskr.fond':>20} {'Bal.resultat':>20} {'Årets res.':>20} {'Totalt':>20}")
+        output.append("-" * 140)
         
         for row in table_rows:
             output.append(
                 f"{row['label']:30} "
-                f"{row['aktiekapital']:>15,.0f} "
-                f"{row['reservfond']:>15,.0f} "
-                f"{row['uppskrivningsfond']:>15,.0f} "
-                f"{row['balanserat_resultat']:>15,.0f} "
-                f"{row['arets_resultat']:>15,.0f} "
-                f"{row['total']:>15,.0f}"
+                f"{format_amount_display(row['aktiekapital']):>20} "
+                f"{format_amount_display(row['reservfond']):>20} "
+                f"{format_amount_display(row['uppskrivningsfond']):>20} "
+                f"{format_amount_display(row['balanserat_resultat']):>20} "
+                f"{format_amount_display(row['arets_resultat']):>20} "
+                f"{format_amount_display(row['total']):>20}"
             )
         
         return "\n".join(output)
