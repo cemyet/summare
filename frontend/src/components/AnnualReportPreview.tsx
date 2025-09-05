@@ -1100,13 +1100,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         )}
 
         {/* Förvaltningsberättelse Section */}
-        {companyData.fbTable && companyData.fbTable.length > 0 && (
-          <Forvaltningsberattelse 
-            fbTable={companyData.fbTable}
-            fbVariables={companyData.fbVariables || {}}
-            fiscalYear={companyData.fiscalYear}
-          />
-        )}
+        <Forvaltningsberattelse 
+          fbTable={companyData.fbTable || []}
+          fbVariables={companyData.fbVariables || {}}
+          fiscalYear={companyData.fiscalYear}
+        />
 
         {/* Significant Events Section */}
         {currentStep >= 2 && (

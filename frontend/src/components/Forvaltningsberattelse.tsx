@@ -25,8 +25,19 @@ interface ForvaltningsberattelseProps {
 }
 
 export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: ForvaltningsberattelseProps) {
+  // Debug: Always show component to check if it's being called
+  console.log('Forvaltningsberattelse component called with:', { fbTable, fbVariables, fiscalYear });
+  
   if (!fbTable || fbTable.length === 0) {
-    return null;
+    return (
+      <Card className="p-6 mt-6">
+        <h2 className="text-xl font-bold mb-4">
+          Förvaltningsberättelse - Debug
+        </h2>
+        <p>FB Table data: {fbTable ? `Array with ${fbTable.length} items` : 'undefined'}</p>
+        <p>FB Variables: {fbVariables ? `Object with ${Object.keys(fbVariables).length} keys` : 'undefined'}</p>
+      </Card>
+    );
   }
 
   return (
