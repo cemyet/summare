@@ -444,7 +444,7 @@ class ForvaltningsberattelseFB:
             },
             {
                 'id': 4,
-                'label': 'Återbetalning av aktieägartillskott',
+                'label': 'Återbetalning aktieägartillskott',
                 'aktiekapital': 0.0,
                 'reservfond': 0.0,
                 'uppskrivningsfond': 0.0,
@@ -466,7 +466,7 @@ class ForvaltningsberattelseFB:
             },
             {
                 'id': 6,
-                'label': 'Förändringar av reservfond',
+                'label': 'Förändringar reservfond',
                 'aktiekapital': 0.0,
                 'reservfond': variables.get('fb_reservfond_change', 0.0),
                 'uppskrivningsfond': 0.0,
@@ -500,7 +500,7 @@ class ForvaltningsberattelseFB:
             },
             {
                 'id': 9,
-                'label': 'Uppskrivning av anläggningstillgång',
+                'label': 'Uppskrivning anläggningstillgång',
                 'aktiekapital': 0.0,
                 'reservfond': 0.0,
                 'uppskrivningsfond': variables.get('fb_uppskrfond_uppskr_anltillgangar', 0.0),
@@ -510,7 +510,7 @@ class ForvaltningsberattelseFB:
             },
             {
                 'id': 10,
-                'label': 'Återföring av uppskrivningsfond',
+                'label': 'Återföring uppskrivningsfond',
                 'aktiekapital': 0.0,
                 'reservfond': 0.0,
                 'uppskrivningsfond': variables.get('fb_uppskrfond_aterforing', 0.0),
