@@ -369,7 +369,7 @@ class ForvaltningsberattelseFB:
             'fb_aretsresultat_ib': arets_resultat_ib,
             'fb_aretsresultat_utdelning': 0.0,  # Editable field, default 0
             'fb_aretsresultat_aterbetalda_aktieagartillskott': 0.0,  # Editable field, default 0
-            'fb_aretsresultat_balanseras_nyrakning': arets_resultat_balanseras,
+            'fb_aretsresultat_balanseras_nyrakning': -balanseras_nyrakning_voucher,
             'fb_aretsresultat_forandring_reservfond': 0.0,  # Editable field, default 0
             'fb_aretsresultat_fondemission': 0.0,  # Editable field, default 0
             'fb_aretsresultat_arets_resultat': arets_resultat_ub,
