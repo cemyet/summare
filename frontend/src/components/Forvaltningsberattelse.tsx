@@ -1,6 +1,7 @@
 'use client';
 
 import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatAmount } from '@/utils/seFileCalculations';
 
 interface FBTableRow {
@@ -25,65 +26,71 @@ interface ForvaltningsberattelseProps {
 }
 
 export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: ForvaltningsberattelseProps) {
-  // Debug: Always show component to check if it's being called
-  console.log('Forvaltningsberattelse component called with:', { fbTable, fbVariables, fiscalYear });
-  
   if (!fbTable || fbTable.length === 0) {
-    return (
-      <Card className="p-6 mt-6">
-        <h2 className="text-xl font-bold mb-4">
-          Förvaltningsberättelse - Debug
-        </h2>
-        <p>FB Table data: {fbTable ? `Array with ${fbTable.length} items` : 'undefined'}</p>
-        <p>FB Variables: {fbVariables ? `Object with ${Object.keys(fbVariables).length} keys` : 'undefined'}</p>
-      </Card>
-    );
+    return null;
   }
 
   return (
-    <Card className="p-6 mt-6">
-      <h2 className="text-xl font-bold mb-4">
-        Förvaltningsberättelse - Förändring i eget kapital
-      </h2>
+    <div className="space-y-4 pt-4">
+      {/* Förvaltningsberättelse heading */}
+      <div className="border-b pb-1">
+        <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>
+          Förvaltningsberättelse - Förändring i eget kapital
+        </h3>
+      </div>
       
-      <div className="overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="border-b-2 border-gray-300">
-              <th className="text-left py-2 px-3 font-semibold min-w-[200px]"></th>
-              <th className="text-right py-2 px-3 font-semibold min-w-[120px]">Aktiekapital</th>
-              <th className="text-right py-2 px-3 font-semibold min-w-[120px]">Reservfond</th>
-              <th className="text-right py-2 px-3 font-semibold min-w-[140px]">Uppskrivningsfond</th>
-              <th className="text-right py-2 px-3 font-semibold min-w-[140px]">Balanserat resultat</th>
-              <th className="text-right py-2 px-3 font-semibold min-w-[120px]">Årets resultat</th>
-              <th className="text-right py-2 px-3 font-semibold min-w-[120px] border-l-2 border-gray-300">Totalt</th>
-            </tr>
-          </thead>
-          <tbody>
+      {/* Förändring i eget kapital table */}
+      <div className="space-y-2">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="font-semibold py-1 min-w-[200px]"></TableHead>
+              <TableHead className="font-semibold text-right py-1 min-w-[120px]">Aktiekapital</TableHead>
+              <TableHead className="font-semibold text-right py-1 min-w-[120px]">Reservfond</TableHead>
+              <TableHead className="font-semibold text-right py-1 min-w-[140px]">Uppskrivningsfond</TableHead>
+              <TableHead className="font-semibold text-right py-1 min-w-[140px]">Balanserat resultat</TableHead>
+              <TableHead className="font-semibold text-right py-1 min-w-[120px]">Årets resultat</TableHead>
+              <TableHead className="font-semibold text-right py-1 min-w-[120px] border-l-2 border-gray-300">Totalt</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {fbTable.map((row) => {
               const isHeaderRow = row.id === 1 || row.id === 13 || row.id === 14;
               const isSubtotalRow = row.id === 13;
               
               return (
-                <tr 
+                <TableRow 
                   key={row.id} 
-                  className={`border-b border-gray-200 ${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t-2 border-gray-400' : ''}`}
+                  className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t-2 border-gray-400' : ''}`}
                 >
-                  <td className="py-2 px-3 text-left">{row.label}</td>
-                  <td className="py-2 px-3 text-right font-mono">{row.aktiekapital !== 0 ? formatAmount(row.aktiekapital) : ''}</td>
-                  <td className="py-2 px-3 text-right font-mono">{row.reservfond !== 0 ? formatAmount(row.reservfond) : ''}</td>
-                  <td className="py-2 px-3 text-right font-mono">{row.uppskrivningsfond !== 0 ? formatAmount(row.uppskrivningsfond) : ''}</td>
-                  <td className="py-2 px-3 text-right font-mono">{row.balanserat_resultat !== 0 ? formatAmount(row.balanserat_resultat) : ''}</td>
-                  <td className="py-2 px-3 text-right font-mono">{row.arets_resultat !== 0 ? formatAmount(row.arets_resultat) : ''}</td>
-                  <td className="py-2 px-3 text-right font-mono border-l-2 border-gray-300 font-semibold">{row.total !== 0 ? formatAmount(row.total) : ''}</td>
-                </tr>
+                  <TableCell className="py-1 text-left">{row.label}</TableCell>
+                  <TableCell className="py-1 text-right font-mono">
+                    {row.aktiekapital !== 0 ? formatAmount(row.aktiekapital) : ''}
+                  </TableCell>
+                  <TableCell className="py-1 text-right font-mono">
+                    {row.reservfond !== 0 ? formatAmount(row.reservfond) : ''}
+                  </TableCell>
+                  <TableCell className="py-1 text-right font-mono">
+                    {row.uppskrivningsfond !== 0 ? formatAmount(row.uppskrivningsfond) : ''}
+                  </TableCell>
+                  <TableCell className="py-1 text-right font-mono">
+                    {row.balanserat_resultat !== 0 ? formatAmount(row.balanserat_resultat) : ''}
+                  </TableCell>
+                  <TableCell className="py-1 text-right font-mono">
+                    {row.arets_resultat !== 0 ? formatAmount(row.arets_resultat) : ''}
+                  </TableCell>
+                  <TableCell className="py-1 text-right font-mono border-l-2 border-gray-300 font-semibold">
+                    {row.total !== 0 ? formatAmount(row.total) : ''}
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      <div className="mt-4 text-sm text-gray-600">
+      {/* Additional information */}
+      <div className="text-sm text-gray-600">
         <p>Tabellen visar förändringarna i eget kapital under räkenskapsåret {fiscalYear ? fiscalYear : 'aktuellt år'}.</p>
         
         {fbVariables.fb_balansresultat_utdelning && fbVariables.fb_balansresultat_utdelning < 0 && (
@@ -104,6 +111,6 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
           </div>
         )}
       </div>
-    </Card>
+    </div>
   );
 }
