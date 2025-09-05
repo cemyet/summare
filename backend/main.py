@@ -135,11 +135,16 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         # Parse Förvaltningsberättelse data (FB) - Förändring i eget kapital
         try:
+            print(f"DEBUG: Starting FB calculation with br_data keys: {list(br_data.keys()) if br_data else 'None'}")
             fb_module = ForvaltningsberattelseFB()
             fb_variables = fb_module.calculate_forandring_eget_kapital(se_content, br_data)
+            print(f"DEBUG: FB variables calculated: {fb_variables}")
             fb_table = fb_module.generate_forandring_eget_kapital_table(fb_variables)
+            print(f"DEBUG: FB table generated with {len(fb_table)} rows")
         except Exception as e:
             print(f"Error parsing FB data: {e}")
+            import traceback
+            traceback.print_exc()
             fb_variables = {}
             fb_table = []
         
