@@ -2,6 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { formatAmount } from '@/utils/seFileCalculations';
 
 interface FBTableRow {
   id: number;
@@ -29,16 +30,6 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     return null;
   }
 
-  // Format amounts to match Noter NORMAL style
-  const formatAmountDisplay = (amount: number) => {
-    if (amount === 0) return '';
-    const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    });
-    const sign = amount < 0 ? '-' : '';
-    return `${sign}${formatted} kr`;
-  };
 
   return (
     <div className="space-y-4 pt-4">
@@ -75,22 +66,22 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
                 >
                   <TableCell className="py-1 text-left">{row.label}</TableCell>
                   <TableCell className="py-1 text-right font-mono">
-                    {formatAmountDisplay(row.aktiekapital)}
+                    {row.aktiekapital !== 0 ? formatAmount(row.aktiekapital) : ''}
                   </TableCell>
                   <TableCell className="py-1 text-right font-mono">
-                    {formatAmountDisplay(row.reservfond)}
+                    {row.reservfond !== 0 ? formatAmount(row.reservfond) : ''}
                   </TableCell>
                   <TableCell className="py-1 text-right font-mono">
-                    {formatAmountDisplay(row.uppskrivningsfond)}
+                    {row.uppskrivningsfond !== 0 ? formatAmount(row.uppskrivningsfond) : ''}
                   </TableCell>
                   <TableCell className="py-1 text-right font-mono">
-                    {formatAmountDisplay(row.balanserat_resultat)}
+                    {row.balanserat_resultat !== 0 ? formatAmount(row.balanserat_resultat) : ''}
                   </TableCell>
                   <TableCell className="py-1 text-right font-mono">
-                    {formatAmountDisplay(row.arets_resultat)}
+                    {row.arets_resultat !== 0 ? formatAmount(row.arets_resultat) : ''}
                   </TableCell>
                   <TableCell className="py-1 text-right font-mono border-l-2 border-gray-300 font-semibold">
-                    {formatAmountDisplay(row.total)}
+                    {row.total !== 0 ? formatAmount(row.total) : ''}
                   </TableCell>
                 </TableRow>
               );
