@@ -102,17 +102,27 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
               )}
               {hasNonZeroValues.uppskrivningsfond && (
                 <TableHead className="font-semibold text-right py-1 min-w-[140px]">
-                  <div className="text-center">
+                  <div className="text-right">
                     <div>Uppskrivnings-</div>
                     <div>fond</div>
                   </div>
                 </TableHead>
               )}
               {hasNonZeroValues.balanserat_resultat && (
-                <TableHead className="font-semibold text-right py-1 min-w-[140px]">Balanserat resultat</TableHead>
+                <TableHead className="font-semibold text-right py-1 min-w-[140px]">
+                  <div className="text-right">
+                    <div>Balanserat</div>
+                    <div>resultat</div>
+                  </div>
+                </TableHead>
               )}
               {hasNonZeroValues.arets_resultat && (
-                <TableHead className="font-semibold text-right py-1 min-w-[120px]">Årets resultat</TableHead>
+                <TableHead className="font-semibold text-right py-1 min-w-[120px]">
+                  <div className="text-right">
+                    <div>Årets</div>
+                    <div>resultat</div>
+                  </div>
+                </TableHead>
               )}
               {hasNonZeroValues.total && (
                 <TableHead className="font-semibold text-right py-1 min-w-[120px] border-l-2 border-gray-300">Totalt</TableHead>
