@@ -248,7 +248,7 @@ class ForvaltningsberattelseFB:
         reservfond_ub = self._get_br_value(br_data, 'Reservfond', use_previous_year=False)
         uppskrfond_ib = self._get_br_value(br_data, 'Uppskrivningsfond', use_previous_year=True)
         uppskrfond_ub = self._get_br_value(br_data, 'Uppskrivningsfond', use_previous_year=False)
-        balansresultat_ib = self._get_br_value(br_data, 'SumFrittEgetKapital', use_previous_year=True)
+        balansresultat_ib = self._get_br_value(br_data, 'BalanseradVinstEllerForlust', use_previous_year=False)
         balansresultat_ub = self._get_br_value(br_data, 'SumFrittEgetKapital', use_previous_year=False)
         arets_resultat_ib = self._get_br_value(br_data, 'AretsResultat', use_previous_year=True)
         arets_resultat_ub = self._get_br_value(br_data, 'AretsResultat', use_previous_year=False)
