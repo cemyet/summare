@@ -31,7 +31,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
   // Format amounts to match Noter NORMAL style
   const formatAmountDisplay = (amount: number) => {
-    if (amount === 0) return '0 kr';
+    if (amount === 0) return '';
     const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
