@@ -311,7 +311,7 @@ class ForvaltningsberattelseFB:
             'fb_aretsresultat_balanseras_nyrakning': arets_resultat_balanseras,
             'fb_aretsresultat_forandring_reservfond': 0.0,  # Editable field, default 0
             'fb_aretsresultat_fondemission': 0.0,  # Editable field, default 0
-            'fb_aretsresultat_arets_resultat': arets_resultat_calculated,
+            'fb_aretsresultat_arets_resultat': arets_resultat_ub,
             'fb_aretsresultat_ub_red_varde': arets_resultat_ub,
         }
         
