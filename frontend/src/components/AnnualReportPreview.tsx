@@ -10,6 +10,7 @@ import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@
 import { apiService } from '@/services/api';
 import { Periodiseringsfonder } from './Periodiseringsfonder';
 import { Noter } from './Noter';
+import { Forvaltningsberattelse } from './Forvaltningsberattelse';
 
 interface CompanyData {
   results?: string;
@@ -52,6 +53,17 @@ interface CompanyData {
     style: string;
     variable_text?: string;
   }>;
+  fbTable?: Array<{
+    id: number;
+    label: string;
+    aktiekapital: number;
+    reservfond: number;
+    uppskrivningsfond: number;
+    balanserat_resultat: number;
+    arets_resultat: number;
+    total: number;
+  }>;
+  fbVariables?: Record<string, number>;
   seFileData?: SEData & {
     current_accounts?: Record<string, number>;
     annualReport?: {
@@ -1084,6 +1096,15 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             fiscalYear={companyData.fiscalYear}
             previousYear={companyData.fiscalYear ? companyData.fiscalYear - 1 : undefined}
             companyData={companyData}
+          />
+        )}
+
+        {/* Förvaltningsberättelse Section */}
+        {companyData.fbTable && companyData.fbTable.length > 0 && (
+          <Forvaltningsberattelse 
+            fbTable={companyData.fbTable}
+            fbVariables={companyData.fbVariables || {}}
+            fiscalYear={companyData.fiscalYear}
           />
         )}
 

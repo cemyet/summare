@@ -15,6 +15,7 @@ from services.supabase_service import SupabaseService
 from services.database_parser import DatabaseParser
 from services.supabase_database import db
 from services.bolagsverket_service import BolagsverketService
+from services.fb import ForvaltningsberattelseFB
 from rating_bolag_scraper import get_company_info_with_search
 from models.schemas import (
     ReportRequest, ReportResponse, CompanyData, 
@@ -132,6 +133,16 @@ async def upload_se_file(file: UploadFile = File(...)):
 
             noter_data = []
         
+        # Parse Förvaltningsberättelse data (FB) - Förändring i eget kapital
+        try:
+            fb_module = ForvaltningsberattelseFB()
+            fb_variables = fb_module.calculate_forandring_eget_kapital(se_content, br_data)
+            fb_table = fb_module.generate_forandring_eget_kapital_table(fb_variables)
+        except Exception as e:
+            print(f"Error parsing FB data: {e}")
+            fb_variables = {}
+            fb_table = []
+        
         # Calculate pension tax variables for frontend
         pension_premier = abs(float(current_accounts.get('7410', 0.0)))
         sarskild_loneskatt_pension = abs(float(current_accounts.get('7531', 0.0)))
@@ -170,10 +181,13 @@ async def upload_se_file(file: UploadFile = File(...)):
                 "br_data": br_data,
                 "ink2_data": ink2_data,
                 "noter_data": noter_data,
+                "fb_variables": fb_variables,
+                "fb_table": fb_table,
                 "rr_count": len(rr_data),
                 "br_count": len(br_data),
                 "ink2_count": len(ink2_data),
                 "noter_count": len(noter_data),
+                "fb_count": len(fb_table),
                 "pension_premier": pension_premier,
                 "sarskild_loneskatt_pension": sarskild_loneskatt_pension,
                 "sarskild_loneskatt_pension_calculated": sarskild_loneskatt_pension_calculated
