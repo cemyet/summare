@@ -247,6 +247,35 @@ class ForvaltningsberattelseFB:
         # Return negative of the amount as specified
         return -balanseras_amount
     
+    def _calculate_uppskrfond_aterforing_balanserat_resultat_from_verifications(self, verifications: List[Dict[str, Any]]) -> float:
+        """
+        Calculate uppskrivningsfond återföring for balanserat resultat based on verification patterns:
+        Look for verifications with 2091 KREDIT and 2085 DEBET
+        Return reversed (positive) value of the 2091 KREDIT amount
+        """
+        aterforing_amount = 0.0
+        
+        for ver in verifications:
+            transactions = ver['transactions']
+            
+            has_2091_kredit = False
+            has_2085_debet = False
+            kredit_2091_amount = 0.0
+            
+            for trans in transactions:
+                if trans['account'] == 2091 and trans['amount'] < 0:  # KREDIT (negative amount)
+                    has_2091_kredit = True
+                    kredit_2091_amount = trans['amount']
+                elif trans['account'] == 2085 and trans['amount'] > 0:  # DEBET (positive amount)
+                    has_2085_debet = True
+            
+            # If both conditions are met, this is an uppskrivningsfond återföring transaction
+            if has_2091_kredit and has_2085_debet:
+                # Return reversed (positive) value of the 2091 KREDIT amount
+                aterforing_amount += abs(kredit_2091_amount)
+        
+        return aterforing_amount
+    
     def _get_br_value(self, br_data: List[Dict[str, Any]], variable_name: str, use_previous_year: bool = False) -> float:
         """Get BR value by variable name, handling current_amount (UB) vs previous_amount (IB)"""
         for item in br_data:
@@ -269,6 +298,7 @@ class ForvaltningsberattelseFB:
         erhallna_tillskott, aterbetalda_tillskott = self._calculate_aktieagartillskott_from_verifications(verifications)
         uppskrivning_anl, aterforing_uppskr = self._calculate_uppskrivning_from_verifications(verifications)
         balanseras_nyrakning_voucher = self._calculate_balanseras_nyrakning_from_verifications(verifications)
+        uppskrfond_aterforing_balanserat_resultat = self._calculate_uppskrfond_aterforing_balanserat_resultat_from_verifications(verifications)
         
         # Extract BR values using correct variable names from CSV
         # IB = previous_amount (Ingående balans), UB = current_amount (Utgående balans)
@@ -331,6 +361,7 @@ class ForvaltningsberattelseFB:
             'fb_balansresultat_forandring_reservfond': 0.0,  # Editable field, default 0
             'fb_balansresultat_fondemission': 0.0,  # Editable field, default 0
             'fb_balansresultat_balanseras_nyrakning': balanseras_nyrakning_voucher,
+            'fb_balansresultat_uppskrfond_aterforing': uppskrfond_aterforing_balanserat_resultat,
             'fb_balansresultat_ub': balansresultat_ub,
             'fb_balansresultat_ub_red_varde': balansresultat_ub,
             
@@ -460,9 +491,10 @@ class ForvaltningsberattelseFB:
                 'aktiekapital': 0.0,
                 'reservfond': 0.0,
                 'uppskrivningsfond': variables.get('fb_uppskrfond_aterforing', 0.0),
-                'balanserat_resultat': 0.0,
+                'balanserat_resultat': variables.get('fb_balansresultat_uppskrfond_aterforing', 0.0),
                 'arets_resultat': 0.0,
-                'total': variables.get('fb_uppskrfond_aterforing', 0.0)
+                'total': (variables.get('fb_uppskrfond_aterforing', 0.0) + 
+                         variables.get('fb_balansresultat_uppskrfond_aterforing', 0.0))
             },
             {
                 'id': 11,
