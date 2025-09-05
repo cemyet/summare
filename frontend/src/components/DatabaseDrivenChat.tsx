@@ -1009,6 +1009,8 @@ interface ChatFlowResponse {
       skattAretsResultat: skattAretsResultat,
       ink2Data: fileData.data?.ink2_data || [],
       noterData: fileData.data?.noter_data || [],
+      fbTable: fileData.data?.fb_table || [],
+      fbVariables: fileData.data?.fb_variables || {},
       inkBeraknadSkatt: inkBeraknadSkatt,
       inkBokfordSkatt: inkBokfordSkatt,
       pensionPremier: pensionPremier,
