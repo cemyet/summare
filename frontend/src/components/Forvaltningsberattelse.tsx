@@ -64,22 +64,22 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
                   className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t-2 border-gray-400' : ''}`}
                 >
                   <TableCell className="py-1 text-left">{row.label}</TableCell>
-                  <TableCell className="py-1 text-right font-mono">
+                  <TableCell className="py-1 text-right">
                     {row.aktiekapital !== 0 ? formatAmount(row.aktiekapital) : ''}
                   </TableCell>
-                  <TableCell className="py-1 text-right font-mono">
+                  <TableCell className="py-1 text-right">
                     {row.reservfond !== 0 ? formatAmount(row.reservfond) : ''}
                   </TableCell>
-                  <TableCell className="py-1 text-right font-mono">
+                  <TableCell className="py-1 text-right">
                     {row.uppskrivningsfond !== 0 ? formatAmount(row.uppskrivningsfond) : ''}
                   </TableCell>
-                  <TableCell className="py-1 text-right font-mono">
+                  <TableCell className="py-1 text-right">
                     {row.balanserat_resultat !== 0 ? formatAmount(row.balanserat_resultat) : ''}
                   </TableCell>
-                  <TableCell className="py-1 text-right font-mono">
+                  <TableCell className="py-1 text-right">
                     {row.arets_resultat !== 0 ? formatAmount(row.arets_resultat) : ''}
                   </TableCell>
-                  <TableCell className="py-1 text-right font-mono border-l-2 border-gray-300 font-semibold">
+                  <TableCell className="py-1 text-right border-l-2 border-gray-300 font-semibold">
                     {row.total !== 0 ? formatAmount(row.total) : ''}
                   </TableCell>
                 </TableRow>
@@ -87,29 +87,6 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
             })}
           </TableBody>
         </Table>
-        
-        {/* Additional information */}
-        <div className="text-sm text-gray-600 mt-4">
-          <p>Tabellen visar förändringarna i eget kapital under räkenskapsåret {fiscalYear ? fiscalYear : 'aktuellt år'}.</p>
-          
-          {fbVariables.fb_balansresultat_utdelning && fbVariables.fb_balansresultat_utdelning < 0 && (
-            <div className="mt-2 p-3 bg-blue-50 rounded-md">
-              <p className="font-medium text-blue-800">Utdelning: {formatAmount(Math.abs(fbVariables.fb_balansresultat_utdelning))} kr</p>
-            </div>
-          )}
-          
-          {fbVariables.fb_balansresultat_erhallna_aktieagartillskott && fbVariables.fb_balansresultat_erhallna_aktieagartillskott > 0 && (
-            <div className="mt-2 p-3 bg-green-50 rounded-md">
-              <p className="font-medium text-green-800">Erhållna aktieägartillskott: {formatAmount(fbVariables.fb_balansresultat_erhallna_aktieagartillskott)} kr</p>
-            </div>
-          )}
-          
-          {fbVariables.fb_uppskrfond_aterforing && fbVariables.fb_uppskrfond_aterforing < 0 && (
-            <div className="mt-2 p-3 bg-orange-50 rounded-md">
-              <p className="font-medium text-orange-800">Återföring av uppskrivningsfond: {formatAmount(Math.abs(fbVariables.fb_uppskrfond_aterforing))} kr</p>
-            </div>
-          )}
-        </div>
       </CardContent>
     </Card>
   );
