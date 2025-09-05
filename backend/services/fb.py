@@ -362,8 +362,6 @@ class ForvaltningsberattelseFB:
             'fb_balansresultat_fondemission': 0.0,  # Editable field, default 0
             'fb_balansresultat_balanseras_nyrakning': balanseras_nyrakning_voucher,
             'fb_balansresultat_uppskrfond_aterforing': uppskrfond_aterforing_balanserat_resultat,
-            'fb_balansresultat_ub': balansresultat_ub,
-            'fb_balansresultat_ub_red_varde': balansresultat_ub,
             
             # Årets resultat
             'fb_aretsresultat_ib': arets_resultat_ib,
@@ -373,8 +371,32 @@ class ForvaltningsberattelseFB:
             'fb_aretsresultat_forandring_reservfond': 0.0,  # Editable field, default 0
             'fb_aretsresultat_fondemission': 0.0,  # Editable field, default 0
             'fb_aretsresultat_arets_resultat': arets_resultat_ub,
-            'fb_aretsresultat_ub_red_varde': arets_resultat_ub,
         }
+        
+        # Calculate UB values as sum of all components
+        variables['fb_balansresultat_ub'] = (
+            variables['fb_balansresultat_ib'] +
+            variables['fb_balansresultat_utdelning'] +
+            variables['fb_balansresultat_erhallna_aktieagartillskott'] +
+            variables['fb_balansresultat_aterbetalda_aktieagartillskott'] +
+            variables['fb_balansresultat_forandring_reservfond'] +
+            variables['fb_balansresultat_fondemission'] +
+            variables['fb_balansresultat_balanseras_nyrakning']
+        )
+        
+        variables['fb_aretsresultat_ub'] = (
+            variables['fb_aretsresultat_ib'] +
+            variables['fb_aretsresultat_utdelning'] +
+            variables['fb_aretsresultat_aterbetalda_aktieagartillskott'] +
+            variables['fb_aretsresultat_balanseras_nyrakning'] +
+            variables['fb_aretsresultat_forandring_reservfond'] +
+            variables['fb_aretsresultat_fondemission'] +
+            variables['fb_aretsresultat_arets_resultat']
+        )
+        
+        # Set red_varde to the calculated UB values
+        variables['fb_balansresultat_ub_red_varde'] = variables['fb_balansresultat_ub']
+        variables['fb_aretsresultat_ub_red_varde'] = variables['fb_aretsresultat_ub']
         
         self.calculated_variables = variables
         return variables
@@ -523,12 +545,12 @@ class ForvaltningsberattelseFB:
                 'reservfond': variables.get('fb_reservfond_ub', 0.0),
                 'uppskrivningsfond': variables.get('fb_uppskrfond_ub', 0.0),
                 'balanserat_resultat': variables.get('fb_balansresultat_ub', 0.0),
-                'arets_resultat': variables.get('fb_aretsresultat_ub_red_varde', 0.0),
+                'arets_resultat': variables.get('fb_aretsresultat_ub', 0.0),
                 'total': (variables.get('fb_aktiekaptial_ub', 0.0) + 
                          variables.get('fb_reservfond_ub', 0.0) + 
                          variables.get('fb_uppskrfond_ub', 0.0) + 
                          variables.get('fb_balansresultat_ub', 0.0) + 
-                         variables.get('fb_aretsresultat_ub_red_varde', 0.0))
+                         variables.get('fb_aretsresultat_ub', 0.0))
             },
             {
                 'id': 14,
