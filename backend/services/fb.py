@@ -381,7 +381,8 @@ class ForvaltningsberattelseFB:
             variables['fb_balansresultat_aterbetalda_aktieagartillskott'] +
             variables['fb_balansresultat_forandring_reservfond'] +
             variables['fb_balansresultat_fondemission'] +
-            variables['fb_balansresultat_balanseras_nyrakning']
+            variables['fb_balansresultat_balanseras_nyrakning'] +
+            variables['fb_balansresultat_uppskrfond_aterforing']
         )
         
         variables['fb_aretsresultat_ub'] = (
