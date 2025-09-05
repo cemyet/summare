@@ -1,6 +1,6 @@
 'use client';
 
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatAmount } from '@/utils/seFileCalculations';
 
@@ -32,16 +32,15 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
 
   return (
-    <div className="space-y-4 pt-4">
-      {/* Förvaltningsberättelse heading */}
-      <div className="border-b pb-1">
-        <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>
-          Förvaltningsberättelse - Förändring i eget kapital
-        </h3>
-      </div>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>
+          <h1 className="text-2xl font-bold">Förvaltningsberättelse</h1>
+          <h2 className="text-lg font-semibold text-muted-foreground mt-2">Förändring i eget kapital</h2>
+        </CardTitle>
+      </CardHeader>
       
-      {/* Förändring i eget kapital table */}
-      <div className="space-y-2">
+      <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
@@ -88,30 +87,30 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
             })}
           </TableBody>
         </Table>
-      </div>
-
-      {/* Additional information */}
-      <div className="text-sm text-gray-600">
-        <p>Tabellen visar förändringarna i eget kapital under räkenskapsåret {fiscalYear ? fiscalYear : 'aktuellt år'}.</p>
         
-        {fbVariables.fb_balansresultat_utdelning && fbVariables.fb_balansresultat_utdelning < 0 && (
-          <div className="mt-2 p-3 bg-blue-50 rounded-md">
-            <p className="font-medium text-blue-800">Utdelning: {formatAmount(Math.abs(fbVariables.fb_balansresultat_utdelning))} kr</p>
-          </div>
-        )}
-        
-        {fbVariables.fb_balansresultat_erhallna_aktieagartillskott && fbVariables.fb_balansresultat_erhallna_aktieagartillskott > 0 && (
-          <div className="mt-2 p-3 bg-green-50 rounded-md">
-            <p className="font-medium text-green-800">Erhållna aktieägartillskott: {formatAmount(fbVariables.fb_balansresultat_erhallna_aktieagartillskott)} kr</p>
-          </div>
-        )}
-        
-        {fbVariables.fb_uppskrfond_aterforing && fbVariables.fb_uppskrfond_aterforing < 0 && (
-          <div className="mt-2 p-3 bg-orange-50 rounded-md">
-            <p className="font-medium text-orange-800">Återföring av uppskrivningsfond: {formatAmount(Math.abs(fbVariables.fb_uppskrfond_aterforing))} kr</p>
-          </div>
-        )}
-      </div>
-    </div>
+        {/* Additional information */}
+        <div className="text-sm text-gray-600 mt-4">
+          <p>Tabellen visar förändringarna i eget kapital under räkenskapsåret {fiscalYear ? fiscalYear : 'aktuellt år'}.</p>
+          
+          {fbVariables.fb_balansresultat_utdelning && fbVariables.fb_balansresultat_utdelning < 0 && (
+            <div className="mt-2 p-3 bg-blue-50 rounded-md">
+              <p className="font-medium text-blue-800">Utdelning: {formatAmount(Math.abs(fbVariables.fb_balansresultat_utdelning))} kr</p>
+            </div>
+          )}
+          
+          {fbVariables.fb_balansresultat_erhallna_aktieagartillskott && fbVariables.fb_balansresultat_erhallna_aktieagartillskott > 0 && (
+            <div className="mt-2 p-3 bg-green-50 rounded-md">
+              <p className="font-medium text-green-800">Erhållna aktieägartillskott: {formatAmount(fbVariables.fb_balansresultat_erhallna_aktieagartillskott)} kr</p>
+            </div>
+          )}
+          
+          {fbVariables.fb_uppskrfond_aterforing && fbVariables.fb_uppskrfond_aterforing < 0 && (
+            <div className="mt-2 p-3 bg-orange-50 rounded-md">
+              <p className="font-medium text-orange-800">Återföring av uppskrivningsfond: {formatAmount(Math.abs(fbVariables.fb_uppskrfond_aterforing))} kr</p>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
