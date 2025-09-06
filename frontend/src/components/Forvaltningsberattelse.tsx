@@ -404,7 +404,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
         <input
           type="text"
           inputMode="numeric"
-          className="w-full max-w-[96px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
+          className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
           value={display}
           onFocus={() => setFocusedVar(variableName)}
           onChange={(e) => {
