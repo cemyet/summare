@@ -76,6 +76,24 @@ def scrape_numbers(orgnr: str) -> dict:
     soup = BeautifulSoup(r.text, "html.parser")
 
     nyckeltal = {}
+    
+    # Extract years from table headers (e.g., "2024-12", "2023-12", "2022-12")
+    years = []
+    nyckeltal_header = soup.find("th", string=re.compile("Nyckeltal"))
+    if nyckeltal_header:
+        # Find the parent row and get all th elements after the "Nyckeltal" header
+        header_row = nyckeltal_header.find_parent("tr")
+        if header_row:
+            year_headers = header_row.find_all("th")[1:]  # Skip the first "Nyckeltal" header
+            for th in year_headers:
+                year_text = th.get_text(strip=True)
+                # Extract year from format like "2024-12"
+                year_match = re.search(r'(\d{4})', year_text)
+                if year_match:
+                    years.append(int(year_match.group(1)))
+    
+    nyckeltal["years"] = years  # Add years to the result
+    
     rows = soup.select("td.label")
 
     for row in rows:

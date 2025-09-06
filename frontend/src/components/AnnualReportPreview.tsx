@@ -288,12 +288,12 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
   const refpFY_tkr = Math.round(refpFY / 1000);
   const tillgFY_tkr = Math.round(tillgFY / 1000);
   
-  // Check if scraped data includes fiscal year by comparing values
-  // If SE file fiscal year data roughly matches first scraped value, scraped includes fiscal year
-  // This is a heuristic since we can't easily parse HTML headers from scraped data
-  const scrapedIncludesFiscalYear = oms1 > 0 && nettoOmsFY_tkr > 0 && 
-    Math.abs(nettoOmsFY_tkr - oms1) < Math.max(nettoOmsFY_tkr * 0.1, 100); // Within 10% or 100 tkr tolerance
+  // Check if scraped data includes fiscal year using actual years from HTML
+  const scrapedYears = nyckeltal.years || [];
+  const scrapedIncludesFiscalYear = scrapedYears.length > 0 && scrapedYears[0] === fy;
   
+  console.log('Debug - scraped years:', scrapedYears);
+  console.log('Debug - fiscal year:', fy);
   console.log('Debug - scraped includes fiscal year:', scrapedIncludesFiscalYear);
   console.log('Debug - SE file values (tkr):', { nettoOmsFY_tkr, refpFY_tkr, tillgFY_tkr, soliditetFY });
   console.log('Debug - scraped values:', {
@@ -303,7 +303,12 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
     sol: [sol1, sol2, sol3]
   });
 
-  const formatAmount = (n: number) => Math.round(n).toLocaleString("sv-SE");
+  const formatAmount = (n: number) => {
+    return new Intl.NumberFormat('sv-SE', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(Math.round(n));
+  };
 
   return (
     <Card className="w-full">
@@ -331,20 +336,15 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               <TableRow className="h-8">
                 <TableHead className="p-0 w-[36%] text-left font-normal"></TableHead>
                 {scrapedIncludesFiscalYear ? (
-                  // Scraped data includes fiscal year: show 3 years from scraper
-                  <>
-                    <TableHead className="p-0 text-right">{fy}</TableHead>
-                    <TableHead className="p-0 text-right">{fy - 1}</TableHead>
-                    <TableHead className="p-0 text-right">{fy - 2}</TableHead>
-                  </>
+                  // Scraped data includes fiscal year: show scraped years
+                  scrapedYears.map((year, i) => (
+                    <TableHead key={i} className="p-0 text-right">{year}</TableHead>
+                  ))
                 ) : (
-                  // Scraped data starts with fy-1: show calculated fiscal year + 3 scraped years
-                  <>
-                    <TableHead className="p-0 text-right">{fy}</TableHead>
-                    <TableHead className="p-0 text-right">{fy - 1}</TableHead>
-                    <TableHead className="p-0 text-right">{fy - 2}</TableHead>
-                    <TableHead className="p-0 text-right">{fy - 3}</TableHead>
-                  </>
+                  // Scraped data starts with fy-1: show calculated fiscal year + scraped years
+                  [fy, ...scrapedYears].map((year, i) => (
+                    <TableHead key={i} className="p-0 text-right">{year}</TableHead>
+                  ))
                 )}
               </TableRow>
             </TableHeader>
@@ -370,7 +370,10 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
                   <TableCell className="p-0 text-left font-normal">{row.label}</TableCell>
                   {row.values.map((v, j) => (
                     <TableCell key={j} className="p-0 text-right">
-                      {row.label === "Soliditet" ? `${(v ?? 0).toFixed(1)}%` : formatAmount(v ?? 0)}
+                      {row.label === "Soliditet" ? 
+                        `${(v ?? 0).toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : 
+                        formatAmount(v ?? 0)
+                      }
                     </TableCell>
                   ))}
                 </TableRow>
