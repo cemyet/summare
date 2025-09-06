@@ -42,6 +42,9 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
   
   // NEW: keep the original (pre-manual) baseline forever
   const originalBaselineRef = useRef<FBTableRow[] | null>(null);
+  
+  // vilken input är i fokus just nu
+  const [focusedVar, setFocusedVar] = useState<string | null>(null);
 
   // Capture the original baseline once
   useEffect(() => {
@@ -143,10 +146,26 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
 
   // Helper functions for draft input handling
   const allowDraft = (s: string) => /^-?\d*$/.test(s);        // integers only
+  
+  // helper: sv-SE tusentalsavgränsare (utan decimaler)
+  const formatSvInt = (n: number) =>
+    new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 }).format(Math.round(n));
+
+  // helper: rensa bort alla mellanrum/nbsp/thin-spaces men behåll minus
+  const cleanDigits = (s: string) => (s || '')
+    .replace(/\s| |\u00A0|\u202F|,/g, '') // vanliga + NBSP + smalt mellanslag + komma
+    .trim();
+
+  const parseDraft = (s: string): number => {
+    if (!s) return 0;
+    const cleaned = cleanDigits(s);
+    const v = parseInt(cleaned, 10);
+    return Number.isNaN(v) ? 0 : v;
+  };
 
   const commitDraft = (variableName: string, draft: string) => {
-    // Accept empty or lone "-" as zero on commit
-    const parsed = draft === '' || draft === '-' ? 0 : parseInt(draft, 10);
+    // Use parseDraft for consistent parsing
+    const parsed = parseDraft(draft);
     const newValues = { ...editedValues, [variableName]: parsed };
     setEditedValues(recalculateRow13(newValues));
     setDraftInputs(prev => ({ ...prev, [variableName]: toRaw(parsed) }));
@@ -375,19 +394,29 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
     const hasDifference = isRow13 && row14 && !eqInt(value, (row14 as any)[column]);
     
     if (isEditable && variableName) {
-      const currentValue = getCurrentValue(variableName);
-      const draft = draftInputs[variableName] ?? toRaw(currentValue);
+      const currentValue = getCurrentValue(variableName);        // numeriskt
+      const draftRaw = draftInputs[variableName] ?? (currentValue ? String(Math.round(currentValue)) : '');
+      const display = focusedVar === variableName
+        ? draftRaw                                           // rått vid fokus (lätt att skriva -, radera mm)
+        : (draftRaw ? formatSvInt(parseDraft(draftRaw)) : ''); // formaterat utanför fokus
+
       return (
         <input
           type="text"
           inputMode="numeric"
           className="w-full max-w-[96px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
-          value={draft}
+          value={display}
+          onFocus={() => setFocusedVar(variableName)}
           onChange={(e) => {
-            const v = e.target.value.replace(/\s/g, ''); // just in case
-            if (allowDraft(v)) setDraftInputs(prev => ({ ...prev, [variableName]: v }));
+            // spara rå-värde (utan mellanrum/komma) så minus alltid funkar
+            const raw = cleanDigits(e.target.value);
+            if (allowDraft(raw)) setDraftInputs(prev => ({ ...prev, [variableName]: raw }));
           }}
-          onBlur={(e) => commitDraft(variableName, e.target.value)}
+          onBlur={(e) => {
+            setFocusedVar(null);
+            // commit med parsning + omräkning
+            commitDraft(variableName, e.target.value);
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === 'Tab') {
               commitDraft(variableName, (e.target as HTMLInputElement).value);
@@ -430,7 +459,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
                 }`}
                 title={isEditMode ? 'Avsluta redigering' : 'Redigera värden'}
               >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                 </svg>
               </button>
