@@ -613,7 +613,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
                 Summor balanserar inte
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                Belopp vid årets utgång måste stämma överens med redovisat värde. Kolumn som inte balanseras markeras med röd summa.
+                Belopp vid årets utgång måste stämma överens med redovisat värde. Kolumn som inte balanserar markeras med röd summa.
               </p>
             </div>
             <button
