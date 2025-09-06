@@ -36,6 +36,14 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   const [showValidationMessage, setShowValidationMessage] = useState(false);
   const [recalculatedTable, setRecalculatedTable] = useState<FBTableRow[]>(fbTable);
   const [savedValues, setSavedValues] = useState<FBVariables>({});
+  const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
+  const [committedTable, setCommittedTable] = useState<FBTableRow[]>(fbTable);
+
+  // Sync committed table when fbTable changes
+  useEffect(() => {
+    setCommittedTable(fbTable);
+    setRecalculatedTable(fbTable);
+  }, [fbTable]);
 
   // Auto-hide validation message after 5 seconds
   useEffect(() => {
@@ -117,8 +125,20 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     return Math.round(amount).toLocaleString('sv-SE');
   };
 
-  // Use recalculated table in edit mode, original table otherwise
-  const currentTable = isEditMode ? recalculatedTable : fbTable;
+  // Use recalculated table in edit mode, committed table otherwise
+  const currentTable = isEditMode ? recalculatedTable : committedTable;
+
+  // Helper functions for draft input handling
+  const allowDraft = (s: string) => /^-?\d*$/.test(s);        // integers only
+  const toRaw = (n: number) => (n === 0 ? '' : String(Math.round(n)));
+
+  const commitDraft = (variableName: string, draft: string) => {
+    // Accept empty or lone "-" as zero on commit
+    const parsed = draft === '' || draft === '-' ? 0 : parseInt(draft, 10);
+    const newValues = { ...editedValues, [variableName]: parsed };
+    setEditedValues(recalculateRow13(newValues));
+    setDraftInputs(prev => ({ ...prev, [variableName]: toRaw(parsed) }));
+  };
 
   // Helper function to check if there are differences between row 13 and 14
   const hasDifferences = (): boolean => {
@@ -205,62 +225,6 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     return updatedValues;
   };
 
-  // Helper function to handle input changes (real-time)
-  const handleInputChange = (variableName: string, value: string) => {
-    const numValue = parseInputValue(value);
-    const newValues = {
-      ...editedValues,
-      [variableName]: numValue
-    };
-    setEditedValues(recalculateRow13(newValues));
-  };
-
-  // Helper function to handle input blur (when user leaves field)
-  const handleInputBlur = (variableName: string, value: string) => {
-    const numValue = parseInputValue(value);
-    const newValues = {
-      ...editedValues,
-      [variableName]: numValue
-    };
-    setEditedValues(recalculateRow13(newValues));
-  };
-
-  // Helper function to parse input value (handles formatted numbers and minus values)
-  const parseInputValue = (value: string): number => {
-    if (!value || value.trim() === '') return 0;
-    // Remove spaces and commas, but keep minus sign
-    const cleanValue = value.trim().replace(/[\s,]/g, '');
-    const numValue = parseFloat(cleanValue);
-    return isNaN(numValue) ? 0 : numValue;
-  };
-
-  // Helper function to handle keyboard navigation
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, variableName: string) => {
-    if (e.key === 'Enter' || e.key === 'Tab') {
-      // Commit the current value and move to next field
-      const target = e.target as HTMLInputElement;
-      const parsedValue = parseInputValue(target.value);
-      
-      // Update the value immediately
-      const newValues = {
-        ...editedValues,
-        [variableName]: parsedValue
-      };
-      setEditedValues(recalculateRow13(newValues));
-      
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        // Find next input field and focus it
-        const inputs = document.querySelectorAll('input[type="text"]');
-        const currentIndex = Array.from(inputs).indexOf(target);
-        const nextInput = inputs[currentIndex + 1] as HTMLInputElement;
-        if (nextInput) {
-          nextInput.focus();
-          nextInput.select();
-        }
-      }
-    }
-  };
 
   // Helper function to toggle edit mode
   const toggleEditMode = () => {
@@ -300,11 +264,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     const newSavedValues = { ...savedValues, ...editedValues };
     setSavedValues(newSavedValues);
     
-    // Update the recalculatedTable to be the new baseline
-    setRecalculatedTable(recalculatedTable);
+    // Persist what user sees to committedTable
+    setCommittedTable(recalculatedTable);
     
     setIsEditMode(false);
     setEditedValues({});
+    setDraftInputs({});
     setShowAllRows(false);
   };
 
@@ -360,14 +325,23 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     
     if (isEditable && variableName) {
       const currentValue = getCurrentValue(variableName);
+      const draft = draftInputs[variableName] ?? toRaw(currentValue);
       return (
         <input
           type="text"
+          inputMode="numeric"
           className="w-full max-w-[96px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
-          value={currentValue !== 0 ? (currentValue > 0 ? formatAmountForDisplay(currentValue) : `-${formatAmountForDisplay(Math.abs(currentValue))}`) : ''}
-          onChange={(e) => handleInputChange(variableName, e.target.value)}
-          onBlur={(e) => handleInputBlur(variableName, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(e, variableName)}
+          value={draft}
+          onChange={(e) => {
+            const v = e.target.value.replace(/\s/g, ''); // just in case
+            if (allowDraft(v)) setDraftInputs(prev => ({ ...prev, [variableName]: v }));
+          }}
+          onBlur={(e) => commitDraft(variableName, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === 'Tab') {
+              commitDraft(variableName, (e.target as HTMLInputElement).value);
+            }
+          }}
           placeholder="0"
         />
       );
