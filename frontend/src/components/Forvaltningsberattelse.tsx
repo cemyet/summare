@@ -125,7 +125,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
                 </TableHead>
               )}
               {hasNonZeroValues.total && (
-                <TableHead className="font-semibold text-right py-1 min-w-[120px] border-l-2 border-gray-300">Totalt</TableHead>
+                <TableHead className="font-semibold text-right py-1 min-w-[120px]">Totalt</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -133,11 +133,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
             {fbTable.filter(row => !shouldHideRow(row)).map((row) => {
               const isHeaderRow = row.id === 1 || row.id === 13 || row.id === 14;
               const isSubtotalRow = row.id === 13;
+              const isRedovisatVarde = row.id === 14;
               
               return (
                 <TableRow 
                   key={row.id} 
-                  className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t-2 border-gray-400' : ''}`}
+                  className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow || isRedovisatVarde ? 'border-t border-gray-300' : ''}`}
                 >
                   <TableCell className="py-1 text-left">{row.label}</TableCell>
                   {hasNonZeroValues.aktiekapital && (
@@ -166,7 +167,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
                     </TableCell>
                   )}
                   {hasNonZeroValues.total && (
-                    <TableCell className="py-1 text-right border-l-2 border-gray-300 font-semibold">
+                    <TableCell className="py-1 text-right font-semibold">
                       {row.total !== 0 ? formatAmount(row.total) : ''}
                     </TableCell>
                   )}
