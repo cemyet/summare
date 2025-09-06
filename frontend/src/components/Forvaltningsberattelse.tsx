@@ -34,6 +34,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedValues, setEditedValues] = useState<FBVariables>({});
   const [showValidationMessage, setShowValidationMessage] = useState(false);
+  const [recalculatedTable, setRecalculatedTable] = useState<FBTableRow[]>(fbTable);
 
   // Define editable fields based on CSV specification
   const getVariableName = (rowId: number, column: keyof FBTableRow): string | null => {
@@ -99,10 +100,13 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     return Math.round(amount).toLocaleString('sv-SE');
   };
 
+  // Use recalculated table in edit mode, original table otherwise
+  const currentTable = isEditMode ? recalculatedTable : fbTable;
+
   // Helper function to check if there are differences between row 13 and 14
   const hasDifferences = (): boolean => {
-    const row13 = fbTable.find(row => row.id === 13);
-    const row14 = fbTable.find(row => row.id === 14);
+    const row13 = currentTable.find(row => row.id === 13);
+    const row14 = currentTable.find(row => row.id === 14);
     if (!row13 || !row14) return false;
 
     return (
@@ -117,12 +121,50 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
   // Helper function to recalculate row 13 totals dynamically
   const recalculateRow13 = (updatedValues: FBVariables) => {
-    // Recalculate the totals for row 13 based on all edited values
-    // This is a simplified version - in a real implementation, you'd have
-    // the full calculation logic from the backend
-    
-    // For now, we'll update the values and trigger a re-render
-    // The actual recalculation would happen here based on the business logic
+    // Start with original table values
+    const originalRow13 = fbTable.find(row => row.id === 13);
+    if (!originalRow13) return updatedValues;
+
+    // Calculate new totals by adding all the changes
+    let newAktiekapital = fbVariables['fb_aktiekaptial_ib'] || 0;
+    let newReservfond = fbVariables['fb_reservfond_ib'] || 0;
+    let newUppskrivningsfond = fbVariables['fb_uppskrfond_ib'] || 0;
+    let newBalanseratResultat = fbVariables['fb_balansresultat_ib'] || 0;
+    let newAretsResultat = fbVariables['fb_aretsresultat_ib'] || 0;
+
+    // Add all the changes from edited values
+    Object.entries(updatedValues).forEach(([variableName, value]) => {
+      // Map each variable to its column and add to the appropriate total
+      if (variableName.includes('aktiekapital')) {
+        newAktiekapital += value;
+      } else if (variableName.includes('reservfond')) {
+        newReservfond += value;
+      } else if (variableName.includes('uppskrfond')) {
+        newUppskrivningsfond += value;
+      } else if (variableName.includes('balansresultat')) {
+        newBalanseratResultat += value;
+      } else if (variableName.includes('aretsresultat')) {
+        newAretsResultat += value;
+      }
+    });
+
+    // Update the table with new calculated values
+    const updatedTable = recalculatedTable.map(row => {
+      if (row.id === 13) {
+        return {
+          ...row,
+          aktiekapital: newAktiekapital,
+          reservfond: newReservfond,
+          uppskrivningsfond: newUppskrivningsfond,
+          balanserat_resultat: newBalanseratResultat,
+          arets_resultat: newAretsResultat,
+          total: newAktiekapital + newReservfond + newUppskrivningsfond + newBalanseratResultat + newAretsResultat
+        };
+      }
+      return row;
+    });
+
+    setRecalculatedTable(updatedTable);
     return updatedValues;
   };
 
@@ -174,10 +216,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
       setIsEditMode(false);
       setEditedValues({});
       setShowAllRows(false);
+      setRecalculatedTable(fbTable); // Reset to original table
     } else {
       // Entering edit mode
       setIsEditMode(true);
       setShowAllRows(true);
+      setRecalculatedTable(fbTable); // Start with original table
     }
   };
 
@@ -186,6 +230,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     setEditedValues({});
     setIsEditMode(false);
     setShowAllRows(false);
+    setRecalculatedTable(fbTable); // Reset to original table
   };
 
   // Helper function to handle save
@@ -198,19 +243,21 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     
     // Here you would typically save the changes to the backend
     console.log('Saving changes:', editedValues);
+    console.log('Final table state:', recalculatedTable);
     setIsEditMode(false);
     setEditedValues({});
     setShowAllRows(false);
+    // Keep the recalculatedTable as it represents the saved state
   };
 
-  // Check which columns have all zero/null values
+  // Check which columns have all zero/null values (use recalculated table)
   const hasNonZeroValues = {
-    aktiekapital: fbTable.some(row => row.aktiekapital !== 0),
-    reservfond: fbTable.some(row => row.reservfond !== 0),
-    uppskrivningsfond: fbTable.some(row => row.uppskrivningsfond !== 0),
-    balanserat_resultat: fbTable.some(row => row.balanserat_resultat !== 0),
-    arets_resultat: fbTable.some(row => row.arets_resultat !== 0),
-    total: fbTable.some(row => row.total !== 0)
+    aktiekapital: currentTable.some(row => row.aktiekapital !== 0),
+    reservfond: currentTable.some(row => row.reservfond !== 0),
+    uppskrivningsfond: currentTable.some(row => row.uppskrivningsfond !== 0),
+    balanserat_resultat: currentTable.some(row => row.balanserat_resultat !== 0),
+    arets_resultat: currentTable.some(row => row.arets_resultat !== 0),
+    total: currentTable.some(row => row.total !== 0)
   };
 
   // Function to check if a row should be hidden (all values are zero/null)
@@ -270,7 +317,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     
     if (value === 0) return '';
     
-    const formattedValue = formatAmount(value);
+    const formattedValue = formatAmountForDisplay(value);
     
     if (hasDifference) {
       return (
@@ -363,7 +410,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
             </TableRow>
           </TableHeader>
           <TableBody>
-            {fbTable.filter(row => !shouldHideRow(row)).map((row) => {
+            {currentTable.filter(row => !shouldHideRow(row)).map((row) => {
               const isHeaderRow = row.id === 13;
               const isSubtotalRow = row.id === 13;
               const isRedovisatVarde = row.id === 14;
@@ -401,7 +448,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
                   )}
                   {hasNonZeroValues.total && (
                     <TableCell className="py-1 text-right font-semibold bg-gray-50">
-                      {row.total !== 0 ? formatAmount(row.total) : ''}
+                      {row.total !== 0 ? formatAmountForDisplay(row.total) : ''}
                     </TableCell>
                   )}
                 </TableRow>
