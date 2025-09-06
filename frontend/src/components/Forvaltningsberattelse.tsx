@@ -35,6 +35,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   const [editedValues, setEditedValues] = useState<FBVariables>({});
   const [showValidationMessage, setShowValidationMessage] = useState(false);
   const [recalculatedTable, setRecalculatedTable] = useState<FBTableRow[]>(fbTable);
+  const [savedValues, setSavedValues] = useState<FBVariables>({});
 
   // Auto-hide validation message after 3 seconds
   useEffect(() => {
@@ -99,9 +100,15 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     return null;
   }
 
-  // Helper function to get current value (edited or original)
+  // Helper function to get current value (edited, saved, or original)
   const getCurrentValue = (variableName: string): number => {
-    return editedValues[variableName] !== undefined ? editedValues[variableName] : fbVariables[variableName] || 0;
+    if (editedValues[variableName] !== undefined) {
+      return editedValues[variableName];
+    }
+    if (savedValues[variableName] !== undefined) {
+      return savedValues[variableName];
+    }
+    return fbVariables[variableName] || 0;
   };
 
   // Helper function to format amounts without decimals and with thousand separator
@@ -155,8 +162,9 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
       }
     }
 
-    // Replace with edited values where they exist
-    Object.entries(updatedValues).forEach(([variableName, value]) => {
+    // Replace with saved and edited values where they exist
+    const allValues = { ...savedValues, ...updatedValues };
+    Object.entries(allValues).forEach(([variableName, value]) => {
       // Find which row and column this variable belongs to
       for (let rowId = 2; rowId <= 12; rowId++) {
         const row = fbTable.find(r => r.id === rowId);
@@ -220,11 +228,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   const parseInputValue = (value: string): number => {
     if (!value || value.trim() === '') return 0;
     // Handle minus sign at the beginning
-    const isNegative = value.trim().startsWith('-');
-    // Remove spaces, commas, and minus signs, then parse
-    const cleanValue = value.replace(/[\s,-]/g, '');
+    const trimmedValue = value.trim();
+    const isNegative = trimmedValue.startsWith('-');
+    // Remove spaces and commas, but keep minus sign for parsing
+    const cleanValue = trimmedValue.replace(/[\s,]/g, '');
     const numValue = parseFloat(cleanValue);
-    const result = isNaN(numValue) ? 0 : numValue;
+    const result = isNaN(numValue) ? 0 : Math.abs(numValue);
     return isNegative ? -result : result;
   };
 
@@ -290,15 +299,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     console.log('Saving changes:', editedValues);
     console.log('Final table state:', recalculatedTable);
     
-    // Update the original fbTable with the edited values
-    const updatedFbTable = fbTable.map(row => {
-      // Find corresponding row in recalculatedTable
-      const recalcRow = recalculatedTable.find(r => r.id === row.id);
-      return recalcRow || row;
-    });
+    // Merge edited values into saved values
+    const newSavedValues = { ...savedValues, ...editedValues };
+    setSavedValues(newSavedValues);
     
     // Update the recalculatedTable to be the new baseline
-    setRecalculatedTable(updatedFbTable);
+    setRecalculatedTable(recalculatedTable);
     
     setIsEditMode(false);
     setEditedValues({});
@@ -544,7 +550,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
       {/* Toast Notification */}
       {showValidationMessage && (
-        <div className="fixed top-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-top-2">
+        <div className="fixed bottom-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
           <div className="flex items-start">
             <div className="flex-shrink-0">
               <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -553,7 +559,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
             </div>
             <div className="ml-3 flex-1">
               <p className="text-sm font-medium text-gray-900">
-                Validering misslyckades
+                Summor balanserar inte
               </p>
               <p className="text-sm text-gray-500 mt-1">
                 Belopp vid årets utgång måste stämma överens med redovisat värde. Kolumn som inte balanseras markeras med röd summa.
