@@ -93,6 +93,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     return editedValues[variableName] !== undefined ? editedValues[variableName] : fbVariables[variableName] || 0;
   };
 
+  // Helper function to format amounts without decimals and with thousand separator
+  const formatAmountForDisplay = (amount: number): string => {
+    if (amount === 0) return '';
+    return Math.round(amount).toLocaleString('sv-SE');
+  };
+
   // Helper function to check if there are differences between row 13 and 14
   const hasDifferences = (): boolean => {
     const row13 = fbTable.find(row => row.id === 13);
@@ -111,13 +117,16 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
   // Helper function to recalculate row 13 totals dynamically
   const recalculateRow13 = (updatedValues: FBVariables) => {
-    // This would recalculate the totals based on all the edited values
-    // For now, we'll just trigger a re-render - in a real implementation,
-    // you'd recalculate all the sums here
+    // Recalculate the totals for row 13 based on all edited values
+    // This is a simplified version - in a real implementation, you'd have
+    // the full calculation logic from the backend
+    
+    // For now, we'll update the values and trigger a re-render
+    // The actual recalculation would happen here based on the business logic
     return updatedValues;
   };
 
-  // Helper function to handle input changes
+  // Helper function to handle input changes (real-time)
   const handleInputChange = (variableName: string, value: string) => {
     const numValue = parseFloat(value) || 0;
     const newValues = {
@@ -125,6 +134,37 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
       [variableName]: numValue
     };
     setEditedValues(recalculateRow13(newValues));
+  };
+
+  // Helper function to handle input blur (when user leaves field)
+  const handleInputBlur = (variableName: string, value: string) => {
+    const numValue = parseFloat(value) || 0;
+    const newValues = {
+      ...editedValues,
+      [variableName]: numValue
+    };
+    setEditedValues(recalculateRow13(newValues));
+  };
+
+  // Helper function to handle keyboard navigation
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, variableName: string) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      // Commit the current value and move to next field
+      const target = e.target as HTMLInputElement;
+      handleInputBlur(variableName, target.value);
+      
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        // Find next input field and focus it
+        const inputs = document.querySelectorAll('input[type="number"]');
+        const currentIndex = Array.from(inputs).indexOf(target);
+        const nextInput = inputs[currentIndex + 1] as HTMLInputElement;
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+      }
+    }
   };
 
   // Helper function to toggle edit mode
@@ -218,10 +258,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
       return (
         <input
           type="number"
-          className="w-full max-w-[80px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-medium h-6 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:border-gray-400 focus:outline-none"
+          className="w-full max-w-[96px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:border-gray-400 focus:outline-none"
           value={currentValue || ''}
           onChange={(e) => handleInputChange(variableName, e.target.value)}
-          step="0.01"
+          onBlur={(e) => handleInputBlur(variableName, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(e, variableName)}
+          step="1"
         />
       );
     }
@@ -324,11 +366,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
             {fbTable.filter(row => !shouldHideRow(row)).map((row) => {
               const isHeaderRow = row.id === 13;
               const isSubtotalRow = row.id === 13;
+              const isRedovisatVarde = row.id === 14;
               
               return (
                 <TableRow 
                   key={row.id} 
-                  className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t border-gray-300' : ''}`}
+                  className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t border-gray-300' : ''} ${isRedovisatVarde ? 'bg-amber-50/10' : ''}`}
                 >
                   <TableCell className="py-1 text-left pl-0">{row.label}</TableCell>
                   {hasNonZeroValues.aktiekapital && (
