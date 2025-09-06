@@ -246,10 +246,10 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
   const brData = seFileData?.br_data || [];
   
   // Extract current year values from RR/BR data
-  const getAmountByLabel = (data: any[], searchLabels: string[]) => {
-    for (const label of searchLabels) {
+  const getAmountByVariableName = (data: any[], variableNames: string[]) => {
+    for (const varName of variableNames) {
       const item = data.find(item => 
-        item.label && item.label.toLowerCase().includes(label.toLowerCase())
+        item.variable_name && item.variable_name.toLowerCase() === varName.toLowerCase()
       );
       if (item && item.current_amount !== null && item.current_amount !== undefined) {
         return num(item.current_amount);
@@ -258,11 +258,11 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
     return 0;
   };
 
-  const nettoOmsFY = getAmountByLabel(rrData, ['sumrorelseintakter', 'rörelseintäkter', 'omsättning']);
-  const refpFY = getAmountByLabel(rrData, ['resultat efter finansiella poster', 'finansnetto']);
-  const tillgFY = getAmountByLabel(brData, ['summa tillgångar', 'balansomslutning']);
-  const egetKapFY = getAmountByLabel(brData, ['eget kapital', 'summa eget kapital']);
-  const obResFY = getAmountByLabel(brData, ['obeskattade reserver']);
+  const nettoOmsFY = getAmountByVariableName(rrData, ['SumRorelseintakter', 'sumrorelseintakter']);
+  const refpFY = getAmountByVariableName(rrData, ['SumResultatEfterFinansiellaPoster', 'sumresultatefterfinansiellaposter']);
+  const tillgFY = getAmountByVariableName(brData, ['SumTillgangar', 'sumtillgangar']);
+  const egetKapFY = getAmountByVariableName(brData, ['SumEgetKapital', 'sumegetkapital']);
+  const obResFY = getAmountByVariableName(brData, ['SumObeskattadeReserver', 'sumobeskattadereserver']);
   
   // Calculate soliditet or use current year from scraper if available
   let soliditetFY = 0;
@@ -290,11 +290,14 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
   
   // Check if scraped data includes fiscal year using actual years from HTML
   const scrapedYears = nyckeltal.years || [];
-  const scrapedIncludesFiscalYear = scrapedYears.length > 0 && scrapedYears[0] === fy;
+  // Fallback: if years array is empty but we have scraped data, assume first value is current fiscal year
+  const scrapedIncludesFiscalYear = (scrapedYears.length > 0 && scrapedYears[0] === fy) || 
+    (scrapedYears.length === 0 && oms1 > 0 && fy === 2024); // Temporary fallback for 2024
   
   console.log('Debug - scraped years:', scrapedYears);
   console.log('Debug - fiscal year:', fy);
   console.log('Debug - scraped includes fiscal year:', scrapedIncludesFiscalYear);
+  console.log('Debug - SE file values (original):', { nettoOmsFY, refpFY, tillgFY, egetKapFY, soliditetFY });
   console.log('Debug - SE file values (tkr):', { nettoOmsFY_tkr, refpFY_tkr, tillgFY_tkr, soliditetFY });
   console.log('Debug - scraped values:', {
     oms: [oms1, oms2, oms3],
@@ -302,6 +305,11 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
     bal: [bal1, bal2, bal3],
     sol: [sol1, sol2, sol3]
   });
+  console.log('Debug - RR data sample:', rrData.slice(0, 5).map(item => ({
+    variable_name: item.variable_name,
+    label: item.label,
+    current_amount: item.current_amount
+  })));
 
   const formatAmount = (n: number) => {
     return new Intl.NumberFormat('sv-SE', {
@@ -336,13 +344,13 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               <TableRow className="h-8">
                 <TableHead className="p-0 w-[36%] text-left font-normal"></TableHead>
                 {scrapedIncludesFiscalYear ? (
-                  // Scraped data includes fiscal year: show scraped years
-                  scrapedYears.map((year, i) => (
+                  // Scraped data includes fiscal year: show scraped years only (or fallback years)
+                  (scrapedYears.length > 0 ? scrapedYears : [2024, 2023, 2022]).map((year, i) => (
                     <TableHead key={i} className="p-0 text-right">{year}</TableHead>
                   ))
                 ) : (
                   // Scraped data starts with fy-1: show calculated fiscal year + scraped years
-                  [fy, ...scrapedYears].map((year, i) => (
+                  [fy, fy-1, fy-2, fy-3].map((year, i) => (
                     <TableHead key={i} className="p-0 text-right">{year}</TableHead>
                   ))
                 )}

@@ -80,18 +80,23 @@ def scrape_numbers(orgnr: str) -> dict:
     # Extract years from table headers (e.g., "2024-12", "2023-12", "2022-12")
     years = []
     nyckeltal_header = soup.find("th", string=re.compile("Nyckeltal"))
+    print(f"Debug - Found nyckeltal header: {nyckeltal_header}")
     if nyckeltal_header:
         # Find the parent row and get all th elements after the "Nyckeltal" header
         header_row = nyckeltal_header.find_parent("tr")
+        print(f"Debug - Header row: {header_row}")
         if header_row:
             year_headers = header_row.find_all("th")[1:]  # Skip the first "Nyckeltal" header
+            print(f"Debug - Year headers: {[th.get_text(strip=True) for th in year_headers]}")
             for th in year_headers:
                 year_text = th.get_text(strip=True)
                 # Extract year from format like "2024-12"
                 year_match = re.search(r'(\d{4})', year_text)
                 if year_match:
                     years.append(int(year_match.group(1)))
+                    print(f"Debug - Extracted year: {year_match.group(1)} from text: '{year_text}'")
     
+    print(f"Debug - Final years array: {years}")
     nyckeltal["years"] = years  # Add years to the result
     
     rows = soup.select("td.label")
