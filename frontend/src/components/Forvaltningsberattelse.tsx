@@ -146,39 +146,33 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     for (let rowId = 2; rowId <= 12; rowId++) {
       const row = fbTable.find(r => r.id === rowId);
       if (row) {
-        // Check if any values in this row are being edited
-        const hasEditedAktiekapital = Object.keys(updatedValues).some(key => 
-          getVariableName(rowId, 'aktiekapital') === key);
-        const hasEditedReservfond = Object.keys(updatedValues).some(key => 
-          getVariableName(rowId, 'reservfond') === key);
-        const hasEditedUppskrivningsfond = Object.keys(updatedValues).some(key => 
-          getVariableName(rowId, 'uppskrivningsfond') === key);
-        const hasEditedBalanseratResultat = Object.keys(updatedValues).some(key => 
-          getVariableName(rowId, 'balanserat_resultat') === key);
-        const hasEditedAretsResultat = Object.keys(updatedValues).some(key => 
-          getVariableName(rowId, 'arets_resultat') === key);
-
-        // Add original values if not being edited
-        if (!hasEditedAktiekapital) newAktiekapital += row.aktiekapital;
-        if (!hasEditedReservfond) newReservfond += row.reservfond;
-        if (!hasEditedUppskrivningsfond) newUppskrivningsfond += row.uppskrivningsfond;
-        if (!hasEditedBalanseratResultat) newBalanseratResultat += row.balanserat_resultat;
-        if (!hasEditedAretsResultat) newAretsResultat += row.arets_resultat;
+        // Add original values for each column
+        newAktiekapital += row.aktiekapital;
+        newReservfond += row.reservfond;
+        newUppskrivningsfond += row.uppskrivningsfond;
+        newBalanseratResultat += row.balanserat_resultat;
+        newAretsResultat += row.arets_resultat;
       }
     }
 
-    // Add all the edited values
+    // Replace with edited values where they exist
     Object.entries(updatedValues).forEach(([variableName, value]) => {
-      if (variableName.includes('aktiekapital')) {
-        newAktiekapital += value;
-      } else if (variableName.includes('reservfond')) {
-        newReservfond += value;
-      } else if (variableName.includes('uppskrfond')) {
-        newUppskrivningsfond += value;
-      } else if (variableName.includes('balansresultat')) {
-        newBalanseratResultat += value;
-      } else if (variableName.includes('aretsresultat')) {
-        newAretsResultat += value;
+      // Find which row and column this variable belongs to
+      for (let rowId = 2; rowId <= 12; rowId++) {
+        const row = fbTable.find(r => r.id === rowId);
+        if (row) {
+          if (getVariableName(rowId, 'aktiekapital') === variableName) {
+            newAktiekapital = newAktiekapital - row.aktiekapital + value;
+          } else if (getVariableName(rowId, 'reservfond') === variableName) {
+            newReservfond = newReservfond - row.reservfond + value;
+          } else if (getVariableName(rowId, 'uppskrivningsfond') === variableName) {
+            newUppskrivningsfond = newUppskrivningsfond - row.uppskrivningsfond + value;
+          } else if (getVariableName(rowId, 'balanserat_resultat') === variableName) {
+            newBalanseratResultat = newBalanseratResultat - row.balanserat_resultat + value;
+          } else if (getVariableName(rowId, 'arets_resultat') === variableName) {
+            newAretsResultat = newAretsResultat - row.arets_resultat + value;
+          }
+        }
       }
     });
 
@@ -225,10 +219,13 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   // Helper function to parse input value (handles formatted numbers and minus values)
   const parseInputValue = (value: string): number => {
     if (!value || value.trim() === '') return 0;
-    // Remove spaces and handle minus sign
-    const cleanValue = value.replace(/\s/g, '').replace(/,/g, '');
+    // Handle minus sign at the beginning
+    const isNegative = value.trim().startsWith('-');
+    // Remove spaces, commas, and minus signs, then parse
+    const cleanValue = value.replace(/[\s,-]/g, '');
     const numValue = parseFloat(cleanValue);
-    return isNaN(numValue) ? 0 : numValue;
+    const result = isNaN(numValue) ? 0 : numValue;
+    return isNegative ? -result : result;
   };
 
   // Helper function to handle keyboard navigation
@@ -292,10 +289,20 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     // Here you would typically save the changes to the backend
     console.log('Saving changes:', editedValues);
     console.log('Final table state:', recalculatedTable);
+    
+    // Update the original fbTable with the edited values
+    const updatedFbTable = fbTable.map(row => {
+      // Find corresponding row in recalculatedTable
+      const recalcRow = recalculatedTable.find(r => r.id === row.id);
+      return recalcRow || row;
+    });
+    
+    // Update the recalculatedTable to be the new baseline
+    setRecalculatedTable(updatedFbTable);
+    
     setIsEditMode(false);
     setEditedValues({});
     setShowAllRows(false);
-    // Keep the recalculatedTable as it represents the saved state
   };
 
   // Check which columns have all zero/null values (use recalculated table)
@@ -549,7 +556,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
                 Validering misslyckades
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                Belopp vid årets utgång måste stämma överens med redovisat värde
+                Belopp vid årets utgång måste stämma överens med redovisat värde. Kolumn som inte balanseras markeras med röd summa.
               </p>
             </div>
             <button
