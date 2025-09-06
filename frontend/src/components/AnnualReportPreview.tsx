@@ -273,11 +273,6 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
     const currentSoliditet = nyckeltal.Soliditet?.[0];
     soliditetFY = currentSoliditet ? num(currentSoliditet) : 0;
   }
-  console.log('Debug - scraped data:', scraped);
-  console.log('Debug - nyckeltal:', nyckeltal);
-  console.log('Debug - available keys:', Object.keys(nyckeltal));
-  console.log('Debug - current year values:', { nettoOmsFY, refpFY, tillgFY, egetKapFY, soliditetFY });
-  
   const [oms1, oms2, oms3] = arr3(nyckeltal.Omsättning || nyckeltal["Total omsättning"]);
   const [ref1, ref2, ref3] = arr3(nyckeltal["Resultat efter finansnetto"] || nyckeltal["Resultat efter finansiella poster"]);
   const [bal1, bal2, bal3] = arr3(nyckeltal.Balansomslutning || nyckeltal["Summa tillgångar"]);
@@ -290,26 +285,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
   
   // Check if scraped data includes fiscal year using actual years from HTML
   const scrapedYears = nyckeltal.years || [];
-  // Fallback: if years array is empty but we have scraped data, assume first value is current fiscal year
-  const scrapedIncludesFiscalYear = (scrapedYears.length > 0 && scrapedYears[0] === fy) || 
-    (scrapedYears.length === 0 && oms1 > 0 && fy === 2024); // Temporary fallback for 2024
-  
-  console.log('Debug - scraped years:', scrapedYears);
-  console.log('Debug - fiscal year:', fy);
-  console.log('Debug - scraped includes fiscal year:', scrapedIncludesFiscalYear);
-  console.log('Debug - SE file values (original):', { nettoOmsFY, refpFY, tillgFY, egetKapFY, soliditetFY });
-  console.log('Debug - SE file values (tkr):', { nettoOmsFY_tkr, refpFY_tkr, tillgFY_tkr, soliditetFY });
-  console.log('Debug - scraped values:', {
-    oms: [oms1, oms2, oms3],
-    ref: [ref1, ref2, ref3], 
-    bal: [bal1, bal2, bal3],
-    sol: [sol1, sol2, sol3]
-  });
-  console.log('Debug - RR data sample:', rrData.slice(0, 5).map(item => ({
-    variable_name: item.variable_name,
-    label: item.label,
-    current_amount: item.current_amount
-  })));
+  const scrapedIncludesFiscalYear = scrapedYears.length > 0 && scrapedYears[0] === fy;
 
   const formatAmount = (n: number) => {
     return new Intl.NumberFormat('sv-SE', {
@@ -326,7 +302,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
 
       <CardContent className="space-y-6">
         {/* H2 Verksamheten */}
-        <section id="verksamheten">
+        <section id="verksamheten" className="mt-8">
           <h2 className="text-xl font-semibold mb-2">Verksamheten</h2>
 
           <h3 className="text-base font-semibold mb-1">Allmänt om verksamheten</h3>
@@ -337,7 +313,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
         </section>
 
         {/* H2 Flerårsöversikt */}
-        <section id="flerars">
+        <section id="flerars" className="mt-8">
           <h2 className="text-xl font-semibold mb-2">Flerårsöversikt</h2>
           <Table className="w-full table-fixed">
             <TableHeader className="leading-none">
@@ -391,7 +367,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
         </section>
 
         {/* H2 Förändringar i eget kapital — existing, working table, embedded */}
-        <section id="eget-kapital">
+        <section id="eget-kapital" className="mt-8">
           <Forvaltningsberattelse
             embedded
             fbTable={companyData.fbTable || []}
