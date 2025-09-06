@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
@@ -39,6 +39,16 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
   const [savedValues, setSavedValues] = useState<FBVariables>({});
   const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
   const [committedTable, setCommittedTable] = useState<FBTableRow[]>(fbTable);
+  
+  // NEW: keep the original (pre-manual) baseline forever
+  const originalBaselineRef = useRef<FBTableRow[] | null>(null);
+
+  // Capture the original baseline once
+  useEffect(() => {
+    if (!originalBaselineRef.current && fbTable && fbTable.length) {
+      originalBaselineRef.current = fbTable.map(r => ({ ...r }));
+    }
+  }, [fbTable]);
 
   // Keep committed/read-only baseline in sync when backend delivers a new fbTable
   useEffect(() => {
@@ -183,6 +193,24 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
     return values;
   };
 
+  // NEW: hard reset to original, regardless of saves
+  const resetToOriginal = () => {
+    const orig = (originalBaselineRef.current && originalBaselineRef.current.length)
+      ? originalBaselineRef.current
+      : fbTable;
+
+    const resetTable = cloneTable(orig);
+    setCommittedTable(resetTable);        // read-only baseline = original
+    setRecalculatedTable(resetTable);     // edit working table = original
+
+    const base = buildValuesFromTable(resetTable);
+    setSavedValues(base);                 // per-cell values = original
+    setEditedValues({});                  // no pending edits
+    setDraftInputs(Object.fromEntries(
+      Object.entries(base).map(([k, v]) => [k, toRaw(v as number)])
+    ));
+  };
+
   // Recalculate entire table from committed baseline + edits
   const recalculateRow13 = (updatedValues: FBVariables) => {
     // Work on a fresh copy of the committed baseline so values persist correctly
@@ -266,13 +294,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
 
   // Helper function to handle undo
   const handleUndo = () => {
-    setEditedValues({});
-    setRecalculatedTable(committedTable.map(r => ({ ...r })));
-    const base = buildValuesFromTable(committedTable);
-    setDraftInputs(Object.fromEntries(
-      Object.entries(base).map(([k, v]) => [k, toRaw(v as number)])
-    ));
-    setSavedValues(base); // keeps inputs in sync with committed baseline
+    resetToOriginal(); // always jump to original, even after Godkänn
   };
 
   // Helper function to handle save
@@ -289,20 +311,17 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
     // Merge edited values into saved values
     const newSavedValues = { ...savedValues, ...editedValues };
     
-    const committed = recalculatedTable.map(r => ({ ...r }));
+    const committed = cloneTable(recalculatedTable);
     setCommittedTable(committed);
     const base = buildValuesFromTable(committed);
     setSavedValues(base);
-    setDraftInputs(Object.fromEntries(
-      Object.entries(base).map(([k, v]) => [k, toRaw(v as number)])
-    ));
+    setDraftInputs(Object.fromEntries(Object.entries(base).map(([k, v]) => [k, toRaw(v as number)])));
     
     // (Optional) Bubble up so parent/DB can persist variables & rows
     onDataUpdate?.({ fbVariables: newSavedValues, fbTable: recalculatedTable });
     
     setIsEditMode(false);
     setEditedValues({});
-    setDraftInputs({});
   };
 
   // Check which columns have all zero/null values (use recalculated table)
