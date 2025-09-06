@@ -205,7 +205,14 @@ interface AnnualReportPreviewProps {
 }
 
 // --- helpers to fetch numbers (adjust paths to your data shape) ---
-const num = (v: any) => (typeof v === 'number' && !isNaN(v) ? v : 0);
+const num = (v: any) => {
+  if (typeof v === 'number' && !isNaN(v)) return v;
+  if (typeof v === 'string') {
+    const parsed = parseFloat(v);
+    return !isNaN(parsed) ? parsed : 0;
+  }
+  return 0;
+};
 const arr3 = (a: any): number[] => (Array.isArray(a) ? a : []).slice(0,3).map(num);
 
 function ManagementReportModule({ companyData, onDataUpdate }: any) {
@@ -230,6 +237,9 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
     }, som har sitt säte i ${moder_sate || sate}.`;
   }
 
+  // Arrays (fy-1..fy-3) from scraper - data is in nyckeltal object
+  const nyckeltal = scraped.nyckeltal || {};
+
   // Current year values from seFileData RR/BR
   const seFileData = companyData?.seFileData;
   const rrData = seFileData?.rr_data || [];
@@ -251,23 +261,42 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
   const nettoOmsFY = getAmountByLabel(rrData, ['nettoomsättning', 'omsättning']);
   const refpFY = getAmountByLabel(rrData, ['resultat efter finansiella poster', 'finansnetto']);
   const tillgFY = getAmountByLabel(brData, ['summa tillgångar', 'balansomslutning']);
-  const egetKapFY = getAmountByLabel(brData, ['eget kapital']);
+  const egetKapFY = getAmountByLabel(brData, ['eget kapital', 'summa eget kapital']);
   const obResFY = getAmountByLabel(brData, ['obeskattade reserver']);
-  const soliditetFY = tillgFY ? ((egetKapFY + 0.794 * obResFY) / tillgFY) * 100 : 0;
-
-  // Arrays (fy-1..fy-3) from scraper - data is in nyckeltal object
-  const nyckeltal = scraped.nyckeltal || {};
+  
+  // Calculate soliditet or use current year from scraper if available
+  let soliditetFY = 0;
+  if (tillgFY && egetKapFY) {
+    soliditetFY = ((egetKapFY + 0.794 * obResFY) / tillgFY) * 100;
+  } else {
+    // Fallback to current year from scraper if calculation fails
+    const currentSoliditet = nyckeltal.Soliditet?.[0];
+    soliditetFY = currentSoliditet ? num(currentSoliditet) : 0;
+  }
   console.log('Debug - scraped data:', scraped);
   console.log('Debug - nyckeltal:', nyckeltal);
   console.log('Debug - available keys:', Object.keys(nyckeltal));
   console.log('Debug - current year values:', { nettoOmsFY, refpFY, tillgFY, egetKapFY, soliditetFY });
   
-  const [oms1, oms2, oms3]  = arr3(nyckeltal.Omsättning || nyckeltal["Total omsättning"]);
-  const [ref1, ref2, ref3]  = arr3(nyckeltal["Resultat efter finansnetto"] || nyckeltal["Resultat efter finansiella poster"]);
-  const [bal1, bal2, bal3]  = arr3(nyckeltal.Balansomslutning || nyckeltal["Summa tillgångar"]);
-  const [sol1, sol2, sol3]  = arr3(nyckeltal.Soliditet);
+  const [oms1, oms2, oms3] = arr3(nyckeltal.Omsättning || nyckeltal["Total omsättning"]);
+  const [ref1, ref2, ref3] = arr3(nyckeltal["Resultat efter finansnetto"] || nyckeltal["Resultat efter finansiella poster"]);
+  const [bal1, bal2, bal3] = arr3(nyckeltal.Balansomslutning || nyckeltal["Summa tillgångar"]);
+  const [sol1, sol2, sol3] = arr3(nyckeltal.Soliditet);
   
-  console.log('Debug - extracted values:', {
+  // Convert SE file values from kronor to tkr (thousands) and round
+  const nettoOmsFY_tkr = Math.round(nettoOmsFY / 1000);
+  const refpFY_tkr = Math.round(refpFY / 1000);
+  const tillgFY_tkr = Math.round(tillgFY / 1000);
+  
+  // Check if scraped data includes fiscal year by comparing values
+  // If SE file fiscal year data roughly matches first scraped value, scraped includes fiscal year
+  // This is a heuristic since we can't easily parse HTML headers from scraped data
+  const scrapedIncludesFiscalYear = oms1 > 0 && nettoOmsFY_tkr > 0 && 
+    Math.abs(nettoOmsFY_tkr - oms1) < Math.max(nettoOmsFY_tkr * 0.1, 100); // Within 10% or 100 tkr tolerance
+  
+  console.log('Debug - scraped includes fiscal year:', scrapedIncludesFiscalYear);
+  console.log('Debug - SE file values (tkr):', { nettoOmsFY_tkr, refpFY_tkr, tillgFY_tkr, soliditetFY });
+  console.log('Debug - scraped values:', {
     oms: [oms1, oms2, oms3],
     ref: [ref1, ref2, ref3], 
     bal: [bal1, bal2, bal3],
@@ -301,18 +330,42 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
             <TableHeader className="leading-none">
               <TableRow className="h-8">
                 <TableHead className="p-0 w-[36%] text-left font-normal"></TableHead>
-                {[fy, fy - 1, fy - 2, fy - 3].map((y) => (
-                  <TableHead key={y} className="p-0 text-right">{y}</TableHead>
-                ))}
+                {scrapedIncludesFiscalYear ? (
+                  // Scraped data includes fiscal year: show 3 years from scraper
+                  <>
+                    <TableHead className="p-0 text-right">{fy}</TableHead>
+                    <TableHead className="p-0 text-right">{fy - 1}</TableHead>
+                    <TableHead className="p-0 text-right">{fy - 2}</TableHead>
+                  </>
+                ) : (
+                  // Scraped data starts with fy-1: show calculated fiscal year + 3 scraped years
+                  <>
+                    <TableHead className="p-0 text-right">{fy}</TableHead>
+                    <TableHead className="p-0 text-right">{fy - 1}</TableHead>
+                    <TableHead className="p-0 text-right">{fy - 2}</TableHead>
+                    <TableHead className="p-0 text-right">{fy - 3}</TableHead>
+                  </>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody className="leading-none">
-              {[
-                { label: "Nettoomsättning",                   values: [nettoOmsFY, oms1, oms2, oms3] },
-                { label: "Resultat efter finansiella poster", values: [refpFY,     ref1, ref2, ref3] },
-                { label: "Balansomslutning",                  values: [tillgFY,    bal1, bal2, bal3] },
-                { label: "Soliditet",                         values: [soliditetFY, sol1, sol2, sol3] },
-              ].map((row, i) => (
+              {scrapedIncludesFiscalYear ? (
+                // Use only scraped data (3 years)
+                [
+                  { label: "Nettoomsättning",                   values: [oms1, oms2, oms3] },
+                  { label: "Resultat efter finansiella poster", values: [ref1, ref2, ref3] },
+                  { label: "Balansomslutning",                  values: [bal1, bal2, bal3] },
+                  { label: "Soliditet",                         values: [sol1, sol2, sol3] },
+                ]
+              ) : (
+                // Use calculated fiscal year + scraped data (4 years)
+                [
+                  { label: "Nettoomsättning",                   values: [nettoOmsFY_tkr, oms1, oms2, oms3] },
+                  { label: "Resultat efter finansiella poster", values: [refpFY_tkr, ref1, ref2, ref3] },
+                  { label: "Balansomslutning",                  values: [tillgFY_tkr, bal1, bal2, bal3] },
+                  { label: "Soliditet",                         values: [soliditetFY, sol1, sol2, sol3] },
+                ]
+              )).map((row, i) => (
                 <TableRow key={i} className="h-8">
                   <TableCell className="p-0 text-left font-normal">{row.label}</TableCell>
                   {row.values.map((v, j) => (
