@@ -72,6 +72,7 @@ def clean_orgnr_for_url(orgnr: str) -> str:
 def scrape_numbers(orgnr: str) -> dict:
     clean_orgnr = clean_orgnr_for_url(orgnr)
     url = BASE_NUMBERS.format(orgnr=clean_orgnr)
+    print(f"Debug - Scraping numbers from URL: {url}")
     r = requests.get(url, timeout=20, headers=HEADERS); r.raise_for_status()
     soup = BeautifulSoup(r.text, "html.parser")
 
@@ -79,9 +80,12 @@ def scrape_numbers(orgnr: str) -> dict:
     
     # Extract years from table headers (e.g., "2024-12", "2023-12", "2022-12")
     years = []
-    nyckeltal_header = soup.find("th", string=re.compile("Nyckeltal"))
+    
+    # Look for th with class="label title" containing "Nyckeltal"
+    nyckeltal_header = soup.find("th", {"class": "label title"})
     print(f"Debug - Found nyckeltal header: {nyckeltal_header}")
-    if nyckeltal_header:
+    
+    if nyckeltal_header and "Nyckeltal" in nyckeltal_header.get_text():
         # Find the parent row and get all th elements after the "Nyckeltal" header
         header_row = nyckeltal_header.find_parent("tr")
         print(f"Debug - Header row: {header_row}")
