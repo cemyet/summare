@@ -37,12 +37,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   const [recalculatedTable, setRecalculatedTable] = useState<FBTableRow[]>(fbTable);
   const [savedValues, setSavedValues] = useState<FBVariables>({});
 
-  // Auto-hide validation message after 3 seconds
+  // Auto-hide validation message after 5 seconds
   useEffect(() => {
     if (showValidationMessage) {
       const timer = setTimeout(() => {
         setShowValidationMessage(false);
-      }, 3000);
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [showValidationMessage]);
@@ -165,20 +165,21 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     // Replace with saved and edited values where they exist
     const allValues = { ...savedValues, ...updatedValues };
     Object.entries(allValues).forEach(([variableName, value]) => {
+      const numValue = typeof value === 'number' ? value : 0;
       // Find which row and column this variable belongs to
       for (let rowId = 2; rowId <= 12; rowId++) {
         const row = fbTable.find(r => r.id === rowId);
         if (row) {
           if (getVariableName(rowId, 'aktiekapital') === variableName) {
-            newAktiekapital = newAktiekapital - row.aktiekapital + value;
+            newAktiekapital = newAktiekapital - row.aktiekapital + numValue;
           } else if (getVariableName(rowId, 'reservfond') === variableName) {
-            newReservfond = newReservfond - row.reservfond + value;
+            newReservfond = newReservfond - row.reservfond + numValue;
           } else if (getVariableName(rowId, 'uppskrivningsfond') === variableName) {
-            newUppskrivningsfond = newUppskrivningsfond - row.uppskrivningsfond + value;
+            newUppskrivningsfond = newUppskrivningsfond - row.uppskrivningsfond + numValue;
           } else if (getVariableName(rowId, 'balanserat_resultat') === variableName) {
-            newBalanseratResultat = newBalanseratResultat - row.balanserat_resultat + value;
+            newBalanseratResultat = newBalanseratResultat - row.balanserat_resultat + numValue;
           } else if (getVariableName(rowId, 'arets_resultat') === variableName) {
-            newAretsResultat = newAretsResultat - row.arets_resultat + value;
+            newAretsResultat = newAretsResultat - row.arets_resultat + numValue;
           }
         }
       }
@@ -227,14 +228,10 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   // Helper function to parse input value (handles formatted numbers and minus values)
   const parseInputValue = (value: string): number => {
     if (!value || value.trim() === '') return 0;
-    // Handle minus sign at the beginning
-    const trimmedValue = value.trim();
-    const isNegative = trimmedValue.startsWith('-');
-    // Remove spaces and commas, but keep minus sign for parsing
-    const cleanValue = trimmedValue.replace(/[\s,]/g, '');
+    // Remove spaces and commas, but keep minus sign
+    const cleanValue = value.trim().replace(/[\s,]/g, '');
     const numValue = parseFloat(cleanValue);
-    const result = isNaN(numValue) ? 0 : Math.abs(numValue);
-    return isNegative ? -result : result;
+    return isNaN(numValue) ? 0 : numValue;
   };
 
   // Helper function to handle keyboard navigation
