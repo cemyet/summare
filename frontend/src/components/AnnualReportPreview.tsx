@@ -228,11 +228,11 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
 
   let verksamhetContent = (verksamhetsbeskrivning || "").trim();
   if (sate) {
-    verksamhetContent += (verksamhetContent ? "\n\n" : "") + `Bolaget har sitt säte i ${sate}.`;
+    verksamhetContent += (verksamhetContent ? " " : "") + `Bolaget har sitt säte i ${sate}.`;
   }
   if (moderbolag) {
     const moder_sate = scraped.moderbolag_säte || scraped.moderbolag_sate || sate;
-    verksamhetContent += `\nBolaget är dotterbolag till ${moderbolag}${
+    verksamhetContent += ` Bolaget är dotterbolag till ${moderbolag}${
       moderbolag_orgnr ? ` med organisationsnummer ${moderbolag_orgnr}` : ""
     }, som har sitt säte i ${moder_sate || sate}.`;
   }
@@ -306,10 +306,10 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
           <h2 className="text-xl font-semibold mb-2">Verksamheten</h2>
 
           <h3 className="text-base font-semibold mb-1">Allmänt om verksamheten</h3>
-          <p className="whitespace-pre-line">{verksamhetContent}</p>
+          <p>{verksamhetContent}</p>
 
-          <h3 className="text-base font-semibold mt-4">Väsentliga händelser under räkenskapsåret</h3>
-          <p className="text-sm text-muted-foreground italic">Inga väsentliga händelser under året.</p>
+          <h3 className="text-base font-semibold mt-4 pt-10">Väsentliga händelser under räkenskapsåret</h3>
+          <p className="text-base font-normal not-italic">Inga väsentliga händelser under året.</p>
         </section>
 
         {/* H2 Flerårsöversikt */}
