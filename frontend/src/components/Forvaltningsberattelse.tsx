@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { formatAmount } from '@/utils/seFileCalculations';
 
 interface FBTableRow {
@@ -36,6 +35,16 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   const [editedValues, setEditedValues] = useState<FBVariables>({});
   const [showValidationMessage, setShowValidationMessage] = useState(false);
   const [recalculatedTable, setRecalculatedTable] = useState<FBTableRow[]>(fbTable);
+
+  // Auto-hide validation message after 3 seconds
+  useEffect(() => {
+    if (showValidationMessage) {
+      const timer = setTimeout(() => {
+        setShowValidationMessage(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showValidationMessage]);
 
   // Define editable fields based on CSV specification
   const getVariableName = (rowId: number, column: keyof FBTableRow): string | null => {
@@ -526,22 +535,34 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
       </CardContent>
 
-      {/* Validation Popup */}
-      <AlertDialog open={showValidationMessage} onOpenChange={setShowValidationMessage}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Validering misslyckades</AlertDialogTitle>
-            <AlertDialogDescription>
-              Belopp vid årets utgång måste stämma överens med redovisat värde
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setShowValidationMessage(false)}>
-              OK
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {/* Toast Notification */}
+      {showValidationMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-top-2">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                Validering misslyckades
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Belopp vid årets utgång måste stämma överens med redovisat värde
+              </p>
+            </div>
+            <button
+              onClick={() => setShowValidationMessage(false)}
+              className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
