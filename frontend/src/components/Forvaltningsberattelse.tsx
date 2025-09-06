@@ -76,7 +76,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
         <CardTitle>
           <h1 className="text-2xl font-bold">Förvaltningsberättelse</h1>
           <div className="flex items-center justify-between mt-2">
-            <h2 className="text-lg font-semibold text-muted-foreground">Förändring i eget kapital</h2>
+            <h2 className="text-lg font-semibold text-muted-foreground">Förändringar i eget kapital</h2>
             <div className="flex items-center space-x-2">
               <label 
                 htmlFor="toggle-show-all-fb" 
@@ -136,7 +136,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
           </TableHeader>
           <TableBody>
             {fbTable.filter(row => !shouldHideRow(row)).map((row) => {
-              const isHeaderRow = row.id === 1 || row.id === 13;
+              const isHeaderRow = row.id === 13;
               const isSubtotalRow = row.id === 13;
               
               return (
