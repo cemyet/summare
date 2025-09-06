@@ -1104,6 +1104,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
           fbTable={companyData.fbTable || []}
           fbVariables={companyData.fbVariables || {}}
           fiscalYear={companyData.fiscalYear}
+          onDataUpdate={onDataUpdate}
         />
 
         {/* Significant Events Section */}

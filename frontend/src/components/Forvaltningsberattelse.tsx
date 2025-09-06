@@ -27,9 +27,10 @@ interface ForvaltningsberattelseProps {
   fbTable: FBTableRow[];
   fbVariables: FBVariables;
   fiscalYear?: number;
+  onDataUpdate?: (updates: Partial<any>) => void;
 }
 
-export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: ForvaltningsberattelseProps) {
+export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDataUpdate }: ForvaltningsberattelseProps) {
   const [showAllRows, setShowAllRows] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedValues, setEditedValues] = useState<FBVariables>({});
@@ -39,11 +40,13 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
   const [committedTable, setCommittedTable] = useState<FBTableRow[]>(fbTable);
 
-  // Sync committed table when fbTable changes
+  // Keep committed/read-only baseline in sync when backend delivers a new fbTable
   useEffect(() => {
-    setCommittedTable(fbTable);
-    setRecalculatedTable(fbTable);
-  }, [fbTable]);
+    if (!isEditMode) {
+      setCommittedTable(fbTable);
+      setRecalculatedTable(fbTable);
+    }
+  }, [fbTable, isEditMode]);
 
   // Auto-hide validation message after 5 seconds
   useEffect(() => {
@@ -125,7 +128,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     return Math.round(amount).toLocaleString('sv-SE');
   };
 
-  // Use recalculated table in edit mode, committed table otherwise
+  // Use recalculated table in edit mode, committed baseline otherwise
   const currentTable = isEditMode ? recalculatedTable : committedTable;
 
   // Helper functions for draft input handling
@@ -233,20 +236,21 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
       setIsEditMode(false);
       setEditedValues({});
       setShowAllRows(false);
-      setRecalculatedTable(fbTable); // Reset to original table
+      // Do not touch committedTable here
     } else {
       // Entering edit mode
       setIsEditMode(true);
       setShowAllRows(true);
-      setRecalculatedTable(fbTable); // Start with original table
+      // Edit from committed baseline
+      setRecalculatedTable(committedTable.map(r => ({ ...r })));
     }
   };
 
   // Helper function to handle undo
   const handleUndo = () => {
     setEditedValues({});
-    setRecalculatedTable(fbTable); // Reset to original table
-    // Stay in edit mode, just reset values
+    // Restore what was last approved/saved
+    setRecalculatedTable(committedTable.map(r => ({ ...r })));
   };
 
   // Helper function to handle save
@@ -264,8 +268,10 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     const newSavedValues = { ...savedValues, ...editedValues };
     setSavedValues(newSavedValues);
     
-    // Persist what user sees to committedTable
-    setCommittedTable(recalculatedTable);
+    // Persist what the user sees as the new committed baseline
+    setCommittedTable(recalculatedTable.map(r => ({ ...r })));
+    // (Optional) Bubble up so parent/DB can persist variables & rows
+    onDataUpdate?.({ fbVariables: newSavedValues, fbTable: recalculatedTable });
     
     setIsEditMode(false);
     setEditedValues({});
