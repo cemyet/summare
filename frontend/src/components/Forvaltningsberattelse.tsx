@@ -36,23 +36,28 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
   // Check which columns have all zero/null values
   const hasNonZeroValues = {
-    aktiekapital: showAllRows || fbTable.some(row => row.aktiekapital !== 0),
-    reservfond: showAllRows || fbTable.some(row => row.reservfond !== 0),
-    uppskrivningsfond: showAllRows || fbTable.some(row => row.uppskrivningsfond !== 0),
-    balanserat_resultat: showAllRows || fbTable.some(row => row.balanserat_resultat !== 0),
-    arets_resultat: showAllRows || fbTable.some(row => row.arets_resultat !== 0),
-    total: showAllRows || fbTable.some(row => row.total !== 0)
+    aktiekapital: fbTable.some(row => row.aktiekapital !== 0),
+    reservfond: fbTable.some(row => row.reservfond !== 0),
+    uppskrivningsfond: fbTable.some(row => row.uppskrivningsfond !== 0),
+    balanserat_resultat: fbTable.some(row => row.balanserat_resultat !== 0),
+    arets_resultat: fbTable.some(row => row.arets_resultat !== 0),
+    total: fbTable.some(row => row.total !== 0)
   };
 
   // Function to check if a row should be hidden (all values are zero/null)
   const shouldHideRow = (row: FBTableRow) => {
+    // Always hide "Redovisat värde" row (id 14)
+    if (row.id === 14) {
+      return true;
+    }
+    
     // Show all rows if toggle is on
     if (showAllRows) {
       return false;
     }
     
-    // Always show header rows (IB, UB, Redovisat värde)
-    if (row.id === 1 || row.id === 13 || row.id === 14) {
+    // Always show header rows (IB, UB)
+    if (row.id === 1 || row.id === 13) {
       return false;
     }
     
@@ -131,14 +136,13 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
           </TableHeader>
           <TableBody>
             {fbTable.filter(row => !shouldHideRow(row)).map((row) => {
-              const isHeaderRow = row.id === 1 || row.id === 13 || row.id === 14;
+              const isHeaderRow = row.id === 1 || row.id === 13;
               const isSubtotalRow = row.id === 13;
-              const isRedovisatVarde = row.id === 14;
               
               return (
                 <TableRow 
                   key={row.id} 
-                  className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow || isRedovisatVarde ? 'border-t border-gray-300' : ''}`}
+                  className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t border-gray-300' : ''}`}
                 >
                   <TableCell className="py-1 text-left">{row.label}</TableCell>
                   {hasNonZeroValues.aktiekapital && (
