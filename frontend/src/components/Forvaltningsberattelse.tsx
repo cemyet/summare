@@ -143,19 +143,26 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
     setDraftInputs(prev => ({ ...prev, [variableName]: toRaw(parsed) }));
   };
 
-  // Helper function to check if there are differences between row 13 and 14
+  // Helper: get a row by id from a table
+  const getRowById = (table: FBTableRow[], id: number) => table.find(r => r.id === id);
+
+  // Helper: integer equality (what the UI shows)
+  const eqInt = (a: unknown, b: unknown) =>
+    Math.round(Number(a ?? 0)) === Math.round(Number(b ?? 0));
+
   const hasDifferences = (): boolean => {
-    const row13 = currentTable.find(row => row.id === 13);
-    const row14 = currentTable.find(row => row.id === 14);
+    // Always compare inside the working edit table
+    const row13 = getRowById(recalculatedTable, 13);
+    const row14 = getRowById(recalculatedTable, 14);
     if (!row13 || !row14) return false;
 
-    return (
-      Math.abs(row13.aktiekapital - row14.aktiekapital) > 0.01 ||
-      Math.abs(row13.reservfond - row14.reservfond) > 0.01 ||
-      Math.abs(row13.uppskrivningsfond - row14.uppskrivningsfond) > 0.01 ||
-      Math.abs(row13.balanserat_resultat - row14.balanserat_resultat) > 0.01 ||
-      Math.abs(row13.arets_resultat - row14.arets_resultat) > 0.01 ||
-      Math.abs(row13.total - row14.total) > 0.01
+    return !(
+      eqInt(row13.aktiekapital,        row14.aktiekapital) &&
+      eqInt(row13.reservfond,          row14.reservfond) &&
+      eqInt(row13.uppskrivningsfond,   row14.uppskrivningsfond) &&
+      eqInt(row13.balanserat_resultat, row14.balanserat_resultat) &&
+      eqInt(row13.arets_resultat,      row14.arets_resultat) &&
+      eqInt(row13.total,               row14.total)
     );
   };
 
