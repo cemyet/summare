@@ -35,26 +35,53 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   const [editedValues, setEditedValues] = useState<FBVariables>({});
   const [showValidationMessage, setShowValidationMessage] = useState(false);
 
-  // Define editable fields based on backend comments
-  const editableFields = {
-    7: { // Fondemission row
-      uppskrivningsfond: 'fb_uppskrfond_fondemission',
-      balanserat_resultat: 'fb_balansresultat_fondemission',
-      arets_resultat: 'fb_aretsresultat_fondemission'
-    },
-    11: { // Fusionsdifferens row
-      uppskrivningsfond: 'fb_uppskrfond_fusionsdifferens'
-    },
-    6: { // Förändringar reservfond row
-      balanserat_resultat: 'fb_balansresultat_forandring_reservfond',
-      arets_resultat: 'fb_aretsresultat_forandring_reservfond'
-    },
-    2: { // Utdelning row
-      arets_resultat: 'fb_aretsresultat_utdelning'
-    },
-    4: { // Återbetalning aktieägartillskott row
-      arets_resultat: 'fb_aretsresultat_aterbetalda_aktieagartillskott'
-    }
+  // Define editable fields based on CSV specification
+  const getVariableName = (rowId: number, column: keyof FBTableRow): string | null => {
+    const mapping: Record<number, Record<string, string>> = {
+      2: { // Utdelning - CSV: balanserat_resultat, arets_resultat editable
+        balanserat_resultat: 'fb_balansresultat_utdelning',
+        arets_resultat: 'fb_aretsresultat_utdelning'
+      },
+      3: { // Erhållna aktieägartillskott - CSV: balanserat_resultat editable
+        balanserat_resultat: 'fb_balansresultat_erhallna_aktieagartillskott'
+      },
+      4: { // Återbetalning av aktieägartillskott - CSV: balanserat_resultat, arets_resultat editable
+        balanserat_resultat: 'fb_balansresultat_aterbetalda_aktieagartillskott',
+        arets_resultat: 'fb_aretsresultat_aterbetalda_aktieagartillskott'
+      },
+      5: { // Balanseras i ny räkning - CSV: balanserat_resultat, arets_resultat editable
+        balanserat_resultat: 'fb_balansresultat_balanseras_nyrakning',
+        arets_resultat: 'fb_aretsresultat_balanseras_nyrakning'
+      },
+      6: { // Förändringar av reservfond - CSV: reservfond, balanserat_resultat, arets_resultat editable
+        reservfond: 'fb_reservfond_change',
+        balanserat_resultat: 'fb_balansresultat_forandring_reservfond',
+        arets_resultat: 'fb_aretsresultat_forandring_reservfond'
+      },
+      7: { // Fondemission - CSV: uppskrivningsfond, balanserat_resultat, arets_resultat editable
+        uppskrivningsfond: 'fb_uppskrfond_fondemission',
+        balanserat_resultat: 'fb_balansresultat_fondemission',
+        arets_resultat: 'fb_aretsresultat_fondemission'
+      },
+      8: { // Nyemission - CSV: aktiekapital editable
+        aktiekapital: 'fb_aktiekapital_nyemission'
+      },
+      9: { // Uppskrivning av anläggningstillgång - CSV: uppskrivningsfond editable
+        uppskrivningsfond: 'fb_uppskrfond_uppskr_anltillgangar'
+      },
+      10: { // Återföring av uppskrivningsfond - CSV: uppskrivningsfond, balanserat_resultat editable
+        uppskrivningsfond: 'fb_uppskrfond_aterforing',
+        balanserat_resultat: 'fb_balansresultat_uppskrfond_aterforing'
+      },
+      11: { // Fusionsdifferens - CSV: uppskrivningsfond editable
+        uppskrivningsfond: 'fb_uppskrfond_fusionsdifferens'
+      },
+      12: { // Årets resultat - CSV: arets_resultat editable
+        arets_resultat: 'fb_aretsresultat_arets_resultat'
+      }
+    };
+    
+    return mapping[rowId]?.[column] || null;
   };
 
   if (!fbTable || fbTable.length === 0) {
@@ -82,19 +109,43 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     );
   };
 
+  // Helper function to recalculate row 13 totals dynamically
+  const recalculateRow13 = (updatedValues: FBVariables) => {
+    // This would recalculate the totals based on all the edited values
+    // For now, we'll just trigger a re-render - in a real implementation,
+    // you'd recalculate all the sums here
+    return updatedValues;
+  };
+
   // Helper function to handle input changes
   const handleInputChange = (variableName: string, value: string) => {
     const numValue = parseFloat(value) || 0;
-    setEditedValues(prev => ({
-      ...prev,
+    const newValues = {
+      ...editedValues,
       [variableName]: numValue
-    }));
+    };
+    setEditedValues(recalculateRow13(newValues));
+  };
+
+  // Helper function to toggle edit mode
+  const toggleEditMode = () => {
+    if (isEditMode) {
+      // Exiting edit mode
+      setIsEditMode(false);
+      setEditedValues({});
+      setShowAllRows(false);
+    } else {
+      // Entering edit mode
+      setIsEditMode(true);
+      setShowAllRows(true);
+    }
   };
 
   // Helper function to handle undo
   const handleUndo = () => {
     setEditedValues({});
     setIsEditMode(false);
+    setShowAllRows(false);
   };
 
   // Helper function to handle save
@@ -109,6 +160,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     console.log('Saving changes:', editedValues);
     setIsEditMode(false);
     setEditedValues({});
+    setShowAllRows(false);
   };
 
   // Check which columns have all zero/null values
@@ -149,8 +201,12 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
   // Helper function to render a cell (editable or display)
   const renderCell = (row: FBTableRow, column: keyof FBTableRow, value: number) => {
-    const isEditable = isEditMode && editableFields[row.id as keyof typeof editableFields]?.[column as keyof typeof editableFields[keyof typeof editableFields]];
-    const variableName = editableFields[row.id as keyof typeof editableFields]?.[column as keyof typeof editableFields[keyof typeof editableFields]];
+    // Skip total column and label column
+    if (column === 'total' || typeof value !== 'number') return null;
+    
+    // Check if this specific cell is editable based on CSV specification
+    const variableName = getVariableName(row.id, column);
+    const isEditable = isEditMode && variableName !== null;
     
     // Check if this is row 14 and there's a difference with row 13
     const isDifferenceRow = row.id === 14;
@@ -160,11 +216,11 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     if (isEditable && variableName) {
       const currentValue = getCurrentValue(variableName);
       return (
-        <Input
+        <input
           type="number"
+          className="w-full max-w-[80px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-medium h-6 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:border-gray-400 focus:outline-none"
           value={currentValue || ''}
           onChange={(e) => handleInputChange(variableName, e.target.value)}
-          className="w-full text-right border-blue-300 focus:border-blue-500"
           step="0.01"
         />
       );
@@ -194,7 +250,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
             <div className="flex items-center gap-3">
               <h2 className="text-lg font-semibold text-muted-foreground">Förändringar i eget kapital</h2>
               <button
-                onClick={() => setIsEditMode(!isEditMode)}
+                onClick={toggleEditMode}
                 className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
                   isEditMode 
                     ? 'bg-blue-600 text-white' 
