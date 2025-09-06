@@ -98,7 +98,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="font-semibold py-1 min-w-[200px]"></TableHead>
+              <TableHead className="font-semibold py-1 min-w-[200px] pl-0"></TableHead>
               {hasNonZeroValues.aktiekapital && (
                 <TableHead className="font-semibold text-right py-1 min-w-[120px]">Aktiekapital</TableHead>
               )}
@@ -130,7 +130,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
                 </TableHead>
               )}
               {hasNonZeroValues.total && (
-                <TableHead className="font-semibold text-right py-1 min-w-[120px]">Totalt</TableHead>
+                <TableHead className="font-semibold text-right py-1 min-w-[120px] bg-gray-50">Totalt</TableHead>
               )}
             </TableRow>
           </TableHeader>
@@ -144,7 +144,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
                   key={row.id} 
                   className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t border-gray-300' : ''}`}
                 >
-                  <TableCell className="py-1 text-left">{row.label}</TableCell>
+                  <TableCell className="py-1 text-left pl-0">{row.label}</TableCell>
                   {hasNonZeroValues.aktiekapital && (
                     <TableCell className="py-1 text-right">
                       {row.aktiekapital !== 0 ? formatAmount(row.aktiekapital) : ''}
@@ -171,7 +171,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
                     </TableCell>
                   )}
                   {hasNonZeroValues.total && (
-                    <TableCell className="py-1 text-right font-semibold">
+                    <TableCell className="py-1 text-right font-semibold bg-gray-50">
                       {row.total !== 0 ? formatAmount(row.total) : ''}
                     </TableCell>
                   )}
