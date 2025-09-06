@@ -133,7 +133,6 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
 
   // Helper functions for draft input handling
   const allowDraft = (s: string) => /^-?\d*$/.test(s);        // integers only
-  const toRaw = (n: number) => (n === 0 ? '' : String(Math.round(n)));
 
   const commitDraft = (variableName: string, draft: string) => {
     // Accept empty or lone "-" as zero on commit
@@ -168,6 +167,21 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
 
   // Helper to deep copy a table
   const cloneTable = (t: FBTableRow[]) => t.map(r => ({ ...r }));
+  const toRaw = (n: number) => (n === 0 ? '' : String(Math.round(n)));
+
+  const buildValuesFromTable = (table: FBTableRow[]) => {
+    const values: FBVariables = {};
+    for (let rowId = 2; rowId <= 12; rowId++) {
+      const row = table.find(r => r.id === rowId);
+      if (!row) continue;
+      (['aktiekapital','reservfond','uppskrivningsfond','balanserat_resultat','arets_resultat'] as (keyof FBTableRow)[])
+        .forEach((col) => {
+          const varName = getVariableName(rowId, col);
+          if (varName) values[varName] = Number(row[col]) || 0;
+        });
+    }
+    return values;
+  };
 
   // Recalculate entire table from committed baseline + edits
   const recalculateRow13 = (updatedValues: FBVariables) => {
@@ -237,20 +251,28 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
       // Exiting edit mode
       setIsEditMode(false);
       setEditedValues({});
-      // Do not touch committedTable here
+      setRecalculatedTable(committedTable.map(r => ({ ...r })));
     } else {
       // Entering edit mode
       setIsEditMode(true);
-      // Edit from committed baseline
       setRecalculatedTable(committedTable.map(r => ({ ...r })));
+      const base = buildValuesFromTable(committedTable);
+      setSavedValues(base);
+      setDraftInputs(Object.fromEntries(
+        Object.entries(base).map(([k, v]) => [k, toRaw(v as number)])
+      ));
     }
   };
 
   // Helper function to handle undo
   const handleUndo = () => {
     setEditedValues({});
-    // Restore what was last approved/saved
     setRecalculatedTable(committedTable.map(r => ({ ...r })));
+    const base = buildValuesFromTable(committedTable);
+    setDraftInputs(Object.fromEntries(
+      Object.entries(base).map(([k, v]) => [k, toRaw(v as number)])
+    ));
+    setSavedValues(base); // keeps inputs in sync with committed baseline
   };
 
   // Helper function to handle save
@@ -266,10 +288,15 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
     
     // Merge edited values into saved values
     const newSavedValues = { ...savedValues, ...editedValues };
-    setSavedValues(newSavedValues);
     
-    // Persist what the user sees as the new committed baseline
-    setCommittedTable(recalculatedTable.map(r => ({ ...r })));
+    const committed = recalculatedTable.map(r => ({ ...r }));
+    setCommittedTable(committed);
+    const base = buildValuesFromTable(committed);
+    setSavedValues(base);
+    setDraftInputs(Object.fromEntries(
+      Object.entries(base).map(([k, v]) => [k, toRaw(v as number)])
+    ));
+    
     // (Optional) Bubble up so parent/DB can persist variables & rows
     onDataUpdate?.({ fbVariables: newSavedValues, fbTable: recalculatedTable });
     
@@ -325,8 +352,8 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
     
     // Check if this is row 13 and there's a difference with row 14
     const isRow13 = row.id === 13;
-    const row14 = currentTable.find(r => r.id === 14);
-    const hasDifference = isRow13 && row14 && Math.abs(value - row14[column]) > 0.01;
+    const row14 = recalculatedTable.find(r => r.id === 14);
+    const hasDifference = isRow13 && row14 && !eqInt(value, (row14 as any)[column]);
     
     if (isEditable && variableName) {
       const currentValue = getCurrentValue(variableName);
