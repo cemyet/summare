@@ -103,7 +103,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
               {hasNonZeroValues.uppskrivningsfond && (
                 <TableHead className="font-semibold text-right py-1 min-w-[140px]">
                   <div className="text-right">
-                    <div>Uppskrivnings-</div>
+                    <div>Uppskrivnings</div>
                     <div>fond</div>
                   </div>
                 </TableHead>

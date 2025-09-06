@@ -1,6 +1,15 @@
 -- Create INK2 tax calculation tables and supporting structures
 -- This adds tax calculation functionality with simpler structure than RR/BR
 
+-- Create the update_updated_at_column function if it doesn't exist
+CREATE OR REPLACE FUNCTION public.update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
 -- Table 1: Variable Mapping for INK2 (Tax calculations)
 CREATE TABLE variable_mapping_ink2 (
   id SERIAL PRIMARY KEY,
