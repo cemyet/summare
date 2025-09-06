@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from "@/components/ui/table";
 import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@/utils/seFileCalculations';
 import { apiService } from '@/services/api';
 import { Periodiseringsfonder } from './Periodiseringsfonder';
@@ -201,6 +202,117 @@ interface AnnualReportPreviewProps {
   currentStep: number;
   editableAmounts?: boolean;
   onDataUpdate?: (updates: Partial<any>) => void;
+}
+
+// --- helpers to fetch numbers (adjust paths to your data shape) ---
+const num = (v: any) => (typeof v === 'number' && !isNaN(v) ? v : 0);
+const arr3 = (a: any): number[] => (Array.isArray(a) ? a : []).slice(0,3).map(num);
+
+function ManagementReportModule({ companyData, onDataUpdate }: any) {
+  const fy = companyData?.fiscalYear ?? new Date().getFullYear();
+
+  // Scraper payload (rating_bolag_scraper.py output)
+  const scraped = (companyData as any)?.scraped_company_data || {};
+  const verksamhetsbeskrivning =
+    scraped.verksamhetsbeskrivning || scraped.Verksamhetsbeskrivning || "";
+  const sate = scraped.säte || scraped.sate || scraped.Säte || "";
+  const moderbolag = scraped.moderbolag || scraped.Moderbolag || "";
+  const moderbolag_orgnr = scraped.moderbolag_orgnr || scraped.ModerbolagOrgNr || "";
+
+  let verksamhetContent = (verksamhetsbeskrivning || "").trim();
+  if (sate) {
+    verksamhetContent += (verksamhetContent ? "\n\n" : "") + `Bolaget har sitt säte i ${sate}.`;
+  }
+  if (moderbolag) {
+    const moder_sate = scraped.moderbolag_säte || scraped.moderbolag_sate || sate;
+    verksamhetContent += `\nBolaget är dotterbolag till ${moderbolag}${
+      moderbolag_orgnr ? ` med organisationsnummer ${moderbolag_orgnr}` : ""
+    }, som har sitt säte i ${moder_sate || sate}.`;
+  }
+
+  // RR/BR one-year values (adjust selectors to your structure)
+  const rr = companyData?.RR || companyData?.rr || {};
+  const br = companyData?.BR || companyData?.br || {};
+  const nettoOmsFY = num(rr?.SumNettoomsattning ?? rr?.Nettoomsattning ?? rr?.Nettoomsättning);
+  const refpFY     = num(rr?.SumResultatEfterFinansiellaPoster ?? rr?.ResultatEfterFinansiellaPoster);
+  const tillgFY    = num(br?.SumTillgangar ?? br?.Tillgångar ?? br?.SumTillgångar);
+  const egetKapFY  = num(br?.SumEgetKapital ?? br?.EgetKapital ?? br?.SumEgetkapital);
+  const obResFY    = num(br?.SumObeskattadeReserver ?? br?.ObeskattadeReserver);
+  const soliditetFY = tillgFY ? ((egetKapFY + 0.794 * obResFY) / tillgFY) * 100 : 0;
+
+  // Arrays (fy-1..fy-3) from scraper
+  const [oms1, oms2, oms3]  = arr3(scraped.Omsättning || scraped.Nettoomsättning);
+  const [ref1, ref2, ref3]  = arr3(scraped["Resultat efter finansnetto"] || scraped["Resultat efter finansiella poster"]);
+  const [bal1, bal2, bal3]  = arr3(scraped.Balansomslutning || scraped["Summa tillgångar"]);
+  const [sol1, sol2, sol3]  = arr3(scraped.Soliditet);
+
+  const formatAmount = (n: number) => Math.round(n).toLocaleString("sv-SE");
+
+  return (
+    <Card className="w-full">
+      <CardHeader className="pb-2">
+        <CardTitle><h1 className="text-2xl font-bold">Förvaltningsberättelse</h1></CardTitle>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+        {/* H2 Verksamheten */}
+        <section id="verksamheten">
+          <h2 className="text-xl font-semibold mb-2">Verksamheten</h2>
+
+          <h3 className="text-base font-semibold mb-1">Allmänt om verksamheten</h3>
+          <p className="whitespace-pre-line">{verksamhetContent}</p>
+
+          <h3 className="text-base font-semibold mt-4">Väsentliga händelser under räkenskapsåret</h3>
+          <p className="text-sm text-muted-foreground italic">—</p>
+        </section>
+
+        {/* H2 Flerårsöversikt */}
+        <section id="flerars">
+          <h2 className="text-xl font-semibold mb-2">Flerårsöversikt</h2>
+          <Table className="w-full table-fixed">
+            <TableHeader className="leading-none">
+              <TableRow className="h-8">
+                <TableHead className="p-0 w-[36%] text-left font-normal"></TableHead>
+                {[fy, fy - 1, fy - 2, fy - 3].map((y) => (
+                  <TableHead key={y} className="p-0 text-right">{y}</TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody className="leading-none">
+              {[
+                { label: "Nettoomsättning",                   values: [nettoOmsFY, oms1, oms2, oms3] },
+                { label: "Resultat efter finansiella poster", values: [refpFY,     ref1, ref2, ref3] },
+                { label: "Balansomslutning",                  values: [tillgFY,    bal1, bal2, bal3] },
+                { label: "Soliditet",                         values: [soliditetFY, sol1, sol2, sol3] },
+              ].map((row, i) => (
+                <TableRow key={i} className="h-8">
+                  <TableCell className="p-0 text-left font-normal">{row.label}</TableCell>
+                  {row.values.map((v, j) => (
+                    <TableCell key={j} className="p-0 text-right">
+                      {row.label === "Soliditet" ? `${(v ?? 0).toFixed(1)}%` : formatAmount(v ?? 0)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </section>
+
+        {/* H2 Förändringar i eget kapital — existing, working table, embedded */}
+        <section id="eget-kapital">
+          <Forvaltningsberattelse
+            embedded
+            fbTable={companyData.fbTable || []}
+            fbVariables={companyData.fbVariables || {}}
+            fiscalYear={fy}
+            onDataUpdate={onDataUpdate}
+          />
+        </section>
+
+        {/* (Ignore Resultatdisposition for now as requested) */}
+      </CardContent>
+    </Card>
+  );
 }
 
 // Database-driven always_show logic - no more hardcoded arrays
@@ -1100,10 +1212,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         )}
 
         {/* Förvaltningsberättelse Section */}
-        <Forvaltningsberattelse 
-          fbTable={companyData.fbTable || []}
-          fbVariables={companyData.fbVariables || {}}
-          fiscalYear={companyData.fiscalYear}
+        <ManagementReportModule 
+          companyData={companyData}
           onDataUpdate={onDataUpdate}
         />
 

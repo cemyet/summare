@@ -30,7 +30,9 @@ interface ForvaltningsberattelseProps {
   onDataUpdate?: (updates: Partial<any>) => void;
 }
 
-export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDataUpdate }: ForvaltningsberattelseProps) {
+export function Forvaltningsberattelse({
+  fbTable, fbVariables, fiscalYear, onDataUpdate, embedded = false
+}: ForvaltningsberattelseProps & { embedded?: boolean }) {
   const [showAllRows, setShowAllRows] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedValues, setEditedValues] = useState<FBVariables>({});
@@ -442,162 +444,155 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
     return formattedValue;
   };
 
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>
-          <h1 className="text-2xl font-bold">Förvaltningsberättelse</h1>
-          <div className="flex items-center justify-between mt-2">
-            <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold text-muted-foreground">Förändringar i eget kapital</h2>
-              <button
-                onClick={toggleEditMode}
-                className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-                  isEditMode 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-                }`}
-                title={isEditMode ? 'Avsluta redigering' : 'Redigera värden'}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                </svg>
-              </button>
-            </div>
-            <div className="flex items-center space-x-2">
-              <label 
-                htmlFor="toggle-show-all-fb" 
-                className="text-sm font-medium cursor-pointer"
-              >
-                Visa alla rader
-              </label>
-              <Switch
-                id="toggle-show-all-fb"
-                checked={showAllRows}
-                onCheckedChange={setShowAllRows}
-              />
-            </div>
-          </div>
-        </CardTitle>
-      </CardHeader>
+  // Extract the content that currently sits inside the Card
+  const content = (
+    <>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-semibold text-muted-foreground">Förändringar i eget kapital</h2>
+          <button
+            onClick={toggleEditMode}
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+              isEditMode 
+                ? 'bg-blue-600 text-white' 
+                : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+            }`}
+            title={isEditMode ? 'Avsluta redigering' : 'Redigera värden'}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
+        </div>
+        <div className="flex items-center space-x-2">
+          <label 
+            htmlFor="toggle-show-all-fb" 
+            className="text-sm font-medium cursor-pointer"
+          >
+            Visa alla rader
+          </label>
+          <Switch
+            id="toggle-show-all-fb"
+            checked={showAllRows}
+            onCheckedChange={setShowAllRows}
+          />
+        </div>
+      </div>
       
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="font-semibold py-1 min-w-[200px] pl-0"></TableHead>
-              {hasNonZeroValues.aktiekapital && (
-                <TableHead className="font-semibold text-right py-1 min-w-[120px]">Aktiekapital</TableHead>
-              )}
-              {hasNonZeroValues.reservfond && (
-                <TableHead className="font-semibold text-right py-1 min-w-[120px]">Reservfond</TableHead>
-              )}
-              {hasNonZeroValues.uppskrivningsfond && (
-                <TableHead className="font-semibold text-right py-1 min-w-[140px]">
-                  <div className="text-right">
-                    <div>Uppskrivnings</div>
-                    <div>fond</div>
-                  </div>
-                </TableHead>
-              )}
-              {hasNonZeroValues.balanserat_resultat && (
-                <TableHead className="font-semibold text-right py-1 min-w-[140px]">
-                  <div className="text-right">
-                    <div>Balanserat</div>
-                    <div>resultat</div>
-                  </div>
-                </TableHead>
-              )}
-              {hasNonZeroValues.arets_resultat && (
-                <TableHead className="font-semibold text-right py-1 min-w-[120px]">
-                  <div className="text-right">
-                    <div>Årets</div>
-                    <div>resultat</div>
-                  </div>
-                </TableHead>
-              )}
-              {hasNonZeroValues.total && (
-                <TableHead className="font-semibold text-right py-1 min-w-[120px] bg-gray-50">Totalt</TableHead>
-              )}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {currentTable.filter(row => !shouldHideRow(row)).map((row) => {
-              const isHeaderRow = row.id === 13;
-              const isSubtotalRow = row.id === 13;
-              const isRedovisatVarde = row.id === 14;
-              
-              return (
-                <TableRow 
-                  key={row.id} 
-                  className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t border-gray-300' : ''} ${isRedovisatVarde ? 'bg-amber-50/10' : ''}`}
-                >
-                  <TableCell className="py-1 text-left pl-0">{row.label}</TableCell>
-                  {hasNonZeroValues.aktiekapital && (
-                    <TableCell className="py-1 text-right">
-                      {renderCell(row, 'aktiekapital', row.aktiekapital)}
-                    </TableCell>
-                  )}
-                  {hasNonZeroValues.reservfond && (
-                    <TableCell className="py-1 text-right">
-                      {renderCell(row, 'reservfond', row.reservfond)}
-                    </TableCell>
-                  )}
-                  {hasNonZeroValues.uppskrivningsfond && (
-                    <TableCell className="py-1 text-right">
-                      {renderCell(row, 'uppskrivningsfond', row.uppskrivningsfond)}
-                    </TableCell>
-                  )}
-                  {hasNonZeroValues.balanserat_resultat && (
-                    <TableCell className="py-1 text-right">
-                      {renderCell(row, 'balanserat_resultat', row.balanserat_resultat)}
-                    </TableCell>
-                  )}
-                  {hasNonZeroValues.arets_resultat && (
-                    <TableCell className="py-1 text-right">
-                      {renderCell(row, 'arets_resultat', row.arets_resultat)}
-                    </TableCell>
-                  )}
-                  {hasNonZeroValues.total && (
-                    <TableCell className="py-1 text-right font-semibold bg-gray-50">
-                      {row.total !== 0 ? formatAmountForDisplay(row.total) : ''}
-                    </TableCell>
-                  )}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-
-        {/* Action Buttons in Edit Mode */}
-        {isEditMode && (
-          <div className="pt-4 border-t border-gray-200 flex justify-between">
-            {/* Undo Button - Left */}
-            <Button 
-              onClick={handleUndo}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-              </svg>
-              Ångra ändringar
-            </Button>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="font-semibold py-1 min-w-[200px] pl-0"></TableHead>
+            {hasNonZeroValues.aktiekapital && (
+              <TableHead className="font-semibold text-right py-1 min-w-[120px]">Aktiekapital</TableHead>
+            )}
+            {hasNonZeroValues.reservfond && (
+              <TableHead className="font-semibold text-right py-1 min-w-[120px]">Reservfond</TableHead>
+            )}
+            {hasNonZeroValues.uppskrivningsfond && (
+              <TableHead className="font-semibold text-right py-1 min-w-[140px]">
+                <div className="text-right">
+                  <div>Uppskrivnings</div>
+                  <div>fond</div>
+                </div>
+              </TableHead>
+            )}
+            {hasNonZeroValues.balanserat_resultat && (
+              <TableHead className="font-semibold text-right py-1 min-w-[140px]">
+                <div className="text-right">
+                  <div>Balanserat</div>
+                  <div>resultat</div>
+                </div>
+              </TableHead>
+            )}
+            {hasNonZeroValues.arets_resultat && (
+              <TableHead className="font-semibold text-right py-1 min-w-[120px]">
+                <div className="text-right">
+                  <div>Årets</div>
+                  <div>resultat</div>
+                </div>
+              </TableHead>
+            )}
+            {hasNonZeroValues.total && (
+              <TableHead className="font-semibold text-right py-1 min-w-[120px] bg-gray-50">Totalt</TableHead>
+            )}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {currentTable.filter(row => !shouldHideRow(row)).map((row) => {
+            const isHeaderRow = row.id === 13;
+            const isSubtotalRow = row.id === 13;
+            const isRedovisatVarde = row.id === 14;
             
-            {/* Update Button - Right */}
-            <Button 
-              onClick={handleSave}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
-            >
-              Godkänn ändringar
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
-              </svg>
-            </Button>
-          </div>
-        )}
+            return (
+              <TableRow 
+                key={row.id} 
+                className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t border-gray-300' : ''} ${isRedovisatVarde ? 'bg-amber-50/10' : ''}`}
+              >
+                <TableCell className="py-1 text-left pl-0">{row.label}</TableCell>
+                {hasNonZeroValues.aktiekapital && (
+                  <TableCell className="py-1 text-right">
+                    {renderCell(row, 'aktiekapital', row.aktiekapital)}
+                  </TableCell>
+                )}
+                {hasNonZeroValues.reservfond && (
+                  <TableCell className="py-1 text-right">
+                    {renderCell(row, 'reservfond', row.reservfond)}
+                  </TableCell>
+                )}
+                {hasNonZeroValues.uppskrivningsfond && (
+                  <TableCell className="py-1 text-right">
+                    {renderCell(row, 'uppskrivningsfond', row.uppskrivningsfond)}
+                  </TableCell>
+                )}
+                {hasNonZeroValues.balanserat_resultat && (
+                  <TableCell className="py-1 text-right">
+                    {renderCell(row, 'balanserat_resultat', row.balanserat_resultat)}
+                  </TableCell>
+                )}
+                {hasNonZeroValues.arets_resultat && (
+                  <TableCell className="py-1 text-right">
+                    {renderCell(row, 'arets_resultat', row.arets_resultat)}
+                  </TableCell>
+                )}
+                {hasNonZeroValues.total && (
+                  <TableCell className="py-1 text-right font-semibold bg-gray-50">
+                    {row.total !== 0 ? formatAmountForDisplay(row.total) : ''}
+                  </TableCell>
+                )}
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
 
-      </CardContent>
+      {/* Action Buttons in Edit Mode */}
+      {isEditMode && (
+        <div className="pt-4 border-t border-gray-200 flex justify-between">
+          {/* Undo Button - Left */}
+          <Button 
+            onClick={handleUndo}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+            </svg>
+            Ångra ändringar
+          </Button>
+          
+          {/* Update Button - Right */}
+          <Button 
+            onClick={handleSave}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+          >
+            Godkänn ändringar
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+            </svg>
+          </Button>
+        </div>
+      )}
 
       {/* Toast Notification */}
       {showValidationMessage && (
@@ -627,6 +622,24 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
           </div>
         </div>
       )}
+    </>
+  );
+
+  // If embedded, return only the content (no outer Card).
+  if (embedded) return content;
+
+  // Otherwise keep the current Card wrapper.
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>
+          <h1 className="text-2xl font-bold">Förvaltningsberättelse</h1>
+        </CardTitle>
+      </CardHeader>
+      
+      <CardContent>
+        {content}
+      </CardContent>
     </Card>
   );
 }
