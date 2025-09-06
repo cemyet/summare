@@ -309,11 +309,11 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
           <p className="whitespace-pre-line">{verksamhetContent}</p>
 
           <h3 className="text-base font-semibold mt-4">Väsentliga händelser under räkenskapsåret</h3>
-          <p className="text-sm text-muted-foreground italic">—</p>
+          <p className="text-sm text-muted-foreground italic">Inga väsentliga händelser under året.</p>
         </section>
 
         {/* H2 Flerårsöversikt */}
-        <section id="flerars" className="mt-8">
+        <section id="flerars" className="mt-8 pt-10">
           <h2 className="text-xl font-semibold mb-2">Flerårsöversikt</h2>
           <Table className="w-full table-fixed">
             <TableHeader className="leading-none">
@@ -367,7 +367,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
         </section>
 
         {/* H2 Förändringar i eget kapital — existing, working table, embedded */}
-        <section id="eget-kapital" className="mt-8">
+        <section id="eget-kapital" className="mt-8 pt-10">
           <Forvaltningsberattelse
             embedded
             fbTable={companyData.fbTable || []}
