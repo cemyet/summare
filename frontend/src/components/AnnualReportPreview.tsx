@@ -230,21 +230,49 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
     }, som har sitt säte i ${moder_sate || sate}.`;
   }
 
-  // RR/BR one-year values (adjust selectors to your structure)
-  const rr = companyData?.RR || companyData?.rr || {};
-  const br = companyData?.BR || companyData?.br || {};
-  const nettoOmsFY = num(rr?.SumNettoomsattning ?? rr?.Nettoomsattning ?? rr?.Nettoomsättning);
-  const refpFY     = num(rr?.SumResultatEfterFinansiellaPoster ?? rr?.ResultatEfterFinansiellaPoster);
-  const tillgFY    = num(br?.SumTillgangar ?? br?.Tillgångar ?? br?.SumTillgångar);
-  const egetKapFY  = num(br?.SumEgetKapital ?? br?.EgetKapital ?? br?.SumEgetkapital);
-  const obResFY    = num(br?.SumObeskattadeReserver ?? br?.ObeskattadeReserver);
+  // Current year values from seFileData RR/BR
+  const seFileData = companyData?.seFileData;
+  const rrData = seFileData?.rr_data || [];
+  const brData = seFileData?.br_data || [];
+  
+  // Extract current year values from RR/BR data
+  const getAmountByLabel = (data: any[], searchLabels: string[]) => {
+    for (const label of searchLabels) {
+      const item = data.find(item => 
+        item.label && item.label.toLowerCase().includes(label.toLowerCase())
+      );
+      if (item && item.current_amount !== null && item.current_amount !== undefined) {
+        return num(item.current_amount);
+      }
+    }
+    return 0;
+  };
+
+  const nettoOmsFY = getAmountByLabel(rrData, ['nettoomsättning', 'omsättning']);
+  const refpFY = getAmountByLabel(rrData, ['resultat efter finansiella poster', 'finansnetto']);
+  const tillgFY = getAmountByLabel(brData, ['summa tillgångar', 'balansomslutning']);
+  const egetKapFY = getAmountByLabel(brData, ['eget kapital']);
+  const obResFY = getAmountByLabel(brData, ['obeskattade reserver']);
   const soliditetFY = tillgFY ? ((egetKapFY + 0.794 * obResFY) / tillgFY) * 100 : 0;
 
-  // Arrays (fy-1..fy-3) from scraper
-  const [oms1, oms2, oms3]  = arr3(scraped.Omsättning || scraped.Nettoomsättning);
-  const [ref1, ref2, ref3]  = arr3(scraped["Resultat efter finansnetto"] || scraped["Resultat efter finansiella poster"]);
-  const [bal1, bal2, bal3]  = arr3(scraped.Balansomslutning || scraped["Summa tillgångar"]);
-  const [sol1, sol2, sol3]  = arr3(scraped.Soliditet);
+  // Arrays (fy-1..fy-3) from scraper - data is in nyckeltal object
+  const nyckeltal = scraped.nyckeltal || {};
+  console.log('Debug - scraped data:', scraped);
+  console.log('Debug - nyckeltal:', nyckeltal);
+  console.log('Debug - available keys:', Object.keys(nyckeltal));
+  console.log('Debug - current year values:', { nettoOmsFY, refpFY, tillgFY, egetKapFY, soliditetFY });
+  
+  const [oms1, oms2, oms3]  = arr3(nyckeltal.Omsättning || nyckeltal["Total omsättning"]);
+  const [ref1, ref2, ref3]  = arr3(nyckeltal["Resultat efter finansnetto"] || nyckeltal["Resultat efter finansiella poster"]);
+  const [bal1, bal2, bal3]  = arr3(nyckeltal.Balansomslutning || nyckeltal["Summa tillgångar"]);
+  const [sol1, sol2, sol3]  = arr3(nyckeltal.Soliditet);
+  
+  console.log('Debug - extracted values:', {
+    oms: [oms1, oms2, oms3],
+    ref: [ref1, ref2, ref3], 
+    bal: [bal1, bal2, bal3],
+    sol: [sol1, sol2, sol3]
+  });
 
   const formatAmount = (n: number) => Math.round(n).toLocaleString("sv-SE");
 
