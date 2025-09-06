@@ -313,7 +313,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
         </section>
 
         {/* H2 Flerårsöversikt */}
-        <section id="flerars" className="mt-8 pt-10">
+        <section id="flerars" className="mt-8 pt-8">
           <h2 className="text-xl font-semibold mb-2">Flerårsöversikt</h2>
           <Table className="w-full table-fixed">
             <TableHeader className="leading-none">
@@ -367,7 +367,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
         </section>
 
         {/* H2 Förändringar i eget kapital — existing, working table, embedded */}
-        <section id="eget-kapital" className="mt-8 pt-10">
+        <section id="eget-kapital" className="mt-8 pt-8">
           <Forvaltningsberattelse
             embedded
             fbTable={companyData.fbTable || []}
