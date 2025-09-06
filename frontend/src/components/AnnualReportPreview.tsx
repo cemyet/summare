@@ -258,7 +258,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
     return 0;
   };
 
-  const nettoOmsFY = getAmountByLabel(rrData, ['nettoomsättning', 'omsättning']);
+  const nettoOmsFY = getAmountByLabel(rrData, ['sumrorelseintakter', 'rörelseintäkter', 'omsättning']);
   const refpFY = getAmountByLabel(rrData, ['resultat efter finansiella poster', 'finansnetto']);
   const tillgFY = getAmountByLabel(brData, ['summa tillgångar', 'balansomslutning']);
   const egetKapFY = getAmountByLabel(brData, ['eget kapital', 'summa eget kapital']);
@@ -349,10 +349,10 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               </TableRow>
             </TableHeader>
             <TableBody className="leading-none">
-              {scrapedIncludesFiscalYear ? (
+              {(scrapedIncludesFiscalYear ? (
                 // Use only scraped data (3 years)
                 [
-                  { label: "Nettoomsättning",                   values: [oms1, oms2, oms3] },
+                  { label: "Omsättning",                        values: [oms1, oms2, oms3] },
                   { label: "Resultat efter finansiella poster", values: [ref1, ref2, ref3] },
                   { label: "Balansomslutning",                  values: [bal1, bal2, bal3] },
                   { label: "Soliditet",                         values: [sol1, sol2, sol3] },
@@ -360,7 +360,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               ) : (
                 // Use calculated fiscal year + scraped data (4 years)
                 [
-                  { label: "Nettoomsättning",                   values: [nettoOmsFY_tkr, oms1, oms2, oms3] },
+                  { label: "Omsättning",                        values: [nettoOmsFY_tkr, oms1, oms2, oms3] },
                   { label: "Resultat efter finansiella poster", values: [refpFY_tkr, ref1, ref2, ref3] },
                   { label: "Balansomslutning",                  values: [tillgFY_tkr, bal1, bal2, bal3] },
                   { label: "Soliditet",                         values: [soliditetFY, sol1, sol2, sol3] },
@@ -697,7 +697,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     if (amount === null || amount === undefined) {
       return '';
     }
-    if (amount === 0 || amount === -0) {
+    if (amount === 0) {
       return '0 kr';
     }
     return `${formatAmount(amount)} kr`;
@@ -710,8 +710,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Check if any item in the block has non-zero amounts or is in always show list
     for (let i = startIndex; i <= endIndex && i < data.length; i++) {
       const item = data[i];
-      const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0 && item.current_amount !== -0) ||
-                              (item.previous_amount !== null && item.previous_amount !== 0 && item.previous_amount !== -0);
+      const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0) ||
+                              (item.previous_amount !== null && item.previous_amount !== 0);
       const isAlwaysShow = alwaysShowItems.includes(item.label);
       
       if (hasNonZeroAmount || isAlwaysShow) {
@@ -731,8 +731,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       const isHeading = item.style && ['H0', 'H1', 'H2', 'H3', 'S1', 'S2', 'S3'].includes(item.style);
       if (isHeading) continue; // Skip headings when checking block content
       
-      const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0 && item.current_amount !== -0) ||
-                              (item.previous_amount !== null && item.previous_amount !== 0 && item.previous_amount !== -0);
+      const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0) ||
+                              (item.previous_amount !== null && item.previous_amount !== 0);
       const isAlwaysShow = item.always_show === true; // Use database field
       
       if (hasNonZeroAmount || isAlwaysShow) {
@@ -759,8 +759,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
     
     // NEW LOGIC: If amount is 0 for both years, hide unless always_show = true OR has note number
-    const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0 && item.current_amount !== -0) ||
-                            (item.previous_amount !== null && item.previous_amount !== 0 && item.previous_amount !== -0);
+    const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0) ||
+                            (item.previous_amount !== null && item.previous_amount !== 0);
     const isAlwaysShow = item.always_show === true; // Use database field
     const hasNoteNumber = item.note_number !== undefined && item.note_number !== null; // Has note reference
     
@@ -998,7 +998,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   
                   // For always_show = null/undefined, show only if amount is non-zero
                   return item.amount !== null && item.amount !== undefined && 
-                         item.amount !== 0 && item.amount !== -0;
+                         item.amount !== 0;
                 });
               };
               
@@ -1020,7 +1020,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   
                   // For always_show = null/undefined, only show if amount is non-zero
                   const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
-                                         item.amount !== 0 && item.amount !== -0;
+                                         item.amount !== 0;
                   return hasNonZeroAmount;
                 }
 
@@ -1035,7 +1035,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
                 // For non-headers with always_show = null/undefined, show only if amount is non-zero
                 const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
-                                       item.amount !== 0 && item.amount !== -0;
+                                       item.amount !== 0;
                 
                 // Row filtering logic applied
                 
@@ -1231,7 +1231,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                         // Field not editable
                         return (
                         (item.amount !== null && item.amount !== undefined) ? 
-                        (item.amount === 0 || item.amount === -0 ? '0 kr' : (() => {
+                        (item.amount === 0 ? '0 kr' : (() => {
                         // Tax calculation should always show integers with Swedish formatting and kr suffix
                         return new Intl.NumberFormat('sv-SE', {
                           minimumFractionDigits: 0,
