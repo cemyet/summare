@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { formatAmount } from '@/utils/seFileCalculations';
 
 interface FBTableRow {
@@ -194,7 +195,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
   // Helper function to handle input changes (real-time)
   const handleInputChange = (variableName: string, value: string) => {
-    const numValue = parseFloat(value) || 0;
+    const numValue = parseInputValue(value);
     const newValues = {
       ...editedValues,
       [variableName]: numValue
@@ -204,7 +205,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
   // Helper function to handle input blur (when user leaves field)
   const handleInputBlur = (variableName: string, value: string) => {
-    const numValue = parseFloat(value) || 0;
+    const numValue = parseInputValue(value);
     const newValues = {
       ...editedValues,
       [variableName]: numValue
@@ -212,17 +213,33 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     setEditedValues(recalculateRow13(newValues));
   };
 
+  // Helper function to parse input value (handles formatted numbers and minus values)
+  const parseInputValue = (value: string): number => {
+    if (!value || value.trim() === '') return 0;
+    // Remove spaces and handle minus sign
+    const cleanValue = value.replace(/\s/g, '').replace(/,/g, '');
+    const numValue = parseFloat(cleanValue);
+    return isNaN(numValue) ? 0 : numValue;
+  };
+
   // Helper function to handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, variableName: string) => {
     if (e.key === 'Enter' || e.key === 'Tab') {
       // Commit the current value and move to next field
       const target = e.target as HTMLInputElement;
-      handleInputBlur(variableName, target.value);
+      const parsedValue = parseInputValue(target.value);
+      
+      // Update the value immediately
+      const newValues = {
+        ...editedValues,
+        [variableName]: parsedValue
+      };
+      setEditedValues(recalculateRow13(newValues));
       
       if (e.key === 'Enter') {
         e.preventDefault();
         // Find next input field and focus it
-        const inputs = document.querySelectorAll('input[type="number"]');
+        const inputs = document.querySelectorAll('input[type="text"]');
         const currentIndex = Array.from(inputs).indexOf(target);
         const nextInput = inputs[currentIndex + 1] as HTMLInputElement;
         if (nextInput) {
@@ -252,16 +269,14 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
   // Helper function to handle undo
   const handleUndo = () => {
     setEditedValues({});
-    setIsEditMode(false);
-    setShowAllRows(false);
     setRecalculatedTable(fbTable); // Reset to original table
+    // Stay in edit mode, just reset values
   };
 
   // Helper function to handle save
   const handleSave = () => {
     if (hasDifferences()) {
       setShowValidationMessage(true);
-      setTimeout(() => setShowValidationMessage(false), 5000);
       return;
     }
     
@@ -330,17 +345,11 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
         <input
           type="text"
           className="w-full max-w-[96px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
-          value={currentValue ? formatAmountForDisplay(currentValue) : ''}
-          onChange={(e) => {
-            // Remove spaces and parse as number
-            const cleanValue = e.target.value.replace(/\s/g, '');
-            handleInputChange(variableName, cleanValue);
-          }}
-          onBlur={(e) => {
-            const cleanValue = e.target.value.replace(/\s/g, '');
-            handleInputBlur(variableName, cleanValue);
-          }}
+          value={currentValue !== 0 ? (currentValue > 0 ? formatAmountForDisplay(currentValue) : `-${formatAmountForDisplay(Math.abs(currentValue))}`) : ''}
+          onChange={(e) => handleInputChange(variableName, e.target.value)}
+          onBlur={(e) => handleInputBlur(variableName, e.target.value)}
           onKeyDown={(e) => handleKeyDown(e, variableName)}
+          placeholder="0"
         />
       );
     }
@@ -515,20 +524,24 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
           </div>
         )}
 
-        {/* Validation Message */}
-        {showValidationMessage && (
-          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              <span className="text-red-800 font-medium">
-                Belopp vid årets utgång måste stämma överens med redovisat värde
-              </span>
-            </div>
-          </div>
-        )}
       </CardContent>
+
+      {/* Validation Popup */}
+      <AlertDialog open={showValidationMessage} onOpenChange={setShowValidationMessage}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Validering misslyckades</AlertDialogTitle>
+            <AlertDialogDescription>
+              Belopp vid årets utgång måste stämma överens med redovisat värde
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowValidationMessage(false)}>
+              OK
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }
