@@ -166,72 +166,67 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
     );
   };
 
-  // Helper function to recalculate row 13 totals dynamically
+  // Helper to deep copy a table
+  const cloneTable = (t: FBTableRow[]) => t.map(r => ({ ...r }));
+
+  // Recalculate entire table from committed baseline + edits
   const recalculateRow13 = (updatedValues: FBVariables) => {
-    // Start with row 1 (Belopp vid årets ingång) values
-    const row1 = fbTable.find(row => row.id === 1);
-    if (!row1) return updatedValues;
+    // Work on a fresh copy of the committed baseline so values persist correctly
+    const working = cloneTable(committedTable);
 
-    // Start with IB values
-    let newAktiekapital = row1.aktiekapital;
-    let newReservfond = row1.reservfond;
-    let newUppskrivningsfond = row1.uppskrivningsfond;
-    let newBalanseratResultat = row1.balanserat_resultat;
-    let newAretsResultat = row1.arets_resultat;
+    // Combine previously saved + current edits
+    const allValues: FBVariables = { ...savedValues, ...updatedValues };
 
-    // Add all the original calculated values from rows 2-12 (excluding edited ones)
-    for (let rowId = 2; rowId <= 12; rowId++) {
-      const row = fbTable.find(r => r.id === rowId);
-      if (row) {
-        // Add original values for each column
-        newAktiekapital += row.aktiekapital;
-        newReservfond += row.reservfond;
-        newUppskrivningsfond += row.uppskrivningsfond;
-        newBalanseratResultat += row.balanserat_resultat;
-        newAretsResultat += row.arets_resultat;
+    // Apply each variable into its proper row/column
+    for (const [varName, val] of Object.entries(allValues)) {
+      for (let rowId = 2; rowId <= 12; rowId++) {
+        // Try each possible editable column
+        (['aktiekapital','reservfond','uppskrivningsfond','balanserat_resultat','arets_resultat'] as (keyof FBTableRow)[])
+          .forEach((col) => {
+            if (getVariableName(rowId, col) === varName) {
+              const idx = working.findIndex(r => r.id === rowId);
+              if (idx !== -1) {
+                const row = { ...working[idx], [col]: val } as FBTableRow;
+                // Recompute this row's total for display consistency
+                row.total = row.aktiekapital + row.reservfond + row.uppskrivningsfond + row.balanserat_resultat + row.arets_resultat;
+                working[idx] = row;
+              }
+            }
+          });
       }
     }
 
-    // Replace with saved and edited values where they exist
-    const allValues = { ...savedValues, ...updatedValues };
-    Object.entries(allValues).forEach(([variableName, value]) => {
-      const numValue = typeof value === 'number' ? value : 0;
-      // Find which row and column this variable belongs to
-      for (let rowId = 2; rowId <= 12; rowId++) {
-        const row = fbTable.find(r => r.id === rowId);
-        if (row) {
-          if (getVariableName(rowId, 'aktiekapital') === variableName) {
-            newAktiekapital = newAktiekapital - row.aktiekapital + numValue;
-          } else if (getVariableName(rowId, 'reservfond') === variableName) {
-            newReservfond = newReservfond - row.reservfond + numValue;
-          } else if (getVariableName(rowId, 'uppskrivningsfond') === variableName) {
-            newUppskrivningsfond = newUppskrivningsfond - row.uppskrivningsfond + numValue;
-          } else if (getVariableName(rowId, 'balanserat_resultat') === variableName) {
-            newBalanseratResultat = newBalanseratResultat - row.balanserat_resultat + numValue;
-          } else if (getVariableName(rowId, 'arets_resultat') === variableName) {
-            newAretsResultat = newAretsResultat - row.arets_resultat + numValue;
-          }
-        }
-      }
-    });
+    // Recompute row 13 (Belopp vid årets utgång) from row 1 + rows 2–12 in 'working'
+    const row1 = working.find(r => r.id === 1);
+    if (!row1) {
+      setRecalculatedTable(working);
+      return updatedValues;
+    }
 
-    // Update the table with new calculated values
-    const updatedTable = recalculatedTable.map(row => {
-      if (row.id === 13) {
-        return {
-          ...row,
-          aktiekapital: newAktiekapital,
-          reservfond: newReservfond,
-          uppskrivningsfond: newUppskrivningsfond,
-          balanserat_resultat: newBalanseratResultat,
-          arets_resultat: newAretsResultat,
-          total: newAktiekapital + newReservfond + newUppskrivningsfond + newBalanseratResultat + newAretsResultat
-        };
-      }
-      return row;
-    });
+    const sumCols = { aktiekapital: row1.aktiekapital, reservfond: row1.reservfond,
+                      uppskrivningsfond: row1.uppskrivningsfond, balanserat_resultat: row1.balanserat_resultat,
+                      arets_resultat: row1.arets_resultat };
 
-    setRecalculatedTable(updatedTable);
+    for (let rowId = 2; rowId <= 12; rowId++) {
+      const r = working.find(x => x.id === rowId);
+      if (r) {
+        sumCols.aktiekapital        += r.aktiekapital;
+        sumCols.reservfond          += r.reservfond;
+        sumCols.uppskrivningsfond   += r.uppskrivningsfond;
+        sumCols.balanserat_resultat += r.balanserat_resultat;
+        sumCols.arets_resultat      += r.arets_resultat;
+      }
+    }
+
+    const idx13 = working.findIndex(r => r.id === 13);
+    const updated13: FBTableRow = {
+      ...(idx13 !== -1 ? working[idx13] : { id: 13, label: 'Belopp vid årets utgång' } as any),
+      ...sumCols,
+      total: sumCols.aktiekapital + sumCols.reservfond + sumCols.uppskrivningsfond + sumCols.balanserat_resultat + sumCols.arets_resultat
+    };
+    if (idx13 !== -1) working[idx13] = updated13; else working.push(updated13);
+
+    setRecalculatedTable(working);
     return updatedValues;
   };
 
@@ -242,12 +237,10 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
       // Exiting edit mode
       setIsEditMode(false);
       setEditedValues({});
-      setShowAllRows(false);
       // Do not touch committedTable here
     } else {
       // Entering edit mode
       setIsEditMode(true);
-      setShowAllRows(true);
       // Edit from committed baseline
       setRecalculatedTable(committedTable.map(r => ({ ...r })));
     }
@@ -283,7 +276,6 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear, onDat
     setIsEditMode(false);
     setEditedValues({});
     setDraftInputs({});
-    setShowAllRows(false);
   };
 
   // Check which columns have all zero/null values (use recalculated table)
