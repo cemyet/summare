@@ -121,20 +121,44 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
 
   // Helper function to recalculate row 13 totals dynamically
   const recalculateRow13 = (updatedValues: FBVariables) => {
-    // Start with original table values
-    const originalRow13 = fbTable.find(row => row.id === 13);
-    if (!originalRow13) return updatedValues;
+    // Start with row 1 (Belopp vid årets ingång) values
+    const row1 = fbTable.find(row => row.id === 1);
+    if (!row1) return updatedValues;
 
-    // Calculate new totals by adding all the changes
-    let newAktiekapital = fbVariables['fb_aktiekaptial_ib'] || 0;
-    let newReservfond = fbVariables['fb_reservfond_ib'] || 0;
-    let newUppskrivningsfond = fbVariables['fb_uppskrfond_ib'] || 0;
-    let newBalanseratResultat = fbVariables['fb_balansresultat_ib'] || 0;
-    let newAretsResultat = fbVariables['fb_aretsresultat_ib'] || 0;
+    // Start with IB values
+    let newAktiekapital = row1.aktiekapital;
+    let newReservfond = row1.reservfond;
+    let newUppskrivningsfond = row1.uppskrivningsfond;
+    let newBalanseratResultat = row1.balanserat_resultat;
+    let newAretsResultat = row1.arets_resultat;
 
-    // Add all the changes from edited values
+    // Add all the original calculated values from rows 2-12 (excluding edited ones)
+    for (let rowId = 2; rowId <= 12; rowId++) {
+      const row = fbTable.find(r => r.id === rowId);
+      if (row) {
+        // Check if any values in this row are being edited
+        const hasEditedAktiekapital = Object.keys(updatedValues).some(key => 
+          getVariableName(rowId, 'aktiekapital') === key);
+        const hasEditedReservfond = Object.keys(updatedValues).some(key => 
+          getVariableName(rowId, 'reservfond') === key);
+        const hasEditedUppskrivningsfond = Object.keys(updatedValues).some(key => 
+          getVariableName(rowId, 'uppskrivningsfond') === key);
+        const hasEditedBalanseratResultat = Object.keys(updatedValues).some(key => 
+          getVariableName(rowId, 'balanserat_resultat') === key);
+        const hasEditedAretsResultat = Object.keys(updatedValues).some(key => 
+          getVariableName(rowId, 'arets_resultat') === key);
+
+        // Add original values if not being edited
+        if (!hasEditedAktiekapital) newAktiekapital += row.aktiekapital;
+        if (!hasEditedReservfond) newReservfond += row.reservfond;
+        if (!hasEditedUppskrivningsfond) newUppskrivningsfond += row.uppskrivningsfond;
+        if (!hasEditedBalanseratResultat) newBalanseratResultat += row.balanserat_resultat;
+        if (!hasEditedAretsResultat) newAretsResultat += row.arets_resultat;
+      }
+    }
+
+    // Add all the edited values
     Object.entries(updatedValues).forEach(([variableName, value]) => {
-      // Map each variable to its column and add to the appropriate total
       if (variableName.includes('aktiekapital')) {
         newAktiekapital += value;
       } else if (variableName.includes('reservfond')) {
@@ -295,22 +319,28 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
     const variableName = getVariableName(row.id, column);
     const isEditable = isEditMode && variableName !== null;
     
-    // Check if this is row 14 and there's a difference with row 13
-    const isDifferenceRow = row.id === 14;
-    const row13 = fbTable.find(r => r.id === 13);
-    const hasDifference = isDifferenceRow && row13 && Math.abs(row13[column] - value) > 0.01;
+    // Check if this is row 13 and there's a difference with row 14
+    const isRow13 = row.id === 13;
+    const row14 = currentTable.find(r => r.id === 14);
+    const hasDifference = isRow13 && row14 && Math.abs(value - row14[column]) > 0.01;
     
     if (isEditable && variableName) {
       const currentValue = getCurrentValue(variableName);
       return (
         <input
-          type="number"
-          className="w-full max-w-[96px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus:border-gray-400 focus:outline-none"
-          value={currentValue || ''}
-          onChange={(e) => handleInputChange(variableName, e.target.value)}
-          onBlur={(e) => handleInputBlur(variableName, e.target.value)}
+          type="text"
+          className="w-full max-w-[96px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
+          value={currentValue ? formatAmountForDisplay(currentValue) : ''}
+          onChange={(e) => {
+            // Remove spaces and parse as number
+            const cleanValue = e.target.value.replace(/\s/g, '');
+            handleInputChange(variableName, cleanValue);
+          }}
+          onBlur={(e) => {
+            const cleanValue = e.target.value.replace(/\s/g, '');
+            handleInputBlur(variableName, cleanValue);
+          }}
           onKeyDown={(e) => handleKeyDown(e, variableName)}
-          step="1"
         />
       );
     }
@@ -477,7 +507,7 @@ export function Forvaltningsberattelse({ fbTable, fbVariables, fiscalYear }: For
               onClick={handleSave}
               className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
             >
-              Godkänn och uppdatera ändringar
+              Godkänn ändringar
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
               </svg>
