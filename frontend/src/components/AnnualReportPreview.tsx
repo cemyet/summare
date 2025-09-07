@@ -304,19 +304,19 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
 
       <CardContent className="space-y-6">
         {/* H2 Verksamheten */}
-        <section id="verksamheten" className="mt-8">
+        <section id="verksamheten" className="mt-6">
           <h2 className="text-xl font-semibold mb-2">Verksamheten</h2>
 
           <h3 className="text-base font-semibold mb-1 pt-1">Allmänt om verksamheten</h3>
           <p className="text-sm">{verksamhetContent}</p>
 
-          <h3 className="text-base font-semibold mt-4 pt-5">Väsentliga händelser under räkenskapsåret</h3>
+          <h3 className="text-base font-semibold mt-4 pt-3">Väsentliga händelser under räkenskapsåret</h3>
           <p className="text-sm font-normal not-italic">Inga väsentliga händelser under året.</p>
         </section>
 
         {/* H2 Flerårsöversikt */}
         <section id="flerars" className="mt-8 pt-5">
-          <h2 className="text-xl font-semibold mb-2">Flerårsöversikt</h2>
+          <h2 className="text-xl font-semibold">Flerårsöversikt</h2>
           <p className="text-sm font-normal not-italic">Belopp i tkr</p>
           <Table className="w-full table-fixed">
             <TableHeader className="leading-none">

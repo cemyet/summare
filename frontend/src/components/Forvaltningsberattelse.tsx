@@ -35,6 +35,7 @@ export function Forvaltningsberattelse({
 }: ForvaltningsberattelseProps & { embedded?: boolean }) {
   const [showAllRows, setShowAllRows] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showAllAfterEdit, setShowAllAfterEdit] = useState(false);
   const [editedValues, setEditedValues] = useState<FBVariables>({});
   const [showValidationMessage, setShowValidationMessage] = useState(false);
   const [recalculatedTable, setRecalculatedTable] = useState<FBTableRow[]>(fbTable);
@@ -297,10 +298,12 @@ export function Forvaltningsberattelse({
   // Helper function to toggle edit mode
   const toggleEditMode = () => {
     if (isEditMode) {
-      // Exiting edit mode
+      // Exiting edit mode (canceling changes)
       setIsEditMode(false);
       setEditedValues({});
       setRecalculatedTable(committedTable.map(r => ({ ...r })));
+      // Reset to normal view (hide empty rows/columns) when canceling
+      setShowAllAfterEdit(false);
     } else {
       // Entering edit mode
       setIsEditMode(true);
@@ -316,6 +319,8 @@ export function Forvaltningsberattelse({
   // Helper function to handle undo
   const handleUndo = () => {
     resetToOriginal(); // always jump to original, even after Godkänn
+    // Reset to normal view when undoing
+    setShowAllAfterEdit(false);
   };
 
   // Helper function to handle save
@@ -343,16 +348,19 @@ export function Forvaltningsberattelse({
     
     setIsEditMode(false);
     setEditedValues({});
+    // Keep all rows/columns visible after successful save
+    setShowAllAfterEdit(true);
   };
 
   // Check which columns have all zero/null values (use recalculated table)
+  // In edit mode or after successful edit, show all columns regardless of values
   const hasNonZeroValues = {
-    aktiekapital: currentTable.some(row => row.aktiekapital !== 0),
-    reservfond: currentTable.some(row => row.reservfond !== 0),
-    uppskrivningsfond: currentTable.some(row => row.uppskrivningsfond !== 0),
-    balanserat_resultat: currentTable.some(row => row.balanserat_resultat !== 0),
-    arets_resultat: currentTable.some(row => row.arets_resultat !== 0),
-    total: currentTable.some(row => row.total !== 0)
+    aktiekapital: isEditMode || showAllAfterEdit || currentTable.some(row => row.aktiekapital !== 0),
+    reservfond: isEditMode || showAllAfterEdit || currentTable.some(row => row.reservfond !== 0),
+    uppskrivningsfond: isEditMode || showAllAfterEdit || currentTable.some(row => row.uppskrivningsfond !== 0),
+    balanserat_resultat: isEditMode || showAllAfterEdit || currentTable.some(row => row.balanserat_resultat !== 0),
+    arets_resultat: isEditMode || showAllAfterEdit || currentTable.some(row => row.arets_resultat !== 0),
+    total: isEditMode || showAllAfterEdit || currentTable.some(row => row.total !== 0)
   };
 
   // Function to check if a row should be hidden (all values are zero/null)
@@ -362,8 +370,8 @@ export function Forvaltningsberattelse({
       return !isEditMode && !hasDifferences();
     }
     
-    // Show all rows if toggle is on
-    if (showAllRows) {
+    // Show all rows if toggle is on OR if in edit mode OR after successful edit
+    if (showAllRows || isEditMode || showAllAfterEdit) {
       return false;
     }
     
@@ -469,7 +477,7 @@ export function Forvaltningsberattelse({
             htmlFor="toggle-show-all-fb" 
             className="text-sm font-medium cursor-pointer"
           >
-            Visa alla rader
+            Visa allt
           </label>
           <Switch
             id="toggle-show-all-fb"

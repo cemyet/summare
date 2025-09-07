@@ -65,7 +65,7 @@ export function AnnualReportChat() {
     <div className="h-screen w-full bg-background overflow-hidden">
       <ResizablePanelGroup direction="horizontal" className="h-full">
         {/* Chat Panel */}
-        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+        <ResizablePanel defaultSize={24} minSize={20} maxSize={50}>
           <div className="relative h-full">
             {/* Sticky Header */}
             <div className="sticky top-0 z-10 px-6 py-4 border-b border-border bg-background">
@@ -100,7 +100,7 @@ export function AnnualReportChat() {
         <ResizableHandle />
 
         {/* Annual Report Preview Panel */}
-        <ResizablePanel defaultSize={70} minSize={50}>
+        <ResizablePanel defaultSize={76} minSize={50}>
           <div className="relative h-full">
             <div className="sticky top-0 z-10 px-6 py-4 border-b border-border bg-background">
               <div className="h-8 flex flex-col justify-center">
