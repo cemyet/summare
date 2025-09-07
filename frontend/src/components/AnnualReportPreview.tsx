@@ -306,10 +306,10 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
           <h2 className="text-xl font-semibold mb-2">Verksamheten</h2>
 
           <h3 className="text-base font-semibold mb-1">Allmänt om verksamheten</h3>
-          <p>{verksamhetContent}</p>
+          <p className="text-sm">{verksamhetContent}</p>
 
           <h3 className="text-base font-semibold mt-4 pt-5">Väsentliga händelser under räkenskapsåret</h3>
-          <p className="text-base font-normal not-italic">Inga väsentliga händelser under året.</p>
+          <p className="text-sm font-normal not-italic">Inga väsentliga händelser under året.</p>
         </section>
 
         {/* H2 Flerårsöversikt */}
