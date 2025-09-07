@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from "@/components/ui/table";
 import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@/utils/seFileCalculations';
 import { apiService } from '@/services/api';
 import { Periodiseringsfonder } from './Periodiseringsfonder';
@@ -202,185 +201,6 @@ interface AnnualReportPreviewProps {
   currentStep: number;
   editableAmounts?: boolean;
   onDataUpdate?: (updates: Partial<any>) => void;
-}
-
-// --- helpers to fetch numbers (adjust paths to your data shape) ---
-const num = (v: any) => {
-  if (typeof v === 'number' && !isNaN(v)) return v;
-  if (typeof v === 'string') {
-    const parsed = parseFloat(v);
-    return !isNaN(parsed) ? parsed : 0;
-  }
-  return 0;
-};
-const arr3 = (a: any): number[] => (Array.isArray(a) ? a : []).slice(0,3).map(num);
-
-function ManagementReportModule({ companyData, onDataUpdate }: any) {
-  const fy = companyData?.fiscalYear ?? new Date().getFullYear();
-
-  // Scraper payload (rating_bolag_scraper.py output)
-  const scraped = (companyData as any)?.scraped_company_data || {};
-  const verksamhetsbeskrivning =
-    scraped.verksamhetsbeskrivning || scraped.Verksamhetsbeskrivning || "";
-  const sate = scraped.säte || scraped.sate || scraped.Säte || "";
-  const moderbolag = scraped.moderbolag || scraped.Moderbolag || "";
-  const moderbolag_orgnr = scraped.moderbolag_orgnr || scraped.ModerbolagOrgNr || "";
-
-  let verksamhetContent = (verksamhetsbeskrivning || "").trim();
-  if (sate) {
-    verksamhetContent += (verksamhetContent ? " " : "") + `Bolaget har sitt säte i ${sate}.`;
-  }
-  if (moderbolag) {
-    const moder_sate = scraped.moderbolag_säte || scraped.moderbolag_sate || sate;
-    verksamhetContent += ` Bolaget är dotterbolag till ${moderbolag}${
-      moderbolag_orgnr ? ` med organisationsnummer ${moderbolag_orgnr}` : ""
-    }, som har sitt säte i ${moder_sate || sate}.`;
-  }
-
-  // Arrays (fy-1..fy-3) from scraper - data is in nyckeltal object
-  const nyckeltal = scraped.nyckeltal || {};
-
-  // Current year values from seFileData RR/BR
-  const seFileData = companyData?.seFileData;
-  const rrData = seFileData?.rr_data || [];
-  const brData = seFileData?.br_data || [];
-  
-  // Extract current year values from RR/BR data
-  const getAmountByVariableName = (data: any[], variableNames: string[]) => {
-    for (const varName of variableNames) {
-      const item = data.find(item => 
-        item.variable_name && item.variable_name.toLowerCase() === varName.toLowerCase()
-      );
-      if (item && item.current_amount !== null && item.current_amount !== undefined) {
-        return num(item.current_amount);
-      }
-    }
-    return 0;
-  };
-
-  const nettoOmsFY = getAmountByVariableName(rrData, ['SumRorelseintakter', 'sumrorelseintakter']);
-  const refpFY = getAmountByVariableName(rrData, ['SumResultatEfterFinansiellaPoster', 'sumresultatefterfinansiellaposter']);
-  const tillgFY = getAmountByVariableName(brData, ['SumTillgangar', 'sumtillgangar']);
-  const egetKapFY = getAmountByVariableName(brData, ['SumEgetKapital', 'sumegetkapital']);
-  const obResFY = getAmountByVariableName(brData, ['SumObeskattadeReserver', 'sumobeskattadereserver']);
-  
-  // Calculate soliditet or use current year from scraper if available
-  let soliditetFY = 0;
-  if (tillgFY && egetKapFY) {
-    soliditetFY = ((egetKapFY + 0.794 * obResFY) / tillgFY) * 100;
-  } else {
-    // Fallback to current year from scraper if calculation fails
-    const currentSoliditet = nyckeltal.Soliditet?.[0];
-    soliditetFY = currentSoliditet ? num(currentSoliditet) : 0;
-  }
-  const [oms1, oms2, oms3] = arr3(nyckeltal.Omsättning || nyckeltal["Total omsättning"]);
-  const [ref1, ref2, ref3] = arr3(nyckeltal["Resultat efter finansnetto"] || nyckeltal["Resultat efter finansiella poster"]);
-  const [bal1, bal2, bal3] = arr3(nyckeltal.Balansomslutning || nyckeltal["Summa tillgångar"]);
-  const [sol1, sol2, sol3] = arr3(nyckeltal.Soliditet);
-  
-  // Convert SE file values from kronor to tkr (thousands) and round
-  const nettoOmsFY_tkr = Math.round(nettoOmsFY / 1000);
-  const refpFY_tkr = Math.round(refpFY / 1000);
-  const tillgFY_tkr = Math.round(tillgFY / 1000);
-  
-  // Check if scraped data includes fiscal year using actual years from HTML
-  const scrapedYears = nyckeltal.years || [];
-  const scrapedIncludesFiscalYear = scrapedYears.length > 0 && scrapedYears[0] === fy;
-
-  const formatAmount = (n: number) => {
-    return new Intl.NumberFormat('sv-SE', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(Math.round(n));
-  };
-
-  return (
-    <Card className="w-full">
-      <CardHeader className="pb-2">
-        <CardTitle><h1 className="text-2xl font-bold">Förvaltningsberättelse</h1></CardTitle>
-      </CardHeader>
-
-      <CardContent className="space-y-6">
-        {/* H2 Verksamheten */}
-        <section id="verksamheten" className="mt-8">
-          <h2 className="text-xl font-semibold mb-2">Verksamheten</h2>
-
-          <h3 className="text-base font-semibold mb-1">Allmänt om verksamheten</h3>
-          <p>{verksamhetContent}</p>
-
-          <h3 className="text-base font-semibold mt-4 pt-5">Väsentliga händelser under räkenskapsåret</h3>
-          <p className="text-base font-normal not-italic">Inga väsentliga händelser under året.</p>
-        </section>
-
-        {/* H2 Flerårsöversikt */}
-        <section id="flerars" className="mt-8 pt-5">
-          <h2 className="text-xl font-semibold mb-2">Flerårsöversikt</h2>
-          <Table className="w-full table-fixed">
-            <TableHeader className="leading-none">
-              <TableRow className="h-8">
-                <TableHead className="p-0 w-[36%] text-left font-normal"></TableHead>
-                {scrapedIncludesFiscalYear ? (
-                  // Scraped data includes fiscal year: show scraped years only (or fallback years)
-                  (scrapedYears.length > 0 ? scrapedYears : [2024, 2023, 2022]).map((year, i) => (
-                    <TableHead key={i} className="p-0 text-right">{year}</TableHead>
-                  ))
-                ) : (
-                  // Scraped data starts with fy-1: show calculated fiscal year + scraped years
-                  [fy, fy-1, fy-2, fy-3].map((year, i) => (
-                    <TableHead key={i} className="p-0 text-right">{year}</TableHead>
-                  ))
-                )}
-              </TableRow>
-            </TableHeader>
-            <TableBody className="leading-none">
-              {(scrapedIncludesFiscalYear ? (
-                // Use only scraped data (3 years)
-                [
-                  { label: "Omsättning",                        values: [oms1, oms2, oms3] },
-                  { label: "Resultat efter finansiella poster", values: [ref1, ref2, ref3] },
-                  { label: "Balansomslutning",                  values: [bal1, bal2, bal3] },
-                  { label: "Soliditet",                         values: [sol1, sol2, sol3] },
-                ]
-              ) : (
-                // Use calculated fiscal year + scraped data (4 years)
-                [
-                  { label: "Omsättning",                        values: [nettoOmsFY_tkr, oms1, oms2, oms3] },
-                  { label: "Resultat efter finansiella poster", values: [refpFY_tkr, ref1, ref2, ref3] },
-                  { label: "Balansomslutning",                  values: [tillgFY_tkr, bal1, bal2, bal3] },
-                  { label: "Soliditet",                         values: [soliditetFY, sol1, sol2, sol3] },
-                ]
-              )).map((row, i) => (
-                <TableRow key={i} className="h-8">
-                  <TableCell className="p-0 text-left font-normal">{row.label}</TableCell>
-                  {row.values.map((v, j) => (
-                    <TableCell key={j} className="p-0 text-right">
-                      {row.label === "Soliditet" ? 
-                        `${(v ?? 0).toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : 
-                        formatAmount(v ?? 0)
-                      }
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </section>
-
-        {/* H2 Förändringar i eget kapital — existing, working table, embedded */}
-        <section id="eget-kapital" className="mt-8 pt-5">
-          <Forvaltningsberattelse
-            embedded
-            fbTable={companyData.fbTable || []}
-            fbVariables={companyData.fbVariables || {}}
-            fiscalYear={fy}
-            onDataUpdate={onDataUpdate}
-          />
-        </section>
-
-        {/* (Ignore Resultatdisposition for now as requested) */}
-      </CardContent>
-    </Card>
-  );
 }
 
 // Database-driven always_show logic - no more hardcoded arrays
@@ -681,7 +501,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     if (amount === null || amount === undefined) {
       return '';
     }
-    if (amount === 0) {
+    if (amount === 0 || amount === -0) {
       return '0 kr';
     }
     return `${formatAmount(amount)} kr`;
@@ -694,8 +514,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Check if any item in the block has non-zero amounts or is in always show list
     for (let i = startIndex; i <= endIndex && i < data.length; i++) {
       const item = data[i];
-      const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0) ||
-                              (item.previous_amount !== null && item.previous_amount !== 0);
+      const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0 && item.current_amount !== -0) ||
+                              (item.previous_amount !== null && item.previous_amount !== 0 && item.previous_amount !== -0);
       const isAlwaysShow = alwaysShowItems.includes(item.label);
       
       if (hasNonZeroAmount || isAlwaysShow) {
@@ -715,8 +535,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       const isHeading = item.style && ['H0', 'H1', 'H2', 'H3', 'S1', 'S2', 'S3'].includes(item.style);
       if (isHeading) continue; // Skip headings when checking block content
       
-      const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0) ||
-                              (item.previous_amount !== null && item.previous_amount !== 0);
+      const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0 && item.current_amount !== -0) ||
+                              (item.previous_amount !== null && item.previous_amount !== 0 && item.previous_amount !== -0);
       const isAlwaysShow = item.always_show === true; // Use database field
       
       if (hasNonZeroAmount || isAlwaysShow) {
@@ -743,8 +563,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
     
     // NEW LOGIC: If amount is 0 for both years, hide unless always_show = true OR has note number
-    const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0) ||
-                            (item.previous_amount !== null && item.previous_amount !== 0);
+    const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0 && item.current_amount !== -0) ||
+                            (item.previous_amount !== null && item.previous_amount !== 0 && item.previous_amount !== -0);
     const isAlwaysShow = item.always_show === true; // Use database field
     const hasNoteNumber = item.note_number !== undefined && item.note_number !== null; // Has note reference
     
@@ -982,7 +802,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   
                   // For always_show = null/undefined, show only if amount is non-zero
                   return item.amount !== null && item.amount !== undefined && 
-                         item.amount !== 0;
+                         item.amount !== 0 && item.amount !== -0;
                 });
               };
               
@@ -1004,7 +824,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   
                   // For always_show = null/undefined, only show if amount is non-zero
                   const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
-                                         item.amount !== 0;
+                                         item.amount !== 0 && item.amount !== -0;
                   return hasNonZeroAmount;
                 }
 
@@ -1019,7 +839,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
                 // For non-headers with always_show = null/undefined, show only if amount is non-zero
                 const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
-                                       item.amount !== 0;
+                                       item.amount !== 0 && item.amount !== -0;
                 
                 // Row filtering logic applied
                 
@@ -1215,7 +1035,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                         // Field not editable
                         return (
                         (item.amount !== null && item.amount !== undefined) ? 
-                        (item.amount === 0 ? '0 kr' : (() => {
+                        (item.amount === 0 || item.amount === -0 ? '0 kr' : (() => {
                         // Tax calculation should always show integers with Swedish formatting and kr suffix
                         return new Intl.NumberFormat('sv-SE', {
                           minimumFractionDigits: 0,
@@ -1280,8 +1100,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         )}
 
         {/* Förvaltningsberättelse Section */}
-        <ManagementReportModule 
-          companyData={companyData}
+        <Forvaltningsberattelse 
+          fbTable={companyData.fbTable || []}
+          fbVariables={companyData.fbVariables || {}}
+          fiscalYear={companyData.fiscalYear}
           onDataUpdate={onDataUpdate}
         />
 
