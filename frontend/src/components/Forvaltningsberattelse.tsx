@@ -594,6 +594,74 @@ export function Forvaltningsberattelse({
         </div>
       )}
 
+      {/* Resultatdisposition Section */}
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold text-muted-foreground mb-4">Resultatdisposition</h2>
+        
+        <p className="mb-4">Styrelsen och VD föreslår att till förfogande stående medel</p>
+        
+        {/* First Table - Available Funds */}
+        <Table className="mb-4">
+          <TableBody>
+            <TableRow>
+              <TableCell className="py-2">Balanserat resultat</TableCell>
+              <TableCell className="py-2 text-right">
+                {formatAmountForDisplay(fbVariables.fb_balansresultat_ub || 0)}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="py-2">Årets resultat</TableCell>
+              <TableCell className="py-2 text-right">
+                {formatAmountForDisplay(fbVariables.fb_aretsresultat_ub || 0)}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="py-2 font-bold">Summa</TableCell>
+              <TableCell className="py-2 text-right font-bold">
+                {formatAmountForDisplay((fbVariables.fb_balansresultat_ub || 0) + (fbVariables.fb_aretsresultat_ub || 0))}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+
+        <p className="mb-4">Disponeras enligt följande</p>
+
+        {/* Second Table - Disposition */}
+        <Table className="mb-4">
+          <TableBody>
+            <TableRow>
+              <TableCell className="py-2">Utdelas till aktieägare</TableCell>
+              <TableCell className="py-2 text-right">
+                {formatAmountForDisplay(fbVariables.fb_arets_utdelning || 0)}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="py-2">Balanseras i ny räkning</TableCell>
+              <TableCell className="py-2 text-right">
+                {formatAmountForDisplay(
+                  (fbVariables.fb_balansresultat_ub || 0) + 
+                  (fbVariables.fb_aretsresultat_ub || 0) - 
+                  (fbVariables.fb_arets_utdelning || 0)
+                )}
+              </TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="py-2 font-bold">Summa</TableCell>
+              <TableCell className="py-2 text-right font-bold">
+                {formatAmountForDisplay((fbVariables.fb_balansresultat_ub || 0) + (fbVariables.fb_aretsresultat_ub || 0))}
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+
+        {/* Conditional text for dividend policy */}
+        {(fbVariables.fb_arets_utdelning || 0) > 0 && (
+          <p className="mt-4 text-sm">
+            Styrelsen anser att förslaget är förenligt med försiktighetsregeln i 17 kap. 3 § aktiebolagslagen enligt följande redogörelse. Styrelsens uppfattning är att vinstutdelningen är försvarlig med hänsyn till de krav verksamhetens art, omfattning och risk ställer på storleken på det egna kapitalet, bolagets konsolideringsbehov, likviditet och ställning i övrigt.
+          </p>
+        )}
+      </div>
+
       {/* Toast Notification */}
       {showValidationMessage && (
         <div className="fixed bottom-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
