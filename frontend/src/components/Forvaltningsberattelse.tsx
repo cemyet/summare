@@ -449,7 +449,7 @@ export function Forvaltningsberattelse({
     <>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-semibold text-muted-foreground">Förändringar i eget kapital</h2>
+          <h2 className="text-xl font-semibold text-muted-foreground pt-1">Förändringar i eget kapital</h2>
           <button
             onClick={toggleEditMode}
             className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
@@ -605,12 +605,12 @@ export function Forvaltningsberattelse({
         
         return (
           <div className="mt-8">
-            <h2 className="text-xl font-semibold text-muted-foreground mb-4">Resultatdisposition</h2>
+            <h2 className="text-xl font-semibold text-muted-foreground mb-4 pt-1">Resultatdisposition</h2>
             
             <p className="mb-4 text-sm">Styrelsen och VD föreslår att till förfogande stående medel</p>
             
             {/* First Table - Available Funds */}
-            <Table className="mb-4">
+            <Table className="mb-4 w-1/2">
               <TableBody>
                 <TableRow>
                   <TableCell className="py-1">Balanserat resultat</TableCell>
@@ -636,7 +636,7 @@ export function Forvaltningsberattelse({
             <p className="mb-4 text-sm">Disponeras enligt följande</p>
 
             {/* Second Table - Disposition */}
-            <Table className="mb-4">
+            <Table className="mb-4 w-1/2">
               <TableBody>
                 <TableRow>
                   <TableCell className="py-1">Utdelas till aktieägare</TableCell>

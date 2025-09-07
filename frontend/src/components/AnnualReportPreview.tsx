@@ -288,10 +288,12 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
   const scrapedIncludesFiscalYear = scrapedYears.length > 0 && scrapedYears[0] === fy;
 
   const formatAmount = (n: number) => {
+    // Fix negative zero issue
+    const value = n === 0 ? 0 : Math.round(n);
     return new Intl.NumberFormat('sv-SE', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(Math.round(n));
+    }).format(value);
   };
 
   return (
@@ -305,7 +307,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
         <section id="verksamheten" className="mt-8">
           <h2 className="text-xl font-semibold mb-2">Verksamheten</h2>
 
-          <h3 className="text-base font-semibold mb-1">Allmänt om verksamheten</h3>
+          <h3 className="text-base font-semibold mb-1 pt-1">Allmänt om verksamheten</h3>
           <p className="text-sm">{verksamhetContent}</p>
 
           <h3 className="text-base font-semibold mt-4 pt-5">Väsentliga händelser under räkenskapsåret</h3>
@@ -315,6 +317,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
         {/* H2 Flerårsöversikt */}
         <section id="flerars" className="mt-8 pt-5">
           <h2 className="text-xl font-semibold mb-2">Flerårsöversikt</h2>
+          <p className="text-sm font-normal not-italic">Belopp i tkr</p>
           <Table className="w-full table-fixed">
             <TableHeader className="leading-none">
               <TableRow className="h-8">
@@ -355,7 +358,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
                   {row.values.map((v, j) => (
                     <TableCell key={j} className="p-0 text-right">
                       {row.label === "Soliditet" ? 
-                        `${(v ?? 0).toLocaleString('sv-SE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : 
+                        `${Math.round(v ?? 0).toLocaleString('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%` : 
                         formatAmount(v ?? 0)
                       }
                     </TableCell>
