@@ -213,9 +213,9 @@ def parse_lvp_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
     #   - ACC_IMP_SET: accumulated impairment accounts (e.g., 1358, 1368, ...)
     # These are already built by your current-year logic.
 
-    def _get_balance_prev(lines, kind_flag: str, accounts: set[int]) -> float:
+    def _get_balance_prev(lines, kind_flag: str, accounts) -> float:
         """
-        Sum #IB -1 or #UB -1 for the given accounts.
+        Sum #IB -1 or #UB -1 for the given accounts (set or ranges).
         kind_flag ∈ {"IB", "UB"}.
         """
         if not accounts:
@@ -227,15 +227,20 @@ def parse_lvp_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
             if not m:
                 continue
             acct = int(m.group(1))
-            if acct in accounts:
+            # Handle both sets and ranges like the original get_balance function
+            if isinstance(accounts, (set, frozenset)):
+                ok = acct in accounts
+            else:
+                ok = any(lo <= acct <= hi for lo, hi in accounts)
+            if ok:
                 total += _to_float(m.group(2))
         return total
 
     # --- Previous-year balances using SAME sets as current year ---
-    lang_vardepapper_ib_prev            = _get_balance_prev(lines, 'IB', ASSET_SET)
-    lang_vardepapper_ub_prev            = _get_balance_prev(lines, 'UB', ASSET_SET)
-    ack_nedskr_lang_vardepapper_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_SET)
-    ack_nedskr_lang_vardepapper_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_SET)
+    lang_vardepapper_ib_prev            = _get_balance_prev(lines, 'IB', ASSET_RANGES)
+    lang_vardepapper_ub_prev            = _get_balance_prev(lines, 'UB', ASSET_RANGES)
+    ack_nedskr_lang_vardepapper_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_LVP)
+    ack_nedskr_lang_vardepapper_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_LVP)
 
     # Prev-year redovisat värde = UB cost + UB accumulated impairments (impairments are negative)
     red_varde_lang_vardepapper_prev = (lang_vardepapper_ub_prev or 0.0) + (ack_nedskr_lang_vardepapper_ub_prev or 0.0)
@@ -270,11 +275,11 @@ def parse_lvp_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
     # --- Backend debug (one line per variable) ---
     if debug:
         try:
-            print(f"[LVP-DEBUG] accounts_used.asset = {sorted(list(ASSET_SET))}")
+            print(f"[LVP-DEBUG] accounts_used.asset = {ASSET_RANGES}")
         except Exception:
             print("[LVP-DEBUG] accounts_used.asset = <unavailable>")
         try:
-            print(f"[LVP-DEBUG] accounts_used.imp   = {sorted(list(ACC_IMP_SET))}")
+            print(f"[LVP-DEBUG] accounts_used.imp   = {sorted(list(ACC_IMP_LVP))}")
         except Exception:
             print("[LVP-DEBUG] accounts_used.imp   = <unavailable>")
 
