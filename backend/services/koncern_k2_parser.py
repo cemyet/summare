@@ -423,6 +423,109 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
 
     red_varde_koncern = koncern_ub + ack_nedskr_koncern_ub
 
+    # =========================
+    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # =========================
+    # Reuse the EXACT same account sets that were derived for the current year:
+    #   - asset_all_set : the accounts contributing to acquisition value
+    #   - imp_set       : the accounts contributing to accumulated impairments
+    #
+    # Assumptions:
+    #   - `lines` is a list[str] of the SIE file content lines, already available in scope
+    #   - `_to_float` helper exists and converts "1 234,56" or "1234.56" to float
+    #   - `debug` flag is available (bool)
+    #
+    # NOTE: This does NOT alter the function return; it only logs the computed values.
+
+    import re
+
+    def get_balance_prev(kind_flag: str, accounts) -> float:
+        """
+        Sum #IB -1 or #UB -1 for the given account set.
+        kind_flag ∈ {"IB", "UB"}.
+        """
+        if not accounts:
+            return 0.0
+        acct_set = set(accounts)
+        total = 0.0
+        # Example line: "#IB -1 1310 44050000.00" or "#UB -1 1310 44050000.00"
+        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+        for raw in lines:
+            s = raw.strip()
+            m = bal_re_prev.match(s)
+            if not m:
+                continue
+            acct = int(m.group(1))
+            if acct in acct_set:
+                amount = _to_float(m.group(2))
+                total += amount
+        return total
+
+    # --- Compute previous-year balances using the SAME account sets as for current year ---
+    koncern_ib_prev = get_balance_prev('IB', asset_all_set)
+    koncern_ub_prev = get_balance_prev('UB', asset_all_set)
+    ack_nedskr_koncern_ib_prev = get_balance_prev('IB', imp_set)
+    ack_nedskr_koncern_ub_prev = get_balance_prev('UB', imp_set)
+
+    # Redovisat värde (prev): UB assets + UB accumulated impairments (impairments are negative)
+    red_varde_koncern_prev = (koncern_ub_prev or 0.0) + (ack_nedskr_koncern_ub_prev or 0.0)
+
+    # =========================
+    # PREVIOUS YEAR MOVEMENTS (SIGN RULES AS REQUESTED)
+    # =========================
+    # Δ assets(prev) = UB(prev) - IB(prev)
+    delta_prev = (koncern_ub_prev or 0.0) - (koncern_ib_prev or 0.0)
+    fsg_koncern_prev = 0.0       # sales, NEGATIVE when UB<IB (we keep UB-IB as-is)
+    inkop_koncern_prev = 0.0     # purchases, POSITIVE when UB>IB (UB-IB)
+
+    if koncern_ub_prev < koncern_ib_prev:
+        # decrease in UB => treat as sales, record (UB - IB), which is negative
+        fsg_koncern_prev = delta_prev
+    elif koncern_ub_prev > koncern_ib_prev:
+        # increase in UB => treat as purchases, record (UB - IB), which is positive
+        inkop_koncern_prev = delta_prev
+
+    # Impairment movement (compare magnitudes of accumulated impairments)
+    # If |IB| > |UB| => reversal (+), store |IB| - |UB|
+    # If |IB| < |UB| => impairment of the year (-), store |IB| - |UB|
+    abs_ib_imp = abs(ack_nedskr_koncern_ib_prev or 0.0)
+    abs_ub_imp = abs(ack_nedskr_koncern_ub_prev or 0.0)
+
+    aterfor_nedskr_koncern_prev = 0.0
+    arets_nedskr_koncern_prev = 0.0
+
+    if abs_ib_imp > abs_ub_imp:
+        aterfor_nedskr_koncern_prev = abs_ib_imp - abs_ub_imp   # positive
+    elif abs_ib_imp < abs_ub_imp:
+        arets_nedskr_koncern_prev = abs_ib_imp - abs_ub_imp     # negative by definition
+
+    # =========================
+    # BACKEND DEBUG OUTPUT (one line per variable)
+    # =========================
+    if debug:
+        # show which accounts were used
+        try:
+            print(f"[KONCERN-DEBUG] accounts_used.asset = {sorted(list(asset_all_set))}")
+        except Exception:
+            print("[KONCERN-DEBUG] accounts_used.asset = <unavailable>")
+        try:
+            print(f"[KONCERN-DEBUG] accounts_used.impair = {sorted(list(imp_set))}")
+        except Exception:
+            print("[KONCERN-DEBUG] accounts_used.impair = <unavailable>")
+
+        # current + previous for easy verification
+        print(f"[KONCERN-DEBUG] koncern_ib current={koncern_ib} previous={koncern_ib_prev}")
+        print(f"[KONCERN-DEBUG] koncern_ub current={koncern_ub} previous={koncern_ub_prev}")
+        print(f"[KONCERN-DEBUG] ack_nedskr_koncern_ib current={ack_nedskr_koncern_ib} previous={ack_nedskr_koncern_ib_prev}")
+        print(f"[KONCERN-DEBUG] ack_nedskr_koncern_ub current={ack_nedskr_koncern_ub} previous={ack_nedskr_koncern_ub_prev}")
+        print(f"[KONCERN-DEBUG] red_varde_koncern current={red_varde_koncern} previous={red_varde_koncern_prev}")
+
+        # movements (prev from balances only)
+        print(f"[KONCERN-DEBUG] fsg_koncern (prev, from balances) = {fsg_koncern_prev}")
+        print(f"[KONCERN-DEBUG] inkop_koncern (prev, from balances) = {inkop_koncern_prev}")
+        print(f"[KONCERN-DEBUG] aterfor_nedskr_koncern (prev, from balances) = {aterfor_nedskr_koncern_prev}")
+        print(f"[KONCERN-DEBUG] arets_nedskr_koncern (prev, from balances) = {arets_nedskr_koncern_prev}")
+
     # ---------- Return (same + 1 key) ----------
     return {
         # Asset movements
@@ -447,4 +550,15 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
 
         # Derived
         "red_varde_koncern": red_varde_koncern,
+
+        # Previous year values (for preview display)
+        "koncern_ib_prev": koncern_ib_prev,
+        "koncern_ub_prev": koncern_ub_prev,
+        "ack_nedskr_koncern_ib_prev": ack_nedskr_koncern_ib_prev,
+        "ack_nedskr_koncern_ub_prev": ack_nedskr_koncern_ub_prev,
+        "red_varde_koncern_prev": red_varde_koncern_prev,
+        "fsg_koncern_prev": fsg_koncern_prev,
+        "inkop_koncern_prev": inkop_koncern_prev,
+        "aterfor_nedskr_koncern_prev": aterfor_nedskr_koncern_prev,
+        "arets_nedskr_koncern_prev": arets_nedskr_koncern_prev,
     }

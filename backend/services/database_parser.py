@@ -55,8 +55,6 @@ class DatabaseParser:
             noter_response = supabase.table('variable_mapping_noter').select('*').execute()
             self.noter_mappings = noter_response.data
             
-
-            
             # Load global variables (normalize values to floats; treat % values as decimals)
             global_vars_response = supabase.table('global_variables').select('*').execute()
             self.global_variables = {}
@@ -92,8 +90,6 @@ class DatabaseParser:
                     pass
                 # string key
                 self.accounts_lookup[str(acc_id)] = text
-            
-
             
         except Exception as e:
             print(f"Error loading mappings: {e}")
@@ -175,8 +171,6 @@ class DatabaseParser:
                         current_accounts[account_id] = balance
                     except ValueError:
                         continue
-        
-
         
         return current_accounts, previous_accounts, current_ib_accounts, previous_ib_accounts
     
@@ -338,8 +332,6 @@ class DatabaseParser:
         if not formula:
             return 0.0
         
-
-        
         # Parse formula like "NETTOOMSATTNING + OVRIGA_INTEKNINGAR"
         # Use variable names instead of row references
         import re
@@ -374,8 +366,6 @@ class DatabaseParser:
         
         results = []
         
-
-        
         # First pass: Create all rows with direct calculations
         for mapping in self.rr_mappings:
             if not mapping.get('show_amount'):
@@ -406,8 +396,6 @@ class DatabaseParser:
                     # Direct account calculation
                     current_amount = self.calculate_variable_value(mapping, current_accounts)
                     previous_amount = self.calculate_variable_value(mapping, previous_accounts or {})
-                
-
                 
                 results.append({
                     'id': mapping['row_id'],
@@ -523,9 +511,7 @@ class DatabaseParser:
             # Evaluate for both years
             current_result = safe_eval(tree.body, current_vars)
             previous_result = safe_eval(tree.body, previous_vars)
-            
-
-            
+                       
             return float(current_result), float(previous_result)
             
         except Exception as e:
@@ -675,9 +661,7 @@ class DatabaseParser:
         
         # Sort results by ID to ensure correct order
         results.sort(key=lambda x: int(x['id']))
-        
-
-        
+           
         return results
     
     def reclass_using_koncern_note(self, br_rows: list[dict], koncern_note: dict, *, verbose: bool = True) -> list[dict]:
@@ -1567,7 +1551,6 @@ class DatabaseParser:
                     company_info['start_date'] = parts[2]
                     company_info['end_date'] = parts[3]
         
-
         return company_info
     
     def update_calculation_formula(self, row_id: int, formula: str) -> bool:
@@ -1579,7 +1562,6 @@ class DatabaseParser:
                 'is_calculated': True
             }).eq('id', row_id).execute()
             
-
             return True
             
         except Exception as e:
@@ -1808,8 +1790,7 @@ class DatabaseParser:
         if 'ink4_16_underskott_adjustment' in manual_amounts:
             ink_values['ink4_16_underskott_adjustment'] = manual_amounts['ink4_16_underskott_adjustment']
             print(f"Injected ink4_16_underskott_adjustment: {manual_amounts['ink4_16_underskott_adjustment']}")
-        
-        
+               
         for mapping in sorted_mappings:
             try:
                 variable_name = mapping.get('variable_name', '')
@@ -1865,7 +1846,6 @@ class DatabaseParser:
                 continue
         
         return results
-
 
     def _normalize_show_amount(self, value: Any) -> bool:
         """Normalize show_amount to boolean. Handles string 'TRUE'/'FALSE' from database."""
@@ -1954,8 +1934,6 @@ class DatabaseParser:
             result = round(result, 0)
 
             return result
-        
-
         
         if variable_name == 'INK_skattemassigt_resultat':
             def v(name: str) -> float:
@@ -2089,8 +2067,7 @@ class DatabaseParser:
                         formula_with_values = re.sub(pattern, str(var_value), formula_with_values)
                         # Variable replacement completed
             
-            # Keep formula debugging minimal
-            
+            # Keep formula debugging minimal          
             # Replace INK variable references with their calculated values
             if ink_values:
                 import re
@@ -2143,8 +2120,7 @@ class DatabaseParser:
         if not formula:
             return '0'
         
-        # Handle specific formula patterns based on your database content
-        
+        # Handle specific formula patterns based on your database content      
         # Pattern 1: Simple variable references (e.g., "SumResultatForeSkatt")
         if formula.isalnum() or ('_' in formula and formula.replace('_', '').isalnum()):
             # This is likely a variable reference - it should already be replaced by RR variables
@@ -2397,9 +2373,13 @@ class DatabaseParser:
         
         # Pre-populate calculated_variables with K2 parser results
         for var_name, value in koncern_k2_data.items():
+            # Check if this variable has a corresponding previous year value
+            prev_var_name = var_name + '_prev'
+            previous_value = koncern_k2_data.get(prev_var_name, 0.0)
+            
             calculated_variables[var_name] = {
                 'current': value,
-                'previous': 0.0
+                'previous': previous_value
             }
             
         for var_name, value in intresseftg_k2_data.items():
@@ -2566,9 +2546,7 @@ class DatabaseParser:
                 'avskrtid_ovriga'
             )
         }
-        
-
-        
+               
         # Add depreciation periods to calculated_variables
         for var_name, value in depreciation_calculations.items():
             calculated_variables[var_name] = {
@@ -2583,9 +2561,7 @@ class DatabaseParser:
                 always_show = self._normalize_always_show(mapping.get('always_show', False))
                 toggle_show = self._normalize_always_show(mapping.get('toggle_show', False))
                 block = mapping.get('block', '')
-                
-
-                
+                         
                 # Calculate amounts for both years
                 current_amount = 0.0
                 previous_amount = 0.0
@@ -2656,6 +2632,5 @@ class DatabaseParser:
                 'variable_text': ''
             }
             results.append(depreciation_result)
-
-        
+       
         return results
