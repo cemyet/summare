@@ -240,8 +240,8 @@ def parse_fordringar_koncern_k2_from_sie_text(sie_text: str, debug: bool = False
             omklass_nedskr_fordr_koncern += (imp_d_orig - imp_k_orig)
 
     # Calculate UB/Book value from flows
-    fordr_koncern_ub = (fordr_koncern_ib + arets_inkop_fordr_koncern - arets_fsg_fordr_koncern + 
-                       arets_reglerade_fordr_koncern + fusion_fordr_koncern + omklass_fordr_koncern)
+    fordr_koncern_ub = (fordr_koncern_ib + nya_fordr_koncern - bortskrivna_fordr_koncern + 
+                       reglerade_fordr_koncern + fusion_fordr_koncern + omklass_fordr_koncern)
     ack_nedskr_fordr_koncern_ub = (
         ack_nedskr_fordr_koncern_ib
         - arets_nedskr_fordr_koncern
