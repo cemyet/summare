@@ -2383,9 +2383,13 @@ class DatabaseParser:
             }
             
         for var_name, value in intresseftg_k2_data.items():
+            # Check if this variable has a corresponding previous year value
+            prev_var_name = var_name + '_prev'
+            previous_value = intresseftg_k2_data.get(prev_var_name, 0.0)
+            
             calculated_variables[var_name] = {
                 'current': value,
-                'previous': 0.0
+                'previous': previous_value
             }
             
         for var_name, value in bygg_k2_data.items():

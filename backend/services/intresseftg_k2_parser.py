@@ -341,9 +341,84 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
 
     red_varde_intresseftg = intresseftg_ub + ack_nedskr_intresseftg_ub
 
-    if debug:
-        pass
+    # =========================
+    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # =========================
+    # Reuse the *exact* account sets discovered for current year:
+    #   - cost set: ASSET_SET | CONTRIB_SET
+    #   - impairment set: ACC_IMP_SET
 
+    def _get_balance_prev(lines, kind_flag: str, accounts: set[int]) -> float:
+        """
+        Sum #IB -1 or #UB -1 for the given accounts.
+        kind_flag ∈ {"IB", "UB"}.
+        """
+        if not accounts:
+            return 0.0
+        total = 0.0
+        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+        for raw in lines:
+            m = bal_re_prev.match(raw.strip())
+            if not m:
+                continue
+            acct = int(m.group(1))
+            if acct in accounts:
+                total += _to_float(m.group(2))
+        return total
+
+    # --- Previous-year balances ---
+    intresseftg_ib_prev            = _get_balance_prev(lines, 'IB', ASSET_SET | CONTRIB_SET)
+    ack_nedskr_intresseftg_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_SET)
+    intresseftg_ub_prev            = _get_balance_prev(lines, 'UB', ASSET_SET | CONTRIB_SET)
+    ack_nedskr_intresseftg_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_SET)
+
+    red_varde_intresseftg_prev = (intresseftg_ub_prev or 0.0) + (ack_nedskr_intresseftg_ub_prev or 0.0)
+
+    # --- Movements from balances (prev) ---
+    # Cost delta (prev) = UB(prev) - IB(prev)
+    delta_prev = (intresseftg_ub_prev or 0.0) - (intresseftg_ib_prev or 0.0)
+    fsg_intresseftg_prev   = 0.0   # sales: record UB - IB if negative
+    inkop_intresseftg_prev = 0.0   # purchases: record UB - IB if positive
+
+    if intresseftg_ub_prev < intresseftg_ib_prev:
+        # decrease => treat as sales (negative)
+        fsg_intresseftg_prev = delta_prev
+    elif intresseftg_ub_prev > intresseftg_ib_prev:
+        # increase => treat as purchases (positive)
+        inkop_intresseftg_prev = delta_prev
+
+    # Impairment movement using magnitudes:
+    # If |IB| > |UB| => Återföring = |IB| - |UB| (positive)
+    # If |IB| < |UB| => Årets nedskrivning = |IB| - |UB| (negative)
+    abs_ib_imp = abs(ack_nedskr_intresseftg_ib_prev or 0.0)
+    abs_ub_imp = abs(ack_nedskr_intresseftg_ub_prev or 0.0)
+
+    aterfor_nedskr_intresseftg_prev = 0.0
+    arets_nedskr_intresseftg_prev   = 0.0
+
+    if abs_ib_imp > abs_ub_imp:
+        aterfor_nedskr_intresseftg_prev = abs_ib_imp - abs_ub_imp
+    elif abs_ib_imp < abs_ub_imp:
+        arets_nedskr_intresseftg_prev = abs_ib_imp - abs_ub_imp  # negative by definition
+
+    # --- Backend debug (one line per var) ---
+    if debug:
+        try:
+            print(f"[INTRESSEFTG-DEBUG] accounts_used.cost = {sorted(list((ASSET_SET | CONTRIB_SET)))}")
+        except Exception:
+            print("[INTRESSEFTG-DEBUG] accounts_used.cost = <unavailable>")
+        try:
+            print(f"[INTRESSEFTG-DEBUG] accounts_used.imp  = {sorted(list(ACC_IMP_SET))}")
+        except Exception:
+            print("[INTRESSEFTG-DEBUG] accounts_used.imp  = <unavailable>")
+
+        print(f"[INTRESSEFTG-DEBUG] intresseftg_ib current={intresseftg_ib} previous={intresseftg_ib_prev}")
+        print(f"[INTRESSEFTG-DEBUG] intresseftg_ub current={intresseftg_ub} previous={intresseftg_ub_prev}")
+        print(f"[INTRESSEFTG-DEBUG] ack_nedskr_ib current={ack_nedskr_intresseftg_ib} previous={ack_nedskr_intresseftg_ib_prev}")
+        print(f"[INTRESSEFTG-DEBUG] ack_nedskr_ub current={ack_nedskr_intresseftg_ub} previous={ack_nedskr_intresseftg_ub_prev}")
+        print(f"[INTRESSEFTG-DEBUG] red_varde current={red_varde_intresseftg} previous={red_varde_intresseftg_prev}")
+        print(f"[INTRESSEFTG-DEBUG] inkop_prev={inkop_intresseftg_prev}  fsg_prev={fsg_intresseftg_prev}")
+        print(f"[INTRESSEFTG-DEBUG] aterfor_prev={aterfor_nedskr_intresseftg_prev} arets_nedskr_prev={arets_nedskr_intresseftg_prev}")
 
     return {
         # Cost roll-forward
@@ -368,4 +443,15 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
 
         # Book value
         "red_varde_intresseftg": red_varde_intresseftg,
+
+        # Previous year values (for preview display)
+        "intresseftg_ib_prev": intresseftg_ib_prev,
+        "intresseftg_ub_prev": intresseftg_ub_prev,
+        "ack_nedskr_intresseftg_ib_prev": ack_nedskr_intresseftg_ib_prev,
+        "ack_nedskr_intresseftg_ub_prev": ack_nedskr_intresseftg_ub_prev,
+        "red_varde_intresseftg_prev": red_varde_intresseftg_prev,
+        "fsg_intresseftg_prev": fsg_intresseftg_prev,
+        "inkop_intresseftg_prev": inkop_intresseftg_prev,
+        "aterfor_nedskr_intresseftg_prev": aterfor_nedskr_intresseftg_prev,
+        "arets_nedskr_intresseftg_prev": arets_nedskr_intresseftg_prev,
     }
