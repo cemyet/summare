@@ -204,6 +204,7 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
 
     for key, txs in trans_by_ver.items():
         text = (text_by_ver.get(key, "") or "").lower()
+        is_bortbok = any(w in text for w in ("bortbok", "utrang", "konkurs"))
 
         A_D  = sum(amt  for a,amt in txs if a in ASSET_SET   and amt > 0)
         A_K  = sum(-amt for a,amt in txs if a in ASSET_SET   and amt < 0)
@@ -249,6 +250,16 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
             aktieagartillskott_aterbetald_intresseftg += C_K
             if debug:
                 pass
+
+        # Om det är en bortbokning/konkurs → behandla alltid som försäljning
+        if is_bortbok:
+            extra_sale = A_K + C_K
+            if extra_sale > 0:
+                if IMP_D > 0:
+                    aterfor_nedskr_fsg_intresseftg += IMP_D
+                    IMP_D = 0.0
+                fsg_intresseftg -= extra_sale
+            continue
 
 
         # Försäljning av andelar – HB/KB two-step flow handling
@@ -335,10 +346,7 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
                 pass
 
 
-    # ---- Final UB from SIE (#UB) as per policy ----
-    intresseftg_ub = cost_ub_actual
-    ack_nedskr_intresseftg_ub = ack_ub_actual
-
+    # ---- UB from flows ----
     red_varde_intresseftg = intresseftg_ub + ack_nedskr_intresseftg_ub
 
     # =========================
