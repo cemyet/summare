@@ -246,6 +246,129 @@ def parse_ovriga_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
             ack_nedskr_ovriga_ub = ack_nedskr_ovriga_ib + aterfor_nedskr_fsg_ovriga + aterfor_nedskr_ovriga - arets_nedskr_ovriga
             red_varde_ovrmat = ovriga_ub + ack_avskr_ovriga_ub + ack_nedskr_ovriga_ub
             
+    # =========================
+    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # =========================
+    # Reuse the exact account sets discovered for current year:
+    #   - ASSET_RANGES      : cost accounts (övriga materiella)
+    #   - ACC_DEP_OVRIGA    : accumulated depreciation accounts
+    #   - ACC_IMP_OVRIGA    : accumulated impairment accounts
+
+    def _get_balance_prev(lines, kind_flag: str, accounts) -> float:
+        """
+        Sum #IB -1 or #UB -1 for the given accounts (set or ranges).
+        kind_flag ∈ {"IB", "UB"}.
+        If accounts is None/empty -> 0.0.
+        """
+        if not accounts:
+            return 0.0
+        total = 0.0
+        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+        for raw in lines:
+            s = raw.strip()
+            m = bal_re_prev.match(s)
+            if not m:
+                continue
+            acct = int(m.group(1))
+            # Handle both sets and ranges like the original get_balance function
+            if isinstance(accounts, (set, frozenset)):
+                ok = acct in accounts
+            else:
+                ok = any(lo <= acct <= hi for lo, hi in accounts)
+            if ok:
+                total += _to_float(m.group(2))
+        return total
+
+    # --- Previous-year balances using SAME sets as current year ---
+    ovrmat_ib_prev  = _get_balance_prev(lines, 'IB', ASSET_RANGES)
+    ovrmat_ub_prev  = _get_balance_prev(lines, 'UB', ASSET_RANGES)
+
+    ack_avskr_ovrmat_ib_prev = _get_balance_prev(lines, 'IB', ACC_DEP_OVRIGA)
+    ack_avskr_ovrmat_ub_prev = _get_balance_prev(lines, 'UB', ACC_DEP_OVRIGA)
+
+    ack_nedskr_ovrmat_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_OVRIGA)
+    ack_nedskr_ovrmat_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_OVRIGA)
+
+    # No revaluation accounts in OVRIGA parser, so set to 0
+    uppskr_ovrmat_ib_prev = 0.0
+    uppskr_ovrmat_ub_prev = 0.0
+
+    # Book value (prev): UB cost + UB reval + UB acc. impairments + UB acc. depreciation
+    red_varde_ovrmat_prev = (
+        (ovrmat_ub_prev or 0.0)
+        + (uppskr_ovrmat_ub_prev or 0.0)
+        + (ack_nedskr_ovrmat_ub_prev or 0.0)
+        + (ack_avskr_ovrmat_ub_prev or 0.0)
+    )
+
+    # =========================
+    # PREVIOUS YEAR MOVEMENTS (SIGN RULES)
+    # =========================
+    # Cost delta(prev) = UB(prev) - IB(prev)
+    # negative -> sales; positive -> purchases
+    delta_prev = (ovrmat_ub_prev or 0.0) - (ovrmat_ib_prev or 0.0)
+    fsg_ovrmat_prev         = 0.0
+    arets_inkop_ovrmat_prev = 0.0
+
+    if ovrmat_ub_prev < ovrmat_ib_prev:
+        fsg_ovrmat_prev = delta_prev                 # negative
+    elif ovrmat_ub_prev > ovrmat_ib_prev:
+        arets_inkop_ovrmat_prev = delta_prev         # positive
+
+    # Impairment movement via magnitudes:
+    # If |IB| > |UB| => Återföring = |IB| - |UB| (positive)
+    # If |IB| < |UB| => Årets nedskrivning = |IB| - |UB| (negative)
+    abs_imp_ib = abs(ack_nedskr_ovrmat_ib_prev or 0.0)
+    abs_imp_ub = abs(ack_nedskr_ovrmat_ub_prev or 0.0)
+
+    aterfor_nedskr_ovrmat_prev = 0.0
+    arets_nedskr_ovrmat_prev   = 0.0
+
+    if abs_imp_ib > abs_imp_ub:
+        aterfor_nedskr_ovrmat_prev = abs_imp_ib - abs_imp_ub      # positive
+    elif abs_imp_ib < abs_imp_ub:
+        arets_nedskr_ovrmat_prev = abs_imp_ib - abs_imp_ub        # negative
+
+    # Depreciation movement (if ACC_DEP_OVRIGA exists)
+    # "Årets avskrivningar (prev)" = |UB| - |IB| (usually positive)
+    arets_avskr_ovrmat_prev = 0.0
+    if ACC_DEP_OVRIGA:
+        abs_avskr_ib = abs(ack_avskr_ovrmat_ib_prev or 0.0)
+        abs_avskr_ub = abs(ack_avskr_ovrmat_ub_prev or 0.0)
+        arets_avskr_ovrmat_prev = abs_avskr_ub - abs_avskr_ib
+
+    # Revaluation movement (not applicable for OVRIGA, but included for consistency)
+    arets_uppskr_ovrmat_prev   = 0.0
+    aterfor_uppskr_ovrmat_prev = 0.0
+
+    # --- Backend debug ---
+    if debug:
+        try:
+            print(f"[OVRMAT-DEBUG] accounts_used.asset = {ASSET_RANGES}")
+        except Exception:
+            print("[OVRMAT-DEBUG] accounts_used.asset = <unavailable>")
+        try:
+            print(f"[OVRMAT-DEBUG] accounts_used.acc_avskr = {sorted(list(ACC_DEP_OVRIGA))}")
+        except Exception:
+            print("[OVRMAT-DEBUG] accounts_used.acc_avskr = <unavailable>")
+        try:
+            print(f"[OVRMAT-DEBUG] accounts_used.acc_imp = {sorted(list(ACC_IMP_OVRIGA))}")
+        except Exception:
+            print("[OVRMAT-DEBUG] accounts_used.acc_imp = <unavailable>")
+
+        print(f"[OVRMAT-DEBUG] ib current={ovriga_ib} previous={ovrmat_ib_prev}")
+        print(f"[OVRMAT-DEBUG] ub current={ovriga_ub} previous={ovrmat_ub_prev}")
+        print(f"[OVRMAT-DEBUG] ack_avskr_ib current={ack_avskr_ovriga_ib} previous={ack_avskr_ovrmat_ib_prev}")
+        print(f"[OVRMAT-DEBUG] ack_avskr_ub current={ack_avskr_ovriga_ub} previous={ack_avskr_ovrmat_ub_prev}")
+        print(f"[OVRMAT-DEBUG] ack_nedskr_ib current={ack_nedskr_ovriga_ib} previous={ack_nedskr_ovrmat_ib_prev}")
+        print(f"[OVRMAT-DEBUG] ack_nedskr_ub current={ack_nedskr_ovriga_ub} previous={ack_nedskr_ovrmat_ub_prev}")
+        print(f"[OVRMAT-DEBUG] uppskr_ib current=0 previous={uppskr_ovrmat_ib_prev}")
+        print(f"[OVRMAT-DEBUG] uppskr_ub current=0 previous={uppskr_ovrmat_ub_prev}")
+        print(f"[OVRMAT-DEBUG] red_varde current={red_varde_ovrmat} previous={red_varde_ovrmat_prev}")
+        print(f"[OVRMAT-DEBUG] inkop_prev={arets_inkop_ovrmat_prev}  fsg_prev={fsg_ovrmat_prev}")
+        print(f"[OVRMAT-DEBUG] aterfor_nedskr_prev={aterfor_nedskr_ovrmat_prev} arets_nedskr_prev={arets_nedskr_ovrmat_prev}")
+        print(f"[OVRMAT-DEBUG] arets_avskr_prev={arets_avskr_ovrmat_prev}")
+        print(f"[OVRMAT-DEBUG] arets_uppskr_prev={arets_uppskr_ovrmat_prev} aterfor_uppskr_prev={aterfor_uppskr_ovrmat_prev}")
 
     return {
         # IB/UB assets
@@ -270,4 +393,22 @@ def parse_ovriga_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
 
         # Derived book value
         "red_varde_ovrmat": red_varde_ovrmat,
+
+        # Previous year values (for preview display)
+        "ovrmat_ib_prev": ovrmat_ib_prev,
+        "ovrmat_ub_prev": ovrmat_ub_prev,
+        "ack_avskr_ovrmat_ib_prev": ack_avskr_ovrmat_ib_prev,
+        "ack_avskr_ovrmat_ub_prev": ack_avskr_ovrmat_ub_prev,
+        "arets_avskr_ovrmat_prev": arets_avskr_ovrmat_prev,
+        "ack_nedskr_ovrmat_ib_prev": ack_nedskr_ovrmat_ib_prev,
+        "ack_nedskr_ovrmat_ub_prev": ack_nedskr_ovrmat_ub_prev,
+        "aterfor_nedskr_ovrmat_prev": aterfor_nedskr_ovrmat_prev,
+        "arets_nedskr_ovrmat_prev": arets_nedskr_ovrmat_prev,
+        "uppskr_ovrmat_ib_prev": uppskr_ovrmat_ib_prev,
+        "uppskr_ovrmat_ub_prev": uppskr_ovrmat_ub_prev,
+        "arets_uppskr_ovrmat_prev": arets_uppskr_ovrmat_prev,
+        "aterfor_uppskr_ovrmat_prev": aterfor_uppskr_ovrmat_prev,
+        "red_varde_ovrmat_prev": red_varde_ovrmat_prev,
+        "arets_inkop_ovrmat_prev": arets_inkop_ovrmat_prev,
+        "fsg_ovrmat_prev": fsg_ovrmat_prev,
     }

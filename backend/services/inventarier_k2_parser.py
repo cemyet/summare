@@ -223,7 +223,131 @@ def parse_inventarier_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
     # --- Derived ---
     red_varde_inventarier = inventarier_ub + ack_avskr_inventarier_ub + ack_nedskr_inventarier_ub
 
-    return {
+    # =========================
+    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # =========================
+    # Reuse the exact account sets discovered for current year:
+    #   - ASSET_RANGES    : cost accounts (inventarier)
+    #   - ACC_DEP         : accumulated depreciation accounts
+    #   - ACC_IMP         : accumulated impairment accounts
+
+    def _get_balance_prev(lines, kind_flag: str, accounts) -> float:
+        """
+        Sum #IB -1 or #UB -1 for the given accounts (set or ranges).
+        kind_flag ∈ {"IB", "UB"}.
+        If accounts is None/empty -> 0.0.
+        """
+        if not accounts:
+            return 0.0
+        total = 0.0
+        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+        for raw in lines:
+            s = raw.strip()
+            m = bal_re_prev.match(s)
+            if not m:
+                continue
+            acct = int(m.group(1))
+            # Handle both sets and ranges like the original get_balance function
+            if isinstance(accounts, (set, frozenset)):
+                ok = acct in accounts
+            else:
+                ok = any(lo <= acct <= hi for lo, hi in accounts)
+            if ok:
+                total += _to_float(m.group(2))
+        return total
+
+    # --- Previous-year balances using SAME sets as current year ---
+    inventarier_ib_prev  = _get_balance_prev(lines, 'IB', ASSET_RANGES)
+    inventarier_ub_prev  = _get_balance_prev(lines, 'UB', ASSET_RANGES)
+
+    ack_avskr_inventarier_ib_prev = _get_balance_prev(lines, 'IB', ACC_DEP)
+    ack_avskr_inventarier_ub_prev = _get_balance_prev(lines, 'UB', ACC_DEP)
+
+    ack_nedskr_inventarier_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP)
+    ack_nedskr_inventarier_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP)
+
+    # No revaluation accounts in INVENTARIER parser, so set to 0
+    uppskr_inventarier_ib_prev = 0.0
+    uppskr_inventarier_ub_prev = 0.0
+
+    # Book value (prev): UB cost + UB reval + UB acc. impairments + UB acc. depreciation
+    red_varde_inventarier_prev = (
+        (inventarier_ub_prev or 0.0)
+        + (uppskr_inventarier_ub_prev or 0.0)
+        + (ack_nedskr_inventarier_ub_prev or 0.0)
+        + (ack_avskr_inventarier_ub_prev or 0.0)
+    )
+
+    # =========================
+    # PREVIOUS YEAR MOVEMENTS (SIGN RULES)
+    # =========================
+    # Cost delta(prev) = UB(prev) - IB(prev)
+    # negative -> sales; positive -> purchases
+    delta_prev = (inventarier_ub_prev or 0.0) - (inventarier_ib_prev or 0.0)
+    fsg_inventarier_prev         = 0.0
+    arets_inkop_inventarier_prev = 0.0
+
+    if inventarier_ub_prev < inventarier_ib_prev:
+        fsg_inventarier_prev = delta_prev                 # negative
+    elif inventarier_ub_prev > inventarier_ib_prev:
+        arets_inkop_inventarier_prev = delta_prev         # positive
+
+    # Impairment movement via magnitudes:
+    # If |IB| > |UB| => Återföring = |IB| - |UB| (positive)
+    # If |IB| < |UB| => Årets nedskrivning = |IB| - |UB| (negative)
+    abs_imp_ib = abs(ack_nedskr_inventarier_ib_prev or 0.0)
+    abs_imp_ub = abs(ack_nedskr_inventarier_ub_prev or 0.0)
+
+    aterfor_nedskr_inventarier_prev = 0.0
+    arets_nedskr_inventarier_prev   = 0.0
+
+    if abs_imp_ib > abs_imp_ub:
+        aterfor_nedskr_inventarier_prev = abs_imp_ib - abs_imp_ub      # positive
+    elif abs_imp_ib < abs_imp_ub:
+        arets_nedskr_inventarier_prev = abs_imp_ib - abs_imp_ub        # negative
+
+    # Depreciation movement (if ACC_DEP exists)
+    # "Årets avskrivningar (prev)" = |UB| - |IB| (usually positive)
+    arets_avskr_inventarier_prev = 0.0
+    if ACC_DEP:
+        abs_avskr_ib = abs(ack_avskr_inventarier_ib_prev or 0.0)
+        abs_avskr_ub = abs(ack_avskr_inventarier_ub_prev or 0.0)
+        arets_avskr_inventarier_prev = abs_avskr_ub - abs_avskr_ib
+
+    # Revaluation movement (not applicable for INVENTARIER, but included for consistency)
+    arets_uppskr_inventarier_prev   = 0.0
+    aterfor_uppskr_inventarier_prev = 0.0
+
+    # --- Backend debug ---
+    if debug:
+        try:
+            print(f"[INVENT-DEBUG] accounts_used.asset = {ASSET_RANGES}")
+        except Exception:
+            print("[INVENT-DEBUG] accounts_used.asset = <unavailable>")
+        try:
+            print(f"[INVENT-DEBUG] accounts_used.acc_avskr = {sorted(list(ACC_DEP))}")
+        except Exception:
+            print("[INVENT-DEBUG] accounts_used.acc_avskr = <unavailable>")
+        try:
+            print(f"[INVENT-DEBUG] accounts_used.acc_imp = {sorted(list(ACC_IMP))}")
+        except Exception:
+            print("[INVENT-DEBUG] accounts_used.acc_imp = <unavailable>")
+
+        print(f"[INVENT-DEBUG] ib current={inventarier_ib} previous={inventarier_ib_prev}")
+        print(f"[INVENT-DEBUG] ub current={inventarier_ub} previous={inventarier_ub_prev}")
+        print(f"[INVENT-DEBUG] ack_avskr_ib current={ack_avskr_inventarier_ib} previous={ack_avskr_inventarier_ib_prev}")
+        print(f"[INVENT-DEBUG] ack_avskr_ub current={ack_avskr_inventarier_ub} previous={ack_avskr_inventarier_ub_prev}")
+        print(f"[INVENT-DEBUG] ack_nedskr_ib current={ack_nedskr_inventarier_ib} previous={ack_nedskr_inventarier_ib_prev}")
+        print(f"[INVENT-DEBUG] ack_nedskr_ub current={ack_nedskr_inventarier_ub} previous={ack_nedskr_inventarier_ub_prev}")
+        print(f"[INVENT-DEBUG] uppskr_ib current=0 previous={uppskr_inventarier_ib_prev}")
+        print(f"[INVENT-DEBUG] uppskr_ub current=0 previous={uppskr_inventarier_ub_prev}")
+        print(f"[INVENT-DEBUG] red_varde current={red_varde_inventarier} previous={red_varde_inventarier_prev}")
+        print(f"[INVENT-DEBUG] inkop_prev={arets_inkop_inventarier_prev}  fsg_prev={fsg_inventarier_prev}")
+        print(f"[INVENT-DEBUG] aterfor_nedskr_prev={aterfor_nedskr_inventarier_prev} arets_nedskr_prev={arets_nedskr_inventarier_prev}")
+        print(f"[INVENT-DEBUG] arets_avskr_prev={arets_avskr_inventarier_prev}")
+        print(f"[INVENT-DEBUG] arets_uppskr_prev={arets_uppskr_inventarier_prev} aterfor_uppskr_prev={aterfor_uppskr_inventarier_prev}")
+
+    result = {
         "inventarier_ib": inventarier_ib,
         "arets_inkop_inventarier": arets_inkop_inventarier,
         "arets_fsg_inventarier": arets_fsg_inventarier,
@@ -241,4 +365,22 @@ def parse_inventarier_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
         "omklass_nedskr_inventarier": omklass_nedskr_inventarier,
         "ack_nedskr_inventarier_ub": ack_nedskr_inventarier_ub,
         "red_varde_inventarier": red_varde_inventarier,
+
+        # Previous year values (for preview display)
+        "inventarier_ib_prev": inventarier_ib_prev,
+        "inventarier_ub_prev": inventarier_ub_prev,
+        "ack_avskr_inventarier_ib_prev": ack_avskr_inventarier_ib_prev,
+        "ack_avskr_inventarier_ub_prev": ack_avskr_inventarier_ub_prev,
+        "arets_avskr_inventarier_prev": arets_avskr_inventarier_prev,
+        "ack_nedskr_inventarier_ib_prev": ack_nedskr_inventarier_ib_prev,
+        "ack_nedskr_inventarier_ub_prev": ack_nedskr_inventarier_ub_prev,
+        "aterfor_nedskr_inventarier_prev": aterfor_nedskr_inventarier_prev,
+        "arets_nedskr_inventarier_prev": arets_nedskr_inventarier_prev,
+        "uppskr_inventarier_ib_prev": uppskr_inventarier_ib_prev,
+        "uppskr_inventarier_ub_prev": uppskr_inventarier_ub_prev,
+        "arets_uppskr_inventarier_prev": arets_uppskr_inventarier_prev,
+        "aterfor_uppskr_inventarier_prev": aterfor_uppskr_inventarier_prev,
+        "red_varde_inventarier_prev": red_varde_inventarier_prev,
+        "arets_inkop_inventarier_prev": arets_inkop_inventarier_prev,
+        "fsg_inventarier_prev": fsg_inventarier_prev,
     }
