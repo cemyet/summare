@@ -205,6 +205,86 @@ def parse_lvp_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
             # Note: ack_nedskr_lang_vardepapper_ub is read directly from UB, no recalculation needed
             red_varde_lang_vardepapper = lang_vardepapper_ub + ack_nedskr_lang_vardepapper_ub
             
+    # =========================
+    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # =========================
+    # Reuse the *exact* account sets discovered for current year:
+    #   - ASSET_SET: long-term securities acquisition accounts (e.g., 1350..)
+    #   - ACC_IMP_SET: accumulated impairment accounts (e.g., 1358, 1368, ...)
+    # These are already built by your current-year logic.
+
+    def _get_balance_prev(lines, kind_flag: str, accounts: set[int]) -> float:
+        """
+        Sum #IB -1 or #UB -1 for the given accounts.
+        kind_flag ∈ {"IB", "UB"}.
+        """
+        if not accounts:
+            return 0.0
+        total = 0.0
+        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+        for raw in lines:
+            m = bal_re_prev.match(raw.strip())
+            if not m:
+                continue
+            acct = int(m.group(1))
+            if acct in accounts:
+                total += _to_float(m.group(2))
+        return total
+
+    # --- Previous-year balances using SAME sets as current year ---
+    lang_vardepapper_ib_prev            = _get_balance_prev(lines, 'IB', ASSET_SET)
+    lang_vardepapper_ub_prev            = _get_balance_prev(lines, 'UB', ASSET_SET)
+    ack_nedskr_lang_vardepapper_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_SET)
+    ack_nedskr_lang_vardepapper_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_SET)
+
+    # Prev-year redovisat värde = UB cost + UB accumulated impairments (impairments are negative)
+    red_varde_lang_vardepapper_prev = (lang_vardepapper_ub_prev or 0.0) + (ack_nedskr_lang_vardepapper_ub_prev or 0.0)
+
+    # =========================
+    # PREVIOUS YEAR MOVEMENTS (SIGN RULES AS AGREED)
+    # =========================
+    # Δ cost(prev) = UB(prev) - IB(prev)
+    delta_prev = (lang_vardepapper_ub_prev or 0.0) - (lang_vardepapper_ib_prev or 0.0)
+    fsg_lang_vardepapper_prev        = 0.0   # sales: NEGATIVE when UB<IB (we record UB-IB)
+    arets_inkop_lang_vardepapper_prev = 0.0   # purchases: POSITIVE when UB>IB (record UB-IB)
+
+    if lang_vardepapper_ub_prev < lang_vardepapper_ib_prev:
+        fsg_lang_vardepapper_prev = delta_prev
+    elif lang_vardepapper_ub_prev > lang_vardepapper_ib_prev:
+        arets_inkop_lang_vardepapper_prev = delta_prev
+
+    # Impairment movement via magnitudes:
+    abs_ib_imp = abs(ack_nedskr_lang_vardepapper_ib_prev or 0.0)
+    abs_ub_imp = abs(ack_nedskr_lang_vardepapper_ub_prev or 0.0)
+
+    aterfor_nedskr_lang_vardepapper_prev = 0.0
+    arets_nedskr_lang_vardepapper_prev   = 0.0
+
+    if abs_ib_imp > abs_ub_imp:
+        # magnitude DOWN => reversal, POSITIVE = |IB| - |UB|
+        aterfor_nedskr_lang_vardepapper_prev = abs_ib_imp - abs_ub_imp
+    elif abs_ib_imp < abs_ub_imp:
+        # magnitude UP => impairment of the year, NEGATIVE = |IB| - |UB|
+        arets_nedskr_lang_vardepapper_prev = abs_ib_imp - abs_ub_imp
+
+    # --- Backend debug (one line per variable) ---
+    if debug:
+        try:
+            print(f"[LVP-DEBUG] accounts_used.asset = {sorted(list(ASSET_SET))}")
+        except Exception:
+            print("[LVP-DEBUG] accounts_used.asset = <unavailable>")
+        try:
+            print(f"[LVP-DEBUG] accounts_used.imp   = {sorted(list(ACC_IMP_SET))}")
+        except Exception:
+            print("[LVP-DEBUG] accounts_used.imp   = <unavailable>")
+
+        print(f"[LVP-DEBUG] ib current={lang_vardepapper_ib} previous={lang_vardepapper_ib_prev}")
+        print(f"[LVP-DEBUG] ub current={lang_vardepapper_ub} previous={lang_vardepapper_ub_prev}")
+        print(f"[LVP-DEBUG] ack_nedskr_ib current={ack_nedskr_lang_vardepapper_ib} previous={ack_nedskr_lang_vardepapper_ib_prev}")
+        print(f"[LVP-DEBUG] ack_nedskr_ub current={ack_nedskr_lang_vardepapper_ub} previous={ack_nedskr_lang_vardepapper_ub_prev}")
+        print(f"[LVP-DEBUG] red_varde current={red_varde_lang_vardepapper} previous={red_varde_lang_vardepapper_prev}")
+        print(f"[LVP-DEBUG] inkop_prev={arets_inkop_lang_vardepapper_prev}  fsg_prev={fsg_lang_vardepapper_prev}")
+        print(f"[LVP-DEBUG] aterfor_prev={aterfor_nedskr_lang_vardepapper_prev} arets_nedskr_prev={arets_nedskr_lang_vardepapper_prev}")
 
     return {
         # IB/UB assets
@@ -220,4 +300,15 @@ def parse_lvp_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
 
         # Derived book value  
         "red_varde_lang_vardepapper": red_varde_lang_vardepapper,
+
+        # Previous year values (for preview display)
+        "lang_vardepapper_ib_prev": lang_vardepapper_ib_prev,
+        "lang_vardepapper_ub_prev": lang_vardepapper_ub_prev,
+        "ack_nedskr_lang_vardepapper_ib_prev": ack_nedskr_lang_vardepapper_ib_prev,
+        "ack_nedskr_lang_vardepapper_ub_prev": ack_nedskr_lang_vardepapper_ub_prev,
+        "red_varde_lang_vardepapper_prev": red_varde_lang_vardepapper_prev,
+        "fsg_lang_vardepapper_prev": fsg_lang_vardepapper_prev,
+        "arets_inkop_lang_vardepapper_prev": arets_inkop_lang_vardepapper_prev,
+        "aterfor_nedskr_lang_vardepapper_prev": aterfor_nedskr_lang_vardepapper_prev,
+        "arets_nedskr_lang_vardepapper_prev": arets_nedskr_lang_vardepapper_prev,
     }
