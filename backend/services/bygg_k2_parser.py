@@ -277,6 +277,134 @@ def parse_bygg_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
             ack_nedskr_bygg_ub = ack_nedskr_bygg_ib + aterfor_nedskr_fsg_bygg + aterfor_nedskr_bygg - arets_nedskr_bygg
             red_varde_bygg = bygg_ub + ack_avskr_bygg_ub + ack_nedskr_bygg_ub + ack_uppskr_bygg_ub
 
+    # =========================
+    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # =========================
+    # Reuse the *exact* account sets discovered for current year:
+    #   - BUILDING_ASSET_RANGES : cost accounts (e.g., 1110, 1150, etc.)
+    #   - ACC_DEP_BYGG         : accumulated depreciation accounts (e.g., 1119, 1159, etc.)
+    #   - ACC_IMP_BYGG         : accumulated impairment accounts (e.g., 1158, etc.)
+    #   - UPSKR_FOND           : asset-side revaluation adjustment account (2085)
+
+    def _get_balance_prev(lines, kind_flag: str, accounts) -> float:
+        """
+        Sum #IB -1 or #UB -1 for the given accounts (set or ranges).
+        kind_flag ∈ {"IB", "UB"}.
+        If 'accounts' is None or empty, returns 0.0.
+        """
+        if not accounts:
+            return 0.0
+        total = 0.0
+        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+        for raw in lines:
+            s = raw.strip()
+            m = bal_re_prev.match(s)
+            if not m:
+                continue
+            acct = int(m.group(1))
+            # Handle both sets and ranges like the original get_balance function
+            if isinstance(accounts, (set, frozenset)):
+                ok = acct in accounts
+            elif isinstance(accounts, int):
+                ok = acct == accounts
+            else:
+                ok = any(lo <= acct <= hi for lo, hi in accounts)
+            if ok:
+                total += _to_float(m.group(2))
+        return total
+
+    # --- Previous-year balances using SAME sets as current year ---
+    bygg_ib_prev  = _get_balance_prev(lines, 'IB', BUILDING_ASSET_RANGES)
+    bygg_ub_prev  = _get_balance_prev(lines, 'UB', BUILDING_ASSET_RANGES)
+
+    ack_avskr_bygg_ib_prev = _get_balance_prev(lines, 'IB', ACC_DEP_BYGG)
+    ack_avskr_bygg_ub_prev = _get_balance_prev(lines, 'UB', ACC_DEP_BYGG)
+
+    ack_nedskr_bygg_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_BYGG)
+    ack_nedskr_bygg_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_BYGG)
+
+    uppskr_bygg_ib_prev = _get_balance_prev(lines, 'IB', UPSKR_FOND)
+    uppskr_bygg_ub_prev = _get_balance_prev(lines, 'UB', UPSKR_FOND)
+
+    # Redovisat värde (prev) = UB cost + UB uppskr + UB acc. impairments + UB acc. depreciation
+    # (Depreciation and impairments are typically negative; uppskrivningar positive.)
+    red_varde_bygg_prev = (
+        (bygg_ub_prev or 0.0)
+        + (uppskr_bygg_ub_prev or 0.0)
+        + (ack_nedskr_bygg_ub_prev or 0.0)
+        + (ack_avskr_bygg_ub_prev or 0.0)
+    )
+
+    # =========================
+    # PREVIOUS YEAR MOVEMENTS (SIGN RULES AS AGREED)
+    # =========================
+    # Cost delta(prev) = UB(prev) - IB(prev) → negative = sales, positive = purchases
+    delta_prev = (bygg_ub_prev or 0.0) - (bygg_ib_prev or 0.0)
+    fsg_bygg_prev   = 0.0   # sales: record UB - IB if negative
+    arets_inkop_bygg_prev = 0.0   # purchases: record UB - IB if positive
+
+    if bygg_ub_prev < bygg_ib_prev:
+        fsg_bygg_prev = delta_prev
+    elif bygg_ub_prev > bygg_ib_prev:
+        arets_inkop_bygg_prev = delta_prev
+
+    # Impairment movement (magnitudes)
+    # If |IB| > |UB| => Återföring = |IB| - |UB| (positive)
+    # If |IB| < |UB| => Årets nedskrivning = |IB| - |UB| (negative)
+    abs_imp_ib = abs(ack_nedskr_bygg_ib_prev or 0.0)
+    abs_imp_ub = abs(ack_nedskr_bygg_ub_prev or 0.0)
+
+    aterfor_nedskr_bygg_prev = 0.0
+    arets_nedskr_bygg_prev   = 0.0
+
+    if abs_imp_ib > abs_imp_ub:
+        aterfor_nedskr_bygg_prev = abs_imp_ib - abs_imp_ub        # positive
+    elif abs_imp_ib < abs_imp_ub:
+        arets_nedskr_bygg_prev = abs_imp_ib - abs_imp_ub          # negative by definition
+
+    # Depreciation movement
+    # "Årets avskrivningar" = |UB| - |IB|  (usually positive)
+    arets_avskr_bygg_prev = 0.0
+    if ACC_DEP_BYGG:
+        abs_avskr_ib = abs(ack_avskr_bygg_ib_prev or 0.0)
+        abs_avskr_ub = abs(ack_avskr_bygg_ub_prev or 0.0)
+        arets_avskr_bygg_prev = abs_avskr_ub - abs_avskr_ib
+
+    # --- Backend debug (one line per variable) ---
+    if debug:
+        try:
+            print(f"[BYGG-DEBUG] accounts_used.asset = {BUILDING_ASSET_RANGES}")
+        except Exception:
+            print("[BYGG-DEBUG] accounts_used.asset = <unavailable>")
+
+        try:
+            print(f"[BYGG-DEBUG] accounts_used.acc_avskr = {sorted(list(ACC_DEP_BYGG))}")
+        except Exception:
+            print("[BYGG-DEBUG] accounts_used.acc_avskr = <unavailable>")
+
+        try:
+            print(f"[BYGG-DEBUG] accounts_used.acc_imp = {sorted(list(ACC_IMP_BYGG))}")
+        except Exception:
+            print("[BYGG-DEBUG] accounts_used.acc_imp = <unavailable>")
+
+        try:
+            print(f"[BYGG-DEBUG] accounts_used.uppskr = {UPSKR_FOND}")
+        except Exception:
+            print("[BYGG-DEBUG] accounts_used.uppskr = <unavailable>")
+
+        print(f"[BYGG-DEBUG] bygg_ib current={bygg_ib} previous={bygg_ib_prev}")
+        print(f"[BYGG-DEBUG] bygg_ub current={bygg_ub} previous={bygg_ub_prev}")
+        print(f"[BYGG-DEBUG] ack_avskr_ib current={ack_avskr_bygg_ib} previous={ack_avskr_bygg_ib_prev}")
+        print(f"[BYGG-DEBUG] ack_avskr_ub current={ack_avskr_bygg_ub} previous={ack_avskr_bygg_ub_prev}")
+        print(f"[BYGG-DEBUG] ack_nedskr_ib current={ack_nedskr_bygg_ib} previous={ack_nedskr_bygg_ib_prev}")
+        print(f"[BYGG-DEBUG] ack_nedskr_ub current={ack_nedskr_bygg_ub} previous={ack_nedskr_bygg_ub_prev}")
+        print(f"[BYGG-DEBUG] uppskr_ib current={ack_uppskr_bygg_ib} previous={uppskr_bygg_ib_prev}")
+        print(f"[BYGG-DEBUG] uppskr_ub current={ack_uppskr_bygg_ub} previous={uppskr_bygg_ub_prev}")
+        print(f"[BYGG-DEBUG] red_varde current={red_varde_bygg} previous={red_varde_bygg_prev}")
+        print(f"[BYGG-DEBUG] inkop_prev={arets_inkop_bygg_prev}  fsg_prev={fsg_bygg_prev}")
+        print(f"[BYGG-DEBUG] aterfor_nedskr_prev={aterfor_nedskr_bygg_prev} arets_nedskr_prev={arets_nedskr_bygg_prev}")
+        print(f"[BYGG-DEBUG] arets_avskr_prev={arets_avskr_bygg_prev}")
+
     return {
         # IB/UB assets
         "bygg_ib": bygg_ib,
@@ -307,5 +435,21 @@ def parse_bygg_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
 
         # Derived book value
         "red_varde_bygg": red_varde_bygg,
+
+        # Previous year values (for preview display)
+        "bygg_ib_prev": bygg_ib_prev,
+        "bygg_ub_prev": bygg_ub_prev,
+        "ack_avskr_bygg_ib_prev": ack_avskr_bygg_ib_prev,
+        "ack_avskr_bygg_ub_prev": ack_avskr_bygg_ub_prev,
+        "ack_nedskr_bygg_ib_prev": ack_nedskr_bygg_ib_prev,
+        "ack_nedskr_bygg_ub_prev": ack_nedskr_bygg_ub_prev,
+        "uppskr_bygg_ib_prev": uppskr_bygg_ib_prev,
+        "uppskr_bygg_ub_prev": uppskr_bygg_ub_prev,
+        "red_varde_bygg_prev": red_varde_bygg_prev,
+        "fsg_bygg_prev": fsg_bygg_prev,
+        "arets_inkop_bygg_prev": arets_inkop_bygg_prev,
+        "aterfor_nedskr_bygg_prev": aterfor_nedskr_bygg_prev,
+        "arets_nedskr_bygg_prev": arets_nedskr_bygg_prev,
+        "arets_avskr_bygg_prev": arets_avskr_bygg_prev,
     }
 
