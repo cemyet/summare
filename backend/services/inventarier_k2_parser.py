@@ -384,3 +384,5 @@ def parse_inventarier_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
         "arets_inkop_inventarier_prev": arets_inkop_inventarier_prev,
         "fsg_inventarier_prev": fsg_inventarier_prev,
     }
+    
+    return result
