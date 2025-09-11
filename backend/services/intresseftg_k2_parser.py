@@ -347,6 +347,14 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
 
 
     # ---- UB from flows ----
+    intresseftg_ub = (intresseftg_ib + inkop_intresseftg + fusion_intresseftg + fsg_intresseftg + 
+                     aktieagartillskott_lamnad_intresseftg - aktieagartillskott_aterbetald_intresseftg + 
+                     resultatandel_intresseftg + omklass_intresseftg)
+    
+    ack_nedskr_intresseftg_ub = (ack_nedskr_intresseftg_ib + aterfor_nedskr_fsg_intresseftg + 
+                                aterfor_nedskr_fusion_intresseftg + aterfor_nedskr_intresseftg + 
+                                omklass_nedskr_intresseftg - arets_nedskr_intresseftg)
+
     red_varde_intresseftg = intresseftg_ub + ack_nedskr_intresseftg_ub
 
     # =========================
