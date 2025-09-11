@@ -217,41 +217,9 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
         RES_K = sum(-amt for a,amt in txs if a in RES_SHARE_SET and amt < 0) # |K 813x/8240|
         RES_D = sum(amt  for a,amt in txs if a in RES_SHARE_SET and amt > 0) # D 813x/8240
 
-        if debug and (A_D > 0 or A_K > 0 or C_D > 0 or C_K > 0 or RES_K > 0 or RES_D > 0 or IMP_D > 0 or IMP_K > 0):
-            pass
-
-        # Resultatandel (signed)
-        res_plus  = min(A_D, RES_K) if (A_D > 0 and RES_K > 0) else 0.0
-        res_minus = min(A_K, RES_D) if (A_K > 0 and RES_D > 0) else 0.0
-        resultatandel_intresseftg += (res_plus - res_minus)
-
-        if debug and (res_plus > 0 or res_minus > 0):
-            pass
-
-        # Inköp (remaining D asset after res_plus)
-        inc_amount = max(0.0, A_D - res_plus)
-        if inc_amount > 0:
-            if "fusion" in text:
-                fusion_intresseftg += inc_amount
-                if debug:
-                    pass
-            else:
-                inkop_intresseftg += inc_amount
-                if debug:
-                    pass
-
-
-        # AAT flows (separate from sales)
-        if C_D > 0:
-            aktieagartillskott_lamnad_intresseftg += C_D
-            if debug:
-                pass
-        if C_K > 0:
-            aktieagartillskott_aterbetald_intresseftg += C_K
-            if debug:
-                pass
-
-        # Om det är en bortbokning/konkurs → behandla alltid som försäljning
+        # ---------------------------------------------------------
+        # SPECIELL HANTERING AV BORTBOKNING / KONKURS
+        # ---------------------------------------------------------
         if is_bortbok:
             extra_sale = A_K + C_K
             if extra_sale > 0:
@@ -259,91 +227,54 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
                     aterfor_nedskr_fsg_intresseftg += IMP_D
                     IMP_D = 0.0
                 fsg_intresseftg -= extra_sale
-            continue
+            continue  # hoppa över standardlogiken för denna ver
+        # ---------------------------------------------------------
 
+        # Resultatandel (signed)
+        res_plus  = min(A_D, RES_K) if (A_D > 0 and RES_K > 0) else 0.0
+        res_minus = min(A_K, RES_D) if (A_K > 0 and RES_D > 0) else 0.0
+        resultatandel_intresseftg += (res_plus - res_minus)
 
-        # Försäljning av andelar – HB/KB two-step flow handling
-        rem_andel_K = max(0.0, A_K - res_minus)
-        if rem_andel_K > 0:
-            # Check for sale P&L accounts to distinguish real sales from cash settlements
-            has_sale_pnl = any(a in SALE_PNL_SET for a,_ in txs)
-            
-            # Analyze other accounts (not shares, contrib, impairment, or result share)
-            other_accts = {a for a,_ in txs if a not in ASSET_SET and a not in CONTRIB_SET and a not in ACC_IMP_SET and a not in RES_SHARE_SET}
-            only_banks  = len(other_accts) > 0 and all(_is_bank(a) for a in other_accts)
-            bank_debet  = sum(amt for a,amt in txs if amt > 0 and _is_bank(a))
-            
-            # Text analysis for transaction type
-            kw_sale       = any(k in text for k in ("försälj", "avyttr", "sale"))
-            kw_settlement = any(k in text for k in ("utbet", "utbetal", "kap andel", "resultatandel", "kb", "hb", "kommandit", "handelsbolag"))
-            
-            if has_sale_pnl:
-                # ✅ Real sale (requires 812x/8221 P&L account)
-                if IMP_D > 0:
-                    aterfor_nedskr_fsg_intresseftg += IMP_D
-                    IMP_D = 0.0
-                    if debug:
-                        pass
-                fsg_intresseftg -= rem_andel_K  # negative by convention
+        # Inköp (remaining D asset after res_plus)
+        inc_amount = max(0.0, A_D - res_plus)
+        if inc_amount > 0:
+            if "fusion" in text:
+                fusion_intresseftg += inc_amount
             else:
-                # No sale P&L – likely HB/KB cash settlement
-                is_payout_prior_share = (
-                    RES_D == 0 and RES_K == 0 and IMP_D == 0 and IMP_K == 0
-                    and only_banks and abs(bank_debet - rem_andel_K) < 0.5
-                    and (kw_settlement or not kw_sale)
-                )
-                
-                if is_payout_prior_share:
-                    # Book as negative result share (cash settlement of prior-year partnership share)
-                    resultatandel_intresseftg -= rem_andel_K
-                    if debug:
-                        pass
+                inkop_intresseftg += inc_amount
 
-                elif kw_sale:
-                    # Fallback: text explicitly indicates sale despite missing P&L
-                    fsg_intresseftg -= rem_andel_K
-                    if debug:
-                        pass
+        # Tillskott
+        if C_D > 0:
+            aktieagartillskott_lamnad_intresseftg += C_D
 
-                else:
-                    # Conservative default: treat as cash settlement
-                    resultatandel_intresseftg -= rem_andel_K
-                    if debug:
-                        pass
-
+        # Försäljning / återbetalt tillskott
+        sale_amount = (A_K - res_minus) + C_K
+        if sale_amount > 0:
+            if IMP_D > 0:
+                aterfor_nedskr_fsg_intresseftg += IMP_D
+                IMP_D = 0.0
+            fsg_intresseftg -= sale_amount
+        elif C_K > 0:
+            aktieagartillskott_aterbetald_intresseftg -= C_K
 
         # Nedskrivningar / återföringar (ej försäljning)
         if IMP_D > 0:
             if "fusion" in text:
                 aterfor_nedskr_fusion_intresseftg += IMP_D
-                if debug:
-                    pass
-
             else:
                 aterfor_nedskr_intresseftg += IMP_D
-                if debug:
-                    pass
-
         if IMP_K > 0:
             arets_nedskr_intresseftg += IMP_K
-            if debug:
-                pass
-
 
         # Omklass (assets) – enkel heuristik
         asset_signals = (RES_K > 0 or RES_D > 0 or IMP_D > 0 or IMP_K > 0 or C_D > 0 or C_K > 0)
         if A_D > 0 and A_K > 0 and not asset_signals:
             omklass_intresseftg += (A_D - A_K)
-            if debug:
-                pass
-
         # Omklass ack nedskr (sällsynt)
         if sum(amt for a,amt in txs if a in ACC_IMP_SET and amt > 0) > 0 and \
            sum(-amt for a,amt in txs if a in ACC_IMP_SET and amt < 0) > 0 and \
            not (A_D > 0 or A_K > 0 or RES_K > 0 or RES_D > 0 or C_D > 0 or C_K > 0):
             omklass_nedskr_intresseftg += (IMP_D - IMP_K)
-            if debug:
-                pass
 
 
     # ---- UB from flows ----
