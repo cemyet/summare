@@ -437,9 +437,7 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
     #
     # NOTE: This does NOT alter the function return; it only logs the computed values.
 
-    import re
-
-    def get_balance_prev(kind_flag: str, accounts) -> float:
+    def get_balance_prev(kind_flag: str, accounts, lines_data, to_float_func) -> float:
         """
         Sum #IB -1 or #UB -1 for the given account set.
         kind_flag ∈ {"IB", "UB"}.
@@ -450,22 +448,22 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
         total = 0.0
         # Example line: "#IB -1 1310 44050000.00" or "#UB -1 1310 44050000.00"
         bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
-        for raw in lines:
+        for raw in lines_data:
             s = raw.strip()
             m = bal_re_prev.match(s)
             if not m:
                 continue
             acct = int(m.group(1))
             if acct in acct_set:
-                amount = _to_float(m.group(2))
+                amount = to_float_func(m.group(2))
                 total += amount
         return total
 
     # --- Compute previous-year balances using the SAME account sets as for current year ---
-    koncern_ib_prev = get_balance_prev('IB', asset_all_set)
-    koncern_ub_prev = get_balance_prev('UB', asset_all_set)
-    ack_nedskr_koncern_ib_prev = get_balance_prev('IB', imp_set)
-    ack_nedskr_koncern_ub_prev = get_balance_prev('UB', imp_set)
+    koncern_ib_prev = get_balance_prev('IB', asset_all_set, lines, _to_float)
+    koncern_ub_prev = get_balance_prev('UB', asset_all_set, lines, _to_float)
+    ack_nedskr_koncern_ib_prev = get_balance_prev('IB', imp_set, lines, _to_float)
+    ack_nedskr_koncern_ub_prev = get_balance_prev('UB', imp_set, lines, _to_float)
 
     # Redovisat värde (prev): UB assets + UB accumulated impairments (impairments are negative)
     red_varde_koncern_prev = (koncern_ub_prev or 0.0) + (ack_nedskr_koncern_ub_prev or 0.0)
