@@ -239,8 +239,9 @@ def parse_fordringar_koncern_k2_from_sie_text(sie_text: str, debug: bool = False
         if imp_d_orig > 0 and imp_k_orig > 0 and R_D == 0 and R_K == 0:
             omklass_nedskr_fordr_koncern += (imp_d_orig - imp_k_orig)
 
-    # Calculate UB/Book value (prefer factual UB from SIE)
-    fordr_koncern_ub = fordr_koncern_ub_actual
+    # Calculate UB/Book value from flows
+    fordr_koncern_ub = (fordr_koncern_ib + arets_inkop_fordr_koncern - arets_fsg_fordr_koncern + 
+                       arets_reglerade_fordr_koncern + fusion_fordr_koncern + omklass_fordr_koncern)
     ack_nedskr_fordr_koncern_ub = (
         ack_nedskr_fordr_koncern_ib
         - arets_nedskr_fordr_koncern
@@ -250,10 +251,6 @@ def parse_fordringar_koncern_k2_from_sie_text(sie_text: str, debug: bool = False
         + aterfor_nedskr_fordr_koncern
         + omklass_nedskr_fordr_koncern
     )
-    
-    # If SIE has UB on 1328, prefer factual UB value
-    if ack_nedskr_fordr_koncern_ub_act or ack_nedskr_fordr_koncern_ub_act == 0.0:
-        ack_nedskr_fordr_koncern_ub = ack_nedskr_fordr_koncern_ub_act
 
     red_varde_fordr_koncern = fordr_koncern_ub + ack_nedskr_fordr_koncern_ub
 

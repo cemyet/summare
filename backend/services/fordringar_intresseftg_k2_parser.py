@@ -245,8 +245,9 @@ def parse_fordringar_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = F
         if imp_d_orig > 0 and imp_k_orig > 0 and R_D == 0 and R_K == 0:
             omklass_nedskr_fordr_intresse += (imp_d_orig - imp_k_orig)
 
-    # Calculate UB/Book value (prefer factual UB from SIE)
-    fordr_intresse_ub = fordr_intresse_ub_actual
+    # Calculate UB/Book value from flows
+    fordr_intresse_ub = (fordr_intresse_ib + arets_inkop_fordr_intresse - arets_fsg_fordr_intresse + 
+                        arets_reglerade_fordr_intresse + fusion_fordr_intresse + omklass_fordr_intresse)
     ack_nedskr_fordr_intresse_ub = (
         ack_nedskr_fordr_intresse_ib
         - arets_nedskr_fordr_intresse
@@ -256,10 +257,6 @@ def parse_fordringar_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = F
         + aterfor_nedskr_fordr_intresse
         + omklass_nedskr_fordr_intresse
     )
-    
-    # If SIE has UB on impairment accounts, prefer factual UB value
-    if ack_nedskr_fordr_intresse_ub_act or ack_nedskr_fordr_intresse_ub_act == 0.0:
-        ack_nedskr_fordr_intresse_ub = ack_nedskr_fordr_intresse_ub_act
 
     red_varde_fordr_intresse = fordr_intresse_ub + ack_nedskr_fordr_intresse_ub
 

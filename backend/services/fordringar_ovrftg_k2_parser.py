@@ -233,9 +233,13 @@ def parse_fordringar_ovrftg_k2_from_sie_text(sie_text: str, debug: bool = False)
         if imp_d_orig > 0 and imp_k_orig > 0 and R_D == 0 and R_K == 0:
             omklass_nedskr_fordr_ovrigaftg += (imp_d_orig - imp_k_orig)
 
-    # Calculate UB/Book value (prefer factual UB from SIE)
-    fordr_ovrigaftg_ub = fordr_ovrigaftg_ub_actual
-    ack_nedskr_fordr_ovrigaftg_ub = ack_nedskr_fordr_ovrigaftg_ub_act  # prefer factual UB on 1347
+    # Calculate UB/Book value from flows
+    fordr_ovrigaftg_ub = (fordr_ovrigaftg_ib + arets_inkop_fordr_ovrigaftg - arets_fsg_fordr_ovrigaftg + 
+                         arets_reglerade_fordr_ovrigaftg + fusion_fordr_ovrigaftg + omklass_fordr_ovrigaftg)
+    ack_nedskr_fordr_ovrigaftg_ub = (ack_nedskr_fordr_ovrigaftg_ib - arets_nedskr_fordr_ovrigaftg + 
+                                    aterfor_nedskr_reglerade_fordr_ovrigaftg + aterfor_nedskr_fusion_fordr_ovrigaftg + 
+                                    aterfor_nedskr_bortskrivna_fordr_ovrigaftg + aterfor_nedskr_fordr_ovrigaftg + 
+                                    omklass_nedskr_fordr_ovrigaftg)
 
     red_varde_fordr_ovrigaftg = fordr_ovrigaftg_ub + ack_nedskr_fordr_ovrigaftg_ub
 
