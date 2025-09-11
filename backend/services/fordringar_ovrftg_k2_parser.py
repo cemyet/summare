@@ -239,10 +239,89 @@ def parse_fordringar_ovrftg_k2_from_sie_text(sie_text: str, debug: bool = False)
 
     red_varde_fordr_ovrigaftg = fordr_ovrigaftg_ub + ack_nedskr_fordr_ovrigaftg_ub
 
+    # =========================
+    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # =========================
+
+    def _get_balance_prev(lines, kind_flag: str, accounts: set[int] | None) -> float:
+        if not accounts:
+            return 0.0
+        total = 0.0
+        rx = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+        for raw in lines:
+            s = raw.strip()
+            m = rx.match(s)
+            if not m:
+                continue
+            acct = int(m.group(1))
+            if acct in accounts:
+                total += _to_float(m.group(2))
+        return total
+
+    ASSET_SET_SAFE     = ASSET_SET if 'ASSET_SET' in locals() else None
+    ACC_IMP_SET_SAFE   = IMP_SET if 'IMP_SET' in locals() else None
+    ACC_AVSKR_SET_SAFE = locals().get("ACC_AVSKR_SET")
+    UPP_SET_SAFE       = locals().get("UPP_SET")
+
+    fordr_ovrftg_ib_prev  = _get_balance_prev(lines, 'IB', ASSET_SET_SAFE)
+    fordr_ovrftg_ub_prev  = _get_balance_prev(lines, 'UB', ASSET_SET_SAFE)
+
+    ack_nedskr_fordr_ovrftg_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_SET_SAFE)
+    ack_nedskr_fordr_ovrftg_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_SET_SAFE)
+
+    # optional
+    ack_avskr_fordr_ovrftg_ib_prev = _get_balance_prev(lines, 'IB', ACC_AVSKR_SET_SAFE)
+    ack_avskr_fordr_ovrftg_ub_prev = _get_balance_prev(lines, 'UB', ACC_AVSKR_SET_SAFE)
+    uppskr_fordr_ovrftg_ib_prev    = _get_balance_prev(lines, 'IB', UPP_SET_SAFE)
+    uppskr_fordr_ovrftg_ub_prev    = _get_balance_prev(lines, 'UB', UPP_SET_SAFE)
+
+    red_varde_fordr_ovrftg_prev = (
+        (fordr_ovrftg_ub_prev or 0.0)
+        + (uppskr_fordr_ovrftg_ub_prev or 0.0)
+        + (ack_nedskr_fordr_ovrftg_ub_prev or 0.0)
+        + (ack_avskr_fordr_ovrftg_ub_prev or 0.0)
+    )
+
+    # Movements
+    delta_prev = (fordr_ovrftg_ub_prev or 0.0) - (fordr_ovrftg_ib_prev or 0.0)
+    fsg_fordr_ovrftg_prev         = 0.0
+    arets_inkop_fordr_ovrftg_prev = 0.0
+    if fordr_ovrftg_ub_prev < fordr_ovrftg_ib_prev:
+        fsg_fordr_ovrftg_prev = delta_prev
+    elif fordr_ovrftg_ub_prev > fordr_ovrftg_ib_prev:
+        arets_inkop_fordr_ovrftg_prev = delta_prev
+
+    abs_imp_ib = abs(ack_nedskr_fordr_ovrftg_ib_prev or 0.0)
+    abs_imp_ub = abs(ack_nedskr_fordr_ovrftg_ub_prev or 0.0)
+
+    aterfor_nedskr_fordr_ovrftg_prev = 0.0
+    arets_nedskr_fordr_ovrftg_prev   = 0.0
+    if abs_imp_ib > abs_imp_ub:
+        aterfor_nedskr_fordr_ovrftg_prev = abs_imp_ib - abs_imp_ub
+    elif abs_imp_ib < abs_imp_ub:
+        arets_nedskr_fordr_ovrftg_prev = abs_imp_ib - abs_imp_ub
+
+    # Debug
+    if debug:
+        try:   print(f"[FORDR-OVRFTG-DEBUG] asset_set = {sorted(list(ASSET_SET_SAFE))}")
+        except: print("[FORDR-OVRFTG-DEBUG] asset_set = <unavailable>")
+        try:   print(f"[FORDR-OVRFTG-DEBUG] acc_imp_set = {sorted(list(ACC_IMP_SET_SAFE))}")
+        except: print("[FORDR-OVRFTG-DEBUG] acc_imp_set = <unavailable>")
+        try:   print(f"[FORDR-OVRFTG-DEBUG] acc_avskr_set = {sorted(list(ACC_AVSKR_SET_SAFE))}")
+        except: print("[FORDR-OVRFTG-DEBUG] acc_avskr_set = <unavailable>")
+        try:   print(f"[FORDR-OVRFTG-DEBUG] uppskr_set = {sorted(list(UPP_SET_SAFE))}")
+        except: print("[FORDR-OVRFTG-DEBUG] uppskr_set = <unavailable>")
+
+        print(f"[FORDR-OVRFTG-DEBUG] IB prev={fordr_ovrftg_ib_prev}  UB prev={fordr_ovrftg_ub_prev}")
+        print(f"[FORDR-OVRFTG-DEBUG] ack_nedskr IB prev={ack_nedskr_fordr_ovrftg_ib_prev}  UB prev={ack_nedskr_fordr_ovrftg_ub_prev}")
+        print(f"[FORDR-OVRFTG-DEBUG] red_varde prev={red_varde_fordr_ovrftg_prev}")
+        print(f"[FORDR-OVRFTG-DEBUG] delta prev={delta_prev}  inkop_prev={arets_inkop_fordr_ovrftg_prev}  fsg_prev={fsg_fordr_ovrftg_prev}")
+        print(f"[FORDR-OVRFTG-DEBUG] aterfor_nedskr_prev={aterfor_nedskr_fordr_ovrftg_prev}  arets_nedskr_prev={arets_nedskr_fordr_ovrftg_prev}")
+
     if debug:
         pass
 
-    return {
+    result = {
         # Cost roll-forward
         "fordr_ovrigaftg_ib": fordr_ovrigaftg_ib,
         "nya_fordr_ovrigaftg": nya_fordr_ovrigaftg,
@@ -264,4 +343,21 @@ def parse_fordringar_ovrftg_k2_from_sie_text(sie_text: str, debug: bool = False)
 
         # Book value
         "red_varde_fordr_ovrigaftg": red_varde_fordr_ovrigaftg,
+
+        # Previous year values (for preview display)
+        "fordr_ovrftg_ib_prev": fordr_ovrftg_ib_prev,
+        "fordr_ovrftg_ub_prev": fordr_ovrftg_ub_prev,
+        "ack_nedskr_fordr_ovrftg_ib_prev": ack_nedskr_fordr_ovrftg_ib_prev,
+        "ack_nedskr_fordr_ovrftg_ub_prev": ack_nedskr_fordr_ovrftg_ub_prev,
+        "ack_avskr_fordr_ovrftg_ib_prev": ack_avskr_fordr_ovrftg_ib_prev,
+        "ack_avskr_fordr_ovrftg_ub_prev": ack_avskr_fordr_ovrftg_ub_prev,
+        "uppskr_fordr_ovrftg_ib_prev": uppskr_fordr_ovrftg_ib_prev,
+        "uppskr_fordr_ovrftg_ub_prev": uppskr_fordr_ovrftg_ub_prev,
+        "red_varde_fordr_ovrftg_prev": red_varde_fordr_ovrftg_prev,
+        "arets_inkop_fordr_ovrftg_prev": arets_inkop_fordr_ovrftg_prev,
+        "fsg_fordr_ovrftg_prev": fsg_fordr_ovrftg_prev,
+        "aterfor_nedskr_fordr_ovrftg_prev": aterfor_nedskr_fordr_ovrftg_prev,
+        "arets_nedskr_fordr_ovrftg_prev": arets_nedskr_fordr_ovrftg_prev,
     }
+    
+    return result

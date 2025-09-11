@@ -257,10 +257,99 @@ def parse_fordringar_koncern_k2_from_sie_text(sie_text: str, debug: bool = False
 
     red_varde_fordr_koncern = fordr_koncern_ub + ack_nedskr_fordr_koncern_ub
 
+    # =========================
+    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # =========================
+    # Reuse the exact sets discovered for current year:
+    #   - ASSET_SET        : receivable principal accounts (e.g., 1681/1671/… as applicable)
+    #   - IMP_SET          : accumulated impairment accounts (e.g., 1515/1390/… if used)
+    #   - ACC_AVSKR_SET    : (usually none for receivables) safe if missing
+    #   - UPP_SET          : (rare for receivables) safe if missing
+
+    def _get_balance_prev(lines, kind_flag: str, accounts: set[int] | None) -> float:
+        if not accounts:
+            return 0.0
+        total = 0.0
+        rx = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+        for raw in lines:
+            s = raw.strip()
+            m = rx.match(s)
+            if not m:
+                continue
+            acct = int(m.group(1))
+            if acct in accounts:
+                total += _to_float(m.group(2))
+        return total
+
+    ASSET_SET_SAFE     = ASSET_SET if 'ASSET_SET' in locals() else None
+    ACC_IMP_SET_SAFE   = IMP_SET if 'IMP_SET' in locals() else None
+    ACC_AVSKR_SET_SAFE = locals().get("ACC_AVSKR_SET")
+    UPP_SET_SAFE       = locals().get("UPP_SET")
+
+    # --- Previous-year balances using SAME sets as current year ---
+    fordr_koncern_ib_prev  = _get_balance_prev(lines, 'IB', ASSET_SET_SAFE)
+    fordr_koncern_ub_prev  = _get_balance_prev(lines, 'UB', ASSET_SET_SAFE)
+
+    ack_nedskr_fordr_koncern_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_SET_SAFE)
+    ack_nedskr_fordr_koncern_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_SET_SAFE)
+
+    # Optional (normally 0 for receivables)
+    ack_avskr_fordr_koncern_ib_prev = _get_balance_prev(lines, 'IB', ACC_AVSKR_SET_SAFE)
+    ack_avskr_fordr_koncern_ub_prev = _get_balance_prev(lines, 'UB', ACC_AVSKR_SET_SAFE)
+    uppskr_fordr_koncern_ib_prev    = _get_balance_prev(lines, 'IB', UPP_SET_SAFE)
+    uppskr_fordr_koncern_ub_prev    = _get_balance_prev(lines, 'UB', UPP_SET_SAFE)
+
+    # Book value (prev): UB principal + UB reval + UB acc. impairments + UB acc. depreciation
+    red_varde_fordr_koncern_prev = (
+        (fordr_koncern_ub_prev or 0.0)
+        + (uppskr_fordr_koncern_ub_prev or 0.0)
+        + (ack_nedskr_fordr_koncern_ub_prev or 0.0)
+        + (ack_avskr_fordr_koncern_ub_prev or 0.0)
+    )
+
+    # =========================
+    # PREVIOUS YEAR MOVEMENTS (SIGN RULES)
+    # =========================
+    delta_prev = (fordr_koncern_ub_prev or 0.0) - (fordr_koncern_ib_prev or 0.0)
+    fsg_fordr_koncern_prev         = 0.0   # negative when UB < IB
+    arets_inkop_fordr_koncern_prev = 0.0   # positive when UB > IB
+
+    if fordr_koncern_ub_prev < fordr_koncern_ib_prev:
+        fsg_fordr_koncern_prev = delta_prev
+    elif fordr_koncern_ub_prev > fordr_koncern_ib_prev:
+        arets_inkop_fordr_koncern_prev = delta_prev
+
+    abs_imp_ib = abs(ack_nedskr_fordr_koncern_ib_prev or 0.0)
+    abs_imp_ub = abs(ack_nedskr_fordr_koncern_ub_prev or 0.0)
+
+    aterfor_nedskr_fordr_koncern_prev = 0.0
+    arets_nedskr_fordr_koncern_prev   = 0.0
+    if abs_imp_ib > abs_imp_ub:
+        aterfor_nedskr_fordr_koncern_prev = abs_imp_ib - abs_imp_ub     # positive
+    elif abs_imp_ib < abs_imp_ub:
+        arets_nedskr_fordr_koncern_prev = abs_imp_ib - abs_imp_ub       # negative
+
+    # --- Backend debug ---
+    if debug:
+        try:   print(f"[FORDR-KONC-DEBUG] asset_set = {sorted(list(ASSET_SET_SAFE))}")
+        except: print("[FORDR-KONC-DEBUG] asset_set = <unavailable>")
+        try:   print(f"[FORDR-KONC-DEBUG] acc_imp_set = {sorted(list(ACC_IMP_SET_SAFE))}")
+        except: print("[FORDR-KONC-DEBUG] acc_imp_set = <unavailable>")
+        try:   print(f"[FORDR-KONC-DEBUG] acc_avskr_set = {sorted(list(ACC_AVSKR_SET_SAFE))}")
+        except: print("[FORDR-KONC-DEBUG] acc_avskr_set = <unavailable>")
+        try:   print(f"[FORDR-KONC-DEBUG] uppskr_set = {sorted(list(UPP_SET_SAFE))}")
+        except: print("[FORDR-KONC-DEBUG] uppskr_set = <unavailable>")
+
+        print(f"[FORDR-KONC-DEBUG] IB prev={fordr_koncern_ib_prev}  UB prev={fordr_koncern_ub_prev}")
+        print(f"[FORDR-KONC-DEBUG] ack_nedskr IB prev={ack_nedskr_fordr_koncern_ib_prev}  UB prev={ack_nedskr_fordr_koncern_ub_prev}")
+        print(f"[FORDR-KONC-DEBUG] red_varde prev={red_varde_fordr_koncern_prev}")
+        print(f"[FORDR-KONC-DEBUG] delta prev={delta_prev}  inkop_prev={arets_inkop_fordr_koncern_prev}  fsg_prev={fsg_fordr_koncern_prev}")
+        print(f"[FORDR-KONC-DEBUG] aterfor_nedskr_prev={aterfor_nedskr_fordr_koncern_prev}  arets_nedskr_prev={arets_nedskr_fordr_koncern_prev}")
+
     if debug:
         pass
 
-    return {
+    result = {
         # Cost roll-forward
         "fordr_koncern_ib": fordr_koncern_ib,
         "nya_fordr_koncern": nya_fordr_koncern,
@@ -282,4 +371,21 @@ def parse_fordringar_koncern_k2_from_sie_text(sie_text: str, debug: bool = False
 
         # Book value
         "red_varde_fordr_koncern": red_varde_fordr_koncern,
+
+        # Previous year values (for preview display)
+        "fordr_koncern_ib_prev": fordr_koncern_ib_prev,
+        "fordr_koncern_ub_prev": fordr_koncern_ub_prev,
+        "ack_nedskr_fordr_koncern_ib_prev": ack_nedskr_fordr_koncern_ib_prev,
+        "ack_nedskr_fordr_koncern_ub_prev": ack_nedskr_fordr_koncern_ub_prev,
+        "ack_avskr_fordr_koncern_ib_prev": ack_avskr_fordr_koncern_ib_prev,
+        "ack_avskr_fordr_koncern_ub_prev": ack_avskr_fordr_koncern_ub_prev,
+        "uppskr_fordr_koncern_ib_prev": uppskr_fordr_koncern_ib_prev,
+        "uppskr_fordr_koncern_ub_prev": uppskr_fordr_koncern_ub_prev,
+        "red_varde_fordr_koncern_prev": red_varde_fordr_koncern_prev,
+        "arets_inkop_fordr_koncern_prev": arets_inkop_fordr_koncern_prev,
+        "fsg_fordr_koncern_prev": fsg_fordr_koncern_prev,
+        "aterfor_nedskr_fordr_koncern_prev": aterfor_nedskr_fordr_koncern_prev,
+        "arets_nedskr_fordr_koncern_prev": arets_nedskr_fordr_koncern_prev,
     }
+    
+    return result
