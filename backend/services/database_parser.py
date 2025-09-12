@@ -749,6 +749,7 @@ class DatabaseParser:
         # 2) Parse KONCERN note and reconcile
         try:
             from .koncern_k2_parser import parse_koncern_k2_from_sie_text
+            print(f"[DATABASE-DEBUG] Calling koncern parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
             koncern_note = parse_koncern_k2_from_sie_text(
                 se_content, 
                 debug=False, 
@@ -2307,7 +2308,7 @@ class DatabaseParser:
             pass
         return f'Konto {key_str}'
     
-    def parse_noter_data(self, se_content: str, user_toggles: Dict[str, bool] = None) -> List[Dict[str, Any]]:
+    def parse_noter_data(self, se_content: str, user_toggles: Dict[str, bool] = None, two_files_flag: bool = False, previous_year_se_content: str = None) -> List[Dict[str, Any]]:
         """
         Parse Noter (Notes) data using database mappings.
         Returns structure with current_amount and previous_amount for both fiscal year and previous year.
@@ -2323,7 +2324,13 @@ class DatabaseParser:
         
         # Get precise KONCERN calculations from transaction analysis
         from .koncern_k2_parser import parse_koncern_k2_from_sie_text
-        koncern_k2_data = parse_koncern_k2_from_sie_text(se_content, debug=False)
+        print(f"[NOTER-DEBUG] Calling koncern parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
+        koncern_k2_data = parse_koncern_k2_from_sie_text(
+            se_content, 
+            debug=False, 
+            two_files_flag=two_files_flag, 
+            previous_year_sie_text=previous_year_se_content
+        )
         
         # Get precise INTRESSEFTG calculations from transaction analysis
         from .intresseftg_k2_parser import parse_intresseftg_k2_from_sie_text

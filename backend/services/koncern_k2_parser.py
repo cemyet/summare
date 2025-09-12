@@ -427,6 +427,11 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False, two_files
     # PREVIOUS YEAR FORK: TWO FILES vs FALLBACK
     # =========================
     
+    # Debug: Log the fork decision
+    print(f"[KONCERN-DEBUG] Fork decision: two_files_flag={two_files_flag}, has_previous_text={previous_year_sie_text is not None}")
+    if previous_year_sie_text:
+        print(f"[KONCERN-DEBUG] Previous year text length: {len(previous_year_sie_text)} characters")
+    
     if two_files_flag and previous_year_sie_text:
         # ========================================
         # TWO FILES MODE: Run full parser on previous year SE file

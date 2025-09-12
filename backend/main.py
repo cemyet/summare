@@ -127,7 +127,7 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         # Parse Noter data (notes) - pass SE content and user toggles if needed
         try:
-            noter_data = parser.parse_noter_data(se_content)
+            noter_data = parser.parse_noter_data(se_content, two_files_flag=False, previous_year_se_content=None)
 
         except Exception as e:
 
@@ -296,7 +296,11 @@ async def upload_two_se_files(
         
         # Parse Noter data (notes) - pass SE content and user toggles if needed
         try:
-            noter_data = parser.parse_noter_data(current_se_content)
+            noter_data = parser.parse_noter_data(
+                current_se_content, 
+                two_files_flag=True, 
+                previous_year_se_content=previous_se_content
+            )
         except Exception as e:
             noter_data = []
         
