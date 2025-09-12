@@ -274,24 +274,27 @@ def parse_ovriga_k2_from_sie_text(sie_text: str, debug: bool = False, two_files_
         
         # Extract ALL previous year values from the full parser result
         # Asset movements and balances
-        ovrmat_ib_prev = prev_year_result.get('ovriga_ib', 0.0)
-        ovrmat_ub_prev = prev_year_result.get('ovriga_ub', 0.0)
+        ovrmat_ib_prev = prev_year_result.get('ovrmat_ib', 0.0)
+        ovrmat_ub_prev = prev_year_result.get('ovrmat_ub', 0.0)
         red_varde_ovrmat_prev = prev_year_result.get('red_varde_ovrmat', 0.0)
         
         # ALL asset movements from full parser
-        arets_inkop_ovrmat_prev = prev_year_result.get('arets_inkop_ovriga', 0.0)
-        fsg_ovrmat_prev = prev_year_result.get('arets_fsg_ovriga', 0.0)
+        arets_inkop_ovrmat_prev = prev_year_result.get('arets_inkop_ovrmat', 0.0)
+        fsg_ovrmat_prev = prev_year_result.get('arets_fsg_ovrmat', 0.0)
+        arets_omklass_ovrmat_prev = prev_year_result.get('arets_omklass_ovrmat', 0.0)
         
         # ALL depreciation movements from full parser
-        ack_avskr_ovrmat_ib_prev = prev_year_result.get('ack_avskr_ovriga_ib', 0.0)
-        ack_avskr_ovrmat_ub_prev = prev_year_result.get('ack_avskr_ovriga_ub', 0.0)
-        arets_avskr_ovrmat_prev = prev_year_result.get('arets_avskr_ovriga', 0.0)
+        ack_avskr_ovrmat_ib_prev = prev_year_result.get('ack_avskr_ovrmat_ib', 0.0)
+        ack_avskr_ovrmat_ub_prev = prev_year_result.get('ack_avskr_ovrmat_ub', 0.0)
+        arets_avskr_ovrmat_prev = prev_year_result.get('arets_avskr_ovrmat', 0.0)
+        aterfor_avskr_fsg_ovrmat_prev = prev_year_result.get('aterfor_avskr_fsg_ovrmat', 0.0)
         
         # ALL impairment movements from full parser
-        ack_nedskr_ovrmat_ib_prev = prev_year_result.get('ack_nedskr_ovriga_ib', 0.0)
-        ack_nedskr_ovrmat_ub_prev = prev_year_result.get('ack_nedskr_ovriga_ub', 0.0)
-        arets_nedskr_ovrmat_prev = prev_year_result.get('arets_nedskr_ovriga', 0.0)
-        aterfor_nedskr_ovrmat_prev = prev_year_result.get('aterfor_nedskr_ovriga', 0.0)
+        ack_nedskr_ovrmat_ib_prev = prev_year_result.get('ack_nedskr_ovrmat_ib', 0.0)
+        ack_nedskr_ovrmat_ub_prev = prev_year_result.get('ack_nedskr_ovrmat_ub', 0.0)
+        arets_nedskr_ovrmat_prev = prev_year_result.get('arets_nedskr_ovrmat', 0.0)
+        aterfor_nedskr_ovrmat_prev = prev_year_result.get('aterfor_nedskr_ovrmat', 0.0)
+        aterfor_nedskr_fsg_ovrmat_prev = prev_year_result.get('aterfor_nedskr_fsg_ovrmat', 0.0)
         
         # ALL revaluation movements (not applicable for ovriga but included for consistency)
         uppskr_ovrmat_ib_prev = 0.0
