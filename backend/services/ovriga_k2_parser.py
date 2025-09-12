@@ -430,6 +430,23 @@ def parse_ovriga_k2_from_sie_text(sie_text: str, debug: bool = False, two_files_
         "arets_omklass_ovriga": arets_omklass_ovriga,
         "ovriga_ub": ovriga_ub,
 
+        # Aliases expected by table config (OVRMAT)
+        "ovrmat_ib": ovriga_ib,
+        "arets_inkop_ovrmat": arets_inkop_ovriga,
+        "arets_fsg_ovrmat": arets_fsg_ovriga,
+        "arets_omklass_ovrmat": arets_omklass_ovriga,
+        "ovrmat_ub": ovriga_ub,
+
+        "ack_avskr_ovrmat_ib": ack_avskr_ovriga_ib,
+        "arets_avskr_ovrmat": arets_avskr_ovriga,
+        "ack_avskr_ovrmat_ub": ack_avskr_ovriga_ub,
+
+        "ack_nedskr_ovrmat_ib": ack_nedskr_ovriga_ib,
+        "arets_nedskr_ovrmat": arets_nedskr_ovriga,
+        "ack_nedskr_ovrmat_ub": ack_nedskr_ovriga_ub,
+        "aterfor_nedskr_ovrmat": aterfor_nedskr_ovriga,
+        "aterfor_nedskr_fsg_ovrmat": aterfor_nedskr_fsg_ovriga,
+
         # Depreciations
         "ack_avskr_ovriga_ib": ack_avskr_ovriga_ib,
         "aterfor_avskr_fsg_ovriga": aterfor_avskr_fsg_ovriga,
