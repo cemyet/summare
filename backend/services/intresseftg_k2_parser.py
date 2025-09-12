@@ -95,8 +95,9 @@ def _get_balance(lines, kind_flag: str, accounts: set[int]) -> float:
 
 def _parse_vouchers(lines):
     ver_header_re = re.compile(r'^#VER\s+(\S+)\s+(\d+)\s+(\d{8})(?:\s+(?:"([^"]*)"|.+))?\s*$')
+    # Accept only normal + supplementary transactions; ignore removed items
     trans_re = re.compile(
-        r'^#(?:BTRANS|RTRANS|TRANS)\s+'
+        r'^#(?:TRANS|RTRANS)\s+'          # <-- no BTRANS here
         r'(\d{3,4})'
         r'(?:\s+\{.*?\})?'
         r'\s+(-?(?:\d{1,3}(?:[ \u00A0]?\d{3})*|\d+)(?:[.,]\d+)?)'
@@ -116,6 +117,9 @@ def _parse_vouchers(lines):
             continue
         if t == "{": in_block = True;  continue
         if t == "}": in_block = False; cur = None; continue
+        # Ignore removed items explicitly (defensive)
+        if t.startswith('#BTRANS'):
+            continue
         if in_block and cur:
             mt = trans_re.match(t)
             if mt:

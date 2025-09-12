@@ -97,7 +97,7 @@ def parse_ovriga_k2_from_sie_text(sie_text: str, debug: bool = False, two_files_
         r'^#VER\s+(\S+)\s+(\d+)\s+(\d{8})(?:\s+(?:"[^"]*"|.+))?\s*$'
     )
     trans_re = re.compile(
-        r'^#(?:BTRANS|RTRANS|TRANS)\s+'
+        r'^#(?:TRANS|RTRANS)\s+'          # <-- no BTRANS here
         r'(\d{3,4})'                            
         r'(?:\s+\{.*?\})?'                      
         r'\s+(-?(?:\d{1,3}(?:[ \u00A0]?\d{3})*|\d+)(?:[.,]\d+)?)'  # amount only
@@ -122,6 +122,9 @@ def parse_ovriga_k2_from_sie_text(sie_text: str, debug: bool = False, two_files_
         if t == "}":
             in_block = False
             current_ver = None
+            continue
+        # Ignore removed items explicitly (defensive)
+        if t.startswith('#BTRANS'):
             continue
         if in_block and current_ver:
             mt = trans_re.match(t)
