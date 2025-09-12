@@ -61,6 +61,23 @@ class ApiService {
     return await response.json();
   }
 
+  async uploadTwoSeFiles(currentYearFile: File, previousYearFile: File): Promise<UploadResponse> {
+    const formData = new FormData();
+    formData.append('current_year_file', currentYearFile);
+    formData.append('previous_year_file', previousYearFile);
+
+    const response = await fetch(API_ENDPOINTS.uploadTwoSeFiles, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Upload failed: ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
   async testParser(file: File): Promise<TestParserResponse> {
     const formData = new FormData();
     formData.append('file', file);

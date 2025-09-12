@@ -739,7 +739,9 @@ class DatabaseParser:
                                    se_content: str,
                                    current_accounts: Dict[str, float],
                                    previous_accounts: Dict[str, float] = None,
-                                   rr_data: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+                                   rr_data: List[Dict[str, Any]] = None,
+                                   two_files_flag: bool = False,
+                                   previous_year_se_content: str = None) -> List[Dict[str, Any]]:
         """Regular BR parsing + KONCERN-note reconciliation for Andelar/fordringar."""
         # 1) Normal BR (with 168x reclass)
         br_rows = self.parse_br_data(current_accounts, previous_accounts, rr_data=rr_data, sie_text=se_content)
@@ -747,7 +749,12 @@ class DatabaseParser:
         # 2) Parse KONCERN note and reconcile
         try:
             from .koncern_k2_parser import parse_koncern_k2_from_sie_text
-            koncern_note = parse_koncern_k2_from_sie_text(se_content, debug=False)
+            koncern_note = parse_koncern_k2_from_sie_text(
+                se_content, 
+                debug=False, 
+                two_files_flag=two_files_flag, 
+                previous_year_sie_text=previous_year_se_content
+            )
         except Exception as e:
             print(f"KONCERN note parse failed: {e}")
             return br_rows

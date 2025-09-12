@@ -1266,7 +1266,7 @@ interface ChatFlowResponse {
             <div className="text-center text-gray-600 mb-4">
               Ladda upp din SE-fil här:
             </div>
-            <FileUpload onFileProcessed={handleFileProcessed} />
+            <FileUpload onFileProcessed={handleFileProcessed} allowTwoFiles={true} />
           </div>
         ) : showInput ? (
           <div className="flex gap-2">

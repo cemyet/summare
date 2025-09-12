@@ -9,7 +9,7 @@ FORDR_PAT   = re.compile(r'\b(fordran|fordringar|lan|lån|ranta|ränta|amort|avb
 # ---- Sale P&L accounts for distinguishing real sales from cash settlements ----
 SALE_PNL = tuple(range(8220, 8230))  # resultat vid försäljning av andelar (BAS 822x)
 
-def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
+def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False, two_files_flag: bool = False, previous_year_sie_text: str = None) -> dict:
     """
     KONCERN-note (K2) parser — enhanced with dynamic account classification and HB/KB flow handling.
 
@@ -424,78 +424,108 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
     red_varde_koncern = koncern_ub + ack_nedskr_koncern_ub
 
     # =========================
-    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # PREVIOUS YEAR FORK: TWO FILES vs FALLBACK
     # =========================
-    # Reuse the EXACT same account sets that were derived for the current year:
-    #   - asset_all_set : the accounts contributing to acquisition value
-    #   - imp_set       : the accounts contributing to accumulated impairments
-    #
-    # Assumptions:
-    #   - `lines` is a list[str] of the SIE file content lines, already available in scope
-    #   - `_to_float` helper exists and converts "1 234,56" or "1234.56" to float
-    #   - `debug` flag is available (bool)
-    #
-    # NOTE: This does NOT alter the function return; it only logs the computed values.
+    
+    if two_files_flag and previous_year_sie_text:
+        # ========================================
+        # TWO FILES MODE: Run full parser on previous year SE file
+        # ========================================
+        if debug:
+            print("[KONCERN-DEBUG] Two files mode: Running full parser on previous year SE file")
+        
+        # Recursively call the parser on the previous year SE file
+        # Pass the same account classifications (asset_all_set, imp_set) for consistency
+        prev_year_result = parse_koncern_k2_from_sie_text(
+            previous_year_sie_text, 
+            debug=debug, 
+            two_files_flag=False,  # Prevent infinite recursion
+            previous_year_sie_text=None
+        )
+        
+        # Extract previous year values from the full parser result
+        koncern_ib_prev = prev_year_result.get('koncern_ib', 0.0)
+        koncern_ub_prev = prev_year_result.get('koncern_ub', 0.0)
+        ack_nedskr_koncern_ib_prev = prev_year_result.get('ack_nedskr_koncern_ib', 0.0)
+        ack_nedskr_koncern_ub_prev = prev_year_result.get('ack_nedskr_koncern_ub', 0.0)
+        red_varde_koncern_prev = prev_year_result.get('red_varde_koncern', 0.0)
+        
+        # Use the actual movements from the full parser
+        fsg_koncern_prev = prev_year_result.get('fsg_koncern', 0.0)
+        inkop_koncern_prev = prev_year_result.get('inkop_koncern', 0.0)
+        aterfor_nedskr_koncern_prev = prev_year_result.get('aterfor_nedskr_koncern', 0.0)
+        arets_nedskr_koncern_prev = prev_year_result.get('arets_nedskr_koncern', 0.0)
+        
+    else:
+        # ========================================
+        # FALLBACK MODE: Use balance-only calculation (original logic)
+        # ========================================
+        if debug:
+            print("[KONCERN-DEBUG] Fallback mode: Using balance-only calculation for previous year")
+        
+        # Reuse the EXACT same account sets that were derived for the current year:
+        #   - asset_all_set : the accounts contributing to acquisition value
+        #   - imp_set       : the accounts contributing to accumulated impairments
+        
+        def get_balance_prev(kind_flag: str, accounts, lines_data, to_float_func) -> float:
+            """
+            Sum #IB -1 or #UB -1 for the given account set.
+            kind_flag ∈ {"IB", "UB"}.
+            """
+            if not accounts:
+                return 0.0
+            acct_set = set(accounts)
+            total = 0.0
+            # Example line: "#IB -1 1310 44050000.00" or "#UB -1 1310 44050000.00"
+            bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+            for raw in lines_data:
+                s = raw.strip()
+                m = bal_re_prev.match(s)
+                if not m:
+                    continue
+                acct = int(m.group(1))
+                if acct in acct_set:
+                    amount = to_float_func(m.group(2))
+                    total += amount
+            return total
 
-    def get_balance_prev(kind_flag: str, accounts, lines_data, to_float_func) -> float:
-        """
-        Sum #IB -1 or #UB -1 for the given account set.
-        kind_flag ∈ {"IB", "UB"}.
-        """
-        if not accounts:
-            return 0.0
-        acct_set = set(accounts)
-        total = 0.0
-        # Example line: "#IB -1 1310 44050000.00" or "#UB -1 1310 44050000.00"
-        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
-        for raw in lines_data:
-            s = raw.strip()
-            m = bal_re_prev.match(s)
-            if not m:
-                continue
-            acct = int(m.group(1))
-            if acct in acct_set:
-                amount = to_float_func(m.group(2))
-                total += amount
-        return total
+        # --- Compute previous-year balances using the SAME account sets as for current year ---
+        koncern_ib_prev = get_balance_prev('IB', asset_all_set, lines, _to_float)
+        koncern_ub_prev = get_balance_prev('UB', asset_all_set, lines, _to_float)
+        ack_nedskr_koncern_ib_prev = get_balance_prev('IB', imp_set, lines, _to_float)
+        ack_nedskr_koncern_ub_prev = get_balance_prev('UB', imp_set, lines, _to_float)
 
-    # --- Compute previous-year balances using the SAME account sets as for current year ---
-    koncern_ib_prev = get_balance_prev('IB', asset_all_set, lines, _to_float)
-    koncern_ub_prev = get_balance_prev('UB', asset_all_set, lines, _to_float)
-    ack_nedskr_koncern_ib_prev = get_balance_prev('IB', imp_set, lines, _to_float)
-    ack_nedskr_koncern_ub_prev = get_balance_prev('UB', imp_set, lines, _to_float)
+        # Redovisat värde (prev): UB assets + UB accumulated impairments (impairments are negative)
+        red_varde_koncern_prev = (koncern_ub_prev or 0.0) + (ack_nedskr_koncern_ub_prev or 0.0)
 
-    # Redovisat värde (prev): UB assets + UB accumulated impairments (impairments are negative)
-    red_varde_koncern_prev = (koncern_ub_prev or 0.0) + (ack_nedskr_koncern_ub_prev or 0.0)
+        # =========================
+        # PREVIOUS YEAR MOVEMENTS (SIGN RULES AS REQUESTED)
+        # =========================
+        # Δ assets(prev) = UB(prev) - IB(prev)
+        delta_prev = (koncern_ub_prev or 0.0) - (koncern_ib_prev or 0.0)
+        fsg_koncern_prev = 0.0       # sales, NEGATIVE when UB<IB (we keep UB-IB as-is)
+        inkop_koncern_prev = 0.0     # purchases, POSITIVE when UB>IB (UB-IB)
 
-    # =========================
-    # PREVIOUS YEAR MOVEMENTS (SIGN RULES AS REQUESTED)
-    # =========================
-    # Δ assets(prev) = UB(prev) - IB(prev)
-    delta_prev = (koncern_ub_prev or 0.0) - (koncern_ib_prev or 0.0)
-    fsg_koncern_prev = 0.0       # sales, NEGATIVE when UB<IB (we keep UB-IB as-is)
-    inkop_koncern_prev = 0.0     # purchases, POSITIVE when UB>IB (UB-IB)
+        if koncern_ub_prev < koncern_ib_prev:
+            # decrease in UB => treat as sales, record (UB - IB), which is negative
+            fsg_koncern_prev = delta_prev
+        elif koncern_ub_prev > koncern_ib_prev:
+            # increase in UB => treat as purchases, record (UB - IB), which is positive
+            inkop_koncern_prev = delta_prev
 
-    if koncern_ub_prev < koncern_ib_prev:
-        # decrease in UB => treat as sales, record (UB - IB), which is negative
-        fsg_koncern_prev = delta_prev
-    elif koncern_ub_prev > koncern_ib_prev:
-        # increase in UB => treat as purchases, record (UB - IB), which is positive
-        inkop_koncern_prev = delta_prev
+        # Impairment movement (compare magnitudes of accumulated impairments)
+        # If |IB| > |UB| => reversal (+), store |IB| - |UB|
+        # If |IB| < |UB| => impairment of the year (-), store |IB| - |UB|
+        abs_ib_imp = abs(ack_nedskr_koncern_ib_prev or 0.0)
+        abs_ub_imp = abs(ack_nedskr_koncern_ub_prev or 0.0)
 
-    # Impairment movement (compare magnitudes of accumulated impairments)
-    # If |IB| > |UB| => reversal (+), store |IB| - |UB|
-    # If |IB| < |UB| => impairment of the year (-), store |IB| - |UB|
-    abs_ib_imp = abs(ack_nedskr_koncern_ib_prev or 0.0)
-    abs_ub_imp = abs(ack_nedskr_koncern_ub_prev or 0.0)
+        aterfor_nedskr_koncern_prev = 0.0
+        arets_nedskr_koncern_prev = 0.0
 
-    aterfor_nedskr_koncern_prev = 0.0
-    arets_nedskr_koncern_prev = 0.0
-
-    if abs_ib_imp > abs_ub_imp:
-        aterfor_nedskr_koncern_prev = abs_ib_imp - abs_ub_imp   # positive
-    elif abs_ib_imp < abs_ub_imp:
-        arets_nedskr_koncern_prev = abs_ib_imp - abs_ub_imp     # negative by definition
+        if abs_ib_imp > abs_ub_imp:
+            aterfor_nedskr_koncern_prev = abs_ib_imp - abs_ub_imp   # positive
+        elif abs_ib_imp < abs_ub_imp:
+            arets_nedskr_koncern_prev = abs_ib_imp - abs_ub_imp     # negative by definition
 
     # =========================
     # BACKEND DEBUG OUTPUT (one line per variable)

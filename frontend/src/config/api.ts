@@ -4,6 +4,7 @@ export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.summare
 export const API_ENDPOINTS = {
   base: API_BASE_URL,
   uploadSeFile: `${API_BASE_URL}/upload-se-file`,
+  uploadTwoSeFiles: `${API_BASE_URL}/upload-two-se-files`,
   generateReport: `${API_BASE_URL}/generate-report`,
   testParser: `${API_BASE_URL}/test-parser`,
   health: `${API_BASE_URL}/health`,

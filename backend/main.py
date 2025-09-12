@@ -211,6 +211,158 @@ async def upload_se_file(file: UploadFile = File(...)):
         # Return more detailed error for debugging (you may want to remove this in production)
         raise HTTPException(status_code=500, detail=f"Fel vid laddning av fil: {str(e)} | Traceback: {full_traceback}")
 
+@app.post("/upload-two-se-files", response_model=dict)
+async def upload_two_se_files(
+    current_year_file: UploadFile = File(...),
+    previous_year_file: UploadFile = File(...)
+):
+    """
+    Laddar upp två .SE-filer (nuvarande år + föregående år) och extraherar information
+    """
+    # Validate both files
+    if not current_year_file.filename.lower().endswith('.se'):
+        raise HTTPException(status_code=400, detail="Nuvarande års fil måste vara en .SE-fil")
+    if not previous_year_file.filename.lower().endswith('.se'):
+        raise HTTPException(status_code=400, detail="Föregående års fil måste vara en .SE-fil")
+    
+    try:
+        # Process current year file (same as single file upload)
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.se') as temp_file:
+            shutil.copyfileobj(current_year_file.file, temp_file)
+            current_temp_path = temp_file.name
+        
+        # Process previous year file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.se') as temp_file:
+            shutil.copyfileobj(previous_year_file.file, temp_file)
+            previous_temp_path = temp_file.name
+        
+        # Read both SE file contents with encoding detection
+        encodings = ['iso-8859-1', 'windows-1252', 'utf-8', 'cp1252']
+        
+        # Read current year file
+        current_se_content = None
+        for encoding in encodings:
+            try:
+                with open(current_temp_path, 'r', encoding=encoding) as f:
+                    current_se_content = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        # Read previous year file
+        previous_se_content = None
+        for encoding in encodings:
+            try:
+                with open(previous_temp_path, 'r', encoding=encoding) as f:
+                    previous_se_content = f.read()
+                break
+            except UnicodeDecodeError:
+                continue
+        
+        if current_se_content is None:
+            raise HTTPException(status_code=500, detail="Kunde inte läsa nuvarande års SE-fil")
+        if previous_se_content is None:
+            raise HTTPException(status_code=500, detail="Kunde inte läsa föregående års SE-fil")
+        
+        # Use the new database-driven parser with two files flag
+        parser = DatabaseParser()
+        current_accounts, previous_accounts, current_ib_accounts, previous_ib_accounts = parser.parse_account_balances(current_se_content)
+        company_info = parser.extract_company_info(current_se_content)
+        
+        # Scrape additional company information from rating.se
+        scraped_company_data = {}
+        try:
+            scraped_company_data = get_company_info_with_search(
+                orgnr=company_info.get('organization_number'),
+                company_name=company_info.get('company_name')
+            )
+        except Exception as e:
+            scraped_company_data = {"error": str(e)}
+        
+        rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
+        
+        # Pass RR data to BR parsing with two files flag and previous year SE content
+        br_data = parser.parse_br_data_with_koncern(
+            current_se_content, 
+            current_accounts, 
+            previous_accounts, 
+            rr_data,
+            two_files_flag=True,
+            previous_year_se_content=previous_se_content
+        )
+        
+        # Parse INK2 data (tax calculations) - pass RR data for variable references
+        ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data)
+        
+        # Parse Noter data (notes) - pass SE content and user toggles if needed
+        try:
+            noter_data = parser.parse_noter_data(current_se_content)
+        except Exception as e:
+            noter_data = []
+        
+        # Parse Förvaltningsberättelse data (FB) - Förändring i eget kapital
+        try:
+            print(f"DEBUG: Starting FB calculation with br_data type: {type(br_data)}, length: {len(br_data) if br_data else 0}")
+            if br_data and len(br_data) > 0:
+                print(f"DEBUG: First BR item keys: {list(br_data[0].keys())}")
+                print(f"DEBUG: Sample BR variable names: {[item.get('variable_name') for item in br_data[:5]]}")
+            fb_module = ForvaltningsberattelseFB()
+            fb_variables = fb_module.calculate_forandring_eget_kapital(current_se_content, br_data)
+            print(f"DEBUG: FB variables calculated: {fb_variables}")
+            fb_table = fb_module.generate_forandring_eget_kapital_table(fb_variables)
+            print(f"DEBUG: FB table generated with {len(fb_table)} rows")
+        except Exception as e:
+            print(f"Error parsing FB data: {e}")
+            import traceback
+            traceback.print_exc()
+            fb_variables = {}
+            fb_table = []
+        
+        # Calculate pension tax variables for frontend
+        pension_premier = abs(float(current_accounts.get('7410', 0.0)))
+        sarskild_loneskatt_pension = abs(float(current_accounts.get('7531', 0.0)))
+        # Get sarskild_loneskatt rate from global variables
+        sarskild_loneskatt_pension_calculated = pension_premier * 0.2431
+        
+        # Cleanup temporary files
+        os.unlink(current_temp_path)
+        os.unlink(previous_temp_path)
+        
+        return {
+            "success": True,
+            "data": {
+                "company_info": company_info,
+                "scraped_company_data": scraped_company_data,
+                "current_accounts_count": len(current_accounts),
+                "previous_accounts_count": len(previous_accounts),
+                "current_accounts_sample": dict(list(current_accounts.items())[:10]),
+                "previous_accounts_sample": dict(list(previous_accounts.items())[:10]),
+                "current_accounts": current_accounts,
+                "rr_data": rr_data,
+                "br_data": br_data,
+                "ink2_data": ink2_data,
+                "noter_data": noter_data,
+                "fb_variables": fb_variables,
+                "fb_table": fb_table,
+                "rr_count": len(rr_data),
+                "br_count": len(br_data),
+                "ink2_count": len(ink2_data),
+                "noter_count": len(noter_data),
+                "fb_count": len(fb_table),
+                "pension_premier": pension_premier,
+                "sarskild_loneskatt_pension": sarskild_loneskatt_pension,
+                "sarskild_loneskatt_pension_calculated": sarskild_loneskatt_pension_calculated,
+                "two_files_used": True  # Flag to indicate two files were processed
+            },
+            "message": "Båda SE-filerna laddades framgångsrikt"
+        }
+        
+    except Exception as e:
+        import traceback
+        error_detail = f"Fel vid laddning av filer: {str(e)}"
+        full_traceback = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=f"Fel vid laddning av filer: {str(e)} | Traceback: {full_traceback}")
+
 @app.post("/generate-report", response_model=ReportResponse)
 async def generate_report(
     request: ReportRequest,

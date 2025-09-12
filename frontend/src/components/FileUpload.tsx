@@ -6,36 +6,67 @@ import { apiService } from '@/services/api';
 
 interface FileUploadProps {
   onFileProcessed: (data: any) => void;
+  allowTwoFiles?: boolean;
 }
 
-export function FileUpload({ onFileProcessed }: FileUploadProps) {
+export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const { toast } = useToast();
 
 
 
-  const processFile = async (file: File) => {
-    if (!file.name.toLowerCase().endsWith('.se')) {
+  const processFiles = async (files: File[]) => {
+    // Validate files
+    for (const file of files) {
+      if (!file.name.toLowerCase().endsWith('.se')) {
+        toast({
+          title: "Fel filformat",
+          description: "Vänligen ladda upp endast .SE filer",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+
+    if (allowTwoFiles && files.length > 2) {
       toast({
-        title: "Fel filformat",
-        description: "Vänligen ladda upp en .SE fil",
+        title: "För många filer",
+        description: "Maximalt 2 SE-filer kan laddas upp",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!allowTwoFiles && files.length > 1) {
+      toast({
+        title: "För många filer",
+        description: "Endast 1 SE-fil kan laddas upp",
         variant: "destructive"
       });
       return;
     }
 
     setIsUploading(true);
-    setSelectedFile(file);
+    setSelectedFiles(files);
 
     try {
-      const result = await apiService.uploadSeFile(file);
+      let result;
+      if (files.length === 2) {
+        // Upload both files with two_files flag
+        result = await apiService.uploadTwoSeFiles(files[0], files[1]);
+      } else {
+        // Upload single file
+        result = await apiService.uploadSeFile(files[0]);
+      }
 
       if (result.success) {
         toast({
-          title: "Fil bearbetad",
-          description: "SE-filen har analyserats och data extraherats"
+          title: "Fil(er) bearbetad(e)",
+          description: files.length === 2 
+            ? "Båda SE-filerna har analyserats och data extraherats"
+            : "SE-filen har analyserats och data extraherats"
         });
         onFileProcessed(result);
       } else {
@@ -46,7 +77,7 @@ export function FileUpload({ onFileProcessed }: FileUploadProps) {
       console.error('Upload error:', error);
       toast({
         title: "Fel vid uppladdning",
-        description: error instanceof Error ? error.message : "Kunde inte bearbeta filen",
+        description: error instanceof Error ? error.message : "Kunde inte bearbeta filen/filerna",
         variant: "destructive"
       });
     } finally {
@@ -57,9 +88,10 @@ export function FileUpload({ onFileProcessed }: FileUploadProps) {
 
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      processFile(file);
+    const fileList = event.target.files;
+    if (fileList) {
+      const files = Array.from(fileList);
+      processFiles(files);
     }
   };
 
@@ -67,9 +99,10 @@ export function FileUpload({ onFileProcessed }: FileUploadProps) {
     event.preventDefault();
     setIsDragOver(false);
     
-    const file = event.dataTransfer.files[0];
-    if (file) {
-      processFile(file);
+    const fileList = event.dataTransfer.files;
+    if (fileList) {
+      const files = Array.from(fileList);
+      processFiles(files);
     }
   };
 
@@ -119,6 +152,7 @@ export function FileUpload({ onFileProcessed }: FileUploadProps) {
               className="hidden"
               id="file-upload"
               disabled={isUploading}
+              multiple={allowTwoFiles}
             />
             
             <label htmlFor="file-upload">
@@ -138,7 +172,7 @@ export function FileUpload({ onFileProcessed }: FileUploadProps) {
                   ) : (
                     <>
                       <Upload className="w-3 h-3 mr-2" />
-                      Välj .SE fil
+                      {allowTwoFiles ? "Välj .SE fil(er)" : "Välj .SE fil"}
                     </>
                   )}
                 </span>
@@ -146,8 +180,20 @@ export function FileUpload({ onFileProcessed }: FileUploadProps) {
             </label>
 
             <p className="text-xs text-muted-foreground">
-              .SE filer från bokföringsprogram
+              {allowTwoFiles 
+                ? ".SE filer från bokföringsprogram (nuvarande år + föregående år)" 
+                : ".SE filer från bokföringsprogram"
+              }
             </p>
+            
+            {allowTwoFiles && selectedFiles.length > 0 && (
+              <div className="text-xs text-gray-600 mt-2">
+                {selectedFiles.length === 1 
+                  ? `1 fil vald: ${selectedFiles[0].name}`
+                  : `${selectedFiles.length} filer valda: ${selectedFiles.map(f => f.name).join(', ')}`
+                }
+              </div>
+            )}
           </div>
         </div>
       </div>
