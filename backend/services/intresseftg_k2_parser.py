@@ -124,7 +124,7 @@ def _parse_vouchers(lines):
                 trans_by_ver[cur].append((acct, amt))
     return trans_by_ver, text_by_ver
 
-def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
+def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False, two_files_flag: bool = False, previous_year_sie_text: str = None) -> dict:
     """
     K2 – Andelar i intresseföretag / gemensamt styrda / övriga (1330–1339)
     
@@ -289,64 +289,126 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
     red_varde_intresseftg = intresseftg_ub + ack_nedskr_intresseftg_ub
 
     # =========================
-    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # PREVIOUS YEAR FORK: TWO FILES vs FALLBACK
     # =========================
-    # Reuse the *exact* account sets discovered for current year:
-    #   - cost set: ASSET_SET | CONTRIB_SET
-    #   - impairment set: ACC_IMP_SET
+    
+    # Debug: Log the fork decision
+    print(f"[INTRESSEFTG-DEBUG] Fork decision: two_files_flag={two_files_flag}, has_previous_text={previous_year_sie_text is not None}")
+    if previous_year_sie_text:
+        print(f"[INTRESSEFTG-DEBUG] Previous year text length: {len(previous_year_sie_text)} characters")
+    
+    if two_files_flag and previous_year_sie_text:
+        # ========================================
+        # TWO FILES MODE: Run full parser on previous year SE file
+        # ========================================
+        if debug:
+            print("[INTRESSEFTG-DEBUG] Two files mode: Running full parser on previous year SE file")
+        
+        # Recursively call the parser on the previous year SE file
+        prev_year_result = parse_intresseftg_k2_from_sie_text(
+            previous_year_sie_text, 
+            debug=debug, 
+            two_files_flag=False,  # Prevent infinite recursion
+            previous_year_sie_text=None
+        )
+        
+        # Extract ALL previous year values from the full parser result
+        # Asset movements and balances
+        intresseftg_ib_prev = prev_year_result.get('intresseftg_ib', 0.0)
+        intresseftg_ub_prev = prev_year_result.get('intresseftg_ub', 0.0)
+        red_varde_intresseftg_prev = prev_year_result.get('red_varde_intresseftg', 0.0)
+        
+        # ALL asset movements from full parser
+        inkop_intresseftg_prev = prev_year_result.get('inkop_intresseftg', 0.0)
+        fusion_intresseftg_prev = prev_year_result.get('fusion_intresseftg', 0.0)
+        aktieagartillskott_lamnad_intresseftg_prev = prev_year_result.get('aktieagartillskott_lamnad_intresseftg', 0.0)
+        aktieagartillskott_aterbetald_intresseftg_prev = prev_year_result.get('aktieagartillskott_aterbetald_intresseftg', 0.0)
+        fsg_intresseftg_prev = prev_year_result.get('fsg_intresseftg', 0.0)
+        resultatandel_intresseftg_prev = prev_year_result.get('resultatandel_intresseftg', 0.0)
+        omklass_intresseftg_prev = prev_year_result.get('omklass_intresseftg', 0.0)
+        
+        # ALL impairment movements from full parser
+        ack_nedskr_intresseftg_ib_prev = prev_year_result.get('ack_nedskr_intresseftg_ib', 0.0)
+        ack_nedskr_intresseftg_ub_prev = prev_year_result.get('ack_nedskr_intresseftg_ub', 0.0)
+        arets_nedskr_intresseftg_prev = prev_year_result.get('arets_nedskr_intresseftg', 0.0)
+        aterfor_nedskr_intresseftg_prev = prev_year_result.get('aterfor_nedskr_intresseftg', 0.0)
+        aterfor_nedskr_fsg_intresseftg_prev = prev_year_result.get('aterfor_nedskr_fsg_intresseftg', 0.0)
+        aterfor_nedskr_fusion_intresseftg_prev = prev_year_result.get('aterfor_nedskr_fusion_intresseftg', 0.0)
+        omklass_nedskr_intresseftg_prev = prev_year_result.get('omklass_nedskr_intresseftg', 0.0)
+        
+    else:
+        # ========================================
+        # FALLBACK MODE: Use balance-only calculation (original logic)
+        # ========================================
+        if debug:
+            print("[INTRESSEFTG-DEBUG] Fallback mode: Using balance-only calculation for previous year")
+        
+        # Reuse the *exact* account sets discovered for current year:
+        #   - cost set: ASSET_SET | CONTRIB_SET
+        #   - impairment set: ACC_IMP_SET
 
-    def _get_balance_prev(lines, kind_flag: str, accounts: set[int]) -> float:
-        """
-        Sum #IB -1 or #UB -1 for the given accounts.
-        kind_flag ∈ {"IB", "UB"}.
-        """
-        if not accounts:
-            return 0.0
-        total = 0.0
-        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
-        for raw in lines:
-            m = bal_re_prev.match(raw.strip())
-            if not m:
-                continue
-            acct = int(m.group(1))
-            if acct in accounts:
-                total += _to_float(m.group(2))
-        return total
+        def _get_balance_prev(lines, kind_flag: str, accounts: set[int]) -> float:
+            """
+            Sum #IB -1 or #UB -1 for the given accounts.
+            kind_flag ∈ {"IB", "UB"}.
+            """
+            if not accounts:
+                return 0.0
+            total = 0.0
+            bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+            for raw in lines:
+                m = bal_re_prev.match(raw.strip())
+                if not m:
+                    continue
+                acct = int(m.group(1))
+                if acct in accounts:
+                    total += _to_float(m.group(2))
+            return total
 
-    # --- Previous-year balances ---
-    intresseftg_ib_prev            = _get_balance_prev(lines, 'IB', ASSET_SET | CONTRIB_SET)
-    ack_nedskr_intresseftg_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_SET)
-    intresseftg_ub_prev            = _get_balance_prev(lines, 'UB', ASSET_SET | CONTRIB_SET)
-    ack_nedskr_intresseftg_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_SET)
+        # --- Previous-year balances ---
+        intresseftg_ib_prev            = _get_balance_prev(lines, 'IB', ASSET_SET | CONTRIB_SET)
+        ack_nedskr_intresseftg_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_SET)
+        intresseftg_ub_prev            = _get_balance_prev(lines, 'UB', ASSET_SET | CONTRIB_SET)
+        ack_nedskr_intresseftg_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_SET)
 
-    red_varde_intresseftg_prev = (intresseftg_ub_prev or 0.0) + (ack_nedskr_intresseftg_ub_prev or 0.0)
+        red_varde_intresseftg_prev = (intresseftg_ub_prev or 0.0) + (ack_nedskr_intresseftg_ub_prev or 0.0)
 
-    # --- Movements from balances (prev) ---
-    # Cost delta (prev) = UB(prev) - IB(prev)
-    delta_prev = (intresseftg_ub_prev or 0.0) - (intresseftg_ib_prev or 0.0)
-    fsg_intresseftg_prev   = 0.0   # sales: record UB - IB if negative
-    inkop_intresseftg_prev = 0.0   # purchases: record UB - IB if positive
+        # --- Movements from balances (prev) ---
+        # Initialize ALL movement variables to 0.0 for fallback mode
+        fusion_intresseftg_prev = 0.0
+        aktieagartillskott_lamnad_intresseftg_prev = 0.0
+        aktieagartillskott_aterbetald_intresseftg_prev = 0.0
+        resultatandel_intresseftg_prev = 0.0
+        omklass_intresseftg_prev = 0.0
+        aterfor_nedskr_fsg_intresseftg_prev = 0.0
+        aterfor_nedskr_fusion_intresseftg_prev = 0.0
+        omklass_nedskr_intresseftg_prev = 0.0
+        
+        # Cost delta (prev) = UB(prev) - IB(prev)
+        delta_prev = (intresseftg_ub_prev or 0.0) - (intresseftg_ib_prev or 0.0)
+        fsg_intresseftg_prev   = 0.0   # sales: record UB - IB if negative
+        inkop_intresseftg_prev = 0.0   # purchases: record UB - IB if positive
 
-    if intresseftg_ub_prev < intresseftg_ib_prev:
-        # decrease => treat as sales (negative)
-        fsg_intresseftg_prev = delta_prev
-    elif intresseftg_ub_prev > intresseftg_ib_prev:
-        # increase => treat as purchases (positive)
-        inkop_intresseftg_prev = delta_prev
+        if intresseftg_ub_prev < intresseftg_ib_prev:
+            # decrease => treat as sales (negative)
+            fsg_intresseftg_prev = delta_prev
+        elif intresseftg_ub_prev > intresseftg_ib_prev:
+            # increase => treat as purchases (positive)
+            inkop_intresseftg_prev = delta_prev
 
-    # Impairment movement using magnitudes:
-    # If |IB| > |UB| => Återföring = |IB| - |UB| (positive)
-    # If |IB| < |UB| => Årets nedskrivning = |IB| - |UB| (negative)
-    abs_ib_imp = abs(ack_nedskr_intresseftg_ib_prev or 0.0)
-    abs_ub_imp = abs(ack_nedskr_intresseftg_ub_prev or 0.0)
+        # Impairment movement using magnitudes:
+        # If |IB| > |UB| => Återföring = |IB| - |UB| (positive)
+        # If |IB| < |UB| => Årets nedskrivning = |IB| - |UB| (negative)
+        abs_ib_imp = abs(ack_nedskr_intresseftg_ib_prev or 0.0)
+        abs_ub_imp = abs(ack_nedskr_intresseftg_ub_prev or 0.0)
 
-    aterfor_nedskr_intresseftg_prev = 0.0
-    arets_nedskr_intresseftg_prev   = 0.0
+        aterfor_nedskr_intresseftg_prev = 0.0
+        arets_nedskr_intresseftg_prev   = 0.0
 
-    if abs_ib_imp > abs_ub_imp:
-        aterfor_nedskr_intresseftg_prev = abs_ib_imp - abs_ub_imp
-    elif abs_ib_imp < abs_ub_imp:
-        arets_nedskr_intresseftg_prev = abs_ib_imp - abs_ub_imp  # negative by definition
+        if abs_ib_imp > abs_ub_imp:
+            aterfor_nedskr_intresseftg_prev = abs_ib_imp - abs_ub_imp
+        elif abs_ib_imp < abs_ub_imp:
+            arets_nedskr_intresseftg_prev = abs_ib_imp - abs_ub_imp  # negative by definition
 
     # --- Backend debug (one line per var) ---
     if debug:
@@ -397,8 +459,18 @@ def parse_intresseftg_k2_from_sie_text(sie_text: str, debug: bool = False) -> di
         "ack_nedskr_intresseftg_ib_prev": ack_nedskr_intresseftg_ib_prev,
         "ack_nedskr_intresseftg_ub_prev": ack_nedskr_intresseftg_ub_prev,
         "red_varde_intresseftg_prev": red_varde_intresseftg_prev,
+        
+        # ALL previous year movements (from full parser or fallback)
         "fsg_intresseftg_prev": fsg_intresseftg_prev,
         "inkop_intresseftg_prev": inkop_intresseftg_prev,
+        "fusion_intresseftg_prev": fusion_intresseftg_prev,
+        "aktieagartillskott_lamnad_intresseftg_prev": aktieagartillskott_lamnad_intresseftg_prev,
+        "aktieagartillskott_aterbetald_intresseftg_prev": aktieagartillskott_aterbetald_intresseftg_prev,
+        "resultatandel_intresseftg_prev": resultatandel_intresseftg_prev,
+        "omklass_intresseftg_prev": omklass_intresseftg_prev,
         "aterfor_nedskr_intresseftg_prev": aterfor_nedskr_intresseftg_prev,
         "arets_nedskr_intresseftg_prev": arets_nedskr_intresseftg_prev,
+        "aterfor_nedskr_fsg_intresseftg_prev": aterfor_nedskr_fsg_intresseftg_prev,
+        "aterfor_nedskr_fusion_intresseftg_prev": aterfor_nedskr_fusion_intresseftg_prev,
+        "omklass_nedskr_intresseftg_prev": omklass_nedskr_intresseftg_prev,
     }

@@ -2334,7 +2334,13 @@ class DatabaseParser:
         
         # Get precise INTRESSEFTG calculations from transaction analysis
         from .intresseftg_k2_parser import parse_intresseftg_k2_from_sie_text
-        intresseftg_k2_data = parse_intresseftg_k2_from_sie_text(se_content, debug=False)
+        print(f"[NOTER-DEBUG] Calling intresseftg parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
+        intresseftg_k2_data = parse_intresseftg_k2_from_sie_text(
+            se_content, 
+            debug=False, 
+            two_files_flag=two_files_flag, 
+            previous_year_sie_text=previous_year_se_content
+        )
         
         # Get precise BYGG calculations from transaction analysis
         from .bygg_k2_parser import parse_bygg_k2_from_sie_text
