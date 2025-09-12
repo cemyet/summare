@@ -184,9 +184,10 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
             </div>
             
             <div className="space-y-1">
-              <h3 className="text-sm font-medium">Ladda upp .SE fil</h3>
+              <h3 className="text-sm font-bold">Ladda upp SE-filer här:</h3>
               <p className="text-xs text-muted-foreground">
-                Dra och släpp din .SE fil här eller klicka nedan
+                Ladda upp åtminstone nuvarande års SE fil.<br />
+                Föregående år är valfritt men ger en mer exakt analys och bättre noter.
               </p>
             </div>
 
@@ -395,7 +396,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
             ) : (
               <>
                 <FileText className="w-4 h-4 mr-2" />
-                Bearbeta {previousYearFile ? 'båda filerna' : 'filen'}
+                Bearbeta filerna
               </>
             )}
           </Button>
@@ -412,7 +413,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
 
       <div className="text-center">
         <p className="text-xs text-muted-foreground">
-          Ladda upp minst nuvarande års .SE fil. Föregående år är valfritt men ger mer exakt analys.
+          Dra och släpp dina .SE filer här eller klicka på områdena ovan
         </p>
       </div>
     </div>
