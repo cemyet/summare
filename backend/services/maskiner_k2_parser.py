@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 
-def parse_maskiner_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
+def parse_maskiner_k2_from_sie_text(sie_text: str, debug: bool = False, two_files_flag: bool = False, previous_year_sie_text: str = None) -> dict:
     """
     MASKINER-note (K2) parser.
 
@@ -204,101 +204,150 @@ def parse_maskiner_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
     red_varde_maskiner = maskiner_ub + ack_avskr_maskiner_ub + ack_nedskr_maskiner_ub
 
     # =========================
-    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # PREVIOUS YEAR FORK LOGIC
     # =========================
-    # Reuse the *exact* account sets discovered for current year:
-    #   - ASSET_RANGES    : cost accounts for maskiner/inventarier (e.g. 1210..1217)
-    #   - ACC_DEP_MASK    : accumulated depreciation accounts (e.g. 1219)
-    #   - ACC_IMP_MASK    : accumulated impairments (e.g. 1218)
-    #
-    # This block is resilient if some sets are not defined in current-year logic.
+    # Debug: Log the fork decision
+    print(f"[MASKINER-DEBUG] Fork decision: two_files_flag={two_files_flag}, has_previous_text={previous_year_sie_text is not None}")
+    if previous_year_sie_text:
+        print(f"[MASKINER-DEBUG] Previous year text length: {len(previous_year_sie_text)} characters")
+    
+    if two_files_flag and previous_year_sie_text:
+        # ========================================
+        # TWO FILES MODE: Run full parser on previous year SE file
+        # ========================================
+        if debug:
+            print("[MASKINER-DEBUG] Two files mode: Running full parser on previous year SE file")
+        
+        # Recursively call the parser on the previous year SE file
+        prev_year_result = parse_maskiner_k2_from_sie_text(
+            previous_year_sie_text, 
+            debug=debug, 
+            two_files_flag=False,  # Prevent infinite recursion
+            previous_year_sie_text=None
+        )
+        
+        # Extract ALL previous year values from the full parser result
+        # Asset movements and balances
+        maskiner_ib_prev = prev_year_result.get('maskiner_ib', 0.0)
+        maskiner_ub_prev = prev_year_result.get('maskiner_ub', 0.0)
+        red_varde_maskiner_prev = prev_year_result.get('red_varde_maskiner', 0.0)
+        
+        # ALL asset movements from full parser
+        arets_inkop_maskiner_prev = prev_year_result.get('arets_inkop_maskiner', 0.0)
+        fsg_maskiner_prev = prev_year_result.get('arets_fsg_maskiner', 0.0)
+        
+        # ALL depreciation movements from full parser
+        ack_avskr_maskiner_ib_prev = prev_year_result.get('ack_avskr_maskiner_ib', 0.0)
+        ack_avskr_maskiner_ub_prev = prev_year_result.get('ack_avskr_maskiner_ub', 0.0)
+        arets_avskr_maskiner_prev = prev_year_result.get('arets_avskr_maskiner', 0.0)
+        
+        # ALL impairment movements from full parser
+        ack_nedskr_maskiner_ib_prev = prev_year_result.get('ack_nedskr_maskiner_ib', 0.0)
+        ack_nedskr_maskiner_ub_prev = prev_year_result.get('ack_nedskr_maskiner_ub', 0.0)
+        arets_nedskr_maskiner_prev = prev_year_result.get('arets_nedskr_maskiner', 0.0)
+        aterfor_nedskr_maskiner_prev = prev_year_result.get('aterfor_nedskr_maskiner', 0.0)
+        
+        # ALL revaluation movements (not applicable for maskiner but included for consistency)
+        uppskr_maskiner_ib_prev = 0.0
+        uppskr_maskiner_ub_prev = 0.0
+        arets_uppskr_maskiner_prev = prev_year_result.get('arets_uppskr_maskiner', 0.0)
+        aterfor_uppskr_maskiner_prev = prev_year_result.get('aterfor_uppskr_maskiner', 0.0)
+        
+    else:
+        # ========================================
+        # FALLBACK MODE: Balance-only calculation (original logic)
+        # ========================================
+        if debug:
+            print("[MASKINER-DEBUG] Fallback mode: Using balance-only calculation for previous year")
+        
+        # Initialize ALL movement variables to 0.0 for fallback mode
+        arets_inkop_maskiner_prev = 0.0
+        fsg_maskiner_prev = 0.0
+        arets_avskr_maskiner_prev = 0.0
+        arets_nedskr_maskiner_prev = 0.0
+        aterfor_nedskr_maskiner_prev = 0.0
+        arets_uppskr_maskiner_prev = 0.0
+        aterfor_uppskr_maskiner_prev = 0.0
+        
+        # =========================
+        # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+        # =========================
+        # Reuse the *exact* account sets discovered for current year:
+        #   - ASSET_RANGES    : cost accounts for maskiner/inventarier (e.g. 1210..1217)
+        #   - ACC_DEP_MASK    : accumulated depreciation accounts (e.g. 1219)
+        #   - ACC_IMP_MASK    : accumulated impairments (e.g. 1218)
+        #
+        # This block is resilient if some sets are not defined in current-year logic.
 
-    def _get_balance_prev(lines, kind_flag: str, accounts) -> float:
-        """
-        Sum #IB -1 or #UB -1 for the given accounts (set or ranges).
-        kind_flag ∈ {"IB", "UB"}.
-        If accounts is None/empty -> 0.0.
-        """
-        if not accounts:
-            return 0.0
-        total = 0.0
-        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
-        for raw in lines:
-            s = raw.strip()
-            m = bal_re_prev.match(s)
-            if not m:
-                continue
-            acct = int(m.group(1))
-            # Handle both sets and ranges like the original get_balance function
-            if isinstance(accounts, (set, frozenset)):
-                ok = acct in accounts
-            else:
-                ok = any(lo <= acct <= hi for lo, hi in accounts)
-            if ok:
-                total += _to_float(m.group(2))
-        return total
+        def _get_balance_prev(lines, kind_flag: str, accounts) -> float:
+            """
+            Sum #IB -1 or #UB -1 for the given accounts (set or ranges).
+            kind_flag ∈ {"IB", "UB"}.
+            If accounts is None/empty -> 0.0.
+            """
+            if not accounts:
+                return 0.0
+            total = 0.0
+            bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+            for raw in lines:
+                s = raw.strip()
+                m = bal_re_prev.match(s)
+                if not m:
+                    continue
+                acct = int(m.group(1))
+                # Handle both sets and ranges like the original get_balance function
+                if isinstance(accounts, (set, frozenset)):
+                    ok = acct in accounts
+                else:
+                    ok = any(lo <= acct <= hi for lo, hi in accounts)
+                if ok:
+                    total += _to_float(m.group(2))
+            return total
 
-    # --- Previous-year balances using SAME sets as current year ---
-    maskiner_ib_prev  = _get_balance_prev(lines, 'IB', ASSET_RANGES)
-    maskiner_ub_prev  = _get_balance_prev(lines, 'UB', ASSET_RANGES)
+        # --- Previous-year balances using SAME sets as current year ---
+        maskiner_ib_prev  = _get_balance_prev(lines, 'IB', ASSET_RANGES)
+        maskiner_ub_prev  = _get_balance_prev(lines, 'UB', ASSET_RANGES)
 
-    ack_avskr_maskiner_ib_prev = _get_balance_prev(lines, 'IB', ACC_DEP_MASK)
-    ack_avskr_maskiner_ub_prev = _get_balance_prev(lines, 'UB', ACC_DEP_MASK)
+        ack_avskr_maskiner_ib_prev = _get_balance_prev(lines, 'IB', ACC_DEP_MASK)
+        ack_avskr_maskiner_ub_prev = _get_balance_prev(lines, 'UB', ACC_DEP_MASK)
 
-    ack_nedskr_maskiner_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_MASK)
-    ack_nedskr_maskiner_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_MASK)
+        ack_nedskr_maskiner_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_MASK)
+        ack_nedskr_maskiner_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_MASK)
 
-    # No revaluation accounts in MASKINER parser, so set to 0
-    uppskr_maskiner_ib_prev = 0.0
-    uppskr_maskiner_ub_prev = 0.0
+        # No revaluation accounts in MASKINER parser, so set to 0
+        uppskr_maskiner_ib_prev = 0.0
+        uppskr_maskiner_ub_prev = 0.0
 
-    # Book value (prev): UB cost + UB reval + UB acc. impairments + UB acc. depreciation
-    red_varde_maskiner_prev = (
-        (maskiner_ub_prev or 0.0)
-        + (uppskr_maskiner_ub_prev or 0.0)
-        + (ack_nedskr_maskiner_ub_prev or 0.0)
-        + (ack_avskr_maskiner_ub_prev or 0.0)
-    )
+        # Book value (prev): UB cost + UB reval + UB acc. impairments + UB acc. depreciation
+        red_varde_maskiner_prev = (
+            (maskiner_ub_prev or 0.0)
+            + (uppskr_maskiner_ub_prev or 0.0)
+            + (ack_nedskr_maskiner_ub_prev or 0.0)
+            + (ack_avskr_maskiner_ub_prev or 0.0)
+        )
 
-    # =========================
-    # PREVIOUS YEAR MOVEMENTS (SIGN RULES)
-    # =========================
-    # Cost delta(prev) = UB(prev) - IB(prev)
-    # negative -> sales; positive -> purchases
-    delta_prev = (maskiner_ub_prev or 0.0) - (maskiner_ib_prev or 0.0)
-    fsg_maskiner_prev         = 0.0
-    arets_inkop_maskiner_prev = 0.0
+        # Cost delta(prev) = UB(prev) - IB(prev)
+        delta_prev = (maskiner_ub_prev or 0.0) - (maskiner_ib_prev or 0.0)
+        
+        if maskiner_ub_prev < maskiner_ib_prev:
+            fsg_maskiner_prev = delta_prev                 # negative
+        elif maskiner_ub_prev > maskiner_ib_prev:
+            arets_inkop_maskiner_prev = delta_prev         # positive
 
-    if maskiner_ub_prev < maskiner_ib_prev:
-        fsg_maskiner_prev = delta_prev                 # negative
-    elif maskiner_ub_prev > maskiner_ib_prev:
-        arets_inkop_maskiner_prev = delta_prev         # positive
+        # Impairment movement via magnitudes:
+        abs_imp_ib = abs(ack_nedskr_maskiner_ib_prev or 0.0)
+        abs_imp_ub = abs(ack_nedskr_maskiner_ub_prev or 0.0)
 
-    # Impairment movement via magnitudes:
-    # If |IB| > |UB| => Återföring = |IB| - |UB| (positive)
-    # If |IB| < |UB| => Årets nedskrivning = |IB| - |UB| (negative)
-    abs_imp_ib = abs(ack_nedskr_maskiner_ib_prev or 0.0)
-    abs_imp_ub = abs(ack_nedskr_maskiner_ub_prev or 0.0)
+        if abs_imp_ib > abs_imp_ub:
+            aterfor_nedskr_maskiner_prev = abs_imp_ib - abs_imp_ub          # positive
+        elif abs_imp_ib < abs_imp_ub:
+            arets_nedskr_maskiner_prev = abs_imp_ib - abs_imp_ub            # negative
 
-    aterfor_nedskr_maskiner_prev = 0.0
-    arets_nedskr_maskiner_prev   = 0.0
-
-    if abs_imp_ib > abs_imp_ub:
-        aterfor_nedskr_maskiner_prev = abs_imp_ib - abs_imp_ub          # positive
-    elif abs_imp_ib < abs_imp_ub:
-        arets_nedskr_maskiner_prev = abs_imp_ib - abs_imp_ub            # negative
-
-    # Depreciation movement (if ACC_DEP_MASK exists)
-    # "Årets avskrivningar (prev)" = |UB| - |IB| (usually positive)
-    arets_avskr_maskiner_prev = 0.0
-    if ACC_DEP_MASK:
-        abs_avskr_ib = abs(ack_avskr_maskiner_ib_prev or 0.0)
-        abs_avskr_ub = abs(ack_avskr_maskiner_ub_prev or 0.0)
-        arets_avskr_maskiner_prev = abs_avskr_ub - abs_avskr_ib
-
-    # Revaluation movement (not applicable for MASKINER, but included for consistency)
-    arets_uppskr_maskiner_prev   = 0.0
-    aterfor_uppskr_maskiner_prev = 0.0
+        # Depreciation movement (if ACC_DEP_MASK exists)
+        if ACC_DEP_MASK:
+            abs_avskr_ib = abs(ack_avskr_maskiner_ib_prev or 0.0)
+            abs_avskr_ub = abs(ack_avskr_maskiner_ub_prev or 0.0)
+            arets_avskr_maskiner_prev = abs_avskr_ub - abs_avskr_ib
 
     # --- Backend debug ---
     if debug:

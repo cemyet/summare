@@ -186,8 +186,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
             <div className="space-y-1">
               <h3 className="text-sm font-bold">Ladda upp SE-filer här:</h3>
               <p className="text-xs text-muted-foreground">
-                Ladda upp åtminstone nuvarande års SE fil.<br />
-                Föregående år är valfritt men ger en mer exakt analys och bättre noter.
+                Ladda upp åtminstone nuvarande års SE fil. Föregående år är valfritt men ger en mer exakt analys och bättre noter.
               </p>
             </div>
 

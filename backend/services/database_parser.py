@@ -2344,19 +2344,43 @@ class DatabaseParser:
         
         # Get precise BYGG calculations from transaction analysis
         from .bygg_k2_parser import parse_bygg_k2_from_sie_text
-        bygg_k2_data = parse_bygg_k2_from_sie_text(se_content, debug=False)
+        print(f"[NOTER-DEBUG] Calling bygg parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
+        bygg_k2_data = parse_bygg_k2_from_sie_text(
+            se_content, 
+            debug=False, 
+            two_files_flag=two_files_flag, 
+            previous_year_sie_text=previous_year_se_content
+        )
         
         # Get precise MASKINER calculations from transaction analysis
         from .maskiner_k2_parser import parse_maskiner_k2_from_sie_text
-        maskiner_k2_data = parse_maskiner_k2_from_sie_text(se_content, debug=False)
+        print(f"[NOTER-DEBUG] Calling maskiner parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
+        maskiner_k2_data = parse_maskiner_k2_from_sie_text(
+            se_content, 
+            debug=False, 
+            two_files_flag=two_files_flag, 
+            previous_year_sie_text=previous_year_se_content
+        )
         
         # Get precise INVENTARIER calculations from transaction analysis
         from .inventarier_k2_parser import parse_inventarier_k2_from_sie_text
-        inventarier_k2_data = parse_inventarier_k2_from_sie_text(se_content, debug=False)
+        print(f"[NOTER-DEBUG] Calling inventarier parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
+        inventarier_k2_data = parse_inventarier_k2_from_sie_text(
+            se_content, 
+            debug=False, 
+            two_files_flag=two_files_flag, 
+            previous_year_sie_text=previous_year_se_content
+        )
         
         # Get precise ÖVRIGA calculations from transaction analysis
         from .ovriga_k2_parser import parse_ovriga_k2_from_sie_text
-        ovriga_k2_data = parse_ovriga_k2_from_sie_text(se_content, debug=False)
+        print(f"[NOTER-DEBUG] Calling ovriga parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
+        ovriga_k2_data = parse_ovriga_k2_from_sie_text(
+            se_content, 
+            debug=False, 
+            two_files_flag=two_files_flag, 
+            previous_year_sie_text=previous_year_se_content
+        )
         
         # Get precise LVP calculations from transaction analysis
         from .lvp_k2_parser import parse_lvp_k2_from_sie_text
