@@ -448,18 +448,29 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False, two_files
             previous_year_sie_text=None
         )
         
-        # Extract previous year values from the full parser result
+        # Extract ALL previous year values from the full parser result
+        # Asset movements and balances
         koncern_ib_prev = prev_year_result.get('koncern_ib', 0.0)
         koncern_ub_prev = prev_year_result.get('koncern_ub', 0.0)
-        ack_nedskr_koncern_ib_prev = prev_year_result.get('ack_nedskr_koncern_ib', 0.0)
-        ack_nedskr_koncern_ub_prev = prev_year_result.get('ack_nedskr_koncern_ub', 0.0)
         red_varde_koncern_prev = prev_year_result.get('red_varde_koncern', 0.0)
         
-        # Use the actual movements from the full parser
-        fsg_koncern_prev = prev_year_result.get('fsg_koncern', 0.0)
+        # ALL asset movements from full parser
         inkop_koncern_prev = prev_year_result.get('inkop_koncern', 0.0)
-        aterfor_nedskr_koncern_prev = prev_year_result.get('aterfor_nedskr_koncern', 0.0)
+        fusion_koncern_prev = prev_year_result.get('fusion_koncern', 0.0)
+        aktieagartillskott_lamnad_koncern_prev = prev_year_result.get('aktieagartillskott_lamnad_koncern', 0.0)
+        aktieagartillskott_aterbetald_koncern_prev = prev_year_result.get('aktieagartillskott_aterbetald_koncern', 0.0)
+        fsg_koncern_prev = prev_year_result.get('fsg_koncern', 0.0)
+        resultatandel_koncern_prev = prev_year_result.get('resultatandel_koncern', 0.0)
+        omklass_koncern_prev = prev_year_result.get('omklass_koncern', 0.0)
+        
+        # ALL impairment movements from full parser
+        ack_nedskr_koncern_ib_prev = prev_year_result.get('ack_nedskr_koncern_ib', 0.0)
+        ack_nedskr_koncern_ub_prev = prev_year_result.get('ack_nedskr_koncern_ub', 0.0)
         arets_nedskr_koncern_prev = prev_year_result.get('arets_nedskr_koncern', 0.0)
+        aterfor_nedskr_koncern_prev = prev_year_result.get('aterfor_nedskr_koncern', 0.0)
+        aterfor_nedskr_fsg_koncern_prev = prev_year_result.get('aterfor_nedskr_fsg_koncern', 0.0)
+        aterfor_nedskr_fusion_koncern_prev = prev_year_result.get('aterfor_nedskr_fusion_koncern', 0.0)
+        omklass_nedskr_koncern_prev = prev_year_result.get('omklass_nedskr_koncern', 0.0)
         
     else:
         # ========================================
@@ -506,6 +517,16 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False, two_files
         # =========================
         # PREVIOUS YEAR MOVEMENTS (SIGN RULES AS REQUESTED)
         # =========================
+        # Initialize ALL movement variables to 0.0 for fallback mode
+        fusion_koncern_prev = 0.0
+        aktieagartillskott_lamnad_koncern_prev = 0.0
+        aktieagartillskott_aterbetald_koncern_prev = 0.0
+        resultatandel_koncern_prev = 0.0
+        omklass_koncern_prev = 0.0
+        aterfor_nedskr_fsg_koncern_prev = 0.0
+        aterfor_nedskr_fusion_koncern_prev = 0.0
+        omklass_nedskr_koncern_prev = 0.0
+        
         # Δ assets(prev) = UB(prev) - IB(prev)
         delta_prev = (koncern_ub_prev or 0.0) - (koncern_ib_prev or 0.0)
         fsg_koncern_prev = 0.0       # sales, NEGATIVE when UB<IB (we keep UB-IB as-is)
@@ -590,8 +611,18 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False, two_files
         "ack_nedskr_koncern_ib_prev": ack_nedskr_koncern_ib_prev,
         "ack_nedskr_koncern_ub_prev": ack_nedskr_koncern_ub_prev,
         "red_varde_koncern_prev": red_varde_koncern_prev,
+        
+        # ALL previous year movements (from full parser or fallback)
         "fsg_koncern_prev": fsg_koncern_prev,
         "inkop_koncern_prev": inkop_koncern_prev,
+        "fusion_koncern_prev": fusion_koncern_prev,
+        "aktieagartillskott_lamnad_koncern_prev": aktieagartillskott_lamnad_koncern_prev,
+        "aktieagartillskott_aterbetald_koncern_prev": aktieagartillskott_aterbetald_koncern_prev,
+        "resultatandel_koncern_prev": resultatandel_koncern_prev,
+        "omklass_koncern_prev": omklass_koncern_prev,
         "aterfor_nedskr_koncern_prev": aterfor_nedskr_koncern_prev,
         "arets_nedskr_koncern_prev": arets_nedskr_koncern_prev,
+        "aterfor_nedskr_fsg_koncern_prev": aterfor_nedskr_fsg_koncern_prev,
+        "aterfor_nedskr_fusion_koncern_prev": aterfor_nedskr_fusion_koncern_prev,
+        "omklass_nedskr_koncern_prev": omklass_nedskr_koncern_prev,
     }
