@@ -241,7 +241,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
         {/* Current Year Upload */}
         <div
           className={`border-2 border-dashed rounded-lg p-4 text-center transition-all duration-300 ${
-            currentYearFile?.uploaded
+            currentYearFile
               ? 'border-green-500 bg-green-50'
               : dragOverArea === 'current'
               ? 'border-primary bg-primary/5'
@@ -257,6 +257,8 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
                 <Check className="w-5 h-5 text-green-600" />
               ) : isUploading && currentYearFile ? (
                 <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              ) : currentYearFile ? (
+                <Calendar className="w-5 h-5 text-green-600" />
               ) : (
                 <Calendar className="w-5 h-5 text-muted-foreground" />
               )}
@@ -309,7 +311,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
         {/* Previous Year Upload */}
         <div
           className={`border-2 border-dashed rounded-lg p-4 text-center transition-all duration-300 ${
-            previousYearFile?.uploaded
+            previousYearFile
               ? 'border-green-500 bg-green-50'
               : dragOverArea === 'previous'
               ? 'border-primary bg-primary/5'
@@ -325,6 +327,8 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
                 <Check className="w-5 h-5 text-green-600" />
               ) : isUploading && previousYearFile ? (
                 <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              ) : previousYearFile ? (
+                <Calendar className="w-5 h-5 text-green-600" />
               ) : (
                 <Calendar className="w-5 h-5 text-gray-400" />
               )}
