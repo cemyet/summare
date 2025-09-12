@@ -1,7 +1,7 @@
 import re
 from collections import defaultdict
 
-def parse_lvp_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
+def parse_lvp_k2_from_sie_text(sie_text: str, debug: bool = False, two_files_flag: bool = False, previous_year_sie_text: str = None) -> dict:
     """
     LVP-note (K2) parser for Långfristiga värdepapper.
 
@@ -206,71 +206,115 @@ def parse_lvp_k2_from_sie_text(sie_text: str, debug: bool = False) -> dict:
             red_varde_lang_vardepapper = lang_vardepapper_ub + ack_nedskr_lang_vardepapper_ub
             
     # =========================
-    # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+    # PREVIOUS YEAR FORK LOGIC
     # =========================
-    # Reuse the *exact* account sets discovered for current year:
-    #   - ASSET_SET: long-term securities acquisition accounts (e.g., 1350..)
-    #   - ACC_IMP_SET: accumulated impairment accounts (e.g., 1358, 1368, ...)
-    # These are already built by your current-year logic.
+    # Debug: Log the fork decision
+    print(f"[LVP-DEBUG] Fork decision: two_files_flag={two_files_flag}, has_previous_text={previous_year_sie_text is not None}")
+    if previous_year_sie_text:
+        print(f"[LVP-DEBUG] Previous year text length: {len(previous_year_sie_text)} characters")
+    
+    if two_files_flag and previous_year_sie_text:
+        # ========================================
+        # TWO FILES MODE: Run full parser on previous year SE file
+        # ========================================
+        if debug:
+            print("[LVP-DEBUG] Two files mode: Running full parser on previous year SE file")
+        
+        # Recursively call the parser on the previous year SE file
+        prev_year_result = parse_lvp_k2_from_sie_text(
+            previous_year_sie_text, 
+            debug=debug, 
+            two_files_flag=False,  # Prevent infinite recursion
+            previous_year_sie_text=None
+        )
+        
+        # Extract ALL previous year values from the full parser result
+        # Asset movements and balances
+        lang_vardepapper_ib_prev = prev_year_result.get('lang_vardepapper_ib', 0.0)
+        lang_vardepapper_ub_prev = prev_year_result.get('lang_vardepapper_ub', 0.0)
+        red_varde_lang_vardepapper_prev = prev_year_result.get('red_varde_lang_vardepapper', 0.0)
+        
+        # ALL asset movements from full parser
+        arets_inkop_lang_vardepapper_prev = prev_year_result.get('arets_inkop_lang_vardepapper', 0.0)
+        fsg_lang_vardepapper_prev = prev_year_result.get('arets_fsg_lang_vardepapper', 0.0)
+        
+        # ALL impairment movements from full parser
+        ack_nedskr_lang_vardepapper_ib_prev = prev_year_result.get('ack_nedskr_lang_vardepapper_ib', 0.0)
+        ack_nedskr_lang_vardepapper_ub_prev = prev_year_result.get('ack_nedskr_lang_vardepapper_ub', 0.0)
+        arets_nedskr_lang_vardepapper_prev = prev_year_result.get('arets_nedskr_lang_vardepapper', 0.0)
+        aterfor_nedskr_lang_vardepapper_prev = prev_year_result.get('aterfor_nedskr_lang_vardepapper', 0.0)
+        
+    else:
+        # ========================================
+        # FALLBACK MODE: Balance-only calculation (original logic)
+        # ========================================
+        if debug:
+            print("[LVP-DEBUG] Fallback mode: Using balance-only calculation for previous year")
+        
+        # Initialize ALL movement variables to 0.0 for fallback mode
+        arets_inkop_lang_vardepapper_prev = 0.0
+        fsg_lang_vardepapper_prev = 0.0
+        arets_nedskr_lang_vardepapper_prev = 0.0
+        aterfor_nedskr_lang_vardepapper_prev = 0.0
+        
+        # =========================
+        # PREVIOUS YEAR (FROM SAME SIE; NO VOUCHERS)
+        # =========================
+        # Reuse the *exact* account sets discovered for current year:
+        #   - ASSET_SET: long-term securities acquisition accounts (e.g., 1350..)
+        #   - ACC_IMP_SET: accumulated impairment accounts (e.g., 1358, 1368, ...)
+        # These are already built by your current-year logic.
 
-    def _get_balance_prev(lines, kind_flag: str, accounts) -> float:
-        """
-        Sum #IB -1 or #UB -1 for the given accounts (set or ranges).
-        kind_flag ∈ {"IB", "UB"}.
-        """
-        if not accounts:
-            return 0.0
-        total = 0.0
-        bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
-        for raw in lines:
-            m = bal_re_prev.match(raw.strip())
-            if not m:
-                continue
-            acct = int(m.group(1))
-            # Handle both sets and ranges like the original get_balance function
-            if isinstance(accounts, (set, frozenset)):
-                ok = acct in accounts
-            else:
-                ok = any(lo <= acct <= hi for lo, hi in accounts)
-            if ok:
-                total += _to_float(m.group(2))
-        return total
+        def _get_balance_prev(lines, kind_flag: str, accounts) -> float:
+            """
+            Sum #IB -1 or #UB -1 for the given accounts (set or ranges).
+            kind_flag ∈ {"IB", "UB"}.
+            """
+            if not accounts:
+                return 0.0
+            total = 0.0
+            bal_re_prev = re.compile(rf'^#(?:{kind_flag})\s+-1\s+(\d+)\s+(-?[0-9][0-9\s.,]*)(?:\s+.*)?$')
+            for raw in lines:
+                m = bal_re_prev.match(raw.strip())
+                if not m:
+                    continue
+                acct = int(m.group(1))
+                # Handle both sets and ranges like the original get_balance function
+                if isinstance(accounts, (set, frozenset)):
+                    ok = acct in accounts
+                else:
+                    ok = any(lo <= acct <= hi for lo, hi in accounts)
+                if ok:
+                    total += _to_float(m.group(2))
+            return total
 
-    # --- Previous-year balances using SAME sets as current year ---
-    lang_vardepapper_ib_prev            = _get_balance_prev(lines, 'IB', ASSET_RANGES)
-    lang_vardepapper_ub_prev            = _get_balance_prev(lines, 'UB', ASSET_RANGES)
-    ack_nedskr_lang_vardepapper_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_LVP)
-    ack_nedskr_lang_vardepapper_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_LVP)
+        # --- Previous-year balances using SAME sets as current year ---
+        lang_vardepapper_ib_prev            = _get_balance_prev(lines, 'IB', ASSET_RANGES)
+        lang_vardepapper_ub_prev            = _get_balance_prev(lines, 'UB', ASSET_RANGES)
+        ack_nedskr_lang_vardepapper_ib_prev = _get_balance_prev(lines, 'IB', ACC_IMP_LVP)
+        ack_nedskr_lang_vardepapper_ub_prev = _get_balance_prev(lines, 'UB', ACC_IMP_LVP)
 
-    # Prev-year redovisat värde = UB cost + UB accumulated impairments (impairments are negative)
-    red_varde_lang_vardepapper_prev = (lang_vardepapper_ub_prev or 0.0) + (ack_nedskr_lang_vardepapper_ub_prev or 0.0)
+        # Prev-year redovisat värde = UB cost + UB accumulated impairments (impairments are negative)
+        red_varde_lang_vardepapper_prev = (lang_vardepapper_ub_prev or 0.0) + (ack_nedskr_lang_vardepapper_ub_prev or 0.0)
 
-    # =========================
-    # PREVIOUS YEAR MOVEMENTS (SIGN RULES AS AGREED)
-    # =========================
-    # Δ cost(prev) = UB(prev) - IB(prev)
-    delta_prev = (lang_vardepapper_ub_prev or 0.0) - (lang_vardepapper_ib_prev or 0.0)
-    fsg_lang_vardepapper_prev        = 0.0   # sales: NEGATIVE when UB<IB (we record UB-IB)
-    arets_inkop_lang_vardepapper_prev = 0.0   # purchases: POSITIVE when UB>IB (record UB-IB)
+        # Cost delta (prev) = UB(prev) - IB(prev)
+        delta_prev = (lang_vardepapper_ub_prev or 0.0) - (lang_vardepapper_ib_prev or 0.0)
+        
+        if lang_vardepapper_ub_prev < lang_vardepapper_ib_prev:
+            fsg_lang_vardepapper_prev = delta_prev
+        elif lang_vardepapper_ub_prev > lang_vardepapper_ib_prev:
+            arets_inkop_lang_vardepapper_prev = delta_prev
 
-    if lang_vardepapper_ub_prev < lang_vardepapper_ib_prev:
-        fsg_lang_vardepapper_prev = delta_prev
-    elif lang_vardepapper_ub_prev > lang_vardepapper_ib_prev:
-        arets_inkop_lang_vardepapper_prev = delta_prev
+        # Impairment movement via magnitudes:
+        abs_ib_imp = abs(ack_nedskr_lang_vardepapper_ib_prev or 0.0)
+        abs_ub_imp = abs(ack_nedskr_lang_vardepapper_ub_prev or 0.0)
 
-    # Impairment movement via magnitudes:
-    abs_ib_imp = abs(ack_nedskr_lang_vardepapper_ib_prev or 0.0)
-    abs_ub_imp = abs(ack_nedskr_lang_vardepapper_ub_prev or 0.0)
-
-    aterfor_nedskr_lang_vardepapper_prev = 0.0
-    arets_nedskr_lang_vardepapper_prev   = 0.0
-
-    if abs_ib_imp > abs_ub_imp:
-        # magnitude DOWN => reversal, POSITIVE = |IB| - |UB|
-        aterfor_nedskr_lang_vardepapper_prev = abs_ib_imp - abs_ub_imp
-    elif abs_ib_imp < abs_ub_imp:
-        # magnitude UP => impairment of the year, NEGATIVE = |IB| - |UB|
-        arets_nedskr_lang_vardepapper_prev = abs_ib_imp - abs_ub_imp
+        if abs_ib_imp > abs_ub_imp:
+            # magnitude DOWN => reversal, POSITIVE = |IB| - |UB|
+            aterfor_nedskr_lang_vardepapper_prev = abs_ib_imp - abs_ub_imp
+        elif abs_ib_imp < abs_ub_imp:
+            # magnitude UP => impairment of the year, NEGATIVE = |IB| - |UB|
+            arets_nedskr_lang_vardepapper_prev = abs_ib_imp - abs_ub_imp
 
     # --- Backend debug (one line per variable) ---
     if debug:

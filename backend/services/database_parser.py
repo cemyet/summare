@@ -2360,7 +2360,13 @@ class DatabaseParser:
         
         # Get precise LVP calculations from transaction analysis
         from .lvp_k2_parser import parse_lvp_k2_from_sie_text
-        lvp_k2_data = parse_lvp_k2_from_sie_text(se_content, debug=False)
+        print(f"[NOTER-DEBUG] Calling lvp parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
+        lvp_k2_data = parse_lvp_k2_from_sie_text(
+            se_content, 
+            debug=False, 
+            two_files_flag=two_files_flag, 
+            previous_year_sie_text=previous_year_se_content
+        )
         
         # Get precise FORDRKONC calculations from transaction analysis
         from .fordringar_koncern_k2_parser import parse_fordringar_koncern_k2_from_sie_text
