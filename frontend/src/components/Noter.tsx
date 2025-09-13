@@ -230,29 +230,35 @@ const InventarierNote: React.FC<{
 
   // Compute Redovisat värde (beräknat) from IB + flows -> UB, then red.värde = UB + ack.*
   const calcRedovisatVarde = () => {
-    // Safe reads with edited values included
-    const v = (name: string) => getCurrentValue(name);
+    const v = (name: string) => getCurrentValue(name) || 0;
 
-    const ibInv = v("inventarier_ib");
-    const ibAvskr = v("ack_avskr_inventarier_ib");
-    const ibNedskr = v("ack_nedskr_inventarier_ib");
+    // Anskaffningsvärden
+    const invIB        = v('inventarier_ib');
+    const aretsInkop   = v('arets_inkop_inventarier');
+    const aretsFsg     = v('arets_fsg_inventarier');
+    const omklassInv   = v('arets_omklass_inventarier');             // if not mapped -> 0
 
-    const aretsInkop = v("arets_inkop_inventarier");
-    const aretsFsg = v("arets_fsg_inventarier");
-    const aretsOmklass = v("arets_omklass_inventarier");
+    const invUB = invIB + aretsInkop - aretsFsg + omklassInv;
 
-    const aretsAvskr = v("arets_avskr_inventarier");
-    const aterforAvskrFsg = v("aterfor_avskr_fsg_inventarier");
+    // Avskrivningar (add negative "Årets avskrivningar")
+    const avskrIB      = v('ack_avskr_inventarier_ib');
+    const aretsAvskr   = v('arets_avskr_inventarier');
+    const aterfAvskrF  = v('aterfor_avskr_fsg_inventarier');
+    const omklassAvskr = v('omklass_avskr_inventarier');             // optional
 
-    const aretsNedskr = v("arets_nedskr_inventarier");
-    const aterforNedskr = v("aterfor_nedskr_inventarier");
-    const aterforNedskrFsg = v("aterfor_nedskr_fsg_inventarier");
+    const avskrUB = avskrIB + aretsAvskr + aterfAvskrF + omklassAvskr;
 
-    const invUB = ibInv + aretsInkop - aretsFsg + aretsOmklass;
-    const ackAvskrUB = ibAvskr + aterforAvskrFsg - aretsAvskr;
-    const ackNedskrUB = ibNedskr + aterforNedskrFsg + aterforNedskr - aretsNedskr;
+    // Nedskrivningar (same idea)
+    const nedskrIB      = v('ack_nedskr_inventarier_ib');
+    const aretsNedskr   = v('arets_nedskr_inventarier');
+    const aterfNedskr   = v('aterfor_nedskr_inventarier');
+    const aterfNedskrF  = v('aterfor_nedskr_fsg_inventarier');
+    const omklassNedskr = v('omklass_nedskr_inventarier');           // optional
 
-    return invUB + ackAvskrUB + ackNedskrUB;
+    const nedskrUB = nedskrIB + aretsNedskr + aterfNedskr + aterfNedskrF + omklassNedskr;
+
+    // Redovisat värde (beräknat)
+    return invUB + avskrUB + nedskrUB;
   };
 
   const startEdit = () => {
@@ -276,6 +282,15 @@ const InventarierNote: React.FC<{
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
     setToggle?.(false);   // hide extra rows like FB
+  };
+
+  const undoEdit = () => {
+    setEditedValues({});
+    setEditedPrevValues({});
+    setMismatch({ open: false, delta: 0 });
+    setShowValidationMessage(false);
+    setToggle?.(false);     // hide extra rows like in FB
+    // IMPORTANT: do NOT setIsEditing(false); stay in edit mode
   };
 
   const approveEdit = () => {
@@ -547,7 +562,7 @@ const InventarierNote: React.FC<{
         <div className="pt-4 border-t border-gray-200 flex justify-between">
           {/* Undo Button - Left */}
           <Button 
-            onClick={cancelEdit}
+            onClick={undoEdit}
             variant="outline"
             className="flex items-center gap-2"
           >
