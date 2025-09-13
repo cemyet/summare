@@ -228,41 +228,20 @@ const InventarierNote: React.FC<{
     });
   }, [items, toggleOn, editedValues, editedPrevValues]);
 
-  // Compute Redovisat värde (beräknat) from IB + flows -> UB, then red.värde = UB + ack.*
-  const calcRedovisatVarde = () => {
-    const v = (name: string) => getCurrentValue(name) || 0;
+  // Compute Redovisat värde (beräknat) - year-aware version
+  const calcRedovisatVarde = React.useCallback((year: 'cur' | 'prev') => {
+    const v = (name: string) => getVal(name, year) || 0;
 
-    // Anskaffningsvärden
-    const invIB        = v('inventarier_ib');
-    const aretsInkop   = v('arets_inkop_inventarier');
-    const aretsFsg     = v('arets_fsg_inventarier');
-    const omklassInv   = v('arets_omklass_inventarier');             // if not mapped -> 0
+    const invUB     = v('inventarier_ib') + v('arets_inkop_inventarier') - v('arets_fsg_inventarier') + v('arets_omklass_inventarier');
+    const avskrUB   = v('ack_avskr_inventarier_ib') + v('arets_avskr_inventarier') + v('aterfor_avskr_fsg_inventarier') + v('omklass_avskr_inventarier');
+    const nedskrUB  = v('ack_nedskr_inventarier_ib') + v('arets_nedskr_inventarier') + v('aterfor_nedskr_inventarier') + v('aterfor_nedskr_fsg_inventarier') + v('omklass_nedskr_inventarier');
 
-    const invUB = invIB + aretsInkop - aretsFsg + omklassInv;
-
-    // Avskrivningar (add negative "Årets avskrivningar")
-    const avskrIB      = v('ack_avskr_inventarier_ib');
-    const aretsAvskr   = v('arets_avskr_inventarier');
-    const aterfAvskrF  = v('aterfor_avskr_fsg_inventarier');
-    const omklassAvskr = v('omklass_avskr_inventarier');             // optional
-
-    const avskrUB = avskrIB + aretsAvskr + aterfAvskrF + omklassAvskr;
-
-    // Nedskrivningar (same idea)
-    const nedskrIB      = v('ack_nedskr_inventarier_ib');
-    const aretsNedskr   = v('arets_nedskr_inventarier');
-    const aterfNedskr   = v('aterfor_nedskr_inventarier');
-    const aterfNedskrF  = v('aterfor_nedskr_fsg_inventarier');
-    const omklassNedskr = v('omklass_nedskr_inventarier');           // optional
-
-    const nedskrUB = nedskrIB + aretsNedskr + aterfNedskr + aterfNedskrF + omklassNedskr;
-
-    // Redovisat värde (beräknat)
     return invUB + avskrUB + nedskrUB;
-  };
+  }, [getVal]);
 
   const startEdit = () => {
     setIsEditing(true);
+    setToggle?.(true);   // show hidden rows when entering edit
   };
 
   // Auto-hide validation message after 5 seconds
@@ -289,13 +268,13 @@ const InventarierNote: React.FC<{
     setEditedPrevValues({});
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
-    setToggle?.(false);     // hide extra rows like in FB
+    // Don't change show/hide mode - stay with current toggle state
     // IMPORTANT: do NOT setIsEditing(false); stay in edit mode
   };
 
   const approveEdit = () => {
     // run balance check
-    const beraknad = calcRedovisatVarde();
+    const beraknad = calcRedovisatVarde('cur');
     const delta = Math.round(beraknad - brBookValueUB);
     if (Math.abs(delta) !== 0) {
       setMismatch({ open: false, delta });
@@ -314,12 +293,14 @@ const InventarierNote: React.FC<{
   };
 
   const AmountCell = React.memo(function AmountCell({
+    year,
     varName,
     editable,
     value,
     onCommit,
     onTabNavigate,
   }: {
+    year: 'cur' | 'prev';
     varName: string;
     editable: boolean;
     value: number;
@@ -351,7 +332,8 @@ const InventarierNote: React.FC<{
       <input
         ref={inputRef}
         type="text"
-        data-editable-cell="1"                 // used for ordered tabbing
+        data-editable-cell="1"
+        data-year={year}            // NEW
         className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
         value={shown}
         onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
@@ -402,19 +384,19 @@ const InventarierNote: React.FC<{
   const focusSiblingEditable = (fromEl: HTMLInputElement, dir: 1 | -1) => {
     const root = containerRef.current;
     if (!root) return;
+    const year = fromEl.dataset.year; // "cur" | "prev"
     const nodes = Array.from(
-      root.querySelectorAll<HTMLInputElement>('input[data-editable-cell="1"]:not([disabled])')
+      root.querySelectorAll<HTMLInputElement>(`input[data-editable-cell="1"][data-year="${year}"]:not([disabled])`)
     );
     const i = nodes.indexOf(fromEl);
     const next = nodes[i + dir];
-    if (next) {
-      next.focus();
-      next.select?.();
-    }
+    if (next) { next.focus(); next.select?.(); }
   };
 
-  // Precompute expensive bits once per render, not per row
-  const calculatedRedValue = isEditing ? calcRedovisatVarde() : 0;
+  // Compute both years every render
+  const redCur  = calcRedovisatVarde('cur');
+  const redPrev = calcRedovisatVarde('prev');
+  const redMismatch = isEditing && Math.round(redCur) !== Math.round(brBookValueUB);
 
   return (
     <div ref={containerRef} className="space-y-2 pt-4">
@@ -488,21 +470,19 @@ const InventarierNote: React.FC<{
         const currentStyle = it.style || 'NORMAL';
         const isHeadingRow = isHeadingStyle(currentStyle);
         const isS2 = isSumRow(it);
-        // Kill O(n²) - use direct string comparison instead of indexOf
-        const isRedVardeRow = it.variable_name === "red_varde_inventarier";
-        const redClass = mismatch.delta !== 0 ? 'text-red-600 font-bold' : '';
         
         // Precompute style classes once per row
         const gc = getStyleClasses(currentStyle);
 
+        const isRedVardeRow = it.variable_name === "red_varde_inventarier";
+        
         // values for display
-        const curVal = isS2
-          ? sumGroupAbove(visible, idx, 'cur')
-          : getVal(it.variable_name ?? '', 'cur');
-
-        const prevVal = isS2
-          ? sumGroupAbove(visible, idx, 'prev')
-          : getVal(it.variable_name ?? '', 'prev');
+        const curVal = isRedVardeRow
+          ? redCur
+          : (isS2 ? sumGroupAbove(visible, idx, 'cur') : getVal(it.variable_name ?? '', 'cur'));
+        const prevVal = isRedVardeRow
+          ? redPrev
+          : (isS2 ? sumGroupAbove(visible, idx, 'prev') : getVal(it.variable_name ?? '', 'prev'));
         
         return (
           <div 
@@ -520,29 +500,33 @@ const InventarierNote: React.FC<{
             </span>
 
             {/* Current year */}
-            <span className={`text-right font-medium ${isRedVardeRow ? redClass : ""}`}>
-              {isHeadingRow ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRedValue) + " kr" : (
-                <AmountCell
-                  varName={it.variable_name!}
-                  editable={isEditing && isFlowVar(it.variable_name)}
-                  value={curVal}
-                  onCommit={(n) => setEditedValues(prev => ({ ...prev, [it.variable_name!]: n }))}
-                  onTabNavigate={(el, dir) => focusSiblingEditable(el, dir)}
-                />
-              ))}
+            <span className={`text-right font-medium ${isRedVardeRow && redMismatch ? 'text-red-600 font-bold' : ''}`}>
+              {isHeadingRow ? '' : isRedVardeRow
+                ? `${numberToSv(curVal)} kr`
+                : <AmountCell
+                    year="cur"
+                    varName={it.variable_name!}
+                    editable={isEditing && isFlowVar(it.variable_name)}
+                    value={curVal}
+                    onCommit={(n) => setEditedValues(p => ({ ...p, [it.variable_name!]: n }))}
+                    onTabNavigate={(el, dir) => focusSiblingEditable(el, dir)}
+                  />
+              }
             </span>
 
-            {/* Previous year - editable for flows too */}
+            {/* Previous year */}
             <span className="text-right font-medium">
-              {isHeadingRow ? "" : (
-                <AmountCell
-                  varName={`${it.variable_name!}_prev`}
-                  editable={isEditing && isFlowVar(it.variable_name)}
-                  value={prevVal}
-                  onCommit={(n) => setEditedPrevValues(prev => ({ ...prev, [it.variable_name!]: n }))}
-                  onTabNavigate={(el, dir) => focusSiblingEditable(el, dir)}
-                />
-              )}
+              {isHeadingRow ? '' : isRedVardeRow
+                ? `${numberToSv(prevVal)} kr`
+                : <AmountCell
+                    year="prev"
+                    varName={`${it.variable_name!}_prev`}
+                    editable={isEditing && isFlowVar(it.variable_name)}
+                    value={prevVal}
+                    onCommit={(n) => setEditedPrevValues(p => ({ ...p, [it.variable_name!]: n }))}
+                    onTabNavigate={(el, dir) => focusSiblingEditable(el, dir)}
+                  />
+              }
             </span>
           </div>
         );
