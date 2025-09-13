@@ -107,14 +107,30 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
     const [m1, m2] = await Promise.all([extractSieMeta(a), extractSieMeta(b)]);
 
     // Check company mismatch FIRST (more important than year validation)
-    // Prefer orgnr for company check (fallback to name)
-    if (m1.orgnr && m2.orgnr && m1.orgnr !== m2.orgnr) {
-      const A = m1.company || m1.orgnr;
-      const B = m2.company || m2.orgnr;
+    // Prefer orgnr for company check, fallback to company name
+    let companiesDifferent = false;
+    let companyA = '';
+    let companyB = '';
+    
+    if (m1.orgnr && m2.orgnr) {
+      // Both have org numbers - compare them
+      companiesDifferent = m1.orgnr !== m2.orgnr;
+      companyA = m1.company || m1.orgnr;
+      companyB = m2.company || m2.orgnr;
+    } else if (m1.company && m2.company) {
+      // Fallback to company name comparison (case-insensitive, trimmed)
+      const nameA = m1.company.trim().toLowerCase();
+      const nameB = m2.company.trim().toLowerCase();
+      companiesDifferent = nameA !== nameB;
+      companyA = m1.company;
+      companyB = m2.company;
+    }
+    
+    if (companiesDifferent) {
       return {
         ok: false,
         type: 'COMPANY',
-        message: `Filerna tillhör olika företag: ${A} vs ${B}. Ladda upp filer för samma bolag.`,
+        message: `Filerna tillhör olika företag: ${companyA} och ${companyB}. Ladda upp filer för samma bolag.`,
       };
     }
 
@@ -307,6 +323,11 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
   const resetFiles = () => {
     setCurrentYearFile(null);
     setPreviousYearFile(null);
+    // Reset all popup states
+    setShowYearValidationError(false);
+    setShowCompanyMismatchError(false);
+    setYearValidationMessage('');
+    setCompanyMismatchMessage('');
   };
 
   if (!allowTwoFiles) {
