@@ -619,20 +619,50 @@ const InventarierNote: React.FC<{
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-900">
-                Summor balanserar inte
-              </p>
-              <p className="mt-1 text-sm text-gray-700">
-                Redovisat värde (beräknat) stämmer inte med bokfört värde.
-              </p>
-              <ul className="mt-2 text-sm text-gray-900">
-                {Math.round(mismatch.deltaCur) !== 0 && (
-                  <li><strong>{fiscalYear}</strong>: {numberToSv(Math.round(mismatch.deltaCur))} kr</li>
-                )}
-                {Math.round(mismatch.deltaPrev) !== 0 && (
-                  <li><strong>{previousYear}</strong>: {numberToSv(Math.round(mismatch.deltaPrev))} kr</li>
-                )}
-              </ul>
+              {(() => {
+                const curMism = Math.round(mismatch.deltaCur) !== 0;
+                const prevMism = Math.round(mismatch.deltaPrev) !== 0;
+                
+                if (curMism && !prevMism) {
+                  return (
+                    <>
+                      <p className="text-sm font-medium text-gray-900">
+                        Summor balanserar inte {fiscalYear}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-700">
+                        Beräknat redovisat värde stämmer inte med bokfört värde. Differensen är {numberToSv(Math.abs(Math.round(mismatch.deltaCur)))} kr.
+                      </p>
+                    </>
+                  );
+                } else if (prevMism && !curMism) {
+                  return (
+                    <>
+                      <p className="text-sm font-medium text-gray-900">
+                        Summor balanserar inte {previousYear}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-700">
+                        Beräknat redovisat värde stämmer inte med bokfört värde. Differensen är {numberToSv(Math.abs(Math.round(mismatch.deltaPrev)))} kr.
+                      </p>
+                    </>
+                  );
+                } else {
+                  // Both years have mismatches
+                  return (
+                    <>
+                      <p className="text-sm font-medium text-gray-900">
+                        Summor balanserar inte
+                      </p>
+                      <p className="mt-1 text-sm text-gray-700">
+                        Beräknat redovisat värde stämmer inte med bokfört värde.
+                      </p>
+                      <ul className="mt-2 text-sm text-gray-900">
+                        <li><strong>{fiscalYear}</strong>: Differens {numberToSv(Math.abs(Math.round(mismatch.deltaCur)))} kr</li>
+                        <li><strong>{previousYear}</strong>: Differens {numberToSv(Math.abs(Math.round(mismatch.deltaPrev)))} kr</li>
+                      </ul>
+                    </>
+                  );
+                }
+              })()}
             </div>
             <button
               onClick={() => { setShowValidationMessage(false); setMismatch(m => ({ ...m, open: false })); }}
