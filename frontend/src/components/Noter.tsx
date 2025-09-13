@@ -165,6 +165,7 @@ const InventarierNote: React.FC<{
   const [isEditing, setIsEditing] = useState(false);
   const [editedValues, setEditedValues] = useState<Record<string, number>>({});
   const [editedPrevValues, setEditedPrevValues] = useState<Record<string, number>>({});
+  const [committedPrevValues, setCommittedPrevValues] = useState<Record<string, number>>({});
   const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
   const [showValidationMessage, setShowValidationMessage] = useState(false);
 
@@ -195,8 +196,10 @@ const InventarierNote: React.FC<{
 
   // Read current/prev amount, considering edits
   const readCur = (it: NoterItem) => getCurrentValue(it.variable_name!);
-  const readPrev = (it: NoterItem) => 
-    editedPrevValues[it.variable_name!] ?? (it.previous_amount ?? 0);
+  const readPrev = (it: NoterItem) =>
+    committedPrevValues[it.variable_name!] ??
+    editedPrevValues[it.variable_name!] ??
+    (it.previous_amount ?? 0);
 
   // Build visible rows using the same logic as main Noter component
   const visible = useMemo(() => {
@@ -217,7 +220,7 @@ const InventarierNote: React.FC<{
       // zero + not toggleable => never show
       return false;
     });
-  }, [items, toggleOn, editedValues]);
+  }, [items, toggleOn, editedValues, editedPrevValues]);
 
   // Compute Redovisat värde (beräknat) from IB + flows -> UB, then red.värde = UB + ack.*
   const calcRedovisatVarde = () => {
@@ -263,26 +266,29 @@ const InventarierNote: React.FC<{
   const cancelEdit = () => {
     setIsEditing(false);
     setEditedValues({});
-    setEditedPrevValues({});  // clear previous year edits
+    setEditedPrevValues({});
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
+    setToggle?.(false);   // hide extra rows like FB
   };
 
   const approveEdit = () => {
     // run balance check
     const beraknad = calcRedovisatVarde();
-    const delta = Math.round((beraknad - brBookValueUB));
+    const delta = Math.round(beraknad - brBookValueUB);
     if (Math.abs(delta) !== 0) {
-      setMismatch({ open: false, delta });// show toast + red
-      setShowValidationMessage(true);   // show FB-style toast
-      return;                           // stay in edit mode
+      setMismatch({ open: false, delta });
+      setShowValidationMessage(true);
+      return;
     }
+
+    // NEW: persist År -1 edits
+    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
 
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
     setIsEditing(false);
-    setEditedPrevValues({}); // clear previous year edits after commit
-    // Hide "empty" rows that were only visible via toggle
+    setEditedPrevValues({});
     setToggle?.(false);
   };
 
