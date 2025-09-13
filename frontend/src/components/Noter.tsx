@@ -109,10 +109,55 @@ const InventarierNote: React.FC<{
   const [committed, setCommitted] = useState<Record<string, { cur?: number; prev?: number }>>({});
   const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
   const [showValidationMessage, setShowValidationMessage] = useState(false);
+  const [focusedVar, setFocusedVar] = useState<string | null>(null);
+
+  // Helper functions (matching FB implementation)
+  const formatSvInt = (n: number) =>
+    new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 }).format(Math.round(n));
+
+  const cleanDigits = (s: string) => (s || '')
+    .replace(/\s| |\u00A0|\u202F|,/g, '') // vanliga + NBSP + smalt mellanslag + komma
+    .trim();
+
+  const parseDraft = (s: string): number => {
+    if (!s) return 0;
+    const cleaned = cleanDigits(s);
+    const v = parseInt(cleaned, 10);
+    return Number.isNaN(v) ? 0 : v;
+  };
+
+  const getCurrentValue = (variableName: string, prev = false): number => {
+    const commitKey = prev ? 'prev' : 'cur';
+    if (committed[variableName]?.[commitKey] !== undefined) {
+      return committed[variableName][commitKey]!;
+    }
+    const item = byVar.get(variableName);
+    return prev ? (item?.previous_amount ?? 0) : (item?.current_amount ?? 0);
+  };
+
+  const commitDraft = (variableName: string, draft: string, prev = false) => {
+    const parsed = parseDraft(draft);
+    const commitKey = prev ? 'prev' : 'cur';
+    setCommitted(prevCommitted => ({
+      ...prevCommitted,
+      [variableName]: {
+        ...prevCommitted[variableName],
+        [commitKey]: parsed
+      }
+    }));
+    
+    // Update draft to show consistent formatting
+    const draftKey = prev ? 'draftPrev' : 'draftCur';
+    if (prev) {
+      setDraftPrev(prev => ({ ...prev, [variableName]: String(parsed) }));
+    } else {
+      setDraftCur(prev => ({ ...prev, [variableName]: String(parsed) }));
+    }
+  };
 
   // Read current/prev amount, considering committed edits
-  const readCur = (it: NoterItem) => committed[it.variable_name!]?.cur ?? (it.current_amount ?? 0);
-  const readPrev = (it: NoterItem) => committed[it.variable_name!]?.prev ?? (it.previous_amount ?? 0);
+  const readCur = (it: NoterItem) => getCurrentValue(it.variable_name!, false);
+  const readPrev = (it: NoterItem) => getCurrentValue(it.variable_name!, true);
 
   // Build visible rows using the same logic as main Noter component
   const visible = useMemo(() => {
@@ -137,10 +182,12 @@ const InventarierNote: React.FC<{
 
   // Compute Redovisat värde (beräknat) from IB + flows -> UB, then red.värde = UB + ack.*
   const calcRedovisatVarde = () => {
-    // Safe reads with multiple naming variants
-    const v = (name: string, alt?: string) =>
-      (byVar.get(name)?.current_amount ?? byVar.get(alt || "")?.current_amount ?? 0) +
-      (committed[name]?.cur ?? committed[alt || ""]?.cur ?? 0);
+    // Safe reads with committed values included
+    const v = (name: string, alt?: string) => {
+      const primary = getCurrentValue(name, false);
+      const alternative = alt ? getCurrentValue(alt, false) : 0;
+      return primary || alternative;
+    };
 
     const ibInv = v("inventarier_ib");
     const ibAvskr = v("ack_avskr_inventarier_ib");
@@ -232,15 +279,51 @@ const InventarierNote: React.FC<{
       const v = prev ? readPrev(it) : readCur(it);
       return <span className="text-right font-medium">{numberToSv(v)} kr</span>;
     }
-    const raw = prev ? (draftPrev[vn] ?? "") : (draftCur[vn] ?? "");
-    const setRaw = (s: string) => {
-      if (prev) setDraftPrev((d) => ({ ...d, [vn]: s }));
-      else setDraftCur((d) => ({ ...d, [vn]: s }));
-    };
+
+    // Get current value and draft (matching FB pattern)
+    const currentValue = getCurrentValue(vn, prev);
+    const draftRaw = prev 
+      ? (draftPrev[vn] ?? (currentValue ? String(Math.round(currentValue)) : ''))
+      : (draftCur[vn] ?? (currentValue ? String(Math.round(currentValue)) : ''));
+    
+    // Focus-based display: raw when focused, formatted when not focused
+    const focusKey = prev ? `${vn}_prev` : vn;
+    const isFocused = focusedVar === focusKey;
+    const display = isFocused 
+      ? draftRaw  // raw when focused (easy to type -, delete etc)
+      : (draftRaw ? formatSvInt(parseDraft(draftRaw)) : ''); // formatted when not focused
+
     return (
       <input
-        value={raw}
-        onChange={(e) => setRaw(e.target.value)}
+        type="text"
+        inputMode="numeric"
+        value={display}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          if (prev) {
+            setDraftPrev(d => ({ ...d, [vn]: newValue }));
+          } else {
+            setDraftCur(d => ({ ...d, [vn]: newValue }));
+          }
+        }}
+        onFocus={() => {
+          setFocusedVar(focusKey);
+          // Ensure we have the raw value when focusing
+          const rawValue = prev ? draftPrev[vn] : draftCur[vn];
+          if (!rawValue) {
+            const val = String(Math.round(currentValue));
+            if (prev) {
+              setDraftPrev(d => ({ ...d, [vn]: val }));
+            } else {
+              setDraftCur(d => ({ ...d, [vn]: val }));
+            }
+          }
+        }}
+        onBlur={() => {
+          setFocusedVar(null);
+          // Commit the draft value
+          commitDraft(vn, draftRaw, prev);
+        }}
         className="h-6 px-2 py-0.5 text-right font-mono border rounded-md w-28 text-sm"
         placeholder="0"
       />
@@ -251,10 +334,11 @@ const InventarierNote: React.FC<{
   const redVardeRowIndex = items.findIndex((it) => it.variable_name === "red_varde_inventarier");
 
   return (
-    <div className="space-y-2">
-      {/* Edit controls */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-2 pt-4">
+      {/* Header with heading, edit icon, and toggle - matching FB pattern */}
+      <div className="flex items-center justify-between border-b pb-1">
         <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold pt-1">{heading}</h3>
           {/* Round icon toggle, same as FB */}
           <button
             onClick={() => isEditing ? cancelEdit() : startEdit()}
@@ -270,17 +354,19 @@ const InventarierNote: React.FC<{
             </svg>
           </button>
         </div>
-
-        {isEditing && (
-          <div className="flex items-center gap-2">
-            <Button size="sm" onClick={approveEdit}>
-              Godkänn ändringar
-            </Button>
-            <Button size="sm" variant="ghost" onClick={cancelEdit}>
-              Ångra
-            </Button>
-          </div>
-        )}
+        <div className="flex items-center space-x-2">
+          <label 
+            htmlFor="toggle-inv-rows" 
+            className="text-sm font-medium cursor-pointer"
+          >
+            Visa alla rader
+          </label>
+          <Switch
+            id="toggle-inv-rows"
+            checked={toggleOn}
+            onCheckedChange={setToggle}
+          />
+        </div>
       </div>
 
       {/* Column headers */}
@@ -330,6 +416,34 @@ const InventarierNote: React.FC<{
           <span className="text-muted-foreground">Redovisat värde (bokfört)</span>
           <span className="text-right font-medium">{numberToSv(brBookValueUB)} kr</span>
           <span /> {/* prev-year empty */}
+        </div>
+      )}
+
+      {/* Action buttons at bottom - matching FB pattern */}
+      {isEditing && (
+        <div className="pt-4 border-t border-gray-200 flex justify-between">
+          {/* Undo Button - Left */}
+          <Button 
+            onClick={cancelEdit}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+            </svg>
+            Ångra ändringar
+          </Button>
+          
+          {/* Update Button - Right */}
+          <Button 
+            onClick={approveEdit}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+          >
+            Godkänn ändringar
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+            </svg>
+          </Button>
         </div>
       )}
 
@@ -973,37 +1087,18 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             // Special handling for INV block - with manual editing capability
             if (block === 'INV') {
               return (
-                <div key={block} className="space-y-2 pt-4">
-                  <div className="flex items-center justify-between border-b pb-1">
-                    <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
-                    <div className="flex items-center space-x-2">
-                      <label 
-                        htmlFor={`toggle-${block}`} 
-                        className="text-sm font-medium cursor-pointer"
-                      >
-                        Visa alla rader
-                      </label>
-                      <Switch
-                        id={`toggle-${block}`}
-                        checked={blockToggles[block] || false}
-                        onCheckedChange={(checked) => 
-                            setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                        }
-                      />
-                    </div>
-                  </div>
-                  <InventarierNote
-                    items={blockItems}
-                    heading=""
-                    fiscalYear={fiscalYear}
-                    previousYear={previousYear}
-                    companyData={companyData}
-                    toggleOn={blockToggles[block] || false}
-                    setToggle={(checked: boolean) =>
-                      setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                    }
-                  />
-                </div>
+                <InventarierNote
+                  key={block}
+                  items={blockItems}
+                  heading={blockHeading}
+                  fiscalYear={fiscalYear}
+                  previousYear={previousYear}
+                  companyData={companyData}
+                  toggleOn={blockToggles[block] || false}
+                  setToggle={(checked: boolean) =>
+                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
+                  }
+                />
               );
             }
             
