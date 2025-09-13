@@ -50,6 +50,59 @@ const formatSvInt = (n: number): string => fmt0.format(Math.round(n));
 
 const isHeadingStyle = (s?: string) => ["H0", "H1", "H2", "H3"].includes(s || "NORMAL");
 
+// AccountDetailsDialog component (moved to module scope for shared access)
+const AccountDetailsDialog = ({ item }: { item: NoterItem }) => {
+  const [selectedItem, setSelectedItem] = useState<NoterItem | null>(null);
+  
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Badge 
+          variant="secondary" 
+          className="ml-2 cursor-pointer hover:bg-gray-200 text-xs"
+          onClick={() => setSelectedItem(item)}
+        >
+          SHOW
+        </Badge>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Kontouppgifter - {item.row_title}</DialogTitle>
+        </DialogHeader>
+        <div className="mt-4">
+          {item.account_details && item.account_details.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Konto</TableHead>
+                  <TableHead>Kontotext</TableHead>
+                  <TableHead className="text-right">Saldo</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {item.account_details.map((detail, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="font-mono">{detail.account_id}</TableCell>
+                    <TableCell>{detail.account_text}</TableCell>
+                    <TableCell className="text-right font-mono">
+                      {new Intl.NumberFormat('sv-SE', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0,
+                      }).format(detail.balance)} kr
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-muted-foreground">Inga kontouppgifter tillgängliga.</p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 // Inventarier editor component
 const InventarierNote: React.FC<{
   items: NoterItem[];
@@ -111,10 +164,9 @@ const InventarierNote: React.FC<{
   // Local edit state (simplified to match FB)
   const [isEditing, setIsEditing] = useState(false);
   const [editedValues, setEditedValues] = useState<Record<string, number>>({});
-  const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
+  const [editedPrevValues, setEditedPrevValues] = useState<Record<string, number>>({});
   const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
   const [showValidationMessage, setShowValidationMessage] = useState(false);
-  const [focusedVar, setFocusedVar] = useState<string | null>(null);
 
   // Helper functions (matching FB implementation exactly) - using memoized formatter
 
@@ -140,25 +192,11 @@ const InventarierNote: React.FC<{
     return item?.current_amount ?? 0;
   };
 
-  const commitDraft = (varKey: string, draft: string) => {
-    // Use parseDraft for consistent parsing (matching FB)
-    const parsed = parseDraft(draft);
-    
-    // Handle both current year and previous year
-    if (varKey.endsWith('_prev')) {
-      // Previous year - for now just update the draft, don't store in editedValues
-      setDraftInputs(prev => ({ ...prev, [varKey]: String(parsed) }));
-    } else {
-      // Current year - update editedValues for recalculation
-      const newValues = { ...editedValues, [varKey]: parsed };
-      setEditedValues(newValues);
-      setDraftInputs(prev => ({ ...prev, [varKey]: String(parsed) }));
-    }
-  };
 
-  // Read current/prev amount, considering edits (simplified)
+  // Read current/prev amount, considering edits
   const readCur = (it: NoterItem) => getCurrentValue(it.variable_name!);
-  const readPrev = (it: NoterItem) => it.previous_amount ?? 0; // Previous year not editable for now
+  const readPrev = (it: NoterItem) => 
+    editedPrevValues[it.variable_name!] ?? (it.previous_amount ?? 0);
 
   // Build visible rows using the same logic as main Noter component
   const visible = useMemo(() => {
@@ -225,10 +263,9 @@ const InventarierNote: React.FC<{
   const cancelEdit = () => {
     setIsEditing(false);
     setEditedValues({});
-    setDraftInputs({});
+    setEditedPrevValues({});  // clear previous year edits
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
-    setFocusedVar(null);
   };
 
   const approveEdit = () => {
@@ -244,7 +281,7 @@ const InventarierNote: React.FC<{
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
     setIsEditing(false);
-    setFocusedVar(null);
+    setEditedPrevValues({}); // clear previous year edits after commit
     // Hide "empty" rows that were only visible via toggle
     setToggle?.(false);
   };
@@ -417,10 +454,9 @@ const InventarierNote: React.FC<{
                 <AmountCell
                   varName={`${it.variable_name!}_prev`}
                   editable={isEditing && isFlowVar(it.variable_name)}
-                  value={it.previous_amount ?? 0}
+                  value={readPrev(it)}
                   onCommit={(n) => {
-                    // For now, just store in a separate state or ignore previous year commits
-                    console.log(`Previous year edit for ${it.variable_name}: ${n}`);
+                    setEditedPrevValues(prev => ({ ...prev, [it.variable_name!]: n }));
                   }}
                 />
               )}
@@ -565,53 +601,6 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
     });
   };
 
-  const AccountDetailsDialog = ({ item }: { item: NoterItem }) => (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Badge 
-          variant="secondary" 
-          className="ml-2 cursor-pointer hover:bg-gray-200 text-xs"
-          onClick={() => setSelectedItem(item)}
-        >
-          SHOW
-        </Badge>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{item.row_title} - Kontodetaljer</DialogTitle>
-        </DialogHeader>
-        <div className="mt-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Konto</TableHead>
-                <TableHead>Kontotext</TableHead>
-                <TableHead className="text-right">{fiscalYear || new Date().getFullYear()}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {item.account_details?.map((detail, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-mono">{detail.account_id}</TableCell>
-                  <TableCell>{detail.account_text}</TableCell>
-                  <TableCell className="text-right font-mono">
-                    {formatAmountWithDecimals(detail.balance)}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {(!item.account_details || item.account_details.length === 0) && (
-                <TableRow>
-                  <TableCell colSpan={3} className="text-center text-gray-500">
-                    Inga konton med saldo hittades
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 
   return (
     <Card className="w-full">
