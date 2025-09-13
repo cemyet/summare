@@ -102,11 +102,10 @@ const InventarierNote: React.FC<{
     return found;
   }, [companyData, byVar]);
 
-  // Local edit state
+  // Local edit state (simplified to match FB)
   const [isEditing, setIsEditing] = useState(false);
-  const [draftCur, setDraftCur] = useState<Record<string, string>>({});
-  const [draftPrev, setDraftPrev] = useState<Record<string, string>>({});
-  const [committed, setCommitted] = useState<Record<string, { cur?: number; prev?: number }>>({});
+  const [editedValues, setEditedValues] = useState<Record<string, number>>({});
+  const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
   const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
   const [showValidationMessage, setShowValidationMessage] = useState(false);
   const [focusedVar, setFocusedVar] = useState<string | null>(null);
@@ -128,38 +127,26 @@ const InventarierNote: React.FC<{
     return Number.isNaN(v) ? 0 : v;
   };
 
-  const getCurrentValue = (variableName: string, prev = false): number => {
-    const commitKey = prev ? 'prev' : 'cur';
-    if (committed[variableName]?.[commitKey] !== undefined) {
-      return committed[variableName][commitKey]!;
+  // Helper function to get current value (edited or original) - matching FB
+  const getCurrentValue = (variableName: string): number => {
+    if (editedValues[variableName] !== undefined) {
+      return editedValues[variableName];
     }
     const item = byVar.get(variableName);
-    return prev ? (item?.previous_amount ?? 0) : (item?.current_amount ?? 0);
+    return item?.current_amount ?? 0;
   };
 
-  const commitDraft = (variableName: string, draft: string, prev = false) => {
+  const commitDraft = (variableName: string, draft: string) => {
+    // Use parseDraft for consistent parsing (matching FB)
     const parsed = parseDraft(draft);
-    const commitKey = prev ? 'prev' : 'cur';
-    setCommitted(prevCommitted => ({
-      ...prevCommitted,
-      [variableName]: {
-        ...prevCommitted[variableName],
-        [commitKey]: parsed
-      }
-    }));
-    
-    // Update draft to show consistent formatting
-    const draftKey = prev ? 'draftPrev' : 'draftCur';
-    if (prev) {
-      setDraftPrev(prev => ({ ...prev, [variableName]: String(parsed) }));
-    } else {
-      setDraftCur(prev => ({ ...prev, [variableName]: String(parsed) }));
-    }
+    const newValues = { ...editedValues, [variableName]: parsed };
+    setEditedValues(newValues);
+    setDraftInputs(prev => ({ ...prev, [variableName]: String(parsed) }));
   };
 
-  // Read current/prev amount, considering committed edits
-  const readCur = (it: NoterItem) => getCurrentValue(it.variable_name!, false);
-  const readPrev = (it: NoterItem) => getCurrentValue(it.variable_name!, true);
+  // Read current/prev amount, considering edits (simplified)
+  const readCur = (it: NoterItem) => getCurrentValue(it.variable_name!);
+  const readPrev = (it: NoterItem) => it.previous_amount ?? 0; // Previous year not editable for now
 
   // Build visible rows using the same logic as main Noter component
   const visible = useMemo(() => {
@@ -180,23 +167,19 @@ const InventarierNote: React.FC<{
       // zero + not toggleable => never show
       return false;
     });
-  }, [items, toggleOn, committed]);
+  }, [items, toggleOn, editedValues]);
 
   // Compute Redovisat värde (beräknat) from IB + flows -> UB, then red.värde = UB + ack.*
   const calcRedovisatVarde = () => {
-    // Safe reads with committed values included
-    const v = (name: string, alt?: string) => {
-      const primary = getCurrentValue(name, false);
-      const alternative = alt ? getCurrentValue(alt, false) : 0;
-      return primary || alternative;
-    };
+    // Safe reads with edited values included
+    const v = (name: string) => getCurrentValue(name);
 
     const ibInv = v("inventarier_ib");
     const ibAvskr = v("ack_avskr_inventarier_ib");
     const ibNedskr = v("ack_nedskr_inventarier_ib");
 
     const aretsInkop = v("arets_inkop_inventarier");
-    const aretsFsg = v("arets_fsg_inventarier", "fsg_inventarier");
+    const aretsFsg = v("arets_fsg_inventarier");
     const aretsOmklass = v("arets_omklass_inventarier");
 
     const aretsAvskr = v("arets_avskr_inventarier");
@@ -214,17 +197,6 @@ const InventarierNote: React.FC<{
   };
 
   const startEdit = () => {
-    // seed drafts with currently displayed values (as raw sv strings)
-    const dC: Record<string, string> = {};
-    const dP: Record<string, string> = {};
-    items.forEach((it) => {
-      const vn = it.variable_name;
-      if (!vn || !isFlowVar(vn)) return;
-      dC[vn] = numberToSv(readCur(it));
-      dP[vn] = numberToSv(readPrev(it));
-    });
-    setDraftCur(dC);
-    setDraftPrev(dP);
     setIsEditing(true);
   };
 
@@ -240,59 +212,45 @@ const InventarierNote: React.FC<{
 
   const cancelEdit = () => {
     setIsEditing(false);
-    setDraftCur({});
-    setDraftPrev({});
+    setEditedValues({});
+    setDraftInputs({});
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
+    setFocusedVar(null);
   };
 
   const approveEdit = () => {
-    // parse drafts → numbers and store
-    const newCommitted: Record<string, { cur?: number; prev?: number }> = { ...committed };
-    items.forEach((it) => {
-      const vn = it.variable_name;
-      if (!vn || !isFlowVar(vn)) return;
-      const cur = svToNumber(draftCur[vn] ?? "");
-      const prev = svToNumber(draftPrev[vn] ?? "");
-      newCommitted[vn] = { cur, prev };
-    });
-
     // run balance check
     const beraknad = calcRedovisatVarde();
     const delta = Math.round((beraknad - brBookValueUB));
     if (Math.abs(delta) !== 0) {
-      setCommitted(newCommitted);       // keep values
       setMismatch({ open: false, delta });// show toast + red
       setShowValidationMessage(true);   // show FB-style toast
       return;                           // stay in edit mode
     }
 
-    setCommitted(newCommitted);
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
     setIsEditing(false);
+    setFocusedVar(null);
     // Hide "empty" rows that were only visible via toggle
     setToggle?.(false);
   };
 
   const AmountCell: React.FC<{ it: NoterItem; prev?: boolean }> = ({ it, prev }) => {
     const vn = it.variable_name!;
-    if (!isEditing || !isFlowVar(vn)) {
+    
+    // For now, only support current year editing (like FB)
+    if (prev || !isEditing || !isFlowVar(vn)) {
       const v = prev ? readPrev(it) : readCur(it);
       return <span className="text-right font-medium">{numberToSv(v)} kr</span>;
     }
 
-    // Get current value and draft (matching FB pattern exactly)
-    const currentValue = getCurrentValue(vn, prev);
-    const focusKey = prev ? `${vn}_prev` : vn;
-    const draftRaw = prev 
-      ? (draftPrev[vn] ?? (currentValue ? String(Math.round(currentValue)) : ''))
-      : (draftCur[vn] ?? (currentValue ? String(Math.round(currentValue)) : ''));
-    
-    // Focus-based display: raw when focused, formatted when not focused (exactly like FB)
-    const isFocused = focusedVar === focusKey;
-    const display = isFocused 
-      ? draftRaw  // raw when focused (easy to type -, delete etc)
+    // Exactly match FB pattern
+    const currentValue = getCurrentValue(vn);
+    const draftRaw = draftInputs[vn] ?? (currentValue ? String(Math.round(currentValue)) : '');
+    const display = focusedVar === vn
+      ? draftRaw                                           // raw when focused (easy to type -, delete etc)
       : (draftRaw ? formatSvInt(parseDraft(draftRaw)) : ''); // formatted when not focused
 
     return (
@@ -301,26 +259,20 @@ const InventarierNote: React.FC<{
         inputMode="numeric"
         className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
         value={display}
-        onFocus={() => setFocusedVar(focusKey)}
+        onFocus={() => setFocusedVar(vn)}
         onChange={(e) => {
           // Save raw value (without spaces/commas) so minus always works
           const raw = cleanDigits(e.target.value);
-          if (allowDraft(raw)) {
-            if (prev) {
-              setDraftPrev(prevDrafts => ({ ...prevDrafts, [vn]: raw }));
-            } else {
-              setDraftCur(prevDrafts => ({ ...prevDrafts, [vn]: raw }));
-            }
-          }
+          if (allowDraft(raw)) setDraftInputs(prev => ({ ...prev, [vn]: raw }));
         }}
         onBlur={(e) => {
           setFocusedVar(null);
           // commit with parsing + recalculation
-          commitDraft(vn, e.target.value, prev);
+          commitDraft(vn, e.target.value);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === 'Tab') {
-            commitDraft(vn, (e.target as HTMLInputElement).value, prev);
+            commitDraft(vn, (e.target as HTMLInputElement).value);
           }
         }}
         placeholder="0"
@@ -376,12 +328,42 @@ const InventarierNote: React.FC<{
 
       {/* Rows */}
       {visible.map((it, idx) => {
-        const isHeading = isHeadingStyle(it.style);
+        // Use same style system as main Noter component
+        const getStyleClasses = (style?: string) => {
+          const baseClasses = 'grid gap-4';
+          let additionalClasses = '';
+          const s = style || 'NORMAL';
+          
+          // Bold styles
+          const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
+          if (boldStyles.includes(s)) {
+            additionalClasses += ' font-semibold';
+          }
+          
+          // Line styles
+          const lineStyles = ['S2','S3','TS2','TS3'];
+          if (lineStyles.includes(s)) {
+            additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+          }
+          
+          return {
+            className: `${baseClasses}${additionalClasses}`,
+            style: { gridTemplateColumns: '4fr 1fr 1fr' }
+          };
+        };
+
+        const currentStyle = it.style || 'NORMAL';
+        const isHeading = isHeadingStyle(currentStyle);
         const isRedVardeRow = redVardeRowIndex === items.indexOf(it);
         const calculatedRed = calcRedovisatVarde();
         const redClass = mismatch.delta !== 0 ? 'text-red-600 font-bold' : '';
+        
         return (
-          <div key={`${it.row_id}-${idx}`} className={`grid gap-4 ${isHeading ? "font-semibold" : ""}`} style={gridCols}>
+          <div 
+            key={`${it.row_id}-${idx}`} 
+            className={getStyleClasses(currentStyle).className}
+            style={getStyleClasses(currentStyle).style}
+          >
             <span className="text-muted-foreground flex items-center">
               {it.row_title}
               {it.show_tag && (
@@ -396,13 +378,9 @@ const InventarierNote: React.FC<{
               {isHeading ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRed) + " kr" : <AmountCell it={it} />)}
             </span>
 
-            {/* Previous year – editable for flows too, per your request */}
+            {/* Previous year - display only */}
             <span className="text-right font-medium">
-              {isHeading ? "" : isFlowVar(it.variable_name) && isEditing ? (
-                <AmountCell it={it} prev />
-              ) : (
-                numberToSv(readPrev(it)) + " kr"
-              )}
+              {isHeading ? "" : numberToSv(readPrev(it)) + " kr"}
             </span>
           </div>
         );
