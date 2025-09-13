@@ -28,6 +28,9 @@ interface NoterItem {
 }
 
 // Helper functions for Swedish number formatting
+// Create formatters once (do NOT create new Intl.NumberFormat in each render)
+const fmt0 = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
+
 const svToNumber = (raw: string): number => {
   if (!raw) return 0;
   const s = raw.replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".");
@@ -35,12 +38,15 @@ const svToNumber = (raw: string): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+// Use memoized formatter everywhere
 const numberToSv = (n: number): string => {
   if (!Number.isFinite(n)) return "";
   const sign = n < 0 ? "-" : "";
   const abs = Math.abs(n);
-  return sign + abs.toLocaleString("sv-SE", { maximumFractionDigits: 0 });
+  return sign + fmt0.format(abs);
 };
+
+const formatSvInt = (n: number): string => fmt0.format(Math.round(n));
 
 const isHeadingStyle = (s?: string) => ["H0", "H1", "H2", "H3"].includes(s || "NORMAL");
 
@@ -110,9 +116,7 @@ const InventarierNote: React.FC<{
   const [showValidationMessage, setShowValidationMessage] = useState(false);
   const [focusedVar, setFocusedVar] = useState<string | null>(null);
 
-  // Helper functions (matching FB implementation exactly)
-  const formatSvInt = (n: number) =>
-    new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 }).format(Math.round(n));
+  // Helper functions (matching FB implementation exactly) - using memoized formatter
 
   const cleanDigits = (s: string) => (s || '')
     .replace(/\s| |\u00A0|\u202F|,/g, '') // vanliga + NBSP + smalt mellanslag + komma
@@ -245,7 +249,7 @@ const InventarierNote: React.FC<{
     setToggle?.(false);
   };
 
-  const AmountCell: React.FC<{ it: NoterItem; prev?: boolean }> = ({ it, prev }) => {
+  const AmountCell = React.memo(function AmountCell({ it, prev }: { it: NoterItem; prev?: boolean }) {
     const vn = it.variable_name!;
     
     if (!isEditing || !isFlowVar(vn)) {
@@ -287,10 +291,10 @@ const InventarierNote: React.FC<{
         placeholder="0"
       />
     );
-  };
+  });
 
-  // find the "Redovisat värde (beräknat)" row to color if mismatch
-  const redVardeRowIndex = items.findIndex((it) => it.variable_name === "red_varde_inventarier");
+  // Precompute expensive bits once per render, not per row
+  const calculatedRedValue = isEditing ? calcRedovisatVarde() : 0;
 
   return (
     <div className="space-y-2 pt-4">
@@ -363,15 +367,18 @@ const InventarierNote: React.FC<{
 
         const currentStyle = it.style || 'NORMAL';
         const isHeading = isHeadingStyle(currentStyle);
-        const isRedVardeRow = redVardeRowIndex === items.indexOf(it);
-        const calculatedRed = isRedVardeRow ? calcRedovisatVarde() : 0;
+        // Kill O(n²) - use direct string comparison instead of indexOf
+        const isRedVardeRow = it.variable_name === "red_varde_inventarier";
         const redClass = mismatch.delta !== 0 ? 'text-red-600 font-bold' : '';
+        
+        // Precompute style classes once per row
+        const gc = getStyleClasses(currentStyle);
         
         return (
           <div 
             key={`${it.row_id}-${idx}`} 
-            className={getStyleClasses(currentStyle).className}
-            style={getStyleClasses(currentStyle).style}
+            className={gc.className}
+            style={gc.style}
           >
             <span className="text-muted-foreground flex items-center">
               {it.row_title}
@@ -384,7 +391,7 @@ const InventarierNote: React.FC<{
 
             {/* Current year */}
             <span className={`text-right font-medium ${isRedVardeRow ? redClass : ""}`}>
-              {isHeading ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRed) + " kr" : <AmountCell it={it} />)}
+              {isHeading ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRedValue) + " kr" : <AmountCell it={it} />)}
             </span>
 
             {/* Previous year - editable for flows too */}
