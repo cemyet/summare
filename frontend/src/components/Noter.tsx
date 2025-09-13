@@ -583,7 +583,7 @@ const InventarierNote: React.FC<{
         let ordCounter = 0; // for Tab navigation order
         return visible.map((it, idx) => {
         // Use same style system as main Noter component
-        const getStyleClasses = (style?: string) => {
+        const getStyleClasses = (style?: string, isRedovisatVarde = false) => {
           const baseClasses = 'grid gap-4';
           let additionalClasses = '';
           const s = style || 'NORMAL';
@@ -594,10 +594,14 @@ const InventarierNote: React.FC<{
             additionalClasses += ' font-semibold';
           }
           
-          // Line styles
+          // Line styles - but remove bottom border for redovisat värde when editing
           const lineStyles = ['S2','S3','TS2','TS3'];
           if (lineStyles.includes(s)) {
-            additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+            if (isRedovisatVarde && isEditing) {
+              additionalClasses += ' border-t border-gray-200 pt-1 pb-1'; // no bottom border
+            } else {
+              additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+            }
           }
           
           return {
@@ -691,7 +695,7 @@ const InventarierNote: React.FC<{
 
       {/* Comparison row – only while editing */}
       {isEditing && (
-        <div className="grid gap-4 border-t border-gray-200 pt-1 pb-1 font-semibold bg-gray-50/50" style={gridCols}>
+        <div className="grid gap-4 border-t border-b border-gray-200 pt-1 pb-1 font-semibold bg-gray-50/50" style={gridCols}>
           <span className="text-muted-foreground font-semibold">Redovisat värde (bokfört)</span>
           <span className="text-right font-medium">{numberToSv(brBookValueUBCur)} kr</span>
           <span className="text-right font-medium">{numberToSv(brBookValueUBPrev)} kr</span>
@@ -700,7 +704,7 @@ const InventarierNote: React.FC<{
 
       {/* Action buttons at bottom - matching FB pattern */}
       {isEditing && (
-        <div className="pt-4 border-t border-gray-200 flex justify-between">
+        <div className="pt-4 flex justify-between">
           {/* Undo Button - Left */}
           <Button 
             onClick={undoEdit}
