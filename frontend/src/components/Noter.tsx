@@ -162,6 +162,21 @@ const InventarierNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
+  // Baseline management - save original values for proper undo
+  const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
+  React.useEffect(() => {
+    const cur: Record<string, number> = {};
+    const prev: Record<string, number> = {};
+    items.forEach(it => {
+      const vn = it.variable_name;
+      if (!vn) return;
+      if (!isFlowVar(vn)) return;                 // baseline bara för flöden
+      cur[vn] = it.current_amount ?? 0;
+      prev[vn] = it.previous_amount ?? 0;
+    });
+    originalBaselineRef.current = { cur, prev };
+  }, [items]);  // uppdatera baseline om ny SIE/parse kommer in
+
   // Local edit state (simplified to match FB)
   const [isEditing, setIsEditing] = useState(false);
   const [editedValues, setEditedValues] = useState<Record<string, number>>({});
@@ -195,14 +210,15 @@ const InventarierNote: React.FC<{
   const getVal = React.useCallback((vn: string, year: 'cur' | 'prev') => {
     if (year === 'cur') {
       if (editedValues[vn] !== undefined) return editedValues[vn];
-      if (committedValues[vn] !== undefined) return committedValues[vn];   // NEW
+      if (committedValues[vn] !== undefined) return committedValues[vn];
       return byVar.get(vn)?.current_amount ?? 0;
     } else {
-      if (committedPrevValues[vn] !== undefined) return committedPrevValues[vn];
+      // VIKTIGT: edited före committed, annars kan du inte skriva 0 efter Godkänn
       if (editedPrevValues[vn] !== undefined) return editedPrevValues[vn];
+      if (committedPrevValues[vn] !== undefined) return committedPrevValues[vn];
       return byVar.get(vn)?.previous_amount ?? 0;
     }
-  }, [editedValues, committedValues, editedPrevValues, committedPrevValues, byVar]);  // NEW deps
+  }, [editedValues, committedValues, editedPrevValues, committedPrevValues, byVar]);
 
   // Helper function to get current value (edited or original) - matching FB
   const getCurrentValue = (variableName: string): number => {
@@ -274,6 +290,8 @@ const InventarierNote: React.FC<{
     blurAllEditableInputs();                 // ensure inputs drop focus so they re-seed
     setEditedValues({});
     setEditedPrevValues({});
+    setCommittedValues({ ...originalBaselineRef.current.cur });     // resetta godkända (innevarande år)
+    setCommittedPrevValues({ ...originalBaselineRef.current.prev }); // resetta godkända (föreg. år)
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
     setShowValidationMessage(false);
     // Don't change show/hide mode - stay with current toggle state
