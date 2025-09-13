@@ -1264,7 +1264,7 @@ interface ChatFlowResponse {
         {showFileUpload ? (
           <div className="space-y-4">
             <div className="text-center text-gray-600 mb-4">
-              <span className="font-bold">Ladda upp SE-filer här:</span>
+              <span className="font-bold">Ladda upp SE-filer här</span>
             </div>
             <FileUpload onFileProcessed={handleFileProcessed} allowTwoFiles={true} />
           </div>

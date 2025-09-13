@@ -19,6 +19,8 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
   const [currentYearFile, setCurrentYearFile] = useState<UploadedFile | null>(null);
   const [previousYearFile, setPreviousYearFile] = useState<UploadedFile | null>(null);
   const [dragOverArea, setDragOverArea] = useState<'current' | 'previous' | null>(null);
+  const [showYearValidationError, setShowYearValidationError] = useState(false);
+  const [yearValidationMessage, setYearValidationMessage] = useState('');
   const { toast } = useToast();
 
 
@@ -111,11 +113,21 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
 
     } catch (error) {
       console.error('Upload error:', error);
-      toast({
-        title: "Fel vid uppladdning",
-        description: error instanceof Error ? error.message : "Kunde inte bearbeta filen/filerna",
-        variant: "destructive"
-      });
+      
+      // Check if this is a year validation error (status 400 with specific message pattern)
+      const errorMessage = error instanceof Error ? error.message : "Kunde inte bearbeta filen/filerna";
+      if (errorMessage.includes("Kontrollera SE-filerna. Räkenskapsåret är från")) {
+        // Show custom year validation popup
+        setYearValidationMessage(errorMessage);
+        setShowYearValidationError(true);
+      } else {
+        // Show regular toast for other errors
+        toast({
+          title: "Fel vid uppladdning",
+          description: errorMessage,
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsUploading(false);
     }
@@ -184,7 +196,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
             </div>
             
             <div className="space-y-1">
-              <h3 className="text-sm font-bold">Ladda upp SE-filer här:</h3>
+              <h3 className="text-sm font-bold">Ladda upp SE-filer här</h3>
               <p className="text-xs text-muted-foreground">
                 Dra och släpp din .SE fil här eller klicka nedan
               </p>
@@ -412,9 +424,38 @@ Bearbeta {previousYearFile ? 'filerna' : 'filen'}
 
       <div className="text-center">
         <p className="text-xs text-muted-foreground">
-          Ladda upp åtminstonde nuvarande räkenskapsårs SE fil. Föregående år är valfritt men ger ett bättre och mer detaljerad resultat i framställningen av noterna.
+          Ladda upp åtminstonde nuvarande räkenskapsårs SE fil. Föregående år är valfritt men ger ett bättre och mer detaljerat resultat i framställningen av noterna.
         </p>
       </div>
+
+      {/* Year Validation Error Popup */}
+      {showYearValidationError && (
+        <div className="fixed bottom-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                Kontrollera SE-filerna
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                {yearValidationMessage.replace("Kontrollera SE-filerna. ", "")}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowYearValidationError(false)}
+              className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
