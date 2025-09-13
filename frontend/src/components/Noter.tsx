@@ -195,14 +195,30 @@ const InventarierNote: React.FC<{
   // Optional: inject a real mapping from SQL -> { [variable_name]: '+' | '-' }
   const injectedSignMap: Record<string, '+' | '-'> | undefined = (companyData?.signByVar) || undefined;
 
-  // Heuristic fallback if not injected
-  const heuristicSign = (vn: string): '+' | '-' => (
-    /avskr|nedskr/i.test(vn) ? '-' : '+'
-  );
+  // Heuristic fallback based on actual CSV mapping for INV block
+  const heuristicSign = (vn: string): '+' | '-' | null => {
+    // Based on variable_mapping_noter_rows (3).csv
+    const positiveVars = [
+      'arets_inkop_inventarier',
+      'aterfor_avskr_fsg_inventarier', 
+      'aterfor_nedskr_fsg_inventarier',
+      'aterfor_nedskr_inventarier'
+    ];
+    
+    const negativeVars = [
+      'arets_fsg_inventarier',
+      'arets_avskr_inventarier', 
+      'arets_nedskr_inventarier'
+    ];
+    
+    if (positiveVars.includes(vn)) return '+';
+    if (negativeVars.includes(vn)) return '-';
+    return null; // flexible - can be both + or -
+  };
 
   // Unified accessor
-  const expectedSignFor = (vn?: string): '+' | '-' => {
-    if (!vn) return '+';
+  const expectedSignFor = (vn?: string): '+' | '-' | null => {
+    if (!vn) return null;
     return injectedSignMap?.[vn] ?? heuristicSign(vn);
   };
 
@@ -375,7 +391,7 @@ const InventarierNote: React.FC<{
     const [forcedFlash, setForcedFlash] = React.useState<null | ('+' | '-')>(null);
     const inputRef = React.useRef<HTMLInputElement>(null);
 
-    const signRule = expectedSignFor(baseVar); // '+' or '-' from mapping
+    const signRule = expectedSignFor(baseVar); // '+' or '-' or null from mapping
 
     React.useEffect(() => {
       if (!focused) setLocal(value ? String(Math.round(value)) : "");
@@ -396,14 +412,19 @@ const InventarierNote: React.FC<{
       if (!Number.isFinite(typed)) typed = 0;
 
       let adjusted = typed;
+      let wasForced = false;
+
       if (signRule === '-') {
         adjusted = -Math.abs(typed);
-      } else {
+        wasForced = (typed > 0); // only forced if user typed positive
+      } else if (signRule === '+') {
         adjusted = Math.max(0, Math.abs(typed));
+        wasForced = (typed < 0); // only forced if user typed negative
       }
+      // If signRule is null, no enforcement - accept both + and -
 
       // Show small per-cell badge if we changed the sign
-      if (adjusted !== typed) {
+      if (wasForced && signRule) {
         setForcedFlash(signRule);
         setTimeout(() => setForcedFlash(null), 1500);
         onSignForced?.({ baseVar, label, year, expected: signRule, typed, adjusted });
@@ -427,9 +448,10 @@ const InventarierNote: React.FC<{
             let raw = e.target.value.replace(/[^\d-]/g, "");
             if (signRule === '+') {
               raw = raw.replace(/-/g, '');        // block '-' while typing for '+'
-            } else {
+            } else if (signRule === '-') {
               raw = raw.replace(/(?!^)-/g, '');   // keep only a single leading '-'
             }
+            // If signRule is null, allow both + and - freely
             setLocal(raw);
           }}
           onBlur={() => { setFocused(false); commit(); }}
