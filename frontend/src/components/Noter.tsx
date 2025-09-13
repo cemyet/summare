@@ -169,16 +169,6 @@ const InventarierNote: React.FC<{
   const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
   const [showValidationMessage, setShowValidationMessage] = useState(false);
 
-  // live overlay values that reflect what's in the inputs right now
-  const [liveCur, setLiveCur] = React.useState<Record<string, number>>({});
-  const [livePrev, setLivePrev] = React.useState<Record<string, number>>({});
-
-  // ultra-fast parse: accept optional leading '-' and digits only
-  const fastParse = (s?: string) => {
-    if (!s) return 0;
-    const m = s.match(/^-?\d+/);
-    return m ? Number(m[0]) : 0;
-  };
 
   // Helper functions (matching FB implementation exactly) - using memoized formatter
 
@@ -195,19 +185,17 @@ const InventarierNote: React.FC<{
     return Number.isNaN(v) ? 0 : v;
   };
 
-  // Single accessor that S2 and "beräknat" use
+  // Single accessor that S2 and "beräknat" use (no live state)
   const getVal = React.useCallback((vn: string, year: 'cur' | 'prev') => {
     if (year === 'cur') {
-      if (isEditing && liveCur[vn] !== undefined) return liveCur[vn];
       if (editedValues[vn] !== undefined) return editedValues[vn];
       return byVar.get(vn)?.current_amount ?? 0;
     } else {
-      if (isEditing && livePrev[vn] !== undefined) return livePrev[vn];
       if (committedPrevValues[vn] !== undefined) return committedPrevValues[vn];
       if (editedPrevValues[vn] !== undefined) return editedPrevValues[vn];
       return byVar.get(vn)?.previous_amount ?? 0;
     }
-  }, [isEditing, liveCur, livePrev, editedValues, editedPrevValues, committedPrevValues, byVar]);
+  }, [editedValues, editedPrevValues, committedPrevValues, byVar]);
 
   // Helper function to get current value (edited or original) - matching FB
   const getCurrentValue = (variableName: string): number => {
@@ -285,8 +273,6 @@ const InventarierNote: React.FC<{
     setIsEditing(false);
     setEditedValues({});
     setEditedPrevValues({});
-    setLiveCur({});           // clear live overlay
-    setLivePrev({});          // clear live overlay
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
     setToggle?.(false);   // hide extra rows like FB
@@ -305,8 +291,6 @@ const InventarierNote: React.FC<{
     // NEW: persist År -1 edits
     setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
 
-    setLiveCur({});           // clear live overlay
-    setLivePrev({});          // clear live overlay
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
     setIsEditing(false);
@@ -318,19 +302,19 @@ const InventarierNote: React.FC<{
     varName,
     editable,
     value,
-    onLiveChange,
     onCommit,
+    onTabNavigate,
   }: {
     varName: string;
     editable: boolean;
     value: number;
-    onLiveChange?: (raw: string) => void;
     onCommit: (n: number) => void;
+    onTabNavigate?: (el: HTMLInputElement, dir: 1 | -1) => void;
   }) {
     const [focused, setFocused] = React.useState(false);
     const [local, setLocal] = React.useState<string>("");
+    const inputRef = React.useRef<HTMLInputElement>(null);
 
-    // keep local in sync when not focused
     React.useEffect(() => {
       if (!focused) setLocal(value ? String(Math.round(value)) : "");
     }, [value, focused]);
@@ -339,7 +323,9 @@ const InventarierNote: React.FC<{
       return <span className="text-right font-medium">{numberToSv(value)} kr</span>;
     }
 
-    const shown = focused ? local : (local ? formatSvInt(parseInt(local.replace(/[^\d-]/g, "") || "0", 10)) : "");
+    const shown = focused
+      ? local
+      : (local ? fmt0.format(parseInt(local.replace(/[^\d-]/g, "") || "0", 10)) : "");
 
     const commit = () => {
       const n = parseInt((local || "0").replace(/[^\d-]/g, ""), 10);
@@ -348,19 +334,27 @@ const InventarierNote: React.FC<{
 
     return (
       <input
-        type="text" // allow '-' freely; avoids IME lag from inputMode="numeric"
+        ref={inputRef}
+        type="text"
+        data-editable-cell="1"                 // used for ordered tabbing
         className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
         value={shown}
         onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
         onChange={(e) => {
-          const raw = e.target.value.replace(/[^\d-]/g, ""); // allow '-'
-          setLocal(raw);             // local only (still smooth)
-          onLiveChange?.(raw);       // tell parent so S2 can update live
+          const raw = e.target.value.replace(/[^\d-]/g, "");
+          setLocal(raw);                      // local only (no re-render storm)
         }}
-        onBlur={() => { setFocused(false); commit(); }}
+        onBlur={() => { setFocused(false); commit(); }}   // commit on blur/click elsewhere
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === "Tab") {
-            e.currentTarget.blur(); // triggers commit via onBlur
+          if (e.key === "Enter") {
+            e.currentTarget.blur();           // triggers commit + keeps native focus flow
+          } else if (e.key === "Tab") {
+            e.preventDefault();               // we manage Tab ourselves (like FB)
+            setFocused(false);
+            commit();
+            const el = inputRef.current || (e.currentTarget as HTMLInputElement);
+            // focus after commit to avoid race with re-render
+            requestAnimationFrame(() => onTabNavigate?.(el, e.shiftKey ? -1 : 1));
           }
         }}
         placeholder="0"
@@ -384,11 +378,28 @@ const InventarierNote: React.FC<{
     return sum;
   };
 
+  // Container ref + tab navigation helper
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const focusSiblingEditable = (fromEl: HTMLInputElement, dir: 1 | -1) => {
+    const root = containerRef.current;
+    if (!root) return;
+    const nodes = Array.from(
+      root.querySelectorAll<HTMLInputElement>('input[data-editable-cell="1"]:not([disabled])')
+    );
+    const i = nodes.indexOf(fromEl);
+    const next = nodes[i + dir];
+    if (next) {
+      next.focus();
+      next.select?.();
+    }
+  };
+
   // Precompute expensive bits once per render, not per row
   const calculatedRedValue = isEditing ? calcRedovisatVarde() : 0;
 
   return (
-    <div className="space-y-2 pt-4">
+    <div ref={containerRef} className="space-y-2 pt-4">
       {/* Header with heading, edit icon, and toggle - matching FB pattern */}
       <div className="flex items-center justify-between border-b pb-1">
         <div className="flex items-center gap-3">
@@ -497,13 +508,8 @@ const InventarierNote: React.FC<{
                   varName={it.variable_name!}
                   editable={isEditing && isFlowVar(it.variable_name)}
                   value={curVal}
-                  onLiveChange={(raw) => {
-                    // keep it ultra-cheap: just store numeric overlay, no formatting
-                    setLiveCur(prev => ({ ...prev, [it.variable_name!]: fastParse(raw) }));
-                  }}
-                  onCommit={(n) => {
-                    setEditedValues(prev => ({ ...prev, [it.variable_name!]: n }));
-                  }}
+                  onCommit={(n) => setEditedValues(prev => ({ ...prev, [it.variable_name!]: n }))}
+                  onTabNavigate={(el, dir) => focusSiblingEditable(el, dir)}
                 />
               ))}
             </span>
@@ -515,12 +521,8 @@ const InventarierNote: React.FC<{
                   varName={`${it.variable_name!}_prev`}
                   editable={isEditing && isFlowVar(it.variable_name)}
                   value={prevVal}
-                  onLiveChange={(raw) => {
-                    setLivePrev(prev => ({ ...prev, [it.variable_name!]: fastParse(raw) }));
-                  }}
-                  onCommit={(n) => {
-                    setEditedPrevValues(prev => ({ ...prev, [it.variable_name!]: n }));
-                  }}
+                  onCommit={(n) => setEditedPrevValues(prev => ({ ...prev, [it.variable_name!]: n }))}
+                  onTabNavigate={(el, dir) => focusSiblingEditable(el, dir)}
                 />
               )}
             </span>
