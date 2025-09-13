@@ -691,7 +691,7 @@ const InventarierNote: React.FC<{
 
       {/* Comparison row – only while editing */}
       {isEditing && (
-        <div className="grid gap-4 border-t border-b border-gray-200 pt-1 pb-1 font-semibold" style={gridCols}>
+        <div className="grid gap-4 border-t border-gray-200 pt-1 pb-1 font-semibold bg-gray-50/50" style={gridCols}>
           <span className="text-muted-foreground font-semibold">Redovisat värde (bokfört)</span>
           <span className="text-right font-medium">{numberToSv(brBookValueUBCur)} kr</span>
           <span className="text-right font-medium">{numberToSv(brBookValueUBPrev)} kr</span>
