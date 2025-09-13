@@ -169,6 +169,17 @@ const InventarierNote: React.FC<{
   const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
   const [showValidationMessage, setShowValidationMessage] = useState(false);
 
+  // live overlay values that reflect what's in the inputs right now
+  const [liveCur, setLiveCur] = React.useState<Record<string, number>>({});
+  const [livePrev, setLivePrev] = React.useState<Record<string, number>>({});
+
+  // ultra-fast parse: accept optional leading '-' and digits only
+  const fastParse = (s?: string) => {
+    if (!s) return 0;
+    const m = s.match(/^-?\d+/);
+    return m ? Number(m[0]) : 0;
+  };
+
   // Helper functions (matching FB implementation exactly) - using memoized formatter
 
   const cleanDigits = (s: string) => (s || '')
@@ -184,22 +195,29 @@ const InventarierNote: React.FC<{
     return Number.isNaN(v) ? 0 : v;
   };
 
+  // Single accessor that S2 and "beräknat" use
+  const getVal = React.useCallback((vn: string, year: 'cur' | 'prev') => {
+    if (year === 'cur') {
+      if (isEditing && liveCur[vn] !== undefined) return liveCur[vn];
+      if (editedValues[vn] !== undefined) return editedValues[vn];
+      return byVar.get(vn)?.current_amount ?? 0;
+    } else {
+      if (isEditing && livePrev[vn] !== undefined) return livePrev[vn];
+      if (committedPrevValues[vn] !== undefined) return committedPrevValues[vn];
+      if (editedPrevValues[vn] !== undefined) return editedPrevValues[vn];
+      return byVar.get(vn)?.previous_amount ?? 0;
+    }
+  }, [isEditing, liveCur, livePrev, editedValues, editedPrevValues, committedPrevValues, byVar]);
+
   // Helper function to get current value (edited or original) - matching FB
   const getCurrentValue = (variableName: string): number => {
-    if (editedValues[variableName] !== undefined) {
-      return editedValues[variableName];
-    }
-    const item = byVar.get(variableName);
-    return item?.current_amount ?? 0;
+    return getVal(variableName, 'cur');
   };
 
 
   // Read current/prev amount, considering edits
-  const readCur = (it: NoterItem) => getCurrentValue(it.variable_name!);
-  const readPrev = (it: NoterItem) =>
-    committedPrevValues[it.variable_name!] ??
-    editedPrevValues[it.variable_name!] ??
-    (it.previous_amount ?? 0);
+  const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
+  const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
   // Build visible rows using the same logic as main Noter component
   const visible = useMemo(() => {
@@ -267,6 +285,8 @@ const InventarierNote: React.FC<{
     setIsEditing(false);
     setEditedValues({});
     setEditedPrevValues({});
+    setLiveCur({});           // clear live overlay
+    setLivePrev({});          // clear live overlay
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
     setToggle?.(false);   // hide extra rows like FB
@@ -285,6 +305,8 @@ const InventarierNote: React.FC<{
     // NEW: persist År -1 edits
     setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
 
+    setLiveCur({});           // clear live overlay
+    setLivePrev({});          // clear live overlay
     setMismatch({ open: false, delta: 0 });
     setShowValidationMessage(false);
     setIsEditing(false);
@@ -296,11 +318,13 @@ const InventarierNote: React.FC<{
     varName,
     editable,
     value,
+    onLiveChange,
     onCommit,
   }: {
     varName: string;
     editable: boolean;
     value: number;
+    onLiveChange?: (raw: string) => void;
     onCommit: (n: number) => void;
   }) {
     const [focused, setFocused] = React.useState(false);
@@ -329,9 +353,9 @@ const InventarierNote: React.FC<{
         value={shown}
         onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
         onChange={(e) => {
-          // accept only digits and optional leading '-'
-          const raw = e.target.value.replace(/[^\d-]/g, "");
-          setLocal(raw); // LOCAL state only → no parent re-render on each key
+          const raw = e.target.value.replace(/[^\d-]/g, ""); // allow '-'
+          setLocal(raw);             // local only (still smooth)
+          onLiveChange?.(raw);       // tell parent so S2 can update live
         }}
         onBlur={() => { setFocused(false); commit(); }}
         onKeyDown={(e) => {
@@ -343,6 +367,22 @@ const InventarierNote: React.FC<{
       />
     );
   });
+
+  // Helpers for S2 row calculation
+  const isSumRow = (it: NoterItem) => it.style === 'S2';
+  const isHeading = (it: NoterItem) => isHeadingStyle(it.style);
+
+  // Sum all non-heading, non-S rows directly ABOVE this S2 row until a heading or start
+  const sumGroupAbove = (index: number, year: 'cur' | 'prev') => {
+    let sum = 0;
+    for (let i = index - 1; i >= 0; i--) {
+      const r = items[i];
+      if (!r) break;
+      if (isHeading(r) || r.style === 'S2') break;
+      if (r.variable_name) sum += getVal(r.variable_name, year);
+    }
+    return sum;
+  };
 
   // Precompute expensive bits once per render, not per row
   const calculatedRedValue = isEditing ? calcRedovisatVarde() : 0;
@@ -417,13 +457,23 @@ const InventarierNote: React.FC<{
         };
 
         const currentStyle = it.style || 'NORMAL';
-        const isHeading = isHeadingStyle(currentStyle);
+        const isHeadingRow = isHeadingStyle(currentStyle);
+        const isS2 = isSumRow(it);
         // Kill O(n²) - use direct string comparison instead of indexOf
         const isRedVardeRow = it.variable_name === "red_varde_inventarier";
         const redClass = mismatch.delta !== 0 ? 'text-red-600 font-bold' : '';
         
         // Precompute style classes once per row
         const gc = getStyleClasses(currentStyle);
+
+        // values for display
+        const curVal = isS2
+          ? sumGroupAbove(idx, 'cur')
+          : getVal(it.variable_name ?? '', 'cur');
+
+        const prevVal = isS2
+          ? sumGroupAbove(idx, 'prev')
+          : getVal(it.variable_name ?? '', 'prev');
         
         return (
           <div 
@@ -442,11 +492,15 @@ const InventarierNote: React.FC<{
 
             {/* Current year */}
             <span className={`text-right font-medium ${isRedVardeRow ? redClass : ""}`}>
-              {isHeading ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRedValue) + " kr" : (
+              {isHeadingRow ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRedValue) + " kr" : (
                 <AmountCell
                   varName={it.variable_name!}
                   editable={isEditing && isFlowVar(it.variable_name)}
-                  value={getCurrentValue(it.variable_name!)}
+                  value={curVal}
+                  onLiveChange={(raw) => {
+                    // keep it ultra-cheap: just store numeric overlay, no formatting
+                    setLiveCur(prev => ({ ...prev, [it.variable_name!]: fastParse(raw) }));
+                  }}
                   onCommit={(n) => {
                     setEditedValues(prev => ({ ...prev, [it.variable_name!]: n }));
                   }}
@@ -456,11 +510,14 @@ const InventarierNote: React.FC<{
 
             {/* Previous year - editable for flows too */}
             <span className="text-right font-medium">
-              {isHeading ? "" : (
+              {isHeadingRow ? "" : (
                 <AmountCell
                   varName={`${it.variable_name!}_prev`}
                   editable={isEditing && isFlowVar(it.variable_name)}
-                  value={readPrev(it)}
+                  value={prevVal}
+                  onLiveChange={(raw) => {
+                    setLivePrev(prev => ({ ...prev, [it.variable_name!]: fastParse(raw) }));
+                  }}
                   onCommit={(n) => {
                     setEditedPrevValues(prev => ({ ...prev, [it.variable_name!]: n }));
                   }}
