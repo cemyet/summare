@@ -410,6 +410,9 @@ async def upload_two_se_files(
             "message": "Båda SE-filerna laddades framgångsrikt"
         }
         
+    except HTTPException:
+        # Re-raise HTTPExceptions (like our validation errors) without modification
+        raise
     except Exception as e:
         import traceback
         error_detail = f"Fel vid laddning av filer: {str(e)}"

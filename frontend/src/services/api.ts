@@ -58,7 +58,8 @@ class ApiService {
       // Extract the actual error message from the response
       try {
         const errorData = await response.json();
-        throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+        const errorMessage = errorData.detail || `Upload failed: ${response.status}`;
+        throw new Error(errorMessage);
       } catch (parseError) {
         // If we can't parse the error response, fall back to generic message
         throw new Error(`Upload failed: ${response.status}`);
@@ -82,7 +83,8 @@ class ApiService {
       // Extract the actual error message from the response
       try {
         const errorData = await response.json();
-        throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+        const errorMessage = errorData.detail || `Upload failed: ${response.status}`;
+        throw new Error(errorMessage);
       } catch (parseError) {
         // If we can't parse the error response, fall back to generic message
         throw new Error(`Upload failed: ${response.status}`);
