@@ -21,6 +21,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
   const [dragOverArea, setDragOverArea] = useState<'current' | 'previous' | null>(null);
   const [showYearValidationError, setShowYearValidationError] = useState(false);
   const [yearValidationMessage, setYearValidationMessage] = useState('');
+  const [showCompanyMismatchError, setShowCompanyMismatchError] = useState(false);
   const { toast } = useToast();
 
 
@@ -114,12 +115,16 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
     } catch (error) {
       console.error('Upload error:', error);
       
-      // Check if this is a year validation error (status 400 with specific message pattern)
+      // Check for specific validation errors and show appropriate popups
       const errorMessage = error instanceof Error ? error.message : "Kunde inte bearbeta filen/filerna";
+      
       if (errorMessage.includes("Kontrollera SE-filerna. Räkenskapsåret är från")) {
         // Show custom year validation popup
         setYearValidationMessage(errorMessage);
         setShowYearValidationError(true);
+      } else if (errorMessage.includes("Dina uppladdade SE filer verkar vara från olika bolag")) {
+        // Show custom company mismatch popup
+        setShowCompanyMismatchError(true);
       } else {
         // Show regular toast for other errors
         toast({
@@ -447,6 +452,35 @@ Bearbeta {previousYearFile ? 'filerna' : 'filen'}
             </div>
             <button
               onClick={() => setShowYearValidationError(false)}
+              className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Company Mismatch Error Popup */}
+      {showCompanyMismatchError && (
+        <div className="fixed bottom-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                Olika bolag upptäckta
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Dina uppladdade SE filer verkar vara från olika bolag.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowCompanyMismatchError(false)}
               className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -271,6 +271,28 @@ async def upload_two_se_files(
         current_company_info = parser.extract_company_info(current_se_content)
         previous_company_info = parser.extract_company_info(previous_se_content)
         
+        # Validate that both files belong to the same company
+        current_org_number = current_company_info.get('organization_number')
+        previous_org_number = previous_company_info.get('organization_number')
+        current_company_name = current_company_info.get('company_name')
+        previous_company_name = previous_company_info.get('company_name')
+        
+        # Check organization numbers first (primary method)
+        if current_org_number and previous_org_number:
+            if current_org_number != previous_org_number:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Dina uppladdade SE filer verkar vara från olika bolag."
+                )
+        # Fallback to company names if organization numbers are missing
+        elif current_company_name and previous_company_name:
+            if current_company_name.strip().lower() != previous_company_name.strip().lower():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Dina uppladdade SE filer verkar vara från olika bolag."
+                )
+        # If we can't validate company match, proceed with warning (could add logging here)
+        
         # Validate that the years are consecutive
         current_fiscal_year = current_company_info.get('fiscal_year')
         previous_fiscal_year = previous_company_info.get('fiscal_year')
@@ -286,6 +308,12 @@ async def upload_two_se_files(
                     status_code=400, 
                     detail=f"Kontrollera SE-filerna. Räkenskapsåret är från {fiscal_year} medan föregående års fil är från {previous_year}."
                 )
+            
+            # Ensure we always use the newer year as "current" for annual report generation
+            if current_fiscal_year < previous_fiscal_year:
+                # User uploaded files in reverse order - swap them
+                current_se_content, previous_se_content = previous_se_content, current_se_content
+                current_company_info, previous_company_info = previous_company_info, current_company_info
         
         current_accounts, previous_accounts, current_ib_accounts, previous_ib_accounts = parser.parse_account_balances(current_se_content)
         company_info = current_company_info

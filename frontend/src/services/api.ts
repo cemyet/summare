@@ -55,7 +55,14 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status}`);
+      // Extract the actual error message from the response
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+      } catch (parseError) {
+        // If we can't parse the error response, fall back to generic message
+        throw new Error(`Upload failed: ${response.status}`);
+      }
     }
 
     return await response.json();
@@ -72,7 +79,14 @@ class ApiService {
     });
 
     if (!response.ok) {
-      throw new Error(`Upload failed: ${response.status}`);
+      // Extract the actual error message from the response
+      try {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+      } catch (parseError) {
+        // If we can't parse the error response, fall back to generic message
+        throw new Error(`Upload failed: ${response.status}`);
+      }
     }
 
     return await response.json();
