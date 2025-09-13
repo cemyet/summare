@@ -136,12 +136,20 @@ const InventarierNote: React.FC<{
     return item?.current_amount ?? 0;
   };
 
-  const commitDraft = (variableName: string, draft: string) => {
+  const commitDraft = (varKey: string, draft: string) => {
     // Use parseDraft for consistent parsing (matching FB)
     const parsed = parseDraft(draft);
-    const newValues = { ...editedValues, [variableName]: parsed };
-    setEditedValues(newValues);
-    setDraftInputs(prev => ({ ...prev, [variableName]: String(parsed) }));
+    
+    // Handle both current year and previous year
+    if (varKey.endsWith('_prev')) {
+      // Previous year - for now just update the draft, don't store in editedValues
+      setDraftInputs(prev => ({ ...prev, [varKey]: String(parsed) }));
+    } else {
+      // Current year - update editedValues for recalculation
+      const newValues = { ...editedValues, [varKey]: parsed };
+      setEditedValues(newValues);
+      setDraftInputs(prev => ({ ...prev, [varKey]: String(parsed) }));
+    }
   };
 
   // Read current/prev amount, considering edits (simplified)
@@ -240,17 +248,19 @@ const InventarierNote: React.FC<{
   const AmountCell: React.FC<{ it: NoterItem; prev?: boolean }> = ({ it, prev }) => {
     const vn = it.variable_name!;
     
-    // For now, only support current year editing (like FB)
-    if (prev || !isEditing || !isFlowVar(vn)) {
+    if (!isEditing || !isFlowVar(vn)) {
       const v = prev ? readPrev(it) : readCur(it);
       return <span className="text-right font-medium">{numberToSv(v)} kr</span>;
     }
 
-    // Exactly match FB pattern
-    const currentValue = getCurrentValue(vn);
-    const draftRaw = draftInputs[vn] ?? (currentValue ? String(Math.round(currentValue)) : '');
-    const display = focusedVar === vn
-      ? draftRaw                                           // raw when focused (easy to type -, delete etc)
+    // Create unique variable name for prev/cur
+    const varKey = prev ? `${vn}_prev` : vn;
+    
+    // Get current value
+    const currentValue = prev ? readPrev(it) : getCurrentValue(vn);
+    const draftRaw = draftInputs[varKey] ?? (currentValue ? String(Math.round(currentValue)) : '');
+    const display = focusedVar === varKey
+      ? draftRaw                                           // raw when focused
       : (draftRaw ? formatSvInt(parseDraft(draftRaw)) : ''); // formatted when not focused
 
     return (
@@ -259,20 +269,19 @@ const InventarierNote: React.FC<{
         inputMode="numeric"
         className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
         value={display}
-        onFocus={() => setFocusedVar(vn)}
+        onFocus={() => setFocusedVar(varKey)}
         onChange={(e) => {
-          // Save raw value (without spaces/commas) so minus always works
-          const raw = cleanDigits(e.target.value);
-          if (allowDraft(raw)) setDraftInputs(prev => ({ ...prev, [vn]: raw }));
+          // Direct update - exactly like FB
+          setDraftInputs(prev => ({ ...prev, [varKey]: e.target.value }));
         }}
         onBlur={(e) => {
           setFocusedVar(null);
           // commit with parsing + recalculation
-          commitDraft(vn, e.target.value);
+          commitDraft(varKey, e.target.value);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === 'Tab') {
-            commitDraft(vn, (e.target as HTMLInputElement).value);
+            commitDraft(varKey, (e.target as HTMLInputElement).value);
           }
         }}
         placeholder="0"
@@ -355,7 +364,7 @@ const InventarierNote: React.FC<{
         const currentStyle = it.style || 'NORMAL';
         const isHeading = isHeadingStyle(currentStyle);
         const isRedVardeRow = redVardeRowIndex === items.indexOf(it);
-        const calculatedRed = calcRedovisatVarde();
+        const calculatedRed = isRedVardeRow ? calcRedovisatVarde() : 0;
         const redClass = mismatch.delta !== 0 ? 'text-red-600 font-bold' : '';
         
         return (
@@ -378,9 +387,9 @@ const InventarierNote: React.FC<{
               {isHeading ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRed) + " kr" : <AmountCell it={it} />)}
             </span>
 
-            {/* Previous year - display only */}
+            {/* Previous year - editable for flows too */}
             <span className="text-right font-medium">
-              {isHeading ? "" : numberToSv(readPrev(it)) + " kr"}
+              {isHeading ? "" : <AmountCell it={it} prev />}
             </span>
           </div>
         );
