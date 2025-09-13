@@ -191,8 +191,22 @@ const InventarierNote: React.FC<{
   const [showValidationMessage, setShowValidationMessage] = useState(false);
 
 
-  // Helper functions (matching FB implementation exactly) - using memoized formatter
+  // Sign enforcement from SQL mapping
+  // Optional: inject a real mapping from SQL -> { [variable_name]: '+' | '-' }
+  const injectedSignMap: Record<string, '+' | '-'> | undefined = (companyData?.signByVar) || undefined;
 
+  // Heuristic fallback if not injected
+  const heuristicSign = (vn: string): '+' | '-' => (
+    /avskr|nedskr/i.test(vn) ? '-' : '+'
+  );
+
+  // Unified accessor
+  const expectedSignFor = (vn?: string): '+' | '-' => {
+    if (!vn) return '+';
+    return injectedSignMap?.[vn] ?? heuristicSign(vn);
+  };
+
+  // Helper functions (matching FB implementation exactly) - using memoized formatter
   const cleanDigits = (s: string) => (s || '')
     .replace(/\s| |\u00A0|\u202F|,/g, '') // vanliga + NBSP + smalt mellanslag + komma
     .trim();
@@ -329,23 +343,39 @@ const InventarierNote: React.FC<{
   const AmountCell = React.memo(function AmountCell({
     year,
     varName,
+    baseVar,
+    label,
     editable,
     value,
     ord,
     onCommit,
     onTabNavigate,
+    onSignForced,
   }: {
     year: 'cur' | 'prev';
     varName: string;
+    baseVar: string;
+    label?: string;
     editable: boolean;
     value: number;
     ord?: number;
     onCommit: (n: number) => void;
     onTabNavigate?: (el: HTMLInputElement, dir: 1 | -1) => void;
+    onSignForced?: (e: {
+      baseVar: string;
+      label?: string;
+      year: 'cur' | 'prev';
+      expected: '+' | '-';
+      typed: number;
+      adjusted: number;
+    }) => void;
   }) {
     const [focused, setFocused] = React.useState(false);
     const [local, setLocal] = React.useState<string>("");
+    const [forcedFlash, setForcedFlash] = React.useState<null | ('+' | '-')>(null);
     const inputRef = React.useRef<HTMLInputElement>(null);
+
+    const signRule = expectedSignFor(baseVar); // '+' or '-' from mapping
 
     React.useEffect(() => {
       if (!focused) setLocal(value ? String(Math.round(value)) : "");
@@ -355,44 +385,81 @@ const InventarierNote: React.FC<{
       return <span className="text-right font-medium">{numberToSv(value)} kr</span>;
     }
 
+    // Show raw while focused; formatted when not
     const shown = focused
       ? local
       : (local ? fmt0.format(parseInt(local.replace(/[^\d-]/g, "") || "0", 10)) : "");
 
     const commit = () => {
-      const n = parseInt((local || "0").replace(/[^\d-]/g, ""), 10);
-      onCommit(Number.isFinite(n) ? n : 0);
+      const raw = (local || "0").replace(/[^\d-]/g, "");
+      let typed = parseInt(raw || "0", 10);
+      if (!Number.isFinite(typed)) typed = 0;
+
+      let adjusted = typed;
+      if (signRule === '-') {
+        adjusted = -Math.abs(typed);
+      } else {
+        adjusted = Math.max(0, Math.abs(typed));
+      }
+
+      // Show small per-cell badge if we changed the sign
+      if (adjusted !== typed) {
+        setForcedFlash(signRule);
+        setTimeout(() => setForcedFlash(null), 1500);
+        onSignForced?.({ baseVar, label, year, expected: signRule, typed, adjusted });
+      }
+
+      onCommit(adjusted);
     };
 
     return (
-      <input
-        ref={inputRef}
-        type="text"
-        data-editable-cell="1"
-        data-year={year}
-        data-ord={ord}                                      // NEW
-        className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
-        value={shown}
-        onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
-        onChange={(e) => {
-          const raw = e.target.value.replace(/[^\d-]/g, "");
-          setLocal(raw);                      // local only (no re-render storm)
-        }}
-        onBlur={() => { setFocused(false); commit(); }}   // commit on blur/click elsewhere
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.currentTarget.blur();           // triggers commit + keeps native focus flow
-          } else if (e.key === "Tab") {
-            e.preventDefault();               // we manage Tab ourselves (like FB)
-            setFocused(false);
-            commit();
-            const el = inputRef.current || (e.currentTarget as HTMLInputElement);
-            // focus after commit to avoid race with re-render
-            requestAnimationFrame(() => onTabNavigate?.(el, e.shiftKey ? -1 : 1));
-          }
-        }}
-        placeholder="0"
-      />
+      <div className="relative inline-block">
+        <input
+          ref={inputRef}
+          type="text"
+          data-editable-cell="1"
+          data-year={year}
+          data-ord={ord}
+          className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
+          value={shown}
+          onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
+          onChange={(e) => {
+            let raw = e.target.value.replace(/[^\d-]/g, "");
+            if (signRule === '+') {
+              raw = raw.replace(/-/g, '');        // block '-' while typing for '+'
+            } else {
+              raw = raw.replace(/(?!^)-/g, '');   // keep only a single leading '-'
+            }
+            setLocal(raw);
+          }}
+          onBlur={() => { setFocused(false); commit(); }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.currentTarget.blur();
+            } else if (e.key === "Tab") {
+              e.preventDefault();
+              setFocused(false);
+              commit();
+              const el = inputRef.current || (e.currentTarget as HTMLInputElement);
+              requestAnimationFrame(() => onTabNavigate?.(el, e.shiftKey ? -1 : 1));
+            }
+          }}
+          placeholder={signRule === '-' ? "-0" : "0"}
+          aria-describedby={forcedFlash ? `${varName}-signmsg` : undefined}
+        />
+
+        {/* Tiny pill that flashes when sign was forced */}
+        {forcedFlash && (
+          <div
+            id={`${varName}-signmsg`}
+            className="absolute -top-5 right-0 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shadow-sm"
+            role="status" aria-live="polite"
+            title={forcedFlash === '-' ? 'Tecken justerat till minus' : 'Negativt värde ej tillåtet'}
+          >
+            {forcedFlash === '-' ? '− justerat' : 'endast +'}
+          </div>
+        )}
+      </div>
     );
   });
 
@@ -434,6 +501,11 @@ const InventarierNote: React.FC<{
     if (!root) return;
     const nodes = root.querySelectorAll<HTMLInputElement>('input[data-editable-cell="1"]');
     nodes.forEach((el) => el.blur());
+  };
+
+  const pushSignNotice = (e: any) => {
+    // Optional: could add a global toast here if you want
+    console.log(`Sign forced for ${e.label} (${e.year}): ${e.typed} → ${e.adjusted}`);
   };
 
   // Compute both years every render
@@ -560,11 +632,14 @@ const InventarierNote: React.FC<{
                 : <AmountCell
                     year="cur"
                     varName={it.variable_name!}
+                    baseVar={it.variable_name!}
+                    label={it.row_title}
                     editable={editable}
                     value={curVal}
                     ord={ordCur}
                     onCommit={(n) => setEditedValues(p => ({ ...p, [it.variable_name!]: n }))}
                     onTabNavigate={(el, dir) => focusByOrd(el, dir)}
+                    onSignForced={(e) => pushSignNotice(e)}
                   />
               }
             </span>
@@ -576,11 +651,14 @@ const InventarierNote: React.FC<{
                 : <AmountCell
                     year="prev"
                     varName={`${it.variable_name!}_prev`}
+                    baseVar={it.variable_name!}
+                    label={it.row_title}
                     editable={editable}
                     value={prevVal}
                     ord={ordPrev}
                     onCommit={(n) => setEditedPrevValues(p => ({ ...p, [it.variable_name!]: n }))}
                     onTabNavigate={(el, dir) => focusByOrd(el, dir)}
+                    onSignForced={(e) => pushSignNotice(e)}
                   />
               }
             </span>
