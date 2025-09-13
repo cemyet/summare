@@ -114,7 +114,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
         return {
           ok: false,
           type: 'YEAR',
-          message: `Filerna måste avse två på varandra följande räkenskapsår. Nuvarande: ${fy}, föregående: ${py}.`,
+          message: `SIE-filerna måste avse två på varandra följande räkenskapsår. Nuvarande räkenskapsår är ${fy} och föregående är ${py}.`,
         };
       }
     }
