@@ -136,29 +136,30 @@ const InventarierNote: React.FC<{
   // Identify core rows used for calculated UB/book value comparison
   const get = (v: string) => byVar.get(v)?.current_amount ?? 0;
 
-  // BR book value: First try BR data, else note's own "red_varde_inventarier"
-  const brBookValueUB = useMemo(() => {
+  // BR book value (UB) for both years
+  const { brBookValueUBCur, brBookValueUBPrev } = React.useMemo(() => {
     const brData: any[] = companyData?.seFileData?.br_data || [];
-    // Heuristics to find the BR line for Inventarier, verktyg och installationer
     const candidates = [
       "InventarierVerktygInstallationer",
       "Inventarier",
       "InventarierVerktygInst",
     ];
-    let found = 0;
+    let cur = 0, prev = 0;
+
     for (const c of candidates) {
       const hit = brData.find((x: any) => x.variable_name === c);
-      if (hit && Number.isFinite(hit.current_amount)) {
-        found = hit.current_amount;
-        break;
+      if (hit) {
+        if (Number.isFinite(hit.current_amount))  cur  = hit.current_amount;
+        if (Number.isFinite(hit.previous_amount)) prev = hit.previous_amount;
+        if (cur || prev) break;
       }
     }
-    if (!found) {
-      // Fallback to the note's own computed red_varde_inventarier
-      const noteRed = byVar.get("red_varde_inventarier")?.current_amount ?? 0;
-      return noteRed;
-    }
-    return found;
+
+    // Fallback to note values if BR is missing
+    if (!cur)  cur  = byVar.get("red_varde_inventarier")?.current_amount  ?? 0;
+    if (!prev) prev = byVar.get("red_varde_inventarier")?.previous_amount ?? 0;
+
+    return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
   // Local edit state (simplified to match FB)
@@ -277,8 +278,8 @@ const InventarierNote: React.FC<{
     const redCurCalc  = calcRedovisatVarde('cur');
     const redPrevCalc = calcRedovisatVarde('prev');
 
-    const mismY0 = Math.round(redCurCalc)  !== Math.round(brBookValueUB);
-    const mismY1 = Math.round(redPrevCalc) !== Math.round(brBookValueUB); // TODO: get actual prev year bokfört
+    const mismY0 = Math.round(redCurCalc)  !== Math.round(brBookValueUBCur);
+    const mismY1 = Math.round(redPrevCalc) !== Math.round(brBookValueUBPrev);
 
     if (mismY0 || mismY1) {
       // keep editing; show the small white toast; both cells stay red
@@ -495,8 +496,8 @@ const InventarierNote: React.FC<{
           ? redPrev
           : (isS2 ? sumGroupAbove(visible, idx, 'prev') : getVal(it.variable_name ?? '', 'prev'));
 
-        const curMismatch  = isEditing && isRedVardeRow && Math.round(redCur)  !== Math.round(brBookValueUB);
-        const prevMismatch = isEditing && isRedVardeRow && Math.round(redPrev) !== Math.round(brBookValueUB); // TODO: get prev year bokfört
+        const curMismatch  = isEditing && isRedVardeRow && Math.round(redCur)  !== Math.round(brBookValueUBCur);
+        const prevMismatch = isEditing && isRedVardeRow && Math.round(redPrev) !== Math.round(brBookValueUBPrev);
         
         return (
           <div 
@@ -553,8 +554,8 @@ const InventarierNote: React.FC<{
       {isEditing && (
         <div className="grid gap-4 border-t border-gray-200 pt-1 items-center" style={gridCols}>
           <span className="text-muted-foreground">Redovisat värde (bokfört)</span>
-          <span className="text-right font-medium">{numberToSv(brBookValueUB)} kr</span>
-          <span className="text-right font-medium">{numberToSv(brBookValueUB)} kr</span> {/* TODO: get prev year bokfört */}
+          <span className="text-right font-medium">{numberToSv(brBookValueUBCur)} kr</span>
+          <span className="text-right font-medium">{numberToSv(brBookValueUBPrev)} kr</span>
         </div>
       )}
 
@@ -1297,3 +1298,4 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
     </Card>
   );
 }
+
