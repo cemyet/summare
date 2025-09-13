@@ -1,30 +1,330 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
+import { Pencil, Check, X } from 'lucide-react';
 
 interface NoterItem {
   row_id: number;
   row_title: string;
-  current_amount: number;
-  previous_amount: number;
-  variable_name: string;
-  show_tag: boolean;
-  accounts_included: string;
+  current_amount: number | null;
+  previous_amount: number | null;
+  variable_name?: string;
+  show_tag?: boolean;
+  accounts_included?: string;
   account_details?: Array<{
     account_id: string;
     account_text: string;
     balance: number;
   }>;
   block: string;
-  always_show: boolean;
-  toggle_show: boolean;
-  style: string;
+  always_show?: boolean;
+  toggle_show?: boolean;
+  style?: string;
   variable_text?: string;
 }
+
+// Helper functions for Swedish number formatting
+const svToNumber = (raw: string): number => {
+  if (!raw) return 0;
+  const s = raw.replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const numberToSv = (n: number): string => {
+  if (!Number.isFinite(n)) return "";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  return sign + abs.toLocaleString("sv-SE", { maximumFractionDigits: 0 });
+};
+
+const isHeadingStyle = (s?: string) => ["H0", "H1", "H2", "H3"].includes(s || "NORMAL");
+
+// Inventarier editor component
+const InventarierNote: React.FC<{
+  items: NoterItem[];
+  heading: string;
+  fiscalYear?: number;
+  previousYear?: number;
+  companyData?: any;
+}> = ({ items, heading, fiscalYear, previousYear, companyData }) => {
+  // Keep original table look-and-feel (same grid as other notes)
+  const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
+
+  // --- Editable set: only FLOW variables (not IB/UB or redovisat värde) ---
+  const isFlowVar = (vn?: string) => {
+    if (!vn) return false;
+    const forbidden = ["_ib", "_ub", "red_varde"];
+    if (forbidden.some((k) => vn.includes(k))) return false;
+    // Allow typical flow prefixes/suffixes
+    return /^(arets_|aterfor_|fsg_|omklass_)/.test(vn) || /_(inventarier)$/.test(vn);
+  };
+
+  // Index rows by variable_name for quick lookups
+  const byVar = useMemo(() => {
+    const m = new Map<string, NoterItem>();
+    items.forEach((it) => it.variable_name && m.set(it.variable_name, it));
+    return m;
+  }, [items]);
+
+  // Identify core rows used for calculated UB/book value comparison
+  const get = (v: string) => byVar.get(v)?.current_amount ?? 0;
+
+  // BR book value: First try BR data, else note's own "red_varde_inventarier"
+  const brBookValueUB = useMemo(() => {
+    const brData: any[] = companyData?.seFileData?.br_data || [];
+    // Heuristics to find the BR line for Inventarier, verktyg och installationer
+    const candidates = [
+      "InventarierVerktygInstallationer",
+      "Inventarier",
+      "InventarierVerktygInst",
+    ];
+    let found = 0;
+    for (const c of candidates) {
+      const hit = brData.find((x: any) => x.variable_name === c);
+      if (hit && Number.isFinite(hit.current_amount)) {
+        found = hit.current_amount;
+        break;
+      }
+    }
+    if (!found) {
+      // Fallback to the note's own computed red_varde_inventarier
+      const noteRed = byVar.get("red_varde_inventarier")?.current_amount ?? 0;
+      return noteRed;
+    }
+    return found;
+  }, [companyData, byVar]);
+
+  // Local edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [showAllRows, setShowAllRows] = useState(false);
+  const [draftCur, setDraftCur] = useState<Record<string, string>>({});
+  const [draftPrev, setDraftPrev] = useState<Record<string, string>>({});
+  const [committed, setCommitted] = useState<Record<string, { cur?: number; prev?: number }>>({});
+  const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
+
+  // Read current/prev amount, considering committed edits
+  const readCur = (it: NoterItem) => committed[it.variable_name!]?.cur ?? (it.current_amount ?? 0);
+  const readPrev = (it: NoterItem) => committed[it.variable_name!]?.prev ?? (it.previous_amount ?? 0);
+
+  // Build visible rows (hide empty when not showAllRows)
+  const visible = useMemo(() => {
+    const rows = items.slice();
+    if (showAllRows) return rows;
+    return rows.filter((it) => {
+      if (it.always_show) return true;
+      if (isHeadingStyle(it.style)) return true;
+      const ca = readCur(it);
+      const pa = readPrev(it);
+      return (ca ?? 0) !== 0 || (pa ?? 0) !== 0;
+    });
+  }, [items, showAllRows, committed]);
+
+  // Compute Redovisat värde (beräknat) from IB + flows -> UB, then red.värde = UB + ack.*
+  const calcRedovisatVarde = () => {
+    // Safe reads with multiple naming variants
+    const v = (name: string, alt?: string) =>
+      (byVar.get(name)?.current_amount ?? byVar.get(alt || "")?.current_amount ?? 0) +
+      (committed[name]?.cur ?? committed[alt || ""]?.cur ?? 0);
+
+    const ibInv = v("inventarier_ib");
+    const ibAvskr = v("ack_avskr_inventarier_ib");
+    const ibNedskr = v("ack_nedskr_inventarier_ib");
+
+    const aretsInkop = v("arets_inkop_inventarier");
+    const aretsFsg = v("arets_fsg_inventarier", "fsg_inventarier");
+    const aretsOmklass = v("arets_omklass_inventarier");
+
+    const aretsAvskr = v("arets_avskr_inventarier");
+    const aterforAvskrFsg = v("aterfor_avskr_fsg_inventarier");
+
+    const aretsNedskr = v("arets_nedskr_inventarier");
+    const aterforNedskr = v("aterfor_nedskr_inventarier");
+    const aterforNedskrFsg = v("aterfor_nedskr_fsg_inventarier");
+
+    const invUB = ibInv + aretsInkop - aretsFsg + aretsOmklass;
+    const ackAvskrUB = ibAvskr + aterforAvskrFsg - aretsAvskr;
+    const ackNedskrUB = ibNedskr + aterforNedskrFsg + aterforNedskr - aretsNedskr;
+
+    return invUB + ackAvskrUB + ackNedskrUB;
+  };
+
+  const startEdit = () => {
+    // seed drafts with currently displayed values (as raw sv strings)
+    const dC: Record<string, string> = {};
+    const dP: Record<string, string> = {};
+    items.forEach((it) => {
+      const vn = it.variable_name;
+      if (!vn || !isFlowVar(vn)) return;
+      dC[vn] = numberToSv(readCur(it));
+      dP[vn] = numberToSv(readPrev(it));
+    });
+    setDraftCur(dC);
+    setDraftPrev(dP);
+    setIsEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setDraftCur({});
+    setDraftPrev({});
+    setMismatch({ open: false, delta: 0 });
+  };
+
+  const approveEdit = () => {
+    // parse drafts → numbers and store
+    const newCommitted: Record<string, { cur?: number; prev?: number }> = { ...committed };
+    items.forEach((it) => {
+      const vn = it.variable_name;
+      if (!vn || !isFlowVar(vn)) return;
+      const cur = svToNumber(draftCur[vn] ?? "");
+      const prev = svToNumber(draftPrev[vn] ?? "");
+      newCommitted[vn] = { cur, prev };
+    });
+
+    // run balance check
+    const beraknad = calcRedovisatVarde();
+    const delta = Math.round((beraknad - brBookValueUB) * 1) / 1;
+    if (Math.abs(delta) !== 0) {
+      setCommitted(newCommitted);
+      setMismatch({ open: true, delta });
+      // keep edit mode so user can fix
+      return;
+    }
+
+    setCommitted(newCommitted);
+    setIsEditing(false);
+  };
+
+  const AmountCell: React.FC<{ it: NoterItem; prev?: boolean }> = ({ it, prev }) => {
+    const vn = it.variable_name!;
+    if (!isEditing || !isFlowVar(vn)) {
+      const v = prev ? readPrev(it) : readCur(it);
+      return <span className="text-right font-medium">{numberToSv(v)} kr</span>;
+    }
+    const raw = prev ? (draftPrev[vn] ?? "") : (draftCur[vn] ?? "");
+    const setRaw = (s: string) => {
+      if (prev) setDraftPrev((d) => ({ ...d, [vn]: s }));
+      else setDraftCur((d) => ({ ...d, [vn]: s }));
+    };
+    return (
+      <input
+        value={raw}
+        onChange={(e) => setRaw(e.target.value)}
+        className="h-6 px-2 py-0.5 text-right font-mono border rounded-md w-32"
+        placeholder="0"
+        inputMode="numeric"
+      />
+    );
+  };
+
+  // find the "Redovisat värde (beräknat)" row to color if mismatch
+  const redVardeRowIndex = items.findIndex((it) => it.variable_name === "red_varde_inventarier");
+
+  return (
+    <div className="space-y-2 pt-4">
+      {/* Heading + controls */}
+      <div className="flex items-center justify-between border-b pb-1">
+        <h3 className="font-semibold text-lg" style={{ paddingTop: "7px" }}>{heading}</h3>
+        <div className="flex items-center space-x-2" style={{ marginTop: "2px" }}>
+          {/* show/hide empty rows toggle */}
+          <div className="flex items-center" style={{ transform: "scale(0.85)" }}>
+            <Switch checked={showAllRows} onCheckedChange={setShowAllRows} />
+            <span className="ml-2">Visa tomma rader</span>
+          </div>
+          {/* edit icon */}
+          {!isEditing ? (
+            <Button size="sm" variant="secondary" onClick={startEdit}>
+              <Pencil className="h-4 w-4 mr-1" /> Manuell ändring
+            </Button>
+          ) : (
+            <>
+              <Button size="sm" onClick={approveEdit}>
+                <Check className="h-4 w-4 mr-1" /> Godkänn ändringar
+              </Button>
+              <Button size="sm" variant="ghost" onClick={cancelEdit}>
+                <X className="h-4 w-4 mr-1" /> Ångra
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Column headers */}
+      <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
+        <span></span>
+        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
+        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+      </div>
+
+      {/* Rows */}
+      {visible.map((it, idx) => {
+        const isHeading = isHeadingStyle(it.style);
+        const isRedVardeRow = redVardeRowIndex === items.indexOf(it);
+        const calculatedRed = calcRedovisatVarde();
+        const redClass = isEditing && isRedVardeRow && Math.round((calculatedRed - brBookValueUB) * 1) / 1 !== 0 ? "text-red-600" : "";
+        return (
+          <div key={`${it.row_id}-${idx}`} className={`grid gap-4 ${isHeading ? "font-semibold" : ""}`} style={gridCols}>
+            <span className="text-muted-foreground flex items-center">
+              {it.row_title}
+              {it.show_tag && (
+                <span className="ml-2">
+                  <AccountDetailsDialog item={it} />
+                </span>
+              )}
+            </span>
+
+            {/* Current year */}
+            <span className={`text-right font-medium ${isRedVardeRow ? redClass : ""}`}>
+              {isHeading ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRed) + " kr" : <AmountCell it={it} />)}
+            </span>
+
+            {/* Previous year – editable for flows too, per your request */}
+            <span className="text-right font-medium">
+              {isHeading ? "" : isFlowVar(it.variable_name) && isEditing ? (
+                <AmountCell it={it} prev />
+              ) : (
+                numberToSv(readPrev(it)) + " kr"
+              )}
+            </span>
+          </div>
+        );
+      })}
+
+      {/* Comparison row – only while editing */}
+      {isEditing && (
+        <div className="grid gap-4 border-t pt-1" style={gridCols}>
+          <span className="text-muted-foreground flex items-center">Redovisat värde (bokfört)</span>
+          <span className="text-right font-medium">{numberToSv(brBookValueUB)} kr</span>
+          <span className="text-right font-medium">{/* no previous-year book value comparison here */}</span>
+        </div>
+      )}
+
+      {/* Mismatch popup */}
+      <Dialog open={mismatch.open} onOpenChange={(open) => setMismatch((m) => ({ ...m, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Obalans i noten</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p>
+              <strong>Redovisat värde (beräknat)</strong> stämmer inte med <strong>Redovisat värde (bokfört)</strong> enligt balansräkningen.
+            </p>
+            <p>Skillnad: {numberToSv(mismatch.delta)} kr</p>
+            <div className="text-sm text-muted-foreground">Justera värdena eller Ångra.</div>
+          </div>
+          <div className="flex justify-end space-x-2">
+            <Button onClick={() => setMismatch((m) => ({ ...m, open: false }))}>OK</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+};
 
 interface NoterProps {
   noterData: NoterItem[];
@@ -619,6 +919,20 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                     </>
                   )}
                 </div>
+              );
+            }
+            
+            // Special handling for INV block - with manual editing capability
+            if (block === 'INV') {
+              return (
+                <InventarierNote
+                  key={block}
+                  items={blockItems}
+                  heading={blockHeading}
+                  fiscalYear={fiscalYear}
+                  previousYear={previousYear}
+                  companyData={companyData}
+                />
               );
             }
             
