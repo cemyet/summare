@@ -400,7 +400,7 @@ const InventarierNote: React.FC<{
   // Compute both years every render
   const redCur  = calcRedovisatVarde('cur');
   const redPrev = calcRedovisatVarde('prev');
-  const redMismatch = isEditing && Math.round(redCur) !== Math.round(brBookValueUB);
+  const redMismatch = isEditing && Math.round(redCur) !== Math.round(brBookValueUBCur);
 
   return (
     <div ref={containerRef} className="space-y-2 pt-4">
