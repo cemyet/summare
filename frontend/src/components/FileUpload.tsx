@@ -132,23 +132,31 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
       // Check for specific validation errors and show appropriate popups
       const errorMessage = error instanceof Error ? error.message : "Kunde inte bearbeta filen/filerna";
       console.log('FileUpload received error message:', errorMessage);
+      console.log('Error object:', error);
       console.log('Year validation pattern check:', errorMessage.includes("Filerna måste avse två på varandra följande räkenskapsår"));
       console.log('Company mismatch pattern check:', errorMessage.includes("SIE-filerna verkar vara från olika bolag"));
       
-      if (errorMessage.includes("Filerna måste avse två på varandra följande räkenskapsår")) {
+      // First check the serverDetail for the actual backend message
+      const detail = serverDetail(error);
+      console.log('ServerDetail extracted:', detail);
+      
+      // Use the detail message if available, otherwise use the error message
+      const actualMessage = detail || errorMessage;
+      console.log('Actual message to check:', actualMessage);
+      
+      if (actualMessage.includes("Filerna måste avse två på varandra följande räkenskapsår")) {
         // Show custom year validation popup
         console.log('Showing year validation popup');
-        setYearValidationMessage(errorMessage);
+        setYearValidationMessage(actualMessage);
         setShowYearValidationError(true);
-      } else if (errorMessage.includes("SIE-filerna verkar vara från olika bolag")) {
+      } else if (actualMessage.includes("SIE-filerna verkar vara från olika bolag")) {
         // Show custom company mismatch popup
         console.log('Showing company mismatch popup');
         setShowCompanyMismatchError(true);
       } else {
         // Show regular toast for other errors
-        const detail = serverDetail(error);
-        const msg = detail && !detail.startsWith('Upload failed')
-          ? detail
+        const msg = actualMessage && !actualMessage.startsWith('Upload failed')
+          ? actualMessage
           : 'Kunde inte bearbeta filen/filerna. Kontrollera att SIE-filen är giltig och försök igen.';
         
         console.log('Showing regular toast for error:', msg);
