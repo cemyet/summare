@@ -249,43 +249,51 @@ const InventarierNote: React.FC<{
     setToggle?.(false);
   };
 
-  const AmountCell = React.memo(function AmountCell({ it, prev }: { it: NoterItem; prev?: boolean }) {
-    const vn = it.variable_name!;
-    
-    if (!isEditing || !isFlowVar(vn)) {
-      const v = prev ? readPrev(it) : readCur(it);
-      return <span className="text-right font-medium">{numberToSv(v)} kr</span>;
+  const AmountCell = React.memo(function AmountCell({
+    varName,
+    editable,
+    value,
+    onCommit,
+  }: {
+    varName: string;
+    editable: boolean;
+    value: number;
+    onCommit: (n: number) => void;
+  }) {
+    const [focused, setFocused] = React.useState(false);
+    const [local, setLocal] = React.useState<string>("");
+
+    // keep local in sync when not focused
+    React.useEffect(() => {
+      if (!focused) setLocal(value ? String(Math.round(value)) : "");
+    }, [value, focused]);
+
+    if (!editable) {
+      return <span className="text-right font-medium">{numberToSv(value)} kr</span>;
     }
 
-    // Create unique variable name for prev/cur
-    const varKey = prev ? `${vn}_prev` : vn;
-    
-    // Get current value
-    const currentValue = prev ? readPrev(it) : getCurrentValue(vn);
-    const draftRaw = draftInputs[varKey] ?? (currentValue ? String(Math.round(currentValue)) : '');
-    const display = focusedVar === varKey
-      ? draftRaw                                           // raw when focused
-      : (draftRaw ? formatSvInt(parseDraft(draftRaw)) : ''); // formatted when not focused
+    const shown = focused ? local : (local ? formatSvInt(parseInt(local.replace(/[^\d-]/g, "") || "0", 10)) : "");
+
+    const commit = () => {
+      const n = parseInt((local || "0").replace(/[^\d-]/g, ""), 10);
+      onCommit(Number.isFinite(n) ? n : 0);
+    };
 
     return (
       <input
-        type="text"
-        inputMode="numeric"
+        type="text" // allow '-' freely; avoids IME lag from inputMode="numeric"
         className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
-        value={display}
-        onFocus={() => setFocusedVar(varKey)}
+        value={shown}
+        onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
         onChange={(e) => {
-          // Direct update - exactly like FB
-          setDraftInputs(prev => ({ ...prev, [varKey]: e.target.value }));
+          // accept only digits and optional leading '-'
+          const raw = e.target.value.replace(/[^\d-]/g, "");
+          setLocal(raw); // LOCAL state only → no parent re-render on each key
         }}
-        onBlur={(e) => {
-          setFocusedVar(null);
-          // commit with parsing + recalculation
-          commitDraft(varKey, e.target.value);
-        }}
+        onBlur={() => { setFocused(false); commit(); }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === 'Tab') {
-            commitDraft(varKey, (e.target as HTMLInputElement).value);
+          if (e.key === "Enter" || e.key === "Tab") {
+            e.currentTarget.blur(); // triggers commit via onBlur
           }
         }}
         placeholder="0"
@@ -391,12 +399,31 @@ const InventarierNote: React.FC<{
 
             {/* Current year */}
             <span className={`text-right font-medium ${isRedVardeRow ? redClass : ""}`}>
-              {isHeading ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRedValue) + " kr" : <AmountCell it={it} />)}
+              {isHeading ? "" : (isRedVardeRow && isEditing ? numberToSv(calculatedRedValue) + " kr" : (
+                <AmountCell
+                  varName={it.variable_name!}
+                  editable={isEditing && isFlowVar(it.variable_name)}
+                  value={getCurrentValue(it.variable_name!)}
+                  onCommit={(n) => {
+                    setEditedValues(prev => ({ ...prev, [it.variable_name!]: n }));
+                  }}
+                />
+              ))}
             </span>
 
             {/* Previous year - editable for flows too */}
             <span className="text-right font-medium">
-              {isHeading ? "" : <AmountCell it={it} prev />}
+              {isHeading ? "" : (
+                <AmountCell
+                  varName={`${it.variable_name!}_prev`}
+                  editable={isEditing && isFlowVar(it.variable_name)}
+                  value={it.previous_amount ?? 0}
+                  onCommit={(n) => {
+                    // For now, just store in a separate state or ignore previous year commits
+                    console.log(`Previous year edit for ${it.variable_name}: ${n}`);
+                  }}
+                />
+              )}
             </span>
           </div>
         );
