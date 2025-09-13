@@ -51,17 +51,20 @@ const InventarierNote: React.FC<{
   fiscalYear?: number;
   previousYear?: number;
   companyData?: any;
-}> = ({ items, heading, fiscalYear, previousYear, companyData }) => {
+  toggleOn: boolean;
+  setToggle: (checked: boolean) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
   // Keep original table look-and-feel (same grid as other notes)
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   // --- Editable set: only FLOW variables (not IB/UB or redovisat värde) ---
   const isFlowVar = (vn?: string) => {
     if (!vn) return false;
-    const forbidden = ["_ib", "_ub", "red_varde"];
-    if (forbidden.some((k) => vn.includes(k))) return false;
-    // Allow typical flow prefixes/suffixes
-    return /^(arets_|aterfor_|fsg_|omklass_)/.test(vn) || /_(inventarier)$/.test(vn);
+    // forbid IB, UB, and redovisat värde variables
+    if (/_ib\b/i.test(vn)) return false;
+    if (/_ub\b/i.test(vn)) return false;
+    if (/red[_-]?varde/i.test(vn)) return false;
+    return true; // everything else is a flow and editable
   };
 
   // Index rows by variable_name for quick lookups
@@ -101,28 +104,36 @@ const InventarierNote: React.FC<{
 
   // Local edit state
   const [isEditing, setIsEditing] = useState(false);
-  const [showAllRows, setShowAllRows] = useState(false);
   const [draftCur, setDraftCur] = useState<Record<string, string>>({});
   const [draftPrev, setDraftPrev] = useState<Record<string, string>>({});
   const [committed, setCommitted] = useState<Record<string, { cur?: number; prev?: number }>>({});
   const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
+  const [showValidationMessage, setShowValidationMessage] = useState(false);
 
   // Read current/prev amount, considering committed edits
   const readCur = (it: NoterItem) => committed[it.variable_name!]?.cur ?? (it.current_amount ?? 0);
   const readPrev = (it: NoterItem) => committed[it.variable_name!]?.prev ?? (it.previous_amount ?? 0);
 
-  // Build visible rows (hide empty when not showAllRows)
+  // Build visible rows using the same logic as main Noter component
   const visible = useMemo(() => {
-    const rows = items.slice();
-    if (showAllRows) return rows;
-    return rows.filter((it) => {
+    return items.filter((it) => {
+      // Headings and rows explicitly always_show=true are always visible
       if (it.always_show) return true;
-      if (isHeadingStyle(it.style)) return true;
-      const ca = readCur(it);
-      const pa = readPrev(it);
-      return (ca ?? 0) !== 0 || (pa ?? 0) !== 0;
+
+      const hasNonZero =
+        (readCur(it) ?? 0) !== 0 ||
+        (readPrev(it) ?? 0) !== 0;
+
+      if (hasNonZero) return true;
+
+      // zero amounts:
+      // show only if row is toggleable and the block toggle is ON
+      if (it.toggle_show) return toggleOn;
+
+      // zero + not toggleable => never show
+      return false;
     });
-  }, [items, showAllRows, committed]);
+  }, [items, toggleOn, committed]);
 
   // Compute Redovisat värde (beräknat) from IB + flows -> UB, then red.värde = UB + ack.*
   const calcRedovisatVarde = () => {
@@ -168,11 +179,22 @@ const InventarierNote: React.FC<{
     setIsEditing(true);
   };
 
+  // Auto-hide validation message after 5 seconds
+  React.useEffect(() => {
+    if (showValidationMessage) {
+      const timer = setTimeout(() => {
+        setShowValidationMessage(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showValidationMessage]);
+
   const cancelEdit = () => {
     setIsEditing(false);
     setDraftCur({});
     setDraftPrev({});
     setMismatch({ open: false, delta: 0 });
+    setShowValidationMessage(false);
   };
 
   const approveEdit = () => {
@@ -188,16 +210,20 @@ const InventarierNote: React.FC<{
 
     // run balance check
     const beraknad = calcRedovisatVarde();
-    const delta = Math.round((beraknad - brBookValueUB) * 1) / 1;
+    const delta = Math.round((beraknad - brBookValueUB));
     if (Math.abs(delta) !== 0) {
-      setCommitted(newCommitted);
-      setMismatch({ open: true, delta });
-      // keep edit mode so user can fix
-      return;
+      setCommitted(newCommitted);       // keep values
+      setMismatch({ open: false, delta });// show toast + red
+      setShowValidationMessage(true);   // show FB-style toast
+      return;                           // stay in edit mode
     }
 
     setCommitted(newCommitted);
+    setMismatch({ open: false, delta: 0 });
+    setShowValidationMessage(false);
     setIsEditing(false);
+    // Hide "empty" rows that were only visible via toggle
+    setToggle?.(false);
   };
 
   const AmountCell: React.FC<{ it: NoterItem; prev?: boolean }> = ({ it, prev }) => {
@@ -215,9 +241,8 @@ const InventarierNote: React.FC<{
       <input
         value={raw}
         onChange={(e) => setRaw(e.target.value)}
-        className="h-6 px-2 py-0.5 text-right font-mono border rounded-md w-32"
+        className="h-6 px-2 py-0.5 text-right font-mono border rounded-md w-28 text-sm"
         placeholder="0"
-        inputMode="numeric"
       />
     );
   };
@@ -226,32 +251,36 @@ const InventarierNote: React.FC<{
   const redVardeRowIndex = items.findIndex((it) => it.variable_name === "red_varde_inventarier");
 
   return (
-    <div className="space-y-2 pt-4">
-      {/* Heading + controls */}
-      <div className="flex items-center justify-between border-b pb-1">
-        <h3 className="font-semibold text-lg" style={{ paddingTop: "7px" }}>{heading}</h3>
-        <div className="flex items-center space-x-2" style={{ marginTop: "2px" }}>
-          {/* show/hide empty rows toggle */}
-          <div className="flex items-center" style={{ transform: "scale(0.85)" }}>
-            <Switch checked={showAllRows} onCheckedChange={setShowAllRows} />
-            <span className="ml-2">Visa tomma rader</span>
-          </div>
-          {/* edit icon */}
-          {!isEditing ? (
-            <Button size="sm" variant="secondary" onClick={startEdit}>
-              <Pencil className="h-4 w-4 mr-1" /> Manuell ändring
-            </Button>
-          ) : (
-            <>
-              <Button size="sm" onClick={approveEdit}>
-                <Check className="h-4 w-4 mr-1" /> Godkänn ändringar
-              </Button>
-              <Button size="sm" variant="ghost" onClick={cancelEdit}>
-                <X className="h-4 w-4 mr-1" /> Ångra
-              </Button>
-            </>
-          )}
+    <div className="space-y-2">
+      {/* Edit controls */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {/* Round icon toggle, same as FB */}
+          <button
+            onClick={() => isEditing ? cancelEdit() : startEdit()}
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+              isEditing ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+            }`}
+            title={isEditing ? 'Avsluta redigering' : 'Redigera värden'}
+          >
+            {/* tiny pencil svg like FB */}
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
         </div>
+
+        {isEditing && (
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={approveEdit}>
+              Godkänn ändringar
+            </Button>
+            <Button size="sm" variant="ghost" onClick={cancelEdit}>
+              Ångra
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Column headers */}
@@ -266,7 +295,7 @@ const InventarierNote: React.FC<{
         const isHeading = isHeadingStyle(it.style);
         const isRedVardeRow = redVardeRowIndex === items.indexOf(it);
         const calculatedRed = calcRedovisatVarde();
-        const redClass = isEditing && isRedVardeRow && Math.round((calculatedRed - brBookValueUB) * 1) / 1 !== 0 ? "text-red-600" : "";
+        const redClass = mismatch.delta !== 0 ? 'text-red-600 font-bold' : '';
         return (
           <div key={`${it.row_id}-${idx}`} className={`grid gap-4 ${isHeading ? "font-semibold" : ""}`} style={gridCols}>
             <span className="text-muted-foreground flex items-center">
@@ -297,31 +326,41 @@ const InventarierNote: React.FC<{
 
       {/* Comparison row – only while editing */}
       {isEditing && (
-        <div className="grid gap-4 border-t pt-1" style={gridCols}>
-          <span className="text-muted-foreground flex items-center">Redovisat värde (bokfört)</span>
+        <div className="grid gap-4 border-t border-gray-200 pt-1 items-center" style={gridCols}>
+          <span className="text-muted-foreground">Redovisat värde (bokfört)</span>
           <span className="text-right font-medium">{numberToSv(brBookValueUB)} kr</span>
-          <span className="text-right font-medium">{/* no previous-year book value comparison here */}</span>
+          <span /> {/* prev-year empty */}
         </div>
       )}
 
-      {/* Mismatch popup */}
-      <Dialog open={mismatch.open} onOpenChange={(open) => setMismatch((m) => ({ ...m, open }))}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Obalans i noten</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <p>
-              <strong>Redovisat värde (beräknat)</strong> stämmer inte med <strong>Redovisat värde (bokfört)</strong> enligt balansräkningen.
-            </p>
-            <p>Skillnad: {numberToSv(mismatch.delta)} kr</p>
-            <div className="text-sm text-muted-foreground">Justera värdena eller Ångra.</div>
+      {/* Toast Notification - FB style */}
+      {showValidationMessage && (
+        <div className="fixed bottom-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                Summor balanserar inte
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                Redovisat värde (beräknat) stämmer inte med bokfört värde. Skillnad: {numberToSv(mismatch.delta)} kr
+              </p>
+            </div>
+            <button
+              onClick={() => setShowValidationMessage(false)}
+              className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
           </div>
-          <div className="flex justify-end space-x-2">
-            <Button onClick={() => setMismatch((m) => ({ ...m, open: false }))}>OK</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   );
 };
@@ -370,16 +409,25 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
   const blocks = Object.keys(groupedItems);
 
   // Filter items based on toggle states
-  const getVisibleItems = (blockItems: NoterItem[]) => {
-    return blockItems.filter(item => {
+  const getVisibleItems = (items: NoterItem[], block?: string) => {
+    if (!items) return [];
+    const toggleOn = block ? (blockToggles[block] || false) : false;
+
+    return items.filter(item => {
+      // Headings and rows explicitly always_show=true are always visible
       if (item.always_show) return true;
-      if (!item.always_show) {
-        // Show if has non-zero amounts OR toggle is on
-        const hasNonZeroAmount = (item.current_amount !== 0 && item.current_amount !== null) || 
-                                 (item.previous_amount !== 0 && item.previous_amount !== null);
-        const toggleIsOn = item.toggle_show && blockToggles[item.block];
-        return hasNonZeroAmount || toggleIsOn;
-      }
+
+      const hasNonZero =
+        (item.current_amount ?? 0) !== 0 ||
+        (item.previous_amount ?? 0) !== 0;
+
+      if (hasNonZero) return true;
+
+      // zero amounts:
+      // show only if row is toggleable and the block toggle is ON
+      if (item.toggle_show) return toggleOn;
+
+      // zero + not toggleable => never show
       return false;
     });
   };
@@ -450,7 +498,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             
             blocks.forEach(block => {
               const blockItems = groupedItems[block];
-              const visibleItems = getVisibleItems(blockItems);
+              const visibleItems = getVisibleItems(blockItems, block);
               
               // For OVRIGA block, always show if there's moderbolag data
               const scrapedData = (companyData as any)?.scraped_company_data;
@@ -504,7 +552,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             // Second pass: render the blocks with correct numbering
             return blocks.map(block => {
               const blockItems = groupedItems[block];
-              const visibleItems = getVisibleItems(blockItems);
+              const visibleItems = getVisibleItems(blockItems, block);
               const visibility = blockVisibility[block];
               
               if (!visibility.isVisible) return null;
@@ -857,7 +905,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                       </div>
 
                       {/* Noter Rows - same grid system as BR/RR */}
-                      {getVisibleItems(blockItems).map((item, index) => {
+                      {getVisibleItems(blockItems, block).map((item, index) => {
                         // Use same style system as BR/RR
                         const getStyleClasses = (style?: string) => {
                           const baseClasses = 'grid gap-4';
@@ -925,14 +973,37 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             // Special handling for INV block - with manual editing capability
             if (block === 'INV') {
               return (
-                <InventarierNote
-                  key={block}
-                  items={blockItems}
-                  heading={blockHeading}
-                  fiscalYear={fiscalYear}
-                  previousYear={previousYear}
-                  companyData={companyData}
-                />
+                <div key={block} className="space-y-2 pt-4">
+                  <div className="flex items-center justify-between border-b pb-1">
+                    <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
+                    <div className="flex items-center space-x-2">
+                      <label 
+                        htmlFor={`toggle-${block}`} 
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        Visa alla rader
+                      </label>
+                      <Switch
+                        id={`toggle-${block}`}
+                        checked={blockToggles[block] || false}
+                        onCheckedChange={(checked) => 
+                            setBlockToggles(prev => ({ ...prev, [block]: checked }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <InventarierNote
+                    items={blockItems}
+                    heading=""
+                    fiscalYear={fiscalYear}
+                    previousYear={previousYear}
+                    companyData={companyData}
+                    toggleOn={blockToggles[block] || false}
+                    setToggle={(checked: boolean) =>
+                      setBlockToggles(prev => ({ ...prev, [block]: checked }))
+                    }
+                  />
+                </div>
               );
             }
             
@@ -1029,7 +1100,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
           });
           })()}
           
-          {blocks.every(block => getVisibleItems(groupedItems[block]).length === 0) && (
+          {blocks.every(block => getVisibleItems(groupedItems[block], block).length === 0) && (
             <div className="text-center text-gray-500 py-4">
               Inga noter att visa. Aktivera sektioner ovan för att se detaljer.
             </div>
