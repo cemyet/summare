@@ -282,14 +282,14 @@ async def upload_two_se_files(
             if current_org_number != previous_org_number:
                 raise HTTPException(
                     status_code=400,
-                    detail="Dina uppladdade SE filer verkar vara från olika bolag."
+                    detail="SIE-filerna verkar vara från olika bolag. Kontrollera att båda filerna tillhör samma företag."
                 )
         # Fallback to company names if organization numbers are missing
         elif current_company_name and previous_company_name:
             if current_company_name.strip().lower() != previous_company_name.strip().lower():
                 raise HTTPException(
                     status_code=400,
-                    detail="Dina uppladdade SE filer verkar vara från olika bolag."
+                    detail="SIE-filerna verkar vara från olika bolag. Kontrollera att båda filerna tillhör samma företag."
                 )
         # If we can't validate company match, proceed with warning (could add logging here)
         
@@ -306,7 +306,7 @@ async def upload_two_se_files(
             if fiscal_year - previous_year != 1:
                 raise HTTPException(
                     status_code=400, 
-                    detail=f"Kontrollera SE-filerna. Räkenskapsåret är från {fiscal_year} medan föregående års fil är från {previous_year}."
+                    detail=f"Filerna måste avse två på varandra följande räkenskapsår. Du har laddat upp filer från {fiscal_year} och {previous_year}."
                 )
             
             # Ensure we always use the newer year as "current" for annual report generation

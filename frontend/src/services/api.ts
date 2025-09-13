@@ -83,10 +83,15 @@ class ApiService {
       // Extract the actual error message from the response
       try {
         const errorData = await response.json();
+        console.log('uploadTwoSeFiles Error response data:', errorData);
         const errorMessage = errorData.detail || `Upload failed: ${response.status}`;
+        console.log('uploadTwoSeFiles Extracted error message:', errorMessage);
         throw new Error(errorMessage);
       } catch (parseError) {
         // If we can't parse the error response, fall back to generic message
+        console.log('uploadTwoSeFiles Failed to parse error response:', parseError);
+        console.log('uploadTwoSeFiles Response status:', response.status);
+        console.log('uploadTwoSeFiles Response headers:', response.headers);
         throw new Error(`Upload failed: ${response.status}`);
       }
     }

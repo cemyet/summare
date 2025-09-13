@@ -24,14 +24,29 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
   const [showCompanyMismatchError, setShowCompanyMismatchError] = useState(false);
   const { toast } = useToast();
 
+  // Helper to extract server error details
+  const serverDetail = (err: any): string => {
+    // axios-like
+    if (err?.response?.data?.detail) return String(err.response.data.detail);
+    if (typeof err?.response?.data === 'string') return err.response.data;
+
+    // fetch-like
+    if (err instanceof Response) {
+      return `Fel ${err.status}`;
+    }
+
+    // fallbacks
+    if (err?.message) return String(err.message);
+    return '';
+  };
+
 
 
   const validateFile = (file: File): boolean => {
     if (!file.name.toLowerCase().endsWith('.se')) {
       toast({
         title: "Fel filformat",
-        description: "Vänligen ladda upp en .SE fil",
-        variant: "destructive"
+        description: "Vänligen ladda upp en SIE-fil"
       });
       return false;
     }
@@ -78,8 +93,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
       if (filesToProcess.length === 0) {
         toast({
           title: "Ingen fil vald",
-          description: "Vänligen välj minst en SE-fil",
-          variant: "destructive"
+          description: "Vänligen välj minst en SIE-fil"
         });
         return;
       }
@@ -104,8 +118,8 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
         toast({
           title: "Fil(er) bearbetad(e)",
           description: filesToProcess.length === 2 
-            ? "Båda SE-filerna har analyserats och data extraherats"
-            : "SE-filen har analyserats och data extraherats"
+            ? "Båda SIE-filerna har analyserats och data extraherats"
+            : "SIE-filen har analyserats och data extraherats"
         });
         onFileProcessed(result);
       } else {
@@ -117,20 +131,30 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
       
       // Check for specific validation errors and show appropriate popups
       const errorMessage = error instanceof Error ? error.message : "Kunde inte bearbeta filen/filerna";
+      console.log('FileUpload received error message:', errorMessage);
+      console.log('Year validation pattern check:', errorMessage.includes("Filerna måste avse två på varandra följande räkenskapsår"));
+      console.log('Company mismatch pattern check:', errorMessage.includes("SIE-filerna verkar vara från olika bolag"));
       
-      if (errorMessage.includes("Kontrollera SE-filerna. Räkenskapsåret är från")) {
+      if (errorMessage.includes("Filerna måste avse två på varandra följande räkenskapsår")) {
         // Show custom year validation popup
+        console.log('Showing year validation popup');
         setYearValidationMessage(errorMessage);
         setShowYearValidationError(true);
-      } else if (errorMessage.includes("Dina uppladdade SE filer verkar vara från olika bolag")) {
+      } else if (errorMessage.includes("SIE-filerna verkar vara från olika bolag")) {
         // Show custom company mismatch popup
+        console.log('Showing company mismatch popup');
         setShowCompanyMismatchError(true);
       } else {
         // Show regular toast for other errors
+        const detail = serverDetail(error);
+        const msg = detail && !detail.startsWith('Upload failed')
+          ? detail
+          : 'Kunde inte bearbeta filen/filerna. Kontrollera att SIE-filen är giltig och försök igen.';
+        
+        console.log('Showing regular toast for error:', msg);
         toast({
           title: "Fel vid uppladdning",
-          description: errorMessage,
-          variant: "destructive"
+          description: msg
         });
       }
     } finally {
@@ -201,9 +225,9 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
             </div>
             
             <div className="space-y-1">
-              <h3 className="text-sm font-bold">Ladda upp SE-filer här</h3>
+              <h3 className="text-sm font-semibold">Ladda upp SIE-filer här</h3>
               <p className="text-xs text-muted-foreground">
-                Dra och släpp din .SE fil här eller klicka nedan
+                Dra och släpp din SIE-fil här eller klicka nedan
               </p>
             </div>
 
@@ -234,7 +258,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
                     ) : (
                       <>
                         <Upload className="w-3 h-3 mr-2" />
-                        Välj .SE fil
+                        Välj SIE-fil
                       </>
                     )}
                   </span>
@@ -242,7 +266,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
               </label>
 
               <p className="text-xs text-muted-foreground">
-                .SE filer från bokföringsprogram
+                SIE-filer från bokföringsprogram
               </p>
             </div>
           </div>
@@ -290,7 +314,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
                   ? `✓ ${currentYearFile.file.name}`
                   : currentYearFile
                   ? `Vald: ${currentYearFile.file.name}`
-                  : "Dra och släpp .SE fil här"
+                  : "Dra och släpp SIE-fil här"
                 }
               </p>
             </div>
@@ -429,7 +453,7 @@ Bearbeta {previousYearFile ? 'filerna' : 'filen'}
 
       <div className="text-center">
         <p className="text-xs text-muted-foreground">
-          Ladda upp åtminstonde nuvarande räkenskapsårs SE fil. Föregående år är valfritt men ger ett bättre och mer detaljerat resultat i framställningen av noterna.
+          Ladda upp åtminstonde nuvarande räkenskapsårs SIE-fil. Föregående år är valfritt men ger ett bättre och mer detaljerat resultat i framställningen av noterna.
         </p>
       </div>
 
@@ -444,10 +468,10 @@ Bearbeta {previousYearFile ? 'filerna' : 'filen'}
             </div>
             <div className="ml-3 flex-1">
               <p className="text-sm font-medium text-gray-900">
-                Kontrollera SE-filerna
+                Felaktiga räkenskapsår
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                {yearValidationMessage.replace("Kontrollera SE-filerna. ", "")}
+                {yearValidationMessage}
               </p>
             </div>
             <button
@@ -476,7 +500,7 @@ Bearbeta {previousYearFile ? 'filerna' : 'filen'}
                 Olika bolag upptäckta
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                Dina uppladdade SE filer verkar vara från olika bolag.
+                SIE-filerna verkar vara från olika bolag. Kontrollera att båda filerna tillhör samma företag.
               </p>
             </div>
             <button
