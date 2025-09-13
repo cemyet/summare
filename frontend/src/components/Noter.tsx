@@ -111,13 +111,15 @@ const InventarierNote: React.FC<{
   const [showValidationMessage, setShowValidationMessage] = useState(false);
   const [focusedVar, setFocusedVar] = useState<string | null>(null);
 
-  // Helper functions (matching FB implementation)
+  // Helper functions (matching FB implementation exactly)
   const formatSvInt = (n: number) =>
     new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 }).format(Math.round(n));
 
   const cleanDigits = (s: string) => (s || '')
     .replace(/\s| |\u00A0|\u202F|,/g, '') // vanliga + NBSP + smalt mellanslag + komma
     .trim();
+
+  const allowDraft = (s: string) => /^-?\d*$/.test(s);        // integers only
 
   const parseDraft = (s: string): number => {
     if (!s) return 0;
@@ -280,14 +282,14 @@ const InventarierNote: React.FC<{
       return <span className="text-right font-medium">{numberToSv(v)} kr</span>;
     }
 
-    // Get current value and draft (matching FB pattern)
+    // Get current value and draft (matching FB pattern exactly)
     const currentValue = getCurrentValue(vn, prev);
+    const focusKey = prev ? `${vn}_prev` : vn;
     const draftRaw = prev 
       ? (draftPrev[vn] ?? (currentValue ? String(Math.round(currentValue)) : ''))
       : (draftCur[vn] ?? (currentValue ? String(Math.round(currentValue)) : ''));
     
-    // Focus-based display: raw when focused, formatted when not focused
-    const focusKey = prev ? `${vn}_prev` : vn;
+    // Focus-based display: raw when focused, formatted when not focused (exactly like FB)
     const isFocused = focusedVar === focusKey;
     const display = isFocused 
       ? draftRaw  // raw when focused (easy to type -, delete etc)
@@ -297,34 +299,30 @@ const InventarierNote: React.FC<{
       <input
         type="text"
         inputMode="numeric"
+        className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
         value={display}
+        onFocus={() => setFocusedVar(focusKey)}
         onChange={(e) => {
-          const newValue = e.target.value;
-          if (prev) {
-            setDraftPrev(d => ({ ...d, [vn]: newValue }));
-          } else {
-            setDraftCur(d => ({ ...d, [vn]: newValue }));
-          }
-        }}
-        onFocus={() => {
-          setFocusedVar(focusKey);
-          // Ensure we have the raw value when focusing
-          const rawValue = prev ? draftPrev[vn] : draftCur[vn];
-          if (!rawValue) {
-            const val = String(Math.round(currentValue));
+          // Save raw value (without spaces/commas) so minus always works
+          const raw = cleanDigits(e.target.value);
+          if (allowDraft(raw)) {
             if (prev) {
-              setDraftPrev(d => ({ ...d, [vn]: val }));
+              setDraftPrev(prevDrafts => ({ ...prevDrafts, [vn]: raw }));
             } else {
-              setDraftCur(d => ({ ...d, [vn]: val }));
+              setDraftCur(prevDrafts => ({ ...prevDrafts, [vn]: raw }));
             }
           }
         }}
-        onBlur={() => {
+        onBlur={(e) => {
           setFocusedVar(null);
-          // Commit the draft value
-          commitDraft(vn, draftRaw, prev);
+          // commit with parsing + recalculation
+          commitDraft(vn, e.target.value, prev);
         }}
-        className="h-6 px-2 py-0.5 text-right font-mono border rounded-md w-28 text-sm"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === 'Tab') {
+            commitDraft(vn, (e.target as HTMLInputElement).value, prev);
+          }
+        }}
         placeholder="0"
       />
     );
