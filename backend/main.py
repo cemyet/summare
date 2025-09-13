@@ -266,8 +266,29 @@ async def upload_two_se_files(
         
         # Use the new database-driven parser with two files flag
         parser = DatabaseParser()
+        
+        # Extract company info from both files to validate years
+        current_company_info = parser.extract_company_info(current_se_content)
+        previous_company_info = parser.extract_company_info(previous_se_content)
+        
+        # Validate that the years are consecutive
+        current_fiscal_year = current_company_info.get('fiscal_year')
+        previous_fiscal_year = previous_company_info.get('fiscal_year')
+        
+        if current_fiscal_year and previous_fiscal_year:
+            # Determine which is the newer and older year
+            fiscal_year = max(current_fiscal_year, previous_fiscal_year)
+            previous_year = min(current_fiscal_year, previous_fiscal_year)
+            
+            # Check that they are consecutive years
+            if fiscal_year - previous_year != 1:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Kontrollera SE-filerna. Räkenskapsåret är från {fiscal_year} medan föregående års fil är från {previous_year}."
+                )
+        
         current_accounts, previous_accounts, current_ib_accounts, previous_ib_accounts = parser.parse_account_balances(current_se_content)
-        company_info = parser.extract_company_info(current_se_content)
+        company_info = current_company_info
         
         # Scrape additional company information from rating.se
         scraped_company_data = {}

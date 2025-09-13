@@ -412,7 +412,7 @@ Bearbeta {previousYearFile ? 'filerna' : 'filen'}
 
       <div className="text-center">
         <p className="text-xs text-muted-foreground">
-          Ladda upp åtminstonde nuvarande räkenskapsårs SE fil. Föregående år är valfritt men ger ett bättre och mer detaljerad resultat.
+          Ladda upp åtminstonde nuvarande räkenskapsårs SE fil. Föregående år är valfritt men ger ett bättre och mer detaljerad resultat i framställningen av noterna.
         </p>
       </div>
     </div>
