@@ -367,16 +367,19 @@ const InventarierNote: React.FC<{
   const isHeading = (it: NoterItem) => isHeadingStyle(it.style);
 
   // Sum all non-heading, non-S rows directly ABOVE this S2 row until a heading or start
-  const sumGroupAbove = (index: number, year: 'cur' | 'prev') => {
-    let sum = 0;
-    for (let i = index - 1; i >= 0; i--) {
-      const r = items[i];
-      if (!r) break;
-      if (isHeading(r) || r.style === 'S2') break;
-      if (r.variable_name) sum += getVal(r.variable_name, year);
-    }
-    return sum;
-  };
+  const sumGroupAbove = React.useCallback(
+    (list: NoterItem[], index: number, year: 'cur' | 'prev') => {
+      let sum = 0;
+      for (let i = index - 1; i >= 0; i--) {
+        const r = list[i];
+        if (!r) break;
+        if (isHeading(r) || r.style === 'S2') break;
+        if (r.variable_name) sum += getVal(r.variable_name, year);
+      }
+      return sum;
+    },
+    [getVal]
+  );
 
   // Container ref + tab navigation helper
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -479,11 +482,11 @@ const InventarierNote: React.FC<{
 
         // values for display
         const curVal = isS2
-          ? sumGroupAbove(idx, 'cur')
+          ? sumGroupAbove(visible, idx, 'cur')
           : getVal(it.variable_name ?? '', 'cur');
 
         const prevVal = isS2
-          ? sumGroupAbove(idx, 'prev')
+          ? sumGroupAbove(visible, idx, 'prev')
           : getVal(it.variable_name ?? '', 'prev');
         
         return (
