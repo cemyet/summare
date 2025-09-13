@@ -285,7 +285,7 @@ const InventarierNote: React.FC<{
   const calcRedovisatVarde = React.useCallback((year: 'cur' | 'prev') => {
     const v = (name: string) => getVal(name, year) || 0;
 
-    const invUB     = v('inventarier_ib') + v('arets_inkop_inventarier') - v('arets_fsg_inventarier') + v('arets_omklass_inventarier');
+    const invUB     = v('inventarier_ib') + v('arets_inkop_inventarier') + v('arets_fsg_inventarier') + v('arets_omklass_inventarier');
     const avskrUB   = v('ack_avskr_inventarier_ib') + v('arets_avskr_inventarier') + v('aterfor_avskr_fsg_inventarier') + v('omklass_avskr_inventarier');
     const nedskrUB  = v('ack_nedskr_inventarier_ib') + v('arets_nedskr_inventarier') + v('aterfor_nedskr_inventarier') + v('aterfor_nedskr_fsg_inventarier') + v('omklass_nedskr_inventarier');
 
@@ -430,7 +430,7 @@ const InventarierNote: React.FC<{
         onSignForced?.({ baseVar, label, year, expected: signRule, typed, adjusted });
       }
 
-      onCommit(adjusted);
+      onCommit(adjusted)
     };
 
     return (
@@ -691,8 +691,8 @@ const InventarierNote: React.FC<{
 
       {/* Comparison row – only while editing */}
       {isEditing && (
-        <div className="grid gap-4 border-t border-gray-200 pt-1 items-center" style={gridCols}>
-          <span className="text-muted-foreground">Redovisat värde (bokfört)</span>
+        <div className="grid gap-4 border-t border-b border-gray-200 pt-1 pb-1 font-semibold" style={gridCols}>
+          <span className="text-muted-foreground font-semibold">Redovisat värde (bokfört)</span>
           <span className="text-right font-medium">{numberToSv(brBookValueUBCur)} kr</span>
           <span className="text-right font-medium">{numberToSv(brBookValueUBPrev)} kr</span>
         </div>
