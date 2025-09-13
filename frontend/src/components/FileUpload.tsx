@@ -106,7 +106,19 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
     const [a, b] = files;
     const [m1, m2] = await Promise.all([extractSieMeta(a), extractSieMeta(b)]);
 
-    // Check year consecutiveness when both years are present
+    // Check company mismatch FIRST (more important than year validation)
+    // Prefer orgnr for company check (fallback to name)
+    if (m1.orgnr && m2.orgnr && m1.orgnr !== m2.orgnr) {
+      const A = m1.company || m1.orgnr;
+      const B = m2.company || m2.orgnr;
+      return {
+        ok: false,
+        type: 'COMPANY',
+        message: `Filerna tillhör olika företag: ${A} vs ${B}. Ladda upp filer för samma bolag.`,
+      };
+    }
+
+    // Then check year consecutiveness when both years are present
     if (m1.endYear && m2.endYear) {
       const fy = Math.max(m1.endYear, m2.endYear);
       const py = Math.min(m1.endYear, m2.endYear);
@@ -117,17 +129,6 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
           message: `SIE-filerna måste avse två på varandra följande räkenskapsår. Nuvarande räkenskapsår är ${fy} och föregående är ${py}.`,
         };
       }
-    }
-
-    // Prefer orgnr for company check (fallback to name)
-    if (m1.orgnr && m2.orgnr && m1.orgnr !== m2.orgnr) {
-      const A = m1.company || m1.orgnr;
-      const B = m2.company || m2.orgnr;
-      return {
-        ok: false,
-        type: 'COMPANY',
-        message: `Filerna tillhör olika företag: ${A} vs ${B}. Ladda upp filer för samma bolag.`,
-      };
     }
     return { ok: true };
   };
