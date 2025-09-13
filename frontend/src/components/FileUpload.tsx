@@ -22,12 +22,18 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
   const [showYearValidationError, setShowYearValidationError] = useState(false);
   const [yearValidationMessage, setYearValidationMessage] = useState('');
   const [showCompanyMismatchError, setShowCompanyMismatchError] = useState(false);
+  const [companyMismatchMessage, setCompanyMismatchMessage] = useState('');
   const { toast } = useToast();
 
   // Helper to extract server error details
   const serverDetail = (err: any): string => {
     // axios-like
-    if (err?.response?.data?.detail) return String(err.response.data.detail);
+    if (err?.response?.data?.detail) {
+      const d = err.response.data.detail;
+      if (typeof d === 'string') return d;
+      if (typeof d === 'object' && (d.message || d.msg)) return String(d.message || d.msg);
+      return JSON.stringify(d);
+    }
     if (typeof err?.response?.data === 'string') return err.response.data;
 
     // fetch-like
@@ -38,6 +44,77 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
     // fallbacks
     if (err?.message) return String(err.message);
     return '';
+  };
+
+  // ---------- SIE preflight helpers (runs before upload) ----------
+  const readText = (f: File) => f.text();
+
+  const extractSieMeta = async (file: File) => {
+    const txt = await readText(file);
+    // fiscal year from #RAR <start> <end> → take end year
+    const rar = txt.match(/#RAR\s+(\d{8})\s+(\d{8})/i);
+    const endYear = rar ? parseInt(rar[2].slice(0, 4), 10) : null;
+
+    // orgnr (digits only); allow #ORGNR or #ORGANISATIONSNR
+    const orgMatch =
+      txt.match(/#ORGNR\s+"?([\d\- ]{10,14})"?/i) ||
+      txt.match(/#ORGANISATIONSNR\s+"?([\d\- ]{10,14})"?/i);
+    const orgnr = orgMatch ? orgMatch[1].replace(/\D/g, '').slice(-10) : null;
+
+    // company name (best effort)
+    const nameMatch =
+      txt.match(/#FNAMN\s+"([^"]+)"/i) ||
+      txt.match(/#KONTOAGN\s+"([^"]+)"/i);
+    const company = nameMatch ? nameMatch[1].trim() : null;
+
+    return { endYear, orgnr, company };
+  };
+
+  type PreflightResult =
+    | { ok: true }
+    | { ok: false; type: 'YEAR'; message: string }
+    | { ok: false; type: 'COMPANY'; message: string };
+
+  const preflightValidate = async (files: File[]): Promise<PreflightResult> => {
+    if (files.length !== 2) return { ok: true };
+    const [a, b] = files;
+    const [m1, m2] = await Promise.all([extractSieMeta(a), extractSieMeta(b)]);
+
+    // Check year consecutiveness when both years are present
+    if (m1.endYear && m2.endYear) {
+      const fy = Math.max(m1.endYear, m2.endYear);
+      const py = Math.min(m1.endYear, m2.endYear);
+      if (fy - py !== 1) {
+        return {
+          ok: false,
+          type: 'YEAR',
+          message: `Filerna måste avse två på varandra följande räkenskapsår. Nuvarande: ${fy}, föregående: ${py}.`,
+        };
+      }
+    }
+
+    // Prefer orgnr for company check (fallback to name)
+    if (m1.orgnr && m2.orgnr && m1.orgnr !== m2.orgnr) {
+      const A = m1.company || m1.orgnr;
+      const B = m2.company || m2.orgnr;
+      return {
+        ok: false,
+        type: 'COMPANY',
+        message: `Filerna tillhör olika företag: ${A} vs ${B}. Ladda upp filer för samma bolag.`,
+      };
+    }
+    return { ok: true };
+  };
+
+  // Map structured backend errors → white popups
+  const parseBackendError = (err: any): { code?: string; message?: string } | null => {
+    const detail = err?.response?.data?.detail ?? err?.data?.detail ?? err?.detail;
+    if (!detail) return null;
+    if (typeof detail === 'string') return { message: detail };
+    if (typeof detail === 'object') {
+      return { code: detail.code || detail.error_code || detail.type, message: detail.message || detail.msg };
+    }
+    return null;
   };
 
 
@@ -98,6 +175,22 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
         return;
       }
 
+      // ---------- PRE-FLIGHT VALIDATION (before any upload) ----------
+      if (filesToProcess.length === 2) {
+        const pre = await preflightValidate(filesToProcess);
+        if (!pre.ok) {
+          const error = pre as { ok: false; type: 'YEAR' | 'COMPANY'; message: string };
+          if (error.type === 'YEAR') {
+            setYearValidationMessage(error.message);
+            setShowYearValidationError(true);
+          } else if (error.type === 'COMPANY') {
+            setCompanyMismatchMessage(error.message);
+            setShowCompanyMismatchError(true);
+          }
+          return;
+        }
+      }
+
       if (filesToProcess.length === 2) {
         // Upload both files with two_files flag
         result = await apiService.uploadTwoSeFiles(filesToProcess[0], filesToProcess[1]);
@@ -128,42 +221,22 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
 
     } catch (error) {
       console.error('Upload error:', error);
-      
-      // Check for specific validation errors and show appropriate popups
-      const errorMessage = error instanceof Error ? error.message : "Kunde inte bearbeta filen/filerna";
-      console.log('FileUpload received error message:', errorMessage);
-      console.log('Error object:', error);
-      console.log('Year validation pattern check:', errorMessage.includes("Filerna måste avse två på varandra följande räkenskapsår"));
-      console.log('Company mismatch pattern check:', errorMessage.includes("SIE-filerna verkar vara från olika bolag"));
-      
-      // First check the serverDetail for the actual backend message
-      const detail = serverDetail(error);
-      console.log('ServerDetail extracted:', detail);
-      
-      // Use the detail message if available, otherwise use the error message
-      const actualMessage = detail || errorMessage;
-      console.log('Actual message to check:', actualMessage);
-      
-      if (actualMessage.includes("Filerna måste avse två på varandra följande räkenskapsår")) {
-        // Show custom year validation popup
-        console.log('Showing year validation popup');
-        setYearValidationMessage(actualMessage);
+      // Prefer structured backend error → map to white popups
+      const mapped = parseBackendError(error);
+      if (mapped?.code === 'YEAR_MISMATCH') {
+        setYearValidationMessage(mapped.message || 'Filerna måste avse två på varandra följande räkenskapsår.');
         setShowYearValidationError(true);
-      } else if (actualMessage.includes("SIE-filerna verkar vara från olika bolag")) {
-        // Show custom company mismatch popup
-        console.log('Showing company mismatch popup');
+      } else if (mapped?.code === 'COMPANY_MISMATCH') {
+        setCompanyMismatchMessage(mapped.message || 'SIE-filerna verkar vara från olika bolag.');
         setShowCompanyMismatchError(true);
       } else {
-        // Show regular toast for other errors
-        const msg = actualMessage && !actualMessage.startsWith('Upload failed')
-          ? actualMessage
-          : 'Kunde inte bearbeta filen/filerna. Kontrollera att SIE-filen är giltig och försök igen.';
-        
-        console.log('Showing regular toast for error:', msg);
-        toast({
-          title: "Fel vid uppladdning",
-          description: msg
-        });
+        // Fall back to best available message (still white toast)
+        const detail = serverDetail(error);
+        const fallback =
+          detail && !String(detail).startsWith('Upload failed')
+            ? String(detail)
+            : 'Kunde inte bearbeta filen/filerna. Kontrollera att SIE-filen är giltig och försök igen.';
+        toast({ title: 'Fel vid uppladdning', description: fallback });
       }
     } finally {
       setIsUploading(false);
@@ -508,7 +581,7 @@ Bearbeta {previousYearFile ? 'filerna' : 'filen'}
                 Olika bolag upptäckta
               </p>
               <p className="text-sm text-gray-500 mt-1">
-                SIE-filerna verkar vara från olika bolag. Kontrollera att båda filerna tillhör samma företag.
+                {companyMismatchMessage || 'SIE-filerna verkar vara från olika bolag. Kontrollera att båda filerna tillhör samma företag.'}
               </p>
             </div>
             <button
