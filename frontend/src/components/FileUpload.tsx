@@ -126,7 +126,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
         return {
           ok: false,
           type: 'YEAR',
-          message: `SIE-filerna måste avse två på varandra följande räkenskapsår. Nuvarande räkenskapsår är ${fy} och föregående är ${py}.`,
+          message: `SIE-filerna måste avse två på varandra följande räkenskapsår. Nuvarande är ${fy} och föregående är ${py}.`,
         };
       }
     }
@@ -236,7 +236,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
         }
 
         toast({
-          title: "Fil(er) bearbetad(e)",
+          title: filesToProcess.length === 2 ? "Filer bearbetade" : "Filen bearbetad",
           description: filesToProcess.length === 2 
             ? "Båda SIE-filerna har analyserats och data extraherats"
             : "SIE-filen har analyserats och data extraherats"
