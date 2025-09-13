@@ -184,7 +184,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
             </div>
             
             <div className="space-y-1">
-              <h3 className="text-sm font-medium">Ladda upp .SE fil</h3>
+              <h3 className="text-sm font-bold">Ladda upp SE-filer här:</h3>
               <p className="text-xs text-muted-foreground">
                 Dra och släpp din .SE fil här eller klicka nedan
               </p>
@@ -266,7 +266,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
             
             <div className="space-y-1">
               <h3 className="text-sm font-medium text-gray-900">
-                Nuvarande år
+                Räkenskapsår
               </h3>
               <p className="text-xs text-muted-foreground">
                 {currentYearFile?.uploaded 
@@ -330,7 +330,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
               ) : previousYearFile ? (
                 <Calendar className="w-5 h-5 text-green-600" />
               ) : (
-                <Calendar className="w-5 h-5 text-gray-400" />
+                <Calendar className="w-5 h-5 text-muted-foreground" />
               )}
             </div>
             
@@ -395,7 +395,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
             ) : (
               <>
                 <FileText className="w-4 h-4 mr-2" />
-                Bearbeta {previousYearFile ? 'båda filerna' : 'filen'}
+Bearbeta {previousYearFile ? 'filerna' : 'filen'}
               </>
             )}
           </Button>
@@ -412,7 +412,7 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
 
       <div className="text-center">
         <p className="text-xs text-muted-foreground">
-          Ladda upp minst nuvarande års .SE fil. Föregående år är valfritt men ger mer exakt analys.
+          Ladda upp åtminstonde nuvarande räkenskapsårs SE fil. Föregående år är valfritt men ger ett bättre och mer detaljerad resultat.
         </p>
       </div>
     </div>
