@@ -323,11 +323,19 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
   const resetFiles = () => {
     setCurrentYearFile(null);
     setPreviousYearFile(null);
+    setDragOverArea(null);
+    setIsUploading(false);
     // Reset all popup states
     setShowYearValidationError(false);
     setShowCompanyMismatchError(false);
     setYearValidationMessage('');
     setCompanyMismatchMessage('');
+    
+    // Clear file input elements
+    const fileInputs = document.querySelectorAll('input[type="file"]');
+    fileInputs.forEach((input: any) => {
+      input.value = '';
+    });
   };
 
   if (!allowTwoFiles) {
