@@ -168,7 +168,11 @@ const InventarierNote: React.FC<{
   const [editedPrevValues, setEditedPrevValues] = useState<Record<string, number>>({});
   const [committedValues, setCommittedValues] = useState<Record<string, number>>({});       // NEW
   const [committedPrevValues, setCommittedPrevValues] = useState<Record<string, number>>({});
-  const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
+  const [mismatch, setMismatch] = useState<{ open: boolean; deltaCur: number; deltaPrev: number }>({
+    open: false,
+    deltaCur: 0,
+    deltaPrev: 0,
+  });
   const [showValidationMessage, setShowValidationMessage] = useState(false);
 
 
@@ -261,15 +265,16 @@ const InventarierNote: React.FC<{
     setIsEditing(false);
     setEditedValues({});
     setEditedPrevValues({});
-    setMismatch({ open: false, delta: 0 });
+    setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
     setShowValidationMessage(false);
     setToggle?.(false);   // hide extra rows like FB
   };
 
   const undoEdit = () => {
+    blurAllEditableInputs();                 // ensure inputs drop focus so they re-seed
     setEditedValues({});
     setEditedPrevValues({});
-    setMismatch({ open: false, delta: 0 });
+    setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
     setShowValidationMessage(false);
     // Don't change show/hide mode - stay with current toggle state
     // IMPORTANT: do NOT setIsEditing(false); stay in edit mode
@@ -279,18 +284,28 @@ const InventarierNote: React.FC<{
     const redCurCalc  = calcRedovisatVarde('cur');
     const redPrevCalc = calcRedovisatVarde('prev');
 
-    const mismY0 = Math.round(redCurCalc)  !== Math.round(brBookValueUBCur);
-    const mismY1 = Math.round(redPrevCalc) !== Math.round(brBookValueUBPrev);
-    if (mismY0 || mismY1) { setShowValidationMessage(true); return; }
+    const deltaCur  = redCurCalc  - brBookValueUBCur;
+    const deltaPrev = redPrevCalc - brBookValueUBPrev;
 
-    // NEW — persist edits
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));              // commit current-year edits
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));      // commit previous-year edits
-    setEditedValues({});                                                     // clear drafts
-    setEditedPrevValues({});                                                 // clear drafts
+    const hasMismatch =
+      Math.round(deltaCur) !== 0 ||
+      Math.round(deltaPrev) !== 0;
 
+    if (hasMismatch) {
+      setMismatch({ open: true, deltaCur, deltaPrev }); // store both
+      setShowValidationMessage(true);
+      return; // stay in edit mode
+    }
+
+    // success path:
+    setCommittedValues(prev => ({ ...prev, ...editedValues }));
+    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    setEditedValues({});
+    setEditedPrevValues({});
+    setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
+    setShowValidationMessage(false);
     setIsEditing(false);
-    setToggle?.(false);                                                      // hide zero-rows after approve
+    setToggle?.(false); // collapse zero rows after approve
   };
 
   const AmountCell = React.memo(function AmountCell({
@@ -394,6 +409,13 @@ const InventarierNote: React.FC<{
       `input[data-editable-cell="1"][data-ord="${nextOrd}"]`
     );
     if (next) { next.focus(); next.select?.(); }
+  };
+
+  const blurAllEditableInputs = () => {
+    const root = containerRef.current;
+    if (!root) return;
+    const nodes = root.querySelectorAll<HTMLInputElement>('input[data-editable-cell="1"]');
+    nodes.forEach((el) => el.blur());
   };
 
   // Compute both years every render
@@ -588,23 +610,32 @@ const InventarierNote: React.FC<{
 
       {/* Toast Notification - FB style */}
       {showValidationMessage && (
-        <div className="fixed bottom-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
+        <div className="fixed bottom-4 right-4 z-50 bg-white rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
           <div className="flex items-start">
             <div className="flex-shrink-0">
               <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
               </svg>
             </div>
-            <div className="ml-3 flex-1">
+            <div className="ml-3">
               <p className="text-sm font-medium text-gray-900">
                 Summor balanserar inte
               </p>
-              <p className="text-sm text-gray-500 mt-1">
-                Redovisat värde (beräknat) stämmer inte med bokfört värde. Skillnad: {numberToSv(mismatch.delta)} kr
+              <p className="mt-1 text-sm text-gray-700">
+                Redovisat värde (beräknat) stämmer inte med bokfört värde.
               </p>
+              <ul className="mt-2 text-sm text-gray-900">
+                {Math.round(mismatch.deltaCur) !== 0 && (
+                  <li><strong>{fiscalYear}</strong>: {numberToSv(Math.round(mismatch.deltaCur))} kr</li>
+                )}
+                {Math.round(mismatch.deltaPrev) !== 0 && (
+                  <li><strong>{previousYear}</strong>: {numberToSv(Math.round(mismatch.deltaPrev))} kr</li>
+                )}
+              </ul>
             </div>
             <button
-              onClick={() => setShowValidationMessage(false)}
+              onClick={() => { setShowValidationMessage(false); setMismatch(m => ({ ...m, open: false })); }}
               className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
