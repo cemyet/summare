@@ -51,9 +51,35 @@ export function FileUpload({ onFileProcessed, allowTwoFiles = false }: FileUploa
 
   const extractSieMeta = async (file: File) => {
     const txt = await readText(file);
-    // fiscal year from #RAR <start> <end> → take end year
-    const rar = txt.match(/#RAR\s+(\d{8})\s+(\d{8})/i);
-    const endYear = rar ? parseInt(rar[2].slice(0, 4), 10) : null;
+
+    // 1) Collect ALL #RAR lines (handles "#RAR 0 20240101 20241231", "#RAR -1 ...", etc.)
+    const rarLines = txt.match(/^#RAR[^\r\n]*$/gmi) || [];
+
+    // 2) From each #RAR line, take the LAST 8-digit date as the fiscal period end,
+    //    then use the MAX end-year across lines (some exports include multiple RARs).
+    let endYear: number | null = null;
+    for (const line of rarLines) {
+      const dates = line.match(/\b\d{8}\b/g);
+      if (dates && dates.length) {
+        const end = dates[dates.length - 1];         // last date on the line = period end
+        const y = parseInt(end.slice(0, 4), 10);
+        if (Number.isFinite(y)) endYear = endYear === null ? y : Math.max(endYear, y);
+      }
+    }
+
+    // 3) Fallback: if no #RAR found, try to infer from #VER dates (pick the max year).
+    if (endYear === null) {
+      const verDates = txt.match(/\b#VER\b[^\r\n]*\b(\d{8})/gmi) || [];
+      const years: number[] = [];
+      for (const s of verDates) {
+        const m = s.match(/(\d{8})/);
+        if (m) {
+          const y = parseInt(m[1].slice(0, 4), 10);
+          if (Number.isFinite(y)) years.push(y);
+        }
+      }
+      if (years.length) endYear = Math.max(...years);
+    }
 
     // orgnr (digits only); allow #ORGNR or #ORGANISATIONSNR
     const orgMatch =
