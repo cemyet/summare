@@ -166,6 +166,7 @@ const InventarierNote: React.FC<{
   const [isEditing, setIsEditing] = useState(false);
   const [editedValues, setEditedValues] = useState<Record<string, number>>({});
   const [editedPrevValues, setEditedPrevValues] = useState<Record<string, number>>({});
+  const [committedValues, setCommittedValues] = useState<Record<string, number>>({});       // NEW
   const [committedPrevValues, setCommittedPrevValues] = useState<Record<string, number>>({});
   const [mismatch, setMismatch] = useState<{ open: boolean; delta: number }>({ open: false, delta: 0 });
   const [showValidationMessage, setShowValidationMessage] = useState(false);
@@ -190,13 +191,14 @@ const InventarierNote: React.FC<{
   const getVal = React.useCallback((vn: string, year: 'cur' | 'prev') => {
     if (year === 'cur') {
       if (editedValues[vn] !== undefined) return editedValues[vn];
+      if (committedValues[vn] !== undefined) return committedValues[vn];   // NEW
       return byVar.get(vn)?.current_amount ?? 0;
     } else {
       if (committedPrevValues[vn] !== undefined) return committedPrevValues[vn];
       if (editedPrevValues[vn] !== undefined) return editedPrevValues[vn];
       return byVar.get(vn)?.previous_amount ?? 0;
     }
-  }, [editedValues, editedPrevValues, committedPrevValues, byVar]);
+  }, [editedValues, committedValues, editedPrevValues, committedPrevValues, byVar]);  // NEW deps
 
   // Helper function to get current value (edited or original) - matching FB
   const getCurrentValue = (variableName: string): number => {
@@ -227,7 +229,7 @@ const InventarierNote: React.FC<{
       // zero + not toggleable => never show
       return false;
     });
-  }, [items, toggleOn, editedValues, editedPrevValues]);
+  }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]); // NEW deps
 
   // Compute Redovisat värde (beräknat) - year-aware version
   const calcRedovisatVarde = React.useCallback((year: 'cur' | 'prev') => {
@@ -274,24 +276,21 @@ const InventarierNote: React.FC<{
   };
 
   const approveEdit = () => {
-    // run balance check for both years
     const redCurCalc  = calcRedovisatVarde('cur');
     const redPrevCalc = calcRedovisatVarde('prev');
 
     const mismY0 = Math.round(redCurCalc)  !== Math.round(brBookValueUBCur);
     const mismY1 = Math.round(redPrevCalc) !== Math.round(brBookValueUBPrev);
+    if (mismY0 || mismY1) { setShowValidationMessage(true); return; }
 
-    if (mismY0 || mismY1) {
-      // keep editing; show the small white toast; both cells stay red
-      setShowValidationMessage(true);
-      return;
-    }
+    // NEW — persist edits
+    setCommittedValues(prev => ({ ...prev, ...editedValues }));              // commit current-year edits
+    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));      // commit previous-year edits
+    setEditedValues({});                                                     // clear drafts
+    setEditedPrevValues({});                                                 // clear drafts
 
-    // success: commit and exit edit
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues })); // keep År −1 edits
-    setEditedPrevValues({});
     setIsEditing(false);
-    // leave block toggle as-is (per your last requirement)
+    setToggle?.(false);                                                      // hide zero-rows after approve
   };
 
   const AmountCell = React.memo(function AmountCell({
