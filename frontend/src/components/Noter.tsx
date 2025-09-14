@@ -5107,13 +5107,15 @@ const SakerhetNote: React.FC<{
 
   return (
     <div ref={containerRef} className="space-y-2 pt-4">
-      {/* Header */}
+      {/* Header with both toggles */}
       <div className="flex items-center justify-between border-b pb-1">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold pt-1">{heading}</h3>
+        <div className="flex items-center">
+          <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>
+            {heading}
+          </h3>
           <button
             onClick={() => isEditing ? cancelEdit() : startEdit()}
-            className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+            className={`ml-3 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
               isEditing ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
             }`}
             title={isEditing ? 'Avsluta redigering' : 'Redigera värden'}
@@ -5123,6 +5125,13 @@ const SakerhetNote: React.FC<{
                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
             </svg>
           </button>
+          <div className="ml-2 flex items-center" style={{transform: 'scale(0.75)', marginTop: '5px'}}>
+            <Switch
+              checked={true} // Always visible for now
+              onCheckedChange={() => {}} // Placeholder - can be made dynamic later
+            />
+            <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <label htmlFor="toggle-sakerhet-rows" className="text-sm font-medium cursor-pointer">
