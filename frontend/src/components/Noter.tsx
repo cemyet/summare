@@ -360,10 +360,9 @@ const MaskinerNote: React.FC<{
   const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
-  // Build visible rows with smart subblock heading logic
   const visible = useMemo(() => {
-    // First pass: identify which rows should be visible
-    const visibleRows = items.filter((it) => {
+    // Pass 1: base visibility (as you already have)
+    const baseVisible = items.filter((it) => {
       if (it.always_show) return true;
       const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
       if (hasNonZero) return true;
@@ -371,25 +370,33 @@ const MaskinerNote: React.FC<{
       return false;
     });
 
-    // Second pass: ensure subblock headings are shown when any row in that subblock is visible
-    const result: NoterItem[] = [];
-    const visibleSubblocks = new Set(visibleRows.map(r => r.block_sub).filter(Boolean));
-    
-    items.forEach((it) => {
-      // Include if already visible
-      if (visibleRows.includes(it)) {
-        result.push(it);
-        return;
-      }
-      
-      // Include subblock headings (H3 style) if any row in that subblock is visible
-      if (it.style === 'H3' && it.block_sub && visibleSubblocks.has(it.block_sub)) {
-        result.push(it);
-        return;
-      }
-    });
+    // Use row_id membership instead of object identity for robustness
+    const baseSet = new Set(baseVisible.map(r => r.row_id));
 
-    return result;
+    // Pass 2: include H3 heading if any child row until the next heading is visible
+    const out: NoterItem[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+
+      // Already visible? keep it.
+      if (baseSet.has(it.row_id)) {
+        out.push(it);
+        continue;
+      }
+
+      // Bring in subblock headings when any of their following rows are visible
+      if ((it.style === 'H3')) {
+        let show = false;
+        for (let j = i + 1; j < items.length; j++) {
+          const nxt = items[j];
+          if (isHeadingStyle(nxt.style)) break; // stop at next block/subblock heading
+          if (baseSet.has(nxt.row_id)) { show = true; break; }
+        }
+        if (show) out.push(it);
+      }
+    }
+
+    return out;
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
   // Compute Redovisat värde (beräknat) - MASKIN specific formula
@@ -920,10 +927,9 @@ const ByggnaderNote: React.FC<{
   const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
-  // Build visible rows with smart subblock heading logic
   const visible = useMemo(() => {
-    // First pass: identify which rows should be visible
-    const visibleRows = items.filter((it) => {
+    // Pass 1: base visibility (as you already have)
+    const baseVisible = items.filter((it) => {
       if (it.always_show) return true;
       const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
       if (hasNonZero) return true;
@@ -931,25 +937,33 @@ const ByggnaderNote: React.FC<{
       return false;
     });
 
-    // Second pass: ensure subblock headings are shown when any row in that subblock is visible
-    const result: NoterItem[] = [];
-    const visibleSubblocks = new Set(visibleRows.map(r => r.block_sub).filter(Boolean));
-    
-    items.forEach((it) => {
-      // Include if already visible
-      if (visibleRows.includes(it)) {
-        result.push(it);
-        return;
-      }
-      
-      // Include subblock headings (H3 style) if any row in that subblock is visible
-      if (it.style === 'H3' && it.block_sub && visibleSubblocks.has(it.block_sub)) {
-        result.push(it);
-        return;
-      }
-    });
+    // Use row_id membership instead of object identity for robustness
+    const baseSet = new Set(baseVisible.map(r => r.row_id));
 
-    return result;
+    // Pass 2: include H3 heading if any child row until the next heading is visible
+    const out: NoterItem[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+
+      // Already visible? keep it.
+      if (baseSet.has(it.row_id)) {
+        out.push(it);
+        continue;
+      }
+
+      // Bring in subblock headings when any of their following rows are visible
+      if ((it.style === 'H3')) {
+        let show = false;
+        for (let j = i + 1; j < items.length; j++) {
+          const nxt = items[j];
+          if (isHeadingStyle(nxt.style)) break; // stop at next block/subblock heading
+          if (baseSet.has(nxt.row_id)) { show = true; break; }
+        }
+        if (show) out.push(it);
+      }
+    }
+
+    return out;
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
   // Compute Redovisat värde (beräknat) - BYGG specific formula
@@ -1484,10 +1498,9 @@ const OvrigaMateriellaNote: React.FC<{
   const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
-  // Build visible rows with smart subblock heading logic
   const visible = useMemo(() => {
-    // First pass: identify which rows should be visible
-    const visibleRows = items.filter((it) => {
+    // Pass 1: base visibility (as you already have)
+    const baseVisible = items.filter((it) => {
       if (it.always_show) return true;
       const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
       if (hasNonZero) return true;
@@ -1495,25 +1508,33 @@ const OvrigaMateriellaNote: React.FC<{
       return false;
     });
 
-    // Second pass: ensure subblock headings are shown when any row in that subblock is visible
-    const result: NoterItem[] = [];
-    const visibleSubblocks = new Set(visibleRows.map(r => r.block_sub).filter(Boolean));
-    
-    items.forEach((it) => {
-      // Include if already visible
-      if (visibleRows.includes(it)) {
-        result.push(it);
-        return;
-      }
-      
-      // Include subblock headings (H3 style) if any row in that subblock is visible
-      if (it.style === 'H3' && it.block_sub && visibleSubblocks.has(it.block_sub)) {
-        result.push(it);
-        return;
-      }
-    });
+    // Use row_id membership instead of object identity for robustness
+    const baseSet = new Set(baseVisible.map(r => r.row_id));
 
-    return result;
+    // Pass 2: include H3 heading if any child row until the next heading is visible
+    const out: NoterItem[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+
+      // Already visible? keep it.
+      if (baseSet.has(it.row_id)) {
+        out.push(it);
+        continue;
+      }
+
+      // Bring in subblock headings when any of their following rows are visible
+      if ((it.style === 'H3')) {
+        let show = false;
+        for (let j = i + 1; j < items.length; j++) {
+          const nxt = items[j];
+          if (isHeadingStyle(nxt.style)) break; // stop at next block/subblock heading
+          if (baseSet.has(nxt.row_id)) { show = true; break; }
+        }
+        if (show) out.push(it);
+      }
+    }
+
+    return out;
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
   const startEdit = () => {
