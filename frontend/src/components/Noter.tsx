@@ -882,22 +882,26 @@ const ByggnaderNote: React.FC<{
     });
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
-  // Compute Redovisat värde (beräknat) - BYGG specific formula (includes UPPSKRIVNINGAR)
+  // Compute Redovisat värde (beräknat) - BYGG specific formula
   const calcRedovisatVarde = React.useCallback((year: 'cur' | 'prev') => {
     const v = (name: string) => getVal(name, year) || 0;
 
-    // Anskaffningsvärden
+    // Use the exact formula from CSV: bygg_ub+ack_avskr_bygg_ub+ack_uppskr_bygg_ub+ack_nedskr_bygg_ub
+    // But since we're editing flows, we need to calculate the UB values from flows
+    
+    // Anskaffningsvärden UB
     const byggUB = v('bygg_ib') + v('arets_inkop_bygg') + v('arets_fsg_bygg') + v('arets_omklass_bygg');
     
-    // Avskrivningar (now includes omklassificeringar)
+    // Avskrivningar UB
     const avskrUB = v('ack_avskr_bygg_ib') + v('arets_avskr_bygg') + v('aterfor_avskr_fsg_bygg') + v('omklass_avskr_bygg');
     
-    // Uppskrivningar (now includes omklassificeringar)
+    // Uppskrivningar UB (this was missing from CSV formula but needed for complete calculation)
     const uppskrUB = v('ack_uppskr_bygg_ib') + v('arets_uppskr_bygg') + v('aterfor_uppskr_fsg_bygg') + v('arets_avskr_uppskr_bygg') + v('omklass_uppskr_bygg');
     
-    // Nedskrivningar (now includes omklassificeringar)
+    // Nedskrivningar UB
     const nedskrUB = v('ack_nedskr_bygg_ib') + v('arets_nedskr_bygg') + v('aterfor_nedskr_fsg_bygg') + v('aterfor_nedskr_bygg') + v('omklass_nedskr_bygg');
 
+    // Complete formula: anskaffning + avskrivningar + uppskrivningar + nedskrivningar
     return byggUB + avskrUB + uppskrUB + nedskrUB;
   }, [getVal]);
 
@@ -999,8 +1003,38 @@ const ByggnaderNote: React.FC<{
     console.log(`Sign forced for ${e.label} (${e.year}): ${e.typed} → ${e.adjusted}`);
   };
 
-  const redCur  = calcRedovisatVarde('cur');
-  const redPrev = calcRedovisatVarde('prev');
+  // Helper: get the dynamic S2 subtotal for a given UB-row if present,
+  // otherwise fall back to the formula-based UB for that section.
+  const ubSum = React.useCallback((ubVar: string, year: 'cur' | 'prev') => {
+    const v = (name: string) => getVal(name, year) || 0;
+    const idx = visible.findIndex(r => r.variable_name === ubVar);
+    if (idx !== -1 && visible[idx]?.style === 'S2') {
+      // Use exactly what the UI shows for that S2 row
+      return sumGroupAbove(visible, idx, year);
+    }
+    // Fallbacks if the UB row isn't visible:
+    switch (ubVar) {
+      case 'bygg_ub':
+        return v('bygg_ib') + v('arets_inkop_bygg') + v('arets_fsg_bygg') + v('arets_omklass_bygg');
+      case 'ack_avskr_bygg_ub':
+        return v('ack_avskr_bygg_ib') + v('arets_avskr_bygg') + v('aterfor_avskr_fsg_bygg') + v('omklass_avskr_bygg');
+      case 'ack_uppskr_bygg_ub':
+        return v('ack_uppskr_bygg_ib') + v('arets_uppskr_bygg') + v('aterfor_uppskr_fsg_bygg') + v('arets_avskr_uppskr_bygg') + v('omklass_uppskr_bygg');
+      case 'ack_nedskr_bygg_ub':
+        return v('ack_nedskr_bygg_ib') + v('arets_nedskr_bygg') + v('aterfor_nedskr_fsg_bygg') + v('aterfor_nedskr_bygg') + v('omklass_nedskr_bygg');
+      default:
+        return getVal(ubVar, year);
+    }
+  }, [visible, sumGroupAbove, getVal]);
+
+  // Sum the actual S2 subtotals instead of re-deriving from flows
+  const redCur  = ['bygg_ub','ack_avskr_bygg_ub','ack_uppskr_bygg_ub','ack_nedskr_bygg_ub']
+    .map(n => ubSum(n, 'cur'))
+    .reduce((a,b) => a + b, 0);
+
+  const redPrev = ['bygg_ub','ack_avskr_bygg_ub','ack_uppskr_bygg_ub','ack_nedskr_bygg_ub']
+    .map(n => ubSum(n, 'prev'))
+    .reduce((a,b) => a + b, 0);
 
   return (
     <div ref={containerRef} className="space-y-2 pt-4">
