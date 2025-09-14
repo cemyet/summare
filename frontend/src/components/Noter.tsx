@@ -2054,26 +2054,14 @@ const InventarierNote: React.FC<{
   const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
-  // Build visible rows using the same logic as main Noter component
   const visible = useMemo(() => {
-    return items.filter((it) => {
-      // Headings and rows explicitly always_show=true are always visible
-      if (it.always_show) return true;
-
-      const hasNonZero =
-        (readCur(it) ?? 0) !== 0 ||
-        (readPrev(it) ?? 0) !== 0;
-
-      if (hasNonZero) return true;
-
-      // zero amounts:
-      // show only if row is toggleable and the block toggle is ON
-      if (it.toggle_show) return toggleOn;
-
-      // zero + not toggleable => never show
-      return false;
+    return buildVisibleWithHeadings({
+      items,
+      toggleOn,
+      readCur: (it) => readCur(it),
+      readPrev: (it) => readPrev(it),
     });
-  }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]); // NEW deps
+  }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
   // Compute Redovisat värde (beräknat) - year-aware version
   const calcRedovisatVarde = React.useCallback((year: 'cur' | 'prev') => {
