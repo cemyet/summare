@@ -170,7 +170,7 @@ const AmountCell = React.memo(function AmountCell({
           role="status" aria-live="polite"
           title={forcedFlash === '-' ? 'Tecken justerat till minus' : 'Negativt värde ej tillåtet'}
         >
-          {forcedFlash === '-' ? '− justerat' : 'endast +'}
+          {forcedFlash === '-' ? '− JUSTERAD' : 'ENDAST +'}
         </div>
       )}
     </div>
@@ -486,9 +486,35 @@ const MaskinerNote: React.FC<{
     console.log(`Sign forced for ${e.label} (${e.year}): ${e.typed} → ${e.adjusted}`);
   };
 
-  // Compute both years every render
-  const redCur  = calcRedovisatVarde('cur');
-  const redPrev = calcRedovisatVarde('prev');
+  // Helper: get the dynamic S2 subtotal for MASKIN UB rows
+  const ubSum = React.useCallback((ubVar: string, year: 'cur' | 'prev') => {
+    const v = (name: string) => getVal(name, year) || 0;
+    const idx = visible.findIndex(r => r.variable_name === ubVar);
+    if (idx !== -1 && visible[idx]?.style === 'S2') {
+      // Use exactly what the UI shows for that S2 row
+      return sumGroupAbove(visible, idx, year);
+    }
+    // Fallbacks if the UB row isn't visible:
+    switch (ubVar) {
+      case 'maskiner_ub':
+        return v('maskiner_ib') + v('arets_inkop_maskiner') + v('arets_fsg_maskiner') + v('arets_omklass_maskiner');
+      case 'ack_avskr_maskiner_ub':
+        return v('ack_avskr_maskiner_ib') + v('arets_avskr_maskiner') + v('aterfor_avskr_fsg_maskiner') + v('omklass_avskr_maskiner');
+      case 'ack_nedskr_maskiner_ub':
+        return v('ack_nedskr_maskiner_ib') + v('arets_nedskr_maskiner') + v('aterfor_nedskr_maskiner') + v('aterfor_nedskr_fsg_maskiner') + v('omklass_nedskr_maskiner');
+      default:
+        return getVal(ubVar, year);
+    }
+  }, [visible, sumGroupAbove, getVal]);
+
+  // Sum the actual S2 subtotals for MASKIN (no uppskrivningar)
+  const redCur  = ['maskiner_ub','ack_avskr_maskiner_ub','ack_nedskr_maskiner_ub']
+    .map(n => ubSum(n, 'cur'))
+    .reduce((a,b) => a + b, 0);
+
+  const redPrev = ['maskiner_ub','ack_avskr_maskiner_ub','ack_nedskr_maskiner_ub']
+    .map(n => ubSum(n, 'prev'))
+    .reduce((a,b) => a + b, 0);
 
   return (
     <div ref={containerRef} className="space-y-2 pt-4">
@@ -1580,14 +1606,38 @@ const InventarierNote: React.FC<{
   };
 
   const pushSignNotice = (e: any) => {
-    // Optional: could add a global toast here if you want
     console.log(`Sign forced for ${e.label} (${e.year}): ${e.typed} → ${e.adjusted}`);
   };
 
-  // Compute both years every render
-  const redCur  = calcRedovisatVarde('cur');
-  const redPrev = calcRedovisatVarde('prev');
-  const redMismatch = isEditing && Math.round(redCur) !== Math.round(brBookValueUBCur);
+  // Helper: get the dynamic S2 subtotal for INVENTARIER UB rows
+  const ubSum = React.useCallback((ubVar: string, year: 'cur' | 'prev') => {
+    const v = (name: string) => getVal(name, year) || 0;
+    const idx = visible.findIndex(r => r.variable_name === ubVar);
+    if (idx !== -1 && visible[idx]?.style === 'S2') {
+      // Use exactly what the UI shows for that S2 row
+      return sumGroupAbove(visible, idx, year);
+    }
+    // Fallbacks if the UB row isn't visible:
+    switch (ubVar) {
+      case 'inventarier_ub':
+        return v('inventarier_ib') + v('arets_inkop_inventarier') + v('arets_fsg_inventarier') + v('arets_omklass_inventarier');
+      case 'ack_avskr_inventarier_ub':
+        return v('ack_avskr_inventarier_ib') + v('arets_avskr_inventarier') + v('aterfor_avskr_fsg_inventarier') + v('omklass_avskr_inventarier');
+      case 'ack_nedskr_inventarier_ub':
+        return v('ack_nedskr_inventarier_ib') + v('arets_nedskr_inventarier') + v('aterfor_nedskr_inventarier') + v('aterfor_nedskr_fsg_inventarier') + v('omklass_nedskr_inventarier');
+      default:
+        return getVal(ubVar, year);
+    }
+  }, [visible, sumGroupAbove, getVal]);
+
+  // Sum the actual S2 subtotals for INVENTARIER (no uppskrivningar)
+  const redCur  = ['inventarier_ub','ack_avskr_inventarier_ub','ack_nedskr_inventarier_ub']
+    .map(n => ubSum(n, 'cur'))
+    .reduce((a,b) => a + b, 0);
+
+  const redPrev = ['inventarier_ub','ack_avskr_inventarier_ub','ack_nedskr_inventarier_ub']
+    .map(n => ubSum(n, 'prev'))
+    .reduce((a,b) => a + b, 0);
 
   return (
     <div ref={containerRef} className="space-y-2 pt-4">
