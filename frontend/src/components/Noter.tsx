@@ -4951,6 +4951,329 @@ const FordringarOvrigaNote: React.FC<{
   );
 };
 
+// Ställda säkerheter editor component
+const SakerhetNote: React.FC<{
+  items: NoterItem[];
+  heading: string;
+  fiscalYear?: number;
+  previousYear?: number;
+  companyData?: any;
+  toggleOn: boolean;
+  setToggle: (checked: boolean) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
+
+  const isFlowVar = (vn?: string) => {
+    if (!vn) return false;
+    // For SAKERHET, all variables with names are editable (no IB/UB concept)
+    return true;
+  };
+
+  const byVar = useMemo(() => {
+    const m = new Map<string, NoterItem>();
+    items.forEach((it) => it.variable_name && m.set(it.variable_name, it));
+    return m;
+  }, [items]);
+
+  // No BR book value for SAKERHET - it's not a balance sheet asset calculation
+  const brBookValueUBCur = 0;
+  const brBookValueUBPrev = 0;
+
+  // Baseline management
+  const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
+  React.useEffect(() => {
+    const cur: Record<string, number> = {};
+    const prev: Record<string, number> = {};
+    items.forEach(it => {
+      const vn = it.variable_name;
+      if (!vn) return;
+      cur[vn] = it.current_amount ?? 0;
+      prev[vn] = it.previous_amount ?? 0;
+    });
+    originalBaselineRef.current = { cur, prev };
+  }, [items]);
+
+  // Local edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedValues, setEditedValues] = useState<Record<string, number>>({});
+  const [editedPrevValues, setEditedPrevValues] = useState<Record<string, number>>({});
+  const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
+  const [committedPrevValues, setCommittedPrevValues] = useState<Record<string, number>>({});
+  const [showValidationMessage, setShowValidationMessage] = useState(false);
+
+  // Sign enforcement - all flexible for SAKERHET (security positions can be any amount)
+  const expectedSignFor = (vn?: string): '+' | '-' | null => {
+    // All security variables are flexible - can be positive or negative
+    return null;
+  };
+
+  const getVal = React.useCallback((vn: string, year: 'cur' | 'prev') => {
+    if (year === 'cur') {
+      if (editedValues[vn] !== undefined) return editedValues[vn];
+      if (committedValues[vn] !== undefined) return committedValues[vn];
+      return byVar.get(vn)?.current_amount ?? 0;
+    } else {
+      if (editedPrevValues[vn] !== undefined) return editedPrevValues[vn];
+      if (committedPrevValues[vn] !== undefined) return committedPrevValues[vn];
+      return byVar.get(vn)?.previous_amount ?? 0;
+    }
+  }, [editedValues, committedValues, editedPrevValues, committedPrevValues, byVar]);
+
+  const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
+  const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
+
+  const visible = useMemo(() => {
+    return buildVisibleWithHeadings({
+      items,
+      toggleOn,
+      readCur: (it) => readCur(it),
+      readPrev: (it) => readPrev(it),
+    });
+  }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
+
+  const startEdit = () => {
+    setIsEditing(true);
+    setToggle?.(true);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditedValues({});
+    setEditedPrevValues({});
+    setShowValidationMessage(false);
+    setToggle?.(false);
+  };
+
+  const undoEdit = () => {
+    blurAllEditableInputs();
+    setEditedValues({});
+    setEditedPrevValues({});
+    setCommittedValues({ ...originalBaselineRef.current.cur });
+    setCommittedPrevValues({ ...originalBaselineRef.current.prev });
+    setShowValidationMessage(false);
+  };
+
+  const approveEdit = () => {
+    // No balance validation for SAKERHET - just commit the values
+    setCommittedValues(prev => ({ ...prev, ...editedValues }));
+    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    setEditedValues({});
+    setEditedPrevValues({});
+    setIsEditing(false);
+    setToggle?.(false);
+  };
+
+  // Helper functions
+  const isSumRow = (it: NoterItem) => it.style === 'S2';
+  const isHeading = (it: NoterItem) => isHeadingStyle(it.style);
+
+  const sumGroupAbove = React.useCallback(
+    (list: NoterItem[], index: number, year: 'cur' | 'prev') => {
+      let sum = 0;
+      for (let i = index - 1; i >= 0; i--) {
+        const r = list[i];
+        if (!r) break;
+        if (isHeading(r) || r.style === 'S2') break;
+        if (r.variable_name) sum += getVal(r.variable_name, year);
+      }
+      return sum;
+    },
+    [getVal]
+  );
+
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const focusByOrd = (fromEl: HTMLInputElement, dir: 1 | -1) => {
+    const root = containerRef.current;
+    if (!root) return;
+    const curOrd = Number(fromEl.dataset.ord || '0');
+    const nextOrd = curOrd + dir;
+    const next = root.querySelector<HTMLInputElement>(
+      `input[data-editable-cell="1"][data-ord="${nextOrd}"]`
+    );
+    if (next) { next.focus(); next.select?.(); }
+  };
+
+  const blurAllEditableInputs = () => {
+    const root = containerRef.current;
+    if (!root) return;
+    const nodes = root.querySelectorAll<HTMLInputElement>('input[data-editable-cell="1"]');
+    nodes.forEach((el) => el.blur());
+  };
+
+  const pushSignNotice = (e: any) => {
+    console.log(`Sign forced for ${e.label} (${e.year}): ${e.typed} → ${e.adjusted}`);
+  };
+
+  return (
+    <div ref={containerRef} className="space-y-2 pt-4">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b pb-1">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold pt-1">{heading}</h3>
+          <button
+            onClick={() => isEditing ? cancelEdit() : startEdit()}
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+              isEditing ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+            }`}
+            title={isEditing ? 'Avsluta redigering' : 'Redigera värden'}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
+        </div>
+        <div className="flex items-center space-x-2">
+          <label htmlFor="toggle-sakerhet-rows" className="text-sm font-medium cursor-pointer">
+            Visa alla rader
+          </label>
+          <Switch
+            id="toggle-sakerhet-rows"
+            checked={toggleOn}
+            onCheckedChange={setToggle}
+          />
+        </div>
+      </div>
+
+      {/* Column headers */}
+      <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
+        <span></span>
+        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
+        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+      </div>
+
+      {/* Rows */}
+      {(() => {
+        let ordCounter = 0;
+        return visible.map((it, idx) => {
+          const getStyleClasses = (style?: string) => {
+            const baseClasses = 'grid gap-4';
+            let additionalClasses = '';
+            const s = style || 'NORMAL';
+            
+            const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
+            if (boldStyles.includes(s)) {
+              additionalClasses += ' font-semibold';
+            }
+            
+            const lineStyles = ['S2','S3','TS2','TS3'];
+            if (lineStyles.includes(s)) {
+              additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+            }
+            
+            return {
+              className: `${baseClasses}${additionalClasses}`,
+              style: { gridTemplateColumns: '4fr 1fr 1fr' }
+            };
+          };
+
+          const currentStyle = it.style || 'NORMAL';
+          const isHeadingRow = isHeadingStyle(currentStyle);
+          const isS2 = isSumRow(it);
+          const editable = isEditing && isFlowVar(it.variable_name);
+          
+          const ordCur  = editable ? ++ordCounter : undefined;
+          const ordPrev = editable ? ++ordCounter : undefined;
+          
+          // For SAKERHET S2 sum, calculate total of main security items (exclude group_ variables)
+          const curVal = isS2 
+            ? items.filter(r => r.variable_name && !r.variable_name.startsWith('group_') && r.variable_name !== 'sum_stallda_sakerheter')
+                   .reduce((sum, r) => sum + getVal(r.variable_name!, 'cur'), 0)
+            : getVal(it.variable_name ?? '', 'cur');
+          const prevVal = isS2 
+            ? items.filter(r => r.variable_name && !r.variable_name.startsWith('group_') && r.variable_name !== 'sum_stallda_sakerheter')
+                   .reduce((sum, r) => sum + getVal(r.variable_name!, 'prev'), 0)
+            : getVal(it.variable_name ?? '', 'prev');
+          
+          const gc = getStyleClasses(currentStyle);
+          
+          return (
+            <div 
+              key={`${it.row_id}-${idx}`} 
+              className={gc.className}
+              style={gc.style}
+            >
+              <span className="text-muted-foreground flex items-center">
+                {it.row_title}
+                {it.show_tag && (
+                  <span className="ml-2">
+                    <AccountDetailsDialog item={it} />
+                  </span>
+                )}
+              </span>
+
+              {/* Current year */}
+              <span className="text-right font-medium">
+                {isHeadingRow ? '' : (
+                  <AmountCell
+                    year="cur"
+                    varName={it.variable_name!}
+                    baseVar={it.variable_name!}
+                    label={it.row_title}
+                    editable={editable}
+                    value={curVal}
+                    ord={ordCur}
+                    onCommit={(n) => setEditedValues(p => ({ ...p, [it.variable_name!]: n }))}
+                    onTabNavigate={(el, dir) => focusByOrd(el, dir)}
+                    onSignForced={(e) => pushSignNotice(e)}
+                    expectedSignFor={expectedSignFor}
+                  />
+                )}
+              </span>
+
+              {/* Previous year */}
+              <span className="text-right font-medium">
+                {isHeadingRow ? '' : (
+                  <AmountCell
+                    year="prev"
+                    varName={`${it.variable_name!}_prev`}
+                    baseVar={it.variable_name!}
+                    label={it.row_title}
+                    editable={editable}
+                    value={prevVal}
+                    ord={ordPrev}
+                    onCommit={(n) => setEditedPrevValues(p => ({ ...p, [it.variable_name!]: n }))}
+                    onTabNavigate={(el, dir) => focusByOrd(el, dir)}
+                    onSignForced={(e) => pushSignNotice(e)}
+                    expectedSignFor={expectedSignFor}
+                  />
+                )}
+              </span>
+            </div>
+          );
+        });
+      })()}
+
+      {/* Action buttons - no balance validation needed for SAKERHET */}
+      {isEditing && (
+        <div className="pt-4 flex justify-between">
+          <Button 
+            onClick={undoEdit}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+            </svg>
+            Ångra ändringar
+          </Button>
+          
+          <Button 
+            onClick={approveEdit}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+          >
+            Godkänn ändringar
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+            </svg>
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Inventarier editor component
 const InventarierNote: React.FC<{
   items: NoterItem[];
@@ -6259,6 +6582,24 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             if (block === 'FORDROVRFTG') {
               return (
                 <FordringarOvrigaNote
+                  key={block}
+                  items={blockItems}
+                  heading={blockHeading}
+                  fiscalYear={fiscalYear}
+                  previousYear={previousYear}
+                  companyData={companyData}
+                  toggleOn={blockToggles[block] || false}
+                  setToggle={(checked: boolean) =>
+                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
+                  }
+                />
+              );
+            }
+            
+            // Special handling for SAKERHET block - with manual editing capability
+            if (block === 'SAKERHET') {
+              return (
+                <SakerhetNote
                   key={block}
                   items={blockItems}
                   heading={blockHeading}
