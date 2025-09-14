@@ -1311,6 +1311,521 @@ const ByggnaderNote: React.FC<{
   );
 };
 
+// Övriga materiella anläggningstillgångar editor component
+const OvrigaMateriellaNote: React.FC<{
+  items: NoterItem[];
+  heading: string;
+  fiscalYear?: number;
+  previousYear?: number;
+  companyData?: any;
+  toggleOn: boolean;
+  setToggle: (checked: boolean) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
+
+  const isFlowVar = (vn?: string) => {
+    if (!vn) return false;
+    if (/_ib\b/i.test(vn)) return false;
+    if (/_ub\b/i.test(vn)) return false;
+    if (/red[_-]?varde/i.test(vn)) return false;
+    return true;
+  };
+
+  const byVar = useMemo(() => {
+    const m = new Map<string, NoterItem>();
+    items.forEach((it) => it.variable_name && m.set(it.variable_name, it));
+    return m;
+  }, [items]);
+
+  // BR book value (UB) for both years - MAT specific
+  const { brBookValueUBCur, brBookValueUBPrev } = React.useMemo(() => {
+    const brData: any[] = companyData?.seFileData?.br_data || [];
+    const candidates = [
+      "OvrigaMateriellaAnlaggningstillgangar",
+      "OvrigaMateriella",
+      "OvrigaMat",
+    ];
+    let cur = 0, prev = 0;
+
+    for (const c of candidates) {
+      const hit = brData.find((x: any) => x.variable_name === c);
+      if (hit) {
+        if (Number.isFinite(hit.current_amount))  cur  = hit.current_amount;
+        if (Number.isFinite(hit.previous_amount)) prev = hit.previous_amount;
+        if (cur || prev) break;
+      }
+    }
+
+    if (!cur)  cur  = byVar.get("red_varde_ovrmat")?.current_amount  ?? 0;
+    if (!prev) prev = byVar.get("red_varde_ovrmat")?.previous_amount ?? 0;
+
+    return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
+  }, [companyData, byVar]);
+
+  // Baseline management
+  const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
+  React.useEffect(() => {
+    const cur: Record<string, number> = {};
+    const prev: Record<string, number> = {};
+    items.forEach(it => {
+      const vn = it.variable_name;
+      if (!vn) return;
+      if (!isFlowVar(vn)) return;
+      cur[vn] = it.current_amount ?? 0;
+      prev[vn] = it.previous_amount ?? 0;
+    });
+    originalBaselineRef.current = { cur, prev };
+  }, [items]);
+
+  // Local edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedValues, setEditedValues] = useState<Record<string, number>>({});
+  const [editedPrevValues, setEditedPrevValues] = useState<Record<string, number>>({});
+  const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
+  const [committedPrevValues, setCommittedPrevValues] = useState<Record<string, number>>({});
+  const [mismatch, setMismatch] = useState<{ open: boolean; deltaCur: number; deltaPrev: number }>({
+    open: false,
+    deltaCur: 0,
+    deltaPrev: 0,
+  });
+  const [showValidationMessage, setShowValidationMessage] = useState(false);
+
+  // Sign enforcement from CSV mapping - MAT specific
+  const injectedSignMap: Record<string, '+' | '-'> | undefined = (companyData?.signByVar) || undefined;
+
+  const heuristicSign = (vn: string): '+' | '-' | null => {
+    // Based on variable_mapping_noter_rows 5.csv for MAT block
+    const positiveVars = [
+      'arets_inkop_ovrmat',
+      'aterfor_avskr_fsg_ovrmat', 
+      'aterfor_nedskr_fsg_ovrmat',
+      'aterfor_nedskr_ovrmat'
+    ];
+    
+    const negativeVars = [
+      'arets_fsg_ovrmat',
+      'arets_avskr_ovrmat', 
+      'arets_nedskr_ovrmat'
+    ];
+    
+    // Flexible variables (newly added omklassificeringar)
+    const flexibleVars = [
+      'arets_omklass_ovrmat',      // Anskaffningsvärden
+      'omklass_avskr_ovrmat',      // Avskrivningar
+      'omklass_nedskr_ovrmat'      // Nedskrivningar
+    ];
+    
+    if (positiveVars.includes(vn)) return '+';
+    if (negativeVars.includes(vn)) return '-';
+    return null; // flexible
+  };
+
+  const expectedSignFor = (vn?: string): '+' | '-' | null => {
+    if (!vn) return null;
+    return injectedSignMap?.[vn] ?? heuristicSign(vn);
+  };
+
+  const getVal = React.useCallback((vn: string, year: 'cur' | 'prev') => {
+    if (year === 'cur') {
+      if (editedValues[vn] !== undefined) return editedValues[vn];
+      if (committedValues[vn] !== undefined) return committedValues[vn];
+      return byVar.get(vn)?.current_amount ?? 0;
+    } else {
+      if (editedPrevValues[vn] !== undefined) return editedPrevValues[vn];
+      if (committedPrevValues[vn] !== undefined) return committedPrevValues[vn];
+      return byVar.get(vn)?.previous_amount ?? 0;
+    }
+  }, [editedValues, committedValues, editedPrevValues, committedPrevValues, byVar]);
+
+  const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
+  const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
+
+  const visible = useMemo(() => {
+    return items.filter((it) => {
+      if (it.always_show) return true;
+      const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
+      if (hasNonZero) return true;
+      if (it.toggle_show) return toggleOn;
+      return false;
+    });
+  }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
+
+  const startEdit = () => {
+    setIsEditing(true);
+    setToggle?.(true);
+  };
+
+  React.useEffect(() => {
+    if (showValidationMessage) {
+      const timer = setTimeout(() => setShowValidationMessage(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showValidationMessage]);
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditedValues({});
+    setEditedPrevValues({});
+    setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
+    setShowValidationMessage(false);
+    setToggle?.(false);
+  };
+
+  const undoEdit = () => {
+    blurAllEditableInputs();
+    setEditedValues({});
+    setEditedPrevValues({});
+    setCommittedValues({ ...originalBaselineRef.current.cur });
+    setCommittedPrevValues({ ...originalBaselineRef.current.prev });
+    setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
+    setShowValidationMessage(false);
+  };
+
+  const approveEdit = () => {
+    const redCurCalc  = redCur;
+    const redPrevCalc = redPrev;
+
+    const deltaCur  = redCurCalc  - brBookValueUBCur;
+    const deltaPrev = redPrevCalc - brBookValueUBPrev;
+
+    const hasMismatch = Math.round(deltaCur) !== 0 || Math.round(deltaPrev) !== 0;
+
+    if (hasMismatch) {
+      setMismatch({ open: true, deltaCur, deltaPrev });
+      setShowValidationMessage(true);
+      return;
+    }
+
+    setCommittedValues(prev => ({ ...prev, ...editedValues }));
+    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    setEditedValues({});
+    setEditedPrevValues({});
+    setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
+    setShowValidationMessage(false);
+    setIsEditing(false);
+    setToggle?.(false);
+  };
+
+  // Helper functions
+  const isSumRow = (it: NoterItem) => it.style === 'S2';
+  const isHeading = (it: NoterItem) => isHeadingStyle(it.style);
+
+  const sumGroupAbove = React.useCallback(
+    (list: NoterItem[], index: number, year: 'cur' | 'prev') => {
+      let sum = 0;
+      for (let i = index - 1; i >= 0; i--) {
+        const r = list[i];
+        if (!r) break;
+        if (isHeading(r) || r.style === 'S2') break;
+        if (r.variable_name) sum += getVal(r.variable_name, year);
+      }
+      return sum;
+    },
+    [getVal]
+  );
+
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const focusByOrd = (fromEl: HTMLInputElement, dir: 1 | -1) => {
+    const root = containerRef.current;
+    if (!root) return;
+    const curOrd = Number(fromEl.dataset.ord || '0');
+    const nextOrd = curOrd + dir;
+    const next = root.querySelector<HTMLInputElement>(
+      `input[data-editable-cell="1"][data-ord="${nextOrd}"]`
+    );
+    if (next) { next.focus(); next.select?.(); }
+  };
+
+  const blurAllEditableInputs = () => {
+    const root = containerRef.current;
+    if (!root) return;
+    const nodes = root.querySelectorAll<HTMLInputElement>('input[data-editable-cell="1"]');
+    nodes.forEach((el) => el.blur());
+  };
+
+  const pushSignNotice = (e: any) => {
+    console.log(`Sign forced for ${e.label} (${e.year}): ${e.typed} → ${e.adjusted}`);
+  };
+
+  // Helper: get the dynamic S2 subtotal for MAT UB rows
+  const ubSum = React.useCallback((ubVar: string, year: 'cur' | 'prev') => {
+    const v = (name: string) => getVal(name, year) || 0;
+    const idx = visible.findIndex(r => r.variable_name === ubVar);
+    if (idx !== -1 && visible[idx]?.style === 'S2') {
+      return sumGroupAbove(visible, idx, year);
+    }
+    // Fallbacks if the UB row isn't visible:
+    switch (ubVar) {
+      case 'ovrmat_ub':
+        return v('ovrmat_ib') + v('arets_inkop_ovrmat') + v('arets_fsg_ovrmat') + v('arets_omklass_ovrmat');
+      case 'ack_avskr_ovrmat_ub':
+        return v('ack_avskr_ovrmat_ib') + v('arets_avskr_ovrmat') + v('aterfor_avskr_fsg_ovrmat') + v('omklass_avskr_ovrmat');
+      case 'ack_nedskr_ovrmat_ub':
+        return v('ack_nedskr_ovrmat_ib') + v('arets_nedskr_ovrmat') + v('aterfor_nedskr_fsg_ovrmat') + v('aterfor_nedskr_ovrmat') + v('omklass_nedskr_ovrmat');
+      default:
+        return getVal(ubVar, year);
+    }
+  }, [visible, sumGroupAbove, getVal]);
+
+  // Sum the actual S2 subtotals for MAT (no uppskrivningar)
+  const redCur  = ['ovrmat_ub','ack_avskr_ovrmat_ub','ack_nedskr_ovrmat_ub']
+    .map(n => ubSum(n, 'cur'))
+    .reduce((a,b) => a + b, 0);
+
+  const redPrev = ['ovrmat_ub','ack_avskr_ovrmat_ub','ack_nedskr_ovrmat_ub']
+    .map(n => ubSum(n, 'prev'))
+    .reduce((a,b) => a + b, 0);
+
+  return (
+    <div ref={containerRef} className="space-y-2 pt-4">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b pb-1">
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold pt-1">{heading}</h3>
+          <button
+            onClick={() => isEditing ? cancelEdit() : startEdit()}
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+              isEditing ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+            }`}
+            title={isEditing ? 'Avsluta redigering' : 'Redigera värden'}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
+        </div>
+        <div className="flex items-center space-x-2">
+          <label htmlFor="toggle-mat-rows" className="text-sm font-medium cursor-pointer">
+            Visa alla rader
+          </label>
+          <Switch
+            id="toggle-mat-rows"
+            checked={toggleOn}
+            onCheckedChange={setToggle}
+          />
+        </div>
+      </div>
+
+      {/* Column headers */}
+      <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
+        <span></span>
+        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
+        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+      </div>
+
+      {/* Rows */}
+      {(() => {
+        let ordCounter = 0;
+        return visible.map((it, idx) => {
+          const getStyleClasses = (style?: string) => {
+            const baseClasses = 'grid gap-4';
+            let additionalClasses = '';
+            const s = style || 'NORMAL';
+            
+            const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
+            if (boldStyles.includes(s)) {
+              additionalClasses += ' font-semibold';
+            }
+            
+            const lineStyles = ['S2','S3','TS2','TS3'];
+            if (lineStyles.includes(s)) {
+              additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+            }
+            
+            return {
+              className: `${baseClasses}${additionalClasses}`,
+              style: { gridTemplateColumns: '4fr 1fr 1fr' }
+            };
+          };
+
+          const currentStyle = it.style || 'NORMAL';
+          const isHeadingRow = isHeadingStyle(currentStyle);
+          const isS2 = isSumRow(it);
+          const editable = isEditing && isFlowVar(it.variable_name);
+          
+          const ordCur  = editable ? ++ordCounter : undefined;
+          const ordPrev = editable ? ++ordCounter : undefined;
+          
+          const isRedVardeRow = it.variable_name === "red_varde_ovrmat";
+          
+          const curVal = isRedVardeRow
+            ? redCur
+            : (isS2 ? sumGroupAbove(visible, idx, 'cur') : getVal(it.variable_name ?? '', 'cur'));
+          const prevVal = isRedVardeRow
+            ? redPrev
+            : (isS2 ? sumGroupAbove(visible, idx, 'prev') : getVal(it.variable_name ?? '', 'prev'));
+
+          const curMismatch  = isEditing && isRedVardeRow && Math.round(redCur)  !== Math.round(brBookValueUBCur);
+          const prevMismatch = isEditing && isRedVardeRow && Math.round(redPrev) !== Math.round(brBookValueUBPrev);
+          
+          const gc = getStyleClasses(currentStyle);
+          
+          return (
+            <div 
+              key={`${it.row_id}-${idx}`} 
+              className={gc.className}
+              style={gc.style}
+            >
+              <span className="text-muted-foreground flex items-center">
+                {it.row_title}
+                {it.show_tag && (
+                  <span className="ml-2">
+                    <AccountDetailsDialog item={it} />
+                  </span>
+                )}
+              </span>
+
+              {/* Current year */}
+              <span className={`text-right font-medium ${isRedVardeRow && curMismatch ? 'text-red-600 font-bold' : ''}`}>
+                {isHeadingRow ? '' : isRedVardeRow
+                  ? `${numberToSv(curVal)} kr`
+                  : <AmountCell
+                      year="cur"
+                      varName={it.variable_name!}
+                      baseVar={it.variable_name!}
+                      label={it.row_title}
+                      editable={editable}
+                      value={curVal}
+                      ord={ordCur}
+                      onCommit={(n) => setEditedValues(p => ({ ...p, [it.variable_name!]: n }))}
+                      onTabNavigate={(el, dir) => focusByOrd(el, dir)}
+                      onSignForced={(e) => pushSignNotice(e)}
+                      expectedSignFor={expectedSignFor}
+                    />
+                }
+              </span>
+
+              {/* Previous year */}
+              <span className={`text-right font-medium ${isRedVardeRow && prevMismatch ? 'text-red-600 font-bold' : ''}`}>
+                {isHeadingRow ? '' : isRedVardeRow
+                  ? `${numberToSv(prevVal)} kr`
+                  : <AmountCell
+                      year="prev"
+                      varName={`${it.variable_name!}_prev`}
+                      baseVar={it.variable_name!}
+                      label={it.row_title}
+                      editable={editable}
+                      value={prevVal}
+                      ord={ordPrev}
+                      onCommit={(n) => setEditedPrevValues(p => ({ ...p, [it.variable_name!]: n }))}
+                      onTabNavigate={(el, dir) => focusByOrd(el, dir)}
+                      onSignForced={(e) => pushSignNotice(e)}
+                      expectedSignFor={expectedSignFor}
+                    />
+                }
+              </span>
+            </div>
+          );
+        });
+      })()}
+
+      {/* Comparison row – only while editing */}
+      {isEditing && (
+        <div className="grid gap-4 border-t border-b border-gray-200 pt-1 pb-1 font-semibold bg-gray-50/50" style={gridCols}>
+          <span className="text-muted-foreground font-semibold">Redovisat värde (bokfört)</span>
+          <span className="text-right font-medium">{numberToSv(brBookValueUBCur)} kr</span>
+          <span className="text-right font-medium">{numberToSv(brBookValueUBPrev)} kr</span>
+        </div>
+      )}
+
+      {/* Action buttons */}
+      {isEditing && (
+        <div className="pt-4 flex justify-between">
+          <Button 
+            onClick={undoEdit}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+            </svg>
+            Ångra ändringar
+          </Button>
+          
+          <Button 
+            onClick={approveEdit}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+          >
+            Godkänn ändringar
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+            </svg>
+          </Button>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {showValidationMessage && (
+        <div className="fixed bottom-4 right-4 z-50 bg-white rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                      d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+            <div className="ml-3">
+              {(() => {
+                const curMism = Math.round(mismatch.deltaCur) !== 0;
+                const prevMism = Math.round(mismatch.deltaPrev) !== 0;
+                
+                if (curMism && !prevMism) {
+                  return (
+                    <>
+                      <p className="text-sm font-medium text-gray-900">
+                        Summor balanserar inte {fiscalYear}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-700">
+                        Beräknat redovisat värde stämmer inte med bokfört värde. Differensen är {numberToSv(Math.abs(Math.round(mismatch.deltaCur)))} kr.
+                      </p>
+                    </>
+                  );
+                } else if (prevMism && !curMism) {
+                  return (
+                    <>
+                      <p className="text-sm font-medium text-gray-900">
+                        Summor balanserar inte {previousYear}
+                      </p>
+                      <p className="mt-1 text-sm text-gray-700">
+                        Beräknat redovisat värde stämmer inte med bokfört värde. Differensen är {numberToSv(Math.abs(Math.round(mismatch.deltaPrev)))} kr.
+                      </p>
+                    </>
+                  );
+                } else {
+                  return (
+                    <>
+                      <p className="text-sm font-medium text-gray-900">
+                        Summor balanserar inte
+                      </p>
+                      <p className="mt-1 text-sm text-gray-700">
+                        Beräknat redovisat värde stämmer inte med bokfört värde.
+                      </p>
+                      <ul className="mt-2 text-sm text-gray-900">
+                        <li><strong>{fiscalYear}</strong>: Differens {numberToSv(Math.abs(Math.round(mismatch.deltaCur)))} kr</li>
+                        <li><strong>{previousYear}</strong>: Differens {numberToSv(Math.abs(Math.round(mismatch.deltaPrev)))} kr</li>
+                      </ul>
+                    </>
+                  );
+                }
+              })()}
+            </div>
+            <button
+              onClick={() => { setShowValidationMessage(false); setMismatch(m => ({ ...m, open: false })); }}
+              className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Inventarier editor component
 const InventarierNote: React.FC<{
   items: NoterItem[];
@@ -2505,6 +3020,24 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             if (block === 'BYGG') {
               return (
                 <ByggnaderNote
+                  key={block}
+                  items={blockItems}
+                  heading={blockHeading}
+                  fiscalYear={fiscalYear}
+                  previousYear={previousYear}
+                  companyData={companyData}
+                  toggleOn={blockToggles[block] || false}
+                  setToggle={(checked: boolean) =>
+                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
+                  }
+                />
+              );
+            }
+            
+            // Special handling for MAT block - with manual editing capability
+            if (block === 'MAT') {
+              return (
+                <OvrigaMateriellaNote
                   key={block}
                   items={blockItems}
                   heading={blockHeading}
