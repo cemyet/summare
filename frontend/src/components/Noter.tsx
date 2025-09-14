@@ -359,15 +359,36 @@ const MaskinerNote: React.FC<{
   const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
-  // Build visible rows using the same logic as main Noter component
+  // Build visible rows with smart subblock heading logic
   const visible = useMemo(() => {
-    return items.filter((it) => {
+    // First pass: identify which rows should be visible
+    const visibleRows = items.filter((it) => {
       if (it.always_show) return true;
       const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
       if (hasNonZero) return true;
       if (it.toggle_show) return toggleOn;
       return false;
     });
+
+    // Second pass: ensure subblock headings are shown when any row in that subblock is visible
+    const result: NoterItem[] = [];
+    const visibleSubblocks = new Set(visibleRows.map(r => r.block_sub).filter(Boolean));
+    
+    items.forEach((it) => {
+      // Include if already visible
+      if (visibleRows.includes(it)) {
+        result.push(it);
+        return;
+      }
+      
+      // Include subblock headings (H3 style) if any row in that subblock is visible
+      if (it.style === 'H3' && it.block_sub && visibleSubblocks.has(it.block_sub)) {
+        result.push(it);
+        return;
+      }
+    });
+
+    return result;
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
   // Compute Redovisat värde (beräknat) - MASKIN specific formula
@@ -898,14 +919,36 @@ const ByggnaderNote: React.FC<{
   const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
+  // Build visible rows with smart subblock heading logic
   const visible = useMemo(() => {
-    return items.filter((it) => {
+    // First pass: identify which rows should be visible
+    const visibleRows = items.filter((it) => {
       if (it.always_show) return true;
       const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
       if (hasNonZero) return true;
       if (it.toggle_show) return toggleOn;
       return false;
     });
+
+    // Second pass: ensure subblock headings are shown when any row in that subblock is visible
+    const result: NoterItem[] = [];
+    const visibleSubblocks = new Set(visibleRows.map(r => r.block_sub).filter(Boolean));
+    
+    items.forEach((it) => {
+      // Include if already visible
+      if (visibleRows.includes(it)) {
+        result.push(it);
+        return;
+      }
+      
+      // Include subblock headings (H3 style) if any row in that subblock is visible
+      if (it.style === 'H3' && it.block_sub && visibleSubblocks.has(it.block_sub)) {
+        result.push(it);
+        return;
+      }
+    });
+
+    return result;
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
   // Compute Redovisat värde (beräknat) - BYGG specific formula
@@ -1440,14 +1483,36 @@ const OvrigaMateriellaNote: React.FC<{
   const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
+  // Build visible rows with smart subblock heading logic
   const visible = useMemo(() => {
-    return items.filter((it) => {
+    // First pass: identify which rows should be visible
+    const visibleRows = items.filter((it) => {
       if (it.always_show) return true;
       const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
       if (hasNonZero) return true;
       if (it.toggle_show) return toggleOn;
       return false;
     });
+
+    // Second pass: ensure subblock headings are shown when any row in that subblock is visible
+    const result: NoterItem[] = [];
+    const visibleSubblocks = new Set(visibleRows.map(r => r.block_sub).filter(Boolean));
+    
+    items.forEach((it) => {
+      // Include if already visible
+      if (visibleRows.includes(it)) {
+        result.push(it);
+        return;
+      }
+      
+      // Include subblock headings (H3 style) if any row in that subblock is visible
+      if (it.style === 'H3' && it.block_sub && visibleSubblocks.has(it.block_sub)) {
+        result.push(it);
+        return;
+      }
+    });
+
+    return result;
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
   const startEdit = () => {
