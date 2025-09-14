@@ -544,11 +544,7 @@ const MaskinerNote: React.FC<{
             
             const lineStyles = ['S2','S3','TS2','TS3'];
             if (lineStyles.includes(s)) {
-              if (isRedovisatVarde && isEditing) {
-                additionalClasses += ' border-t border-gray-200 pt-1 pb-1';
-              } else {
-                additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
-              }
+              additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
             }
             
             return {
@@ -996,134 +992,6 @@ const InventarierNote: React.FC<{
     setToggle?.(false); // collapse zero rows after approve
   };
 
-  const AmountCell = React.memo(function AmountCell({
-    year,
-    varName,
-    baseVar,
-    label,
-    editable,
-    value,
-    ord,
-    onCommit,
-    onTabNavigate,
-    onSignForced,
-  }: {
-    year: 'cur' | 'prev';
-    varName: string;
-    baseVar: string;
-    label?: string;
-    editable: boolean;
-    value: number;
-    ord?: number;
-    onCommit: (n: number) => void;
-    onTabNavigate?: (el: HTMLInputElement, dir: 1 | -1) => void;
-    onSignForced?: (e: {
-      baseVar: string;
-      label?: string;
-      year: 'cur' | 'prev';
-      expected: '+' | '-';
-      typed: number;
-      adjusted: number;
-    }) => void;
-  }) {
-    const [focused, setFocused] = React.useState(false);
-    const [local, setLocal] = React.useState<string>("");
-    const [forcedFlash, setForcedFlash] = React.useState<null | ('+' | '-')>(null);
-    const inputRef = React.useRef<HTMLInputElement>(null);
-
-    const signRule = expectedSignFor(baseVar); // '+' or '-' or null from mapping
-
-    React.useEffect(() => {
-      if (!focused) setLocal(value ? String(Math.round(value)) : "");
-    }, [value, focused]);
-
-    if (!editable) {
-      return <span className="text-right font-medium">{numberToSv(value)} kr</span>;
-    }
-
-    // Show raw while focused; formatted when not
-    const shown = focused
-      ? local
-      : (local ? fmt0.format(parseInt(local.replace(/[^\d-]/g, "") || "0", 10)) : "");
-
-    const commit = () => {
-      const raw = (local || "0").replace(/[^\d-]/g, "");
-      let typed = parseInt(raw || "0", 10);
-      if (!Number.isFinite(typed)) typed = 0;
-
-      let adjusted = typed;
-      let wasForced = false;
-
-      if (signRule === '-') {
-        adjusted = -Math.abs(typed);
-        wasForced = (typed > 0); // only forced if user typed positive
-      } else if (signRule === '+') {
-        adjusted = Math.max(0, Math.abs(typed));
-        wasForced = (typed < 0); // only forced if user typed negative
-      }
-      // If signRule is null, no enforcement - accept both + and -
-
-      // Show small per-cell badge if we changed the sign
-      if (wasForced && signRule) {
-        setForcedFlash(signRule);
-        setTimeout(() => setForcedFlash(null), 1500);
-        onSignForced?.({ baseVar, label, year, expected: signRule, typed, adjusted });
-      }
-
-      onCommit(adjusted)
-    };
-
-    return (
-      <div className="relative inline-block">
-        <input
-          ref={inputRef}
-          type="text"
-          data-editable-cell="1"
-          data-year={year}
-          data-ord={ord}
-          className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
-          value={shown}
-          onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
-          onChange={(e) => {
-            let raw = e.target.value.replace(/[^\d-]/g, "");
-            if (signRule === '+') {
-              raw = raw.replace(/-/g, '');        // block '-' while typing for '+'
-            } else if (signRule === '-') {
-              raw = raw.replace(/(?!^)-/g, '');   // keep only a single leading '-'
-            }
-            // If signRule is null, allow both + and - freely
-            setLocal(raw);
-          }}
-          onBlur={() => { setFocused(false); commit(); }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.currentTarget.blur();
-            } else if (e.key === "Tab") {
-              e.preventDefault();
-              setFocused(false);
-              commit();
-              const el = inputRef.current || (e.currentTarget as HTMLInputElement);
-              requestAnimationFrame(() => onTabNavigate?.(el, e.shiftKey ? -1 : 1));
-            }
-          }}
-          placeholder={signRule === '-' ? "-0" : "0"}
-          aria-describedby={forcedFlash ? `${varName}-signmsg` : undefined}
-        />
-
-        {/* Tiny pill that flashes when sign was forced */}
-        {forcedFlash && (
-          <div
-            id={`${varName}-signmsg`}
-            className="absolute -top-5 right-0 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shadow-sm"
-            role="status" aria-live="polite"
-            title={forcedFlash === '-' ? 'Tecken justerat till minus' : 'Negativt värde ej tillåtet'}
-          >
-            {forcedFlash === '-' ? '− justerat' : 'endast +'}
-          </div>
-        )}
-      </div>
-    );
-  });
 
   // Helpers for S2 row calculation
   const isSumRow = (it: NoterItem) => it.style === 'S2';
@@ -1306,6 +1174,7 @@ const InventarierNote: React.FC<{
                     onCommit={(n) => setEditedValues(p => ({ ...p, [it.variable_name!]: n }))}
                     onTabNavigate={(el, dir) => focusByOrd(el, dir)}
                     onSignForced={(e) => pushSignNotice(e)}
+                    expectedSignFor={expectedSignFor}
                   />
               }
             </span>
@@ -1325,6 +1194,7 @@ const InventarierNote: React.FC<{
                     onCommit={(n) => setEditedPrevValues(p => ({ ...p, [it.variable_name!]: n }))}
                     onTabNavigate={(el, dir) => focusByOrd(el, dir)}
                     onSignForced={(e) => pushSignNotice(e)}
+                    expectedSignFor={expectedSignFor}
                   />
               }
             </span>
