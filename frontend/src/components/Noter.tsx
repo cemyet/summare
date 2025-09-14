@@ -822,7 +822,7 @@ const ByggnaderNote: React.FC<{
   const injectedSignMap: Record<string, '+' | '-'> | undefined = (companyData?.signByVar) || undefined;
 
   const heuristicSign = (vn: string): '+' | '-' | null => {
-    // Based on variable_mapping_noter_rows (bygg).csv
+    // Based on variable_mapping_noter_rows (bygg).csv - corrected structure
     const positiveVars = [
       'arets_inkop_bygg',
       'aterfor_avskr_fsg_bygg', 
@@ -839,9 +839,15 @@ const ByggnaderNote: React.FC<{
       'arets_avskr_uppskr_bygg'   // UPPSKR negative
     ];
     
+    // Flexible variables (can be both + or -, including omklassificeringar)
+    const flexibleVars = [
+      'arets_omklass_bygg',      // Only under Anskaffningsvärden
+      'omklass_avskr_bygg'       // Only under Avskrivningar (not in UPPSKR/NEDSKR)
+    ];
+    
     if (positiveVars.includes(vn)) return '+';
     if (negativeVars.includes(vn)) return '-';
-    return null; // flexible
+    return null; // flexible (including omklassificeringar)
   };
 
   const expectedSignFor = (vn?: string): '+' | '-' | null => {
@@ -881,13 +887,13 @@ const ByggnaderNote: React.FC<{
     // Anskaffningsvärden
     const byggUB = v('bygg_ib') + v('arets_inkop_bygg') + v('arets_fsg_bygg') + v('arets_omklass_bygg');
     
-    // Avskrivningar  
-    const avskrUB = v('ack_avskr_bygg_ib') + v('arets_avskr_bygg') + v('aterfor_avskr_fsg_bygg');
+    // Avskrivningar (only this subblock has omklassificeringar)
+    const avskrUB = v('ack_avskr_bygg_ib') + v('arets_avskr_bygg') + v('aterfor_avskr_fsg_bygg') + v('omklass_avskr_bygg');
     
-    // Uppskrivningar (NEW subblock)
+    // Uppskrivningar (no omklassificeringar here)
     const uppskrUB = v('ack_uppskr_bygg_ib') + v('arets_uppskr_bygg') + v('aterfor_uppskr_fsg_bygg') + v('arets_avskr_uppskr_bygg');
     
-    // Nedskrivningar
+    // Nedskrivningar (no omklassificeringar here)
     const nedskrUB = v('ack_nedskr_bygg_ib') + v('arets_nedskr_bygg') + v('aterfor_nedskr_fsg_bygg') + v('aterfor_nedskr_bygg');
 
     return byggUB + avskrUB + uppskrUB + nedskrUB;
