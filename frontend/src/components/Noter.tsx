@@ -4960,7 +4960,9 @@ const SakerhetNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  blockToggles: Record<string, boolean>;
+  setBlockToggles: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, blockToggles, setBlockToggles }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
@@ -5127,8 +5129,10 @@ const SakerhetNote: React.FC<{
           </button>
           <div className="ml-2 flex items-center" style={{transform: 'scale(0.75)', marginTop: '5px'}}>
             <Switch
-              checked={true} // Always visible for now
-              onCheckedChange={() => {}} // Placeholder - can be made dynamic later
+              checked={blockToggles['sakerhet-visibility'] !== false} // Default to true like EVENTUAL
+              onCheckedChange={(checked) => 
+                setBlockToggles(prev => ({ ...prev, ['sakerhet-visibility']: checked }))
+              }
             />
             <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
           </div>
@@ -5145,17 +5149,20 @@ const SakerhetNote: React.FC<{
         </div>
       </div>
 
-      {/* Column headers */}
-      <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
-        <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
-      </div>
+      {/* Only show content if visibility toggle is on */}
+      {blockToggles['sakerhet-visibility'] !== false && (
+        <>
+          {/* Column headers */}
+          <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
+            <span></span>
+            <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
+            <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+          </div>
 
-      {/* Rows */}
-      {(() => {
-        let ordCounter = 0;
-        return visible.map((it, idx) => {
+          {/* Rows */}
+          {(() => {
+            let ordCounter = 0;
+            return visible.map((it, idx) => {
           const getStyleClasses = (style?: string) => {
             const baseClasses = 'grid gap-4';
             let additionalClasses = '';
@@ -5278,6 +5285,8 @@ const SakerhetNote: React.FC<{
             </svg>
           </Button>
         </div>
+      )}
+        </>
       )}
     </div>
   );
@@ -6502,6 +6511,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   setToggle={(checked: boolean) =>
                     setBlockToggles(prev => ({ ...prev, [block]: checked }))
                   }
+                  blockToggles={blockToggles}
+                  setBlockToggles={setBlockToggles}
                 />
               );
             }
