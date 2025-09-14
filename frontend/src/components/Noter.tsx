@@ -839,10 +839,10 @@ const ByggnaderNote: React.FC<{
       'arets_avskr_uppskr_bygg'   // UPPSKR negative
     ];
     
-    // Flexible variables (can be both + or -, including omklassificeringar)
+    // Flexible variables (can be both + or -)
     const flexibleVars = [
-      'arets_omklass_bygg',      // Only under Anskaffningsvärden
-      'omklass_avskr_bygg'       // Only under Avskrivningar (not in UPPSKR/NEDSKR)
+      'arets_omklass_bygg'       // Only under Anskaffningsvärden
+      // NO omklass_avskr_bygg - removed from BYGG structure
     ];
     
     if (positiveVars.includes(vn)) return '+';
@@ -887,8 +887,8 @@ const ByggnaderNote: React.FC<{
     // Anskaffningsvärden
     const byggUB = v('bygg_ib') + v('arets_inkop_bygg') + v('arets_fsg_bygg') + v('arets_omklass_bygg');
     
-    // Avskrivningar (only this subblock has omklassificeringar)
-    const avskrUB = v('ack_avskr_bygg_ib') + v('arets_avskr_bygg') + v('aterfor_avskr_fsg_bygg') + v('omklass_avskr_bygg');
+    // Avskrivningar (NO omklassificeringar)
+    const avskrUB = v('ack_avskr_bygg_ib') + v('arets_avskr_bygg') + v('aterfor_avskr_fsg_bygg');
     
     // Uppskrivningar (no omklassificeringar here)
     const uppskrUB = v('ack_uppskr_bygg_ib') + v('arets_uppskr_bygg') + v('aterfor_uppskr_fsg_bygg') + v('arets_avskr_uppskr_bygg');
