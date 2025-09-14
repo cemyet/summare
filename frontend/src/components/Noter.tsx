@@ -839,10 +839,12 @@ const ByggnaderNote: React.FC<{
       'arets_avskr_uppskr_bygg'   // UPPSKR negative
     ];
     
-    // Flexible variables (can be both + or -)
+    // Flexible variables (can be both + or -, all omklassificeringar)
     const flexibleVars = [
-      'arets_omklass_bygg'       // Only under Anskaffningsvärden
-      // NO omklass_avskr_bygg - removed from BYGG structure
+      'arets_omklass_bygg',      // Anskaffningsvärden
+      'omklass_avskr_bygg',      // Avskrivningar
+      'omklass_uppskr_bygg',     // Uppskrivningar
+      'omklass_nedskr_bygg'      // Nedskrivningar
     ];
     
     if (positiveVars.includes(vn)) return '+';
@@ -887,14 +889,14 @@ const ByggnaderNote: React.FC<{
     // Anskaffningsvärden
     const byggUB = v('bygg_ib') + v('arets_inkop_bygg') + v('arets_fsg_bygg') + v('arets_omklass_bygg');
     
-    // Avskrivningar (NO omklassificeringar)
-    const avskrUB = v('ack_avskr_bygg_ib') + v('arets_avskr_bygg') + v('aterfor_avskr_fsg_bygg');
+    // Avskrivningar (now includes omklassificeringar)
+    const avskrUB = v('ack_avskr_bygg_ib') + v('arets_avskr_bygg') + v('aterfor_avskr_fsg_bygg') + v('omklass_avskr_bygg');
     
-    // Uppskrivningar (no omklassificeringar here)
-    const uppskrUB = v('ack_uppskr_bygg_ib') + v('arets_uppskr_bygg') + v('aterfor_uppskr_fsg_bygg') + v('arets_avskr_uppskr_bygg');
+    // Uppskrivningar (now includes omklassificeringar)
+    const uppskrUB = v('ack_uppskr_bygg_ib') + v('arets_uppskr_bygg') + v('aterfor_uppskr_fsg_bygg') + v('arets_avskr_uppskr_bygg') + v('omklass_uppskr_bygg');
     
-    // Nedskrivningar (no omklassificeringar here)
-    const nedskrUB = v('ack_nedskr_bygg_ib') + v('arets_nedskr_bygg') + v('aterfor_nedskr_fsg_bygg') + v('aterfor_nedskr_bygg');
+    // Nedskrivningar (now includes omklassificeringar)
+    const nedskrUB = v('ack_nedskr_bygg_ib') + v('arets_nedskr_bygg') + v('aterfor_nedskr_fsg_bygg') + v('aterfor_nedskr_bygg') + v('omklass_nedskr_bygg');
 
     return byggUB + avskrUB + uppskrUB + nedskrUB;
   }, [getVal]);
