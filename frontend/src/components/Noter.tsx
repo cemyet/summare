@@ -166,11 +166,12 @@ const AmountCell = React.memo(function AmountCell({
       {forcedFlash && (
         <div
           id={`${varName}-signmsg`}
-          className="absolute -top-5 right-0 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shadow-sm"
+          className="absolute -top-5 right-0 px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200 shadow-sm"
+          style={{ fontSize: '10px' }}
           role="status" aria-live="polite"
           title={forcedFlash === '-' ? 'Tecken justerat till minus' : 'Negativt värde ej tillåtet'}
         >
-          {forcedFlash === '-' ? '− JUSTERAD' : 'ENDAST +'}
+          {forcedFlash === '-' ? '(-) JUSTERAD' : 'ENDAST +'}
         </div>
       )}
     </div>
