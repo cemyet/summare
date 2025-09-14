@@ -361,7 +361,7 @@ const MaskinerNote: React.FC<{
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
   const visible = useMemo(() => {
-    // Pass 1: base visibility (as you already have)
+    // Base pass: which rows are themselves visible
     const baseVisible = items.filter((it) => {
       if (it.always_show) return true;
       const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
@@ -369,33 +369,37 @@ const MaskinerNote: React.FC<{
       if (it.toggle_show) return toggleOn;
       return false;
     });
-
-    // Use row_id membership instead of object identity for robustness
     const baseSet = new Set(baseVisible.map(r => r.row_id));
 
-    // Pass 2: include H3 heading if any child row until the next heading is visible
+    // Rows that are allowed to *trigger* a subblock heading (exclude sums + always_show-only)
+    const isSumLine = (s?: string) => ['S2','S3','TS2','TS3'].includes(s || '');
+    const triggerRows = items.filter((it) => {
+      if (isSumLine(it.style)) return false;
+      if (it.always_show) return false;
+      const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
+      if (hasNonZero) return true;
+      if (it.toggle_show) return toggleOn;
+      return false;
+    });
+    const triggerSet = new Set(triggerRows.map(r => r.row_id));
+
+    // Second pass: include H3 heading if any following *trigger* row (until next heading) is visible
     const out: NoterItem[] = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
 
-      // Already visible? keep it.
-      if (baseSet.has(it.row_id)) {
-        out.push(it);
-        continue;
-      }
+      if (baseSet.has(it.row_id)) { out.push(it); continue; }
 
-      // Bring in subblock headings when any of their following rows are visible
-      if ((it.style === 'H3')) {
+      if (it.style === 'H3') {
         let show = false;
         for (let j = i + 1; j < items.length; j++) {
           const nxt = items[j];
-          if (isHeadingStyle(nxt.style)) break; // stop at next block/subblock heading
-          if (baseSet.has(nxt.row_id)) { show = true; break; }
+          if (isHeadingStyle(nxt.style)) break; // stop at next heading
+          if (triggerSet.has(nxt.row_id)) { show = true; break; }
         }
         if (show) out.push(it);
       }
     }
-
     return out;
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
@@ -928,7 +932,7 @@ const ByggnaderNote: React.FC<{
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
   const visible = useMemo(() => {
-    // Pass 1: base visibility (as you already have)
+    // Base pass: which rows are themselves visible
     const baseVisible = items.filter((it) => {
       if (it.always_show) return true;
       const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
@@ -936,33 +940,37 @@ const ByggnaderNote: React.FC<{
       if (it.toggle_show) return toggleOn;
       return false;
     });
-
-    // Use row_id membership instead of object identity for robustness
     const baseSet = new Set(baseVisible.map(r => r.row_id));
 
-    // Pass 2: include H3 heading if any child row until the next heading is visible
+    // Rows that are allowed to *trigger* a subblock heading (exclude sums + always_show-only)
+    const isSumLine = (s?: string) => ['S2','S3','TS2','TS3'].includes(s || '');
+    const triggerRows = items.filter((it) => {
+      if (isSumLine(it.style)) return false;
+      if (it.always_show) return false;
+      const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
+      if (hasNonZero) return true;
+      if (it.toggle_show) return toggleOn;
+      return false;
+    });
+    const triggerSet = new Set(triggerRows.map(r => r.row_id));
+
+    // Second pass: include H3 heading if any following *trigger* row (until next heading) is visible
     const out: NoterItem[] = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
 
-      // Already visible? keep it.
-      if (baseSet.has(it.row_id)) {
-        out.push(it);
-        continue;
-      }
+      if (baseSet.has(it.row_id)) { out.push(it); continue; }
 
-      // Bring in subblock headings when any of their following rows are visible
-      if ((it.style === 'H3')) {
+      if (it.style === 'H3') {
         let show = false;
         for (let j = i + 1; j < items.length; j++) {
           const nxt = items[j];
-          if (isHeadingStyle(nxt.style)) break; // stop at next block/subblock heading
-          if (baseSet.has(nxt.row_id)) { show = true; break; }
+          if (isHeadingStyle(nxt.style)) break; // stop at next heading
+          if (triggerSet.has(nxt.row_id)) { show = true; break; }
         }
         if (show) out.push(it);
       }
     }
-
     return out;
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
@@ -1499,7 +1507,7 @@ const OvrigaMateriellaNote: React.FC<{
   const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
 
   const visible = useMemo(() => {
-    // Pass 1: base visibility (as you already have)
+    // Base pass: which rows are themselves visible
     const baseVisible = items.filter((it) => {
       if (it.always_show) return true;
       const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
@@ -1507,33 +1515,37 @@ const OvrigaMateriellaNote: React.FC<{
       if (it.toggle_show) return toggleOn;
       return false;
     });
-
-    // Use row_id membership instead of object identity for robustness
     const baseSet = new Set(baseVisible.map(r => r.row_id));
 
-    // Pass 2: include H3 heading if any child row until the next heading is visible
+    // Rows that are allowed to *trigger* a subblock heading (exclude sums + always_show-only)
+    const isSumLine = (s?: string) => ['S2','S3','TS2','TS3'].includes(s || '');
+    const triggerRows = items.filter((it) => {
+      if (isSumLine(it.style)) return false;
+      if (it.always_show) return false;
+      const hasNonZero = (readCur(it) ?? 0) !== 0 || (readPrev(it) ?? 0) !== 0;
+      if (hasNonZero) return true;
+      if (it.toggle_show) return toggleOn;
+      return false;
+    });
+    const triggerSet = new Set(triggerRows.map(r => r.row_id));
+
+    // Second pass: include H3 heading if any following *trigger* row (until next heading) is visible
     const out: NoterItem[] = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
 
-      // Already visible? keep it.
-      if (baseSet.has(it.row_id)) {
-        out.push(it);
-        continue;
-      }
+      if (baseSet.has(it.row_id)) { out.push(it); continue; }
 
-      // Bring in subblock headings when any of their following rows are visible
-      if ((it.style === 'H3')) {
+      if (it.style === 'H3') {
         let show = false;
         for (let j = i + 1; j < items.length; j++) {
           const nxt = items[j];
-          if (isHeadingStyle(nxt.style)) break; // stop at next block/subblock heading
-          if (baseSet.has(nxt.row_id)) { show = true; break; }
+          if (isHeadingStyle(nxt.style)) break; // stop at next heading
+          if (triggerSet.has(nxt.row_id)) { show = true; break; }
         }
         if (show) out.push(it);
       }
     }
-
     return out;
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
