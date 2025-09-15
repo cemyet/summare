@@ -402,6 +402,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   
   const [showAllRR, setShowAllRR] = useState(false);
   const [showAllBR, setShowAllBR] = useState(false);
+  const [showAllTax, setShowAllTax] = useState(false);
 
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
   const [originalAmounts, setOriginalAmounts] = useState<Record<string, number>>({});
@@ -950,7 +951,22 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         {companyData.showTaxPreview && ink2Data && ink2Data.length > 0 && (
           <div className="space-y-4 bg-gradient-to-r from-yellow-50 to-amber-50 p-4 rounded-lg border border-yellow-200" data-section="tax-calculation">
             <div className="mb-4">
-              <h2 className="text-lg font-semibold text-foreground border-b pb-2">Skatteberäkning</h2>
+              <div className="flex items-center justify-between border-b pb-2">
+                <h2 className="text-lg font-semibold text-foreground">Skatteberäkning</h2>
+                <div className="flex items-center space-x-2">
+                  <label 
+                    htmlFor="toggle-show-all-tax" 
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    Visa alla rader
+                  </label>
+                  <Switch
+                    id="toggle-show-all-tax"
+                    checked={showAllTax}
+                    onCheckedChange={setShowAllTax}
+                  />
+                </div>
+              </div>
               <p className="text-sm leading-relaxed font-normal font-sans text-foreground mt-3">
                 Här nedan visas endast de vanligaste skattemässiga justeringarna. Belopp har automatiskt hämtats från bokföringen, men det går bra att justera dem manuellt här. Fullständiga justeringar är möjliga att göra i INK2S-blanketten innan inlämning.
               </p>
@@ -983,9 +999,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   if (item.always_show === true) return true;
                   if (item.always_show === false) return false;
                   
-                  // For always_show = null/undefined, show only if amount is non-zero
-                  return item.amount !== null && item.amount !== undefined && 
-                         item.amount !== 0;
+                  // For always_show = null/undefined, show if amount is non-zero OR toggle is on
+                  return (item.amount !== null && item.amount !== undefined && 
+                         item.amount !== 0) || showAllTax;
                 });
               };
               
@@ -1005,10 +1021,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   // Same logic as non-edit mode: show if always_show=true OR (always_show=null AND amount≠0)
                   if (item.always_show === true) return true;
                   
-                  // For always_show = null/undefined, only show if amount is non-zero
+                  // For always_show = null/undefined, show if amount is non-zero OR toggle is on
                   const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
                                          item.amount !== 0;
-                  return hasNonZeroAmount;
+                  return hasNonZeroAmount || showAllTax;
                 }
 
                 // Normal (read-only) mode filter logic
@@ -1020,13 +1036,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   return shouldShowBlockContent(item.block);
                 }
 
-                // For non-headers with always_show = null/undefined, show only if amount is non-zero
+                // For non-headers with always_show = null/undefined, show if amount is non-zero OR toggle is on
                 const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
                                        item.amount !== 0;
                 
                 // Row filtering logic applied
                 
-                return hasNonZeroAmount;
+                return hasNonZeroAmount || showAllTax;
               });
             })().map((item, index) => (
               <div
