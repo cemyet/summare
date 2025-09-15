@@ -7,7 +7,7 @@ import os
 import re
 import unicodedata
 import math
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -1871,17 +1871,21 @@ class DatabaseParser:
             return value.upper() == 'TRUE'
         return bool(value)
     
-    def _normalize_always_show(self, value: Any) -> bool:
-        """Normalize always_show to boolean values only."""
+    def _normalize_always_show(self, value: Any) -> Union[bool, None]:
+        """Normalize always_show to boolean or None values for proper toggle logic."""
+        if value is None:
+            return None  # Keep None as None for "show if amount != 0 OR toggle on" logic
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
             normalized = value.strip().upper()
             if normalized == 'TRUE':
                 return True
+            elif normalized == 'FALSE':
+                return False
             else:
-                return False  # Any other string (including 'FALSE', empty, etc.) = False
-        return False  # Default to False for any other type
+                return None  # Empty string or other values = None (show if amount != 0 OR toggle on)
+        return None  # Default to None for any other type
     
     def calculate_ink2_variable_value(self, mapping: Dict[str, Any], accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, ink_values: Optional[Dict[str, float]] = None, br_data: Optional[List[Dict[str, Any]]] = None) -> float:
         """

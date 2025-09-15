@@ -1005,7 +1005,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 });
               };
               
-              return allData.filter((item: any) => {
+              const filteredData = allData.filter((item: any) => {
                 // Always exclude rows explicitly marked to never show
                 if (item.show_amount === 'NEVER') return false;
 
@@ -1044,6 +1044,21 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 
                 return hasNonZeroAmount || showAllTax;
               });
+              
+              // Debug logging
+              console.log('Tax Toggle Debug:', {
+                showAllTax,
+                totalItems: allData.length,
+                filteredItems: filteredData.length,
+                sampleData: allData.slice(0, 3).map(item => ({
+                  row_title: item.row_title,
+                  amount: item.amount,
+                  always_show: item.always_show,
+                  visible: filteredData.includes(item)
+                }))
+              });
+              
+              return filteredData;
             })().map((item, index) => (
               <div
                 key={index}
