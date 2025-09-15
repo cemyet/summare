@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Switch } from '@/components/ui/switch';
 
 interface TaxCalculationItem {
   row_id: number;
@@ -12,6 +13,7 @@ interface TaxCalculationItem {
   variable_name: string;
   show_tag: boolean;
   accounts_included: string;
+  always_show?: boolean | null;
   account_details?: Array<{
     account_id: string;
     account_text: string;
@@ -27,6 +29,7 @@ interface TaxCalculationProps {
 
 export function TaxCalculation({ ink2Data, fiscalYear, onContinue }: TaxCalculationProps) {
   const [selectedItem, setSelectedItem] = useState<TaxCalculationItem | null>(null);
+  const [showAllRows, setShowAllRows] = useState(false);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('sv-SE', {
@@ -41,6 +44,27 @@ export function TaxCalculation({ ink2Data, fiscalYear, onContinue }: TaxCalculat
       maximumFractionDigits: 2,
     }).format(amount);
   };
+
+  // Filter items based on always_show logic and toggle state
+  const getVisibleItems = () => {
+    return ink2Data.filter(item => {
+      // always_show = true: always show
+      if (item.always_show === true) return true;
+      
+      // always_show = false: never show
+      if (item.always_show === false) return false;
+      
+      // always_show = null/undefined: show if amount != 0 OR toggle is on
+      if (item.always_show === null || item.always_show === undefined) {
+        if (item.amount !== 0) return true;
+        return showAllRows;
+      }
+      
+      return false;
+    });
+  };
+
+  const visibleItems = getVisibleItems();
 
   const AccountDetailsDialog = ({ item }: { item: TaxCalculationItem }) => (
     <Dialog>
@@ -93,16 +117,31 @@ export function TaxCalculation({ ink2Data, fiscalYear, onContinue }: TaxCalculat
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          🏛️ Skatteberäkning
-          <span className="text-sm font-normal text-gray-600">
-            ({ink2Data.length} poster)
-          </span>
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            🏛️ Skatteberäkning
+            <span className="text-sm font-normal text-gray-600">
+              ({visibleItems.length} av {ink2Data.length} poster)
+            </span>
+          </CardTitle>
+          <div className="flex items-center space-x-2">
+            <label 
+              htmlFor="toggle-show-all-tax" 
+              className="text-sm font-medium cursor-pointer"
+            >
+              Visa alla rader
+            </label>
+            <Switch
+              id="toggle-show-all-tax"
+              checked={showAllRows}
+              onCheckedChange={setShowAllRows}
+            />
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-1">
-          {ink2Data.map((item, index) => (
+          {visibleItems.map((item, index) => (
             <div 
               key={index} 
               className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0"
@@ -118,6 +157,13 @@ export function TaxCalculation({ ink2Data, fiscalYear, onContinue }: TaxCalculat
               </span>
             </div>
           ))}
+          
+          {visibleItems.length === 0 && ink2Data.length > 0 && (
+            <div className="text-center py-8 text-gray-500">
+              <p>Inga rader att visa med nuvarande inställningar</p>
+              <p className="text-xs mt-1">Aktivera "Visa alla rader" för att se alla poster</p>
+            </div>
+          )}
           
           {ink2Data.length === 0 && (
             <div className="text-center py-8 text-gray-500">
