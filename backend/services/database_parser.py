@@ -1731,6 +1731,7 @@ class DatabaseParser:
                 # Always calculate (or default to 0) so rows can be shown with blank amount if needed
                 amount = self.calculate_ink2_variable_value(mapping, current_accounts, fiscal_year, rr_data, ink_values, br_data)
                 
+                
                 # Special handling: hide INK4_header (duplicate "Skatteberäkning")
                 variable_name = mapping.get('variable_name', '')
                 if variable_name == 'INK4_header':
@@ -1820,6 +1821,7 @@ class DatabaseParser:
                         amount = round(amount, 0)
                     # IMPORTANT: Store calculated values for later formulas
                     ink_values[variable_name] = amount
+                
                 
                 # Keep only essential debug for important tax calculations
                 
@@ -1912,8 +1914,6 @@ class DatabaseParser:
         if variable_name == 'INK4.2':
             sum_arets = rr('SumAretsResultat')
             return -sum_arets if sum_arets < 0 else 0.0
-        if variable_name == 'INK4.3a':
-            return rr('SkattAretsResultat')
         if variable_name == 'INK4.6a':
             # Periodiseringsfonder previous_year * statslaneranta
             rate = float(self.global_variables.get('statslaneranta', 0.0))
