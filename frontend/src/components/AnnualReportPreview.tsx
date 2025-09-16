@@ -1009,6 +1009,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 // Always exclude rows explicitly marked to never show
                 if (item.show_amount === 'NEVER') return false;
 
+                // NEW TOGGLE LOGIC: When toggle is ON, override with toggle_show logic
+                if (showAllTax) {
+                  return item.toggle_show === true;
+                }
+
+                // ORIGINAL LOGIC: When toggle is OFF, use original always_show logic
                 // In manual edit mode, use the same filtering rules as non-edit mode
                 if (isEditing) {
                   // Always exclude rows explicitly marked to never show
@@ -1021,10 +1027,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   // Same logic as non-edit mode: show if always_show=true OR (always_show=null AND amount≠0)
                   if (item.always_show === true) return true;
                   
-                  // For always_show = null/undefined, show if amount is non-zero OR toggle is on
+                  // For always_show = null/undefined, show only if amount is non-zero
                   const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
                                          item.amount !== 0;
-                  return hasNonZeroAmount || showAllTax;
+                  return hasNonZeroAmount;
                 }
 
                 // Normal (read-only) mode filter logic
@@ -1036,13 +1042,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   return shouldShowBlockContent(item.block);
                 }
 
-                // For non-headers with always_show = null/undefined, show if amount is non-zero OR toggle is on
+                // For non-headers with always_show = null/undefined, show only if amount is non-zero
                 const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
                                        item.amount !== 0;
                 
-                // Row filtering logic applied
-                
-                return hasNonZeroAmount || showAllTax;
+                return hasNonZeroAmount;
               });
               
               // Debug logging
@@ -1054,6 +1058,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   row_title: item.row_title,
                   amount: item.amount,
                   always_show: item.always_show,
+                  toggle_show: item.toggle_show,
                   visible: filteredData.includes(item)
                 }))
               });

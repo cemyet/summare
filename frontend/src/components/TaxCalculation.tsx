@@ -14,6 +14,7 @@ interface TaxCalculationItem {
   show_tag: boolean;
   accounts_included: string;
   always_show?: boolean | null;
+  toggle_show?: boolean;
   account_details?: Array<{
     account_id: string;
     account_text: string;
