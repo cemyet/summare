@@ -651,7 +651,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   };
 
   // Same styling semantics as RR/BR but for INK2's 2-column layout
-  const getInkStyleClasses = (style?: string) => {
+  const getInkStyleClasses = (style?: string, variableName?: string) => {
     const baseClasses = 'grid gap-4';
     let additionalClasses = '';
 
@@ -660,13 +660,17 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     
     // Bold styles - TNORMAL should NOT be bold
     const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
-    if (boldStyles.includes(s)) {
+    // Special case: Apply bold styling to specific variable names
+    const specialBoldVariables = ['INK_skattemassigt_resultat', 'INK4.1_header'];
+    if (boldStyles.includes(s) || (variableName && specialBoldVariables.includes(variableName))) {
       additionalClasses += ' font-semibold';
     }
     
     // Line styles - only S2/S3/TS2/TS3 get darker lines
     const lineStyles = ['S2','S3','TS2','TS3'];
-    if (lineStyles.includes(s)) {
+    // Special case: Apply line styling to specific variable names
+    const specialLineVariables = ['INK_skattemassigt_resultat', 'INK4.1_header'];
+    if (lineStyles.includes(s) || (variableName && specialLineVariables.includes(variableName))) {
       additionalClasses += ' border-t border-b border-gray-300 pt-1 pb-1';
     }
 
@@ -968,7 +972,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 </div>
               </div>
               <p className="text-sm leading-relaxed font-normal font-sans text-foreground mt-3">
-                Här nedan visas endast de vanligaste skattemässiga justeringarna. Belopp har automatiskt hämtats från bokföringen, men det går bra att justera dem manuellt här. Fullständiga justeringar är möjliga att göra i INK2S-blanketten innan inlämning.
+                Här nedan visas endast de vanligaste skattemässiga justeringarna. Belopp har automatiskt hämtats från bokföringen, men det går bra att justera dem manuellt här. Fullständiga justeringar är möjliga att göra om du klickar på visa alla rader.
               </p>
             </div>
             
@@ -1008,6 +1012,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
               const filteredData = allData.filter((item: any) => {
                 // Always exclude rows explicitly marked to never show
                 if (item.show_amount === 'NEVER') return false;
+
+                // SPECIAL OVERRIDE: INK_sarskild_loneskatt only shows if pension_premier > 0 AND calculated > actual
+                if (item.variable_name === 'INK_sarskild_loneskatt') {
+                  const pensionPremier = companyData.pensionPremier || 0;
+                  const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
+                  const actual = companyData.sarskildLoneskattPension || 0;
+                  return pensionPremier > 0 && calculated > actual;
+                }
 
                 // NEW TOGGLE LOGIC: When toggle is ON, override with toggle_show logic
                 if (showAllTax) {
@@ -1050,12 +1062,23 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
               });
               
               // Debug logging
+              const sarskildRow = allData.find(item => item.variable_name === 'INK_sarskild_loneskatt');
               console.log('Tax Toggle Debug:', {
                 showAllTax,
                 totalItems: allData.length,
                 filteredItems: filteredData.length,
+                sarskildLoneskattCondition: sarskildRow ? {
+                  pensionPremier: companyData.pensionPremier || 0,
+                  calculated: companyData.sarskildLoneskattPensionCalculated || 0,
+                  actual: companyData.sarskildLoneskattPension || 0,
+                  pensionPremierCheck: (companyData.pensionPremier || 0) > 0,
+                  calculatedGreaterThanActual: (companyData.sarskildLoneskattPensionCalculated || 0) > (companyData.sarskildLoneskattPension || 0),
+                  shouldShow: (companyData.pensionPremier || 0) > 0 && (companyData.sarskildLoneskattPensionCalculated || 0) > (companyData.sarskildLoneskattPension || 0),
+                  visible: filteredData.includes(sarskildRow)
+                } : 'Not found',
                 sampleData: allData.slice(0, 3).map(item => ({
                   row_title: item.row_title,
+                  variable_name: item.variable_name,
                   amount: item.amount,
                   always_show: item.always_show,
                   toggle_show: item.toggle_show,
@@ -1067,8 +1090,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             })().map((item, index) => (
               <div
                 key={index}
-                className={getInkStyleClasses(item.style).className}
-                style={getInkStyleClasses(item.style).style}
+                className={getInkStyleClasses(item.style, item.variable_name).className}
+                style={getInkStyleClasses(item.style, item.variable_name).style}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
