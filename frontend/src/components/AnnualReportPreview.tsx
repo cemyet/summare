@@ -661,7 +661,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Bold styles - TNORMAL should NOT be bold
     const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
     // Special case: Apply bold styling to specific variable names
-    const specialBoldVariables = ['INK_skattemassigt_resultat', 'INK4.1_header'];
+    const specialBoldVariables = ['INK_skattemassigt_resultat'];
     if (boldStyles.includes(s) || (variableName && specialBoldVariables.includes(variableName))) {
       additionalClasses += ' font-semibold';
     }
@@ -669,7 +669,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Line styles - only S2/S3/TS2/TS3 get darker lines
     const lineStyles = ['S2','S3','TS2','TS3'];
     // Special case: Apply line styling to specific variable names
-    const specialLineVariables = ['INK_skattemassigt_resultat', 'INK4.1_header'];
+    const specialLineVariables = ['INK_skattemassigt_resultat'];
     if (lineStyles.includes(s) || (variableName && specialLineVariables.includes(variableName))) {
       additionalClasses += ' border-t border-b border-gray-300 pt-1 pb-1';
     }
@@ -962,7 +962,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                     htmlFor="toggle-show-all-tax" 
                     className="text-sm font-medium cursor-pointer"
                   >
-                    Visa alla rader
+                    Visa hela INK2S
                   </label>
                   <Switch
                     id="toggle-show-all-tax"
@@ -972,7 +972,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 </div>
               </div>
               <p className="text-sm leading-relaxed font-normal font-sans text-foreground mt-3">
-                Här nedan visas endast de vanligaste skattemässiga justeringarna. Belopp har automatiskt hämtats från bokföringen, men det går bra att justera dem manuellt här. Fullständiga justeringar är möjliga att göra om du klickar på visa alla rader.
+                Här nedan visas endast de vanligaste skattemässiga justeringarna. Belopp har automatiskt hämtats från bokföringen, men det går bra att justera dem manuellt här. Fullständiga justeringar är möjliga att göra om du klickar på visa hela INK2S.
               </p>
             </div>
             
@@ -1013,8 +1013,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 // Always exclude rows explicitly marked to never show
                 if (item.show_amount === 'NEVER') return false;
 
-                // SPECIAL OVERRIDE: INK_sarskild_loneskatt only shows if pension_premier > 0 AND calculated > actual
+                // SPECIAL OVERRIDE: INK_sarskild_loneskatt has multiple conditions
                 if (item.variable_name === 'INK_sarskild_loneskatt') {
+                  // First check: if toggle_show=false, always hide
+                  if (item.toggle_show === false) return false;
+                  
+                  // Second check: only show if pension_premier > 0 AND calculated > actual
                   const pensionPremier = companyData.pensionPremier || 0;
                   const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
                   const actual = companyData.sarskildLoneskattPension || 0;
