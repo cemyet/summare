@@ -1062,7 +1062,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
               });
               
               // Debug logging
-              const sarskildRow = allData.find(item => item.variable_name === 'INK_sarskild_loneskatt');
               console.log('Tax Toggle Debug:', {
                 showAllTax,
                 totalItems: allData.length,
