@@ -386,6 +386,81 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
   );
 }
 
+// INK2 AmountCell component (defined outside to avoid initialization issues)
+const Ink2AmountCell = React.memo(function Ink2AmountCell({
+  variableName,
+  value,
+  editable,
+  onCommit,
+  onTabNavigate,
+  formatAmountDisplay
+}: {
+  variableName: string;
+  value: number;
+  editable: boolean;
+  onCommit: (value: number) => void;
+  onTabNavigate?: (direction: 'next' | 'prev') => void;
+  formatAmountDisplay: (amount: number | null) => string;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [local, setLocal] = useState<string>("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!focused) setLocal(value ? String(Math.round(value)) : "");
+  }, [value, focused]);
+
+  if (!editable) {
+    return (
+      <span className={`text-right font-medium ${value === 0 ? 'opacity-50 text-gray-500' : ''}`}>
+        {formatAmountDisplay(value)}
+      </span>
+    );
+  }
+
+  const shown = focused
+    ? local
+    : (local ? new Intl.NumberFormat('sv-SE').format(parseInt(local.replace(/[^\d-]/g, "") || "0", 10)) : "");
+
+  const commit = () => {
+    const raw = (local || "0").replace(/[^\d-]/g, "");
+    let parsed = parseInt(raw || "0", 10);
+    if (!Number.isFinite(parsed)) parsed = 0;
+    onCommit(parsed);
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      data-variable={variableName}
+      className={`w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 focus:border-gray-400 focus:outline-none ${
+        value === 0 ? 'bg-gray-50 opacity-70' : 'bg-white'
+      }`}
+      value={shown}
+      onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
+      onChange={(e) => {
+        const raw = e.target.value.replace(/[^\d-]/g, "");
+        setLocal(raw);
+      }}
+      onBlur={() => { setFocused(false); commit(); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+          commit();
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          setFocused(false);
+          commit();
+          // Move to next/previous cell
+          setTimeout(() => onTabNavigate?.(e.shiftKey ? 'prev' : 'next'), 50);
+        }
+      }}
+      placeholder="0"
+    />
+  );
+});
+
 // Database-driven always_show logic - no more hardcoded arrays
 
 export function AnnualReportPreview({ companyData, currentStep, editableAmounts = false, onDataUpdate }: AnnualReportPreviewProps) {
@@ -1373,34 +1448,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                     const dataItem = allData.find(d => d.variable_name === item.variable_name);
                     const currentValue = dataItem?.amount ?? item.amount ?? 0;
                     
-                    if (!shouldBeEditable) {
-                      return (
-                        <span className={`text-right font-medium ${currentValue === 0 ? 'opacity-50 text-gray-500' : ''}`}>
-                          {formatAmountDisplay(currentValue)}
-                        </span>
-                      );
-                    }
-                    
                     return (
-                      <input
-                        type="text"
-                        data-variable={item.variable_name}
-                        className={`w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 focus:border-gray-400 focus:outline-none ${
-                          currentValue === 0 ? 'bg-gray-50 opacity-70' : 'bg-white'
-                        }`}
-                        defaultValue={currentValue ? String(Math.round(currentValue)) : ""}
-                        onBlur={(e) => {
-                          const raw = e.target.value.replace(/[^\d-]/g, "");
-                          let parsed = parseInt(raw || "0", 10);
-                          if (!Number.isFinite(parsed)) parsed = 0;
-                          handleInk2AmountChange(item.variable_name, parsed);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.currentTarget.blur();
-                          }
-                        }}
-                        placeholder="0"
+                      <Ink2AmountCell
+                        variableName={item.variable_name}
+                        value={currentValue}
+                        editable={shouldBeEditable}
+                        onCommit={(value) => handleInk2AmountChange(item.variable_name, value)}
+                        onTabNavigate={(direction) => handleTabNavigation(item.variable_name, direction)}
+                        formatAmountDisplay={formatAmountDisplay}
                       />
                     );
                   })()}
