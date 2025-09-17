@@ -696,8 +696,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     return `${formatAmount(amount)} kr`;
   };
 
-  // Simple edit functions
-  const handleUndo = () => {
+  // Simple edit functions for INK2
+  const handleInk2Undo = () => {
     setEditedAmounts({});
     setRecalculatedData([]);
     setIsInk2ManualEdit(false);
@@ -1344,7 +1344,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
               <div className="pt-4 border-t border-gray-200 flex justify-between">
                 {/* Undo Button - Left */}
                 <Button 
-                  onClick={handleUndo}
+                  onClick={handleInk2Undo}
                   variant="outline"
                   className="flex items-center gap-2"
                 >
