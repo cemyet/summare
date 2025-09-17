@@ -403,6 +403,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const [showAllRR, setShowAllRR] = useState(false);
   const [showAllBR, setShowAllBR] = useState(false);
   const [showAllTax, setShowAllTax] = useState(false);
+  const [isInk2Editing, setIsInk2Editing] = useState(false);
+  const [ink2EditedAmounts, setInk2EditedAmounts] = useState<Record<string, number>>({});
 
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
   const [originalAmounts, setOriginalAmounts] = useState<Record<string, number>>({});
@@ -695,6 +697,112 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     return `${formatAmount(amount)} kr`;
   };
 
+  // INK2 Edit mode functions
+  const startInk2Edit = () => {
+    setIsInk2Editing(true);
+    setShowAllTax(true); // Show all rows for editing
+  };
+
+  const cancelInk2Edit = () => {
+    setIsInk2Editing(false);
+    setInk2EditedAmounts({});
+    setShowAllTax(false); // Hide extra rows
+  };
+
+  const handleInk2AmountChange = (variableName: string, value: number) => {
+    setInk2EditedAmounts(prev => ({
+      ...prev,
+      [variableName]: value
+    }));
+  };
+
+  const applyInk2Changes = async () => {
+    try {
+      const result = await apiService.recalculateInk2({
+        current_accounts: companyData.seFileData.current_accounts || {},
+        fiscal_year: companyData.fiscalYear,
+        rr_data: companyData.seFileData.rr_data || [],
+        br_data: companyData.seFileData.br_data || [],
+        manual_amounts: ink2EditedAmounts,
+        // Preserve chat-inserted values
+        justering_sarskild_loneskatt: companyData.justeringSarskildLoneskatt || 0,
+        ink4_14a_outnyttjat_underskott: companyData.unusedTaxLossAmount || 0,
+        ink4_16_underskott_adjustment: companyData.ink4_16_underskott_adjustment || 0
+      });
+      
+      if (result.success) {
+        onDataUpdate({ ink2Data: result.ink2_data });
+        setRecalculatedData(result.ink2_data);
+        setIsInk2Editing(false);
+        setInk2EditedAmounts({});
+        setShowAllTax(false);
+      }
+    } catch (error) {
+      console.error('Error applying INK2 changes:', error);
+    }
+  };
+
+  // INK2 AmountCell component (mirroring Noter AmountCell)
+  const Ink2AmountCell = React.memo(function Ink2AmountCell({
+    variableName,
+    value,
+    editable,
+    onCommit
+  }: {
+    variableName: string;
+    value: number;
+    editable: boolean;
+    onCommit: (value: number) => void;
+  }) {
+    const [focused, setFocused] = React.useState(false);
+    const [local, setLocal] = React.useState<string>("");
+
+    React.useEffect(() => {
+      if (!focused) setLocal(value ? String(Math.round(value)) : "");
+    }, [value, focused]);
+
+    if (!editable) {
+      return (
+        <span className={`text-right font-medium ${value === 0 ? 'opacity-50 text-gray-500' : ''}`}>
+          {formatAmountDisplay(value)}
+        </span>
+      );
+    }
+
+    const shown = focused
+      ? local
+      : (local ? new Intl.NumberFormat('sv-SE').format(parseInt(local.replace(/[^\d-]/g, "") || "0", 10)) : "");
+
+    const commit = () => {
+      const raw = (local || "0").replace(/[^\d-]/g, "");
+      let parsed = parseInt(raw || "0", 10);
+      if (!Number.isFinite(parsed)) parsed = 0;
+      onCommit(parsed);
+    };
+
+    return (
+      <input
+        type="text"
+        className={`w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 focus:border-gray-400 focus:outline-none ${
+          value === 0 ? 'bg-gray-50 opacity-70' : 'bg-white'
+        }`}
+        value={shown}
+        onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/[^\d-]/g, "");
+          setLocal(raw);
+        }}
+        onBlur={() => { setFocused(false); commit(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === "Tab") {
+            e.currentTarget.blur();
+          }
+        }}
+        placeholder="0"
+      />
+    );
+  });
+
   // Helper function to check if a block should be shown
   const shouldShowBlock = (data: any[], startIndex: number, endIndex: number, alwaysShowItems: string[], showAll: boolean): boolean => {
     if (showAll) return true;
@@ -956,7 +1064,22 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
           <div className="space-y-4 bg-gradient-to-r from-yellow-50 to-amber-50 p-4 rounded-lg border border-yellow-200" data-section="tax-calculation">
             <div className="mb-4">
               <div className="flex items-center justify-between border-b pb-2">
-                <h2 className="text-lg font-semibold text-foreground">Skatteberäkning</h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-semibold text-foreground">Skatteberäkning</h2>
+                  <button
+                    onClick={() => isInk2Editing ? cancelInk2Edit() : startInk2Edit()}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                      isInk2Editing 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                    }`}
+                    title={isInk2Editing ? 'Avsluta redigering' : 'Redigera värden'}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                  </button>
+                </div>
                 <div className="flex items-center space-x-2">
                   <label 
                     htmlFor="toggle-show-all-tax" 
@@ -1028,7 +1151,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
                 // ORIGINAL LOGIC: When toggle is OFF, use original always_show logic
                 // In manual edit mode, use the same filtering rules as non-edit mode
-                if (isEditing) {
+                if (isEditing || isInk2Editing) {
                   // Special case: INK_sarskild_loneskatt overrides all normal logic in edit mode too
                   if (item.variable_name === 'INK_sarskild_loneskatt') {
                     const pensionPremier = companyData.pensionPremier || 0;
@@ -1239,70 +1362,22 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   )}
                 </div>
                  <span className="text-right font-medium">
-                  {item.show_amount === 'NEVER' || item.header ? '' :
-                    (isEditing && (!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount) ? (
-                      (() => {
-                        // Field is editable
-                        return (
-                          <input
-                            type="number"
-                            className="w-32 px-1 py-1 text-sm border border-gray-400 rounded text-right font-medium h-7 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={
-                              item.variable_name === 'INK_sarskild_loneskatt' 
-                                ? Math.abs(editedAmounts[item.variable_name] ?? item.amount ?? 0)
-                                : (editedAmounts[item.variable_name] ?? item.amount ?? 0)
-                            }
-                            onChange={(e) => {
-                              // Only allow positive values for manual editing
-                              const rawValue = Math.abs(parseFloat(e.target.value)) || 0;
-                              const value = item.variable_name === 'INK_sarskild_loneskatt' ? -rawValue : rawValue;
-                              setEditedAmounts(prev => ({
-                                ...prev,
-                                [item.variable_name]: value
-                              }));
-                            }}
-                            onBlur={(e) => {
-                              const rawValue = parseFloat(e.target.value) || 0;
-                              // Force positive values only
-                              const correctedValue = Math.abs(rawValue);
-                              const finalValue = item.variable_name === 'INK_sarskild_loneskatt' ? -correctedValue : correctedValue;
-                              const updatedAmounts = { ...editedAmounts, [item.variable_name]: finalValue };
-                              setEditedAmounts(updatedAmounts);
-                              recalculateValues(updatedAmounts);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                const rawValue = parseFloat(e.currentTarget.value) || 0;
-                                // Force positive values only
-                                const correctedValue = Math.abs(rawValue);
-                                const finalValue = item.variable_name === 'INK_sarskild_loneskatt' ? -correctedValue : correctedValue;
-                                const updatedAmounts = { ...editedAmounts, [item.variable_name]: finalValue };
-                                setEditedAmounts(updatedAmounts);
-                                recalculateValues(updatedAmounts);
-                                e.currentTarget.blur(); // Remove focus
-                              }
-                            }}
-                            step="0.01"
-                            min="0"
-                          />
-                        );
-                      })()
-                    ) : (
-                      (() => {
-                        // Field not editable
-                        return (
-                        (item.amount !== null && item.amount !== undefined) ? 
-                        (item.amount === 0 ? '0 kr' : (() => {
-                        // Tax calculation should always show integers with Swedish formatting and kr suffix
-                        return new Intl.NumberFormat('sv-SE', {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0
-                        }).format(item.amount) + ' kr';
-                        })()) : '0 kr'
-                        );
-                      })()
-                    )
-                  }
+                  {item.show_amount === 'NEVER' || item.header ? '' : (() => {
+                    // Determine if this field should be editable
+                    const shouldBeEditable = isInk2Editing && (!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount;
+                    
+                    // Get current value (edited value takes precedence)
+                    const currentValue = ink2EditedAmounts[item.variable_name] ?? item.amount ?? 0;
+                    
+                    return (
+                      <Ink2AmountCell
+                        variableName={item.variable_name}
+                        value={currentValue}
+                        editable={shouldBeEditable}
+                        onCommit={(value) => handleInk2AmountChange(item.variable_name, value)}
+                      />
+                    );
+                  })()}
                 </span>
               </div>
             ))}
