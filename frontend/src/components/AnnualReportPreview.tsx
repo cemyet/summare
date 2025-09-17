@@ -1013,20 +1013,16 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 // Always exclude rows explicitly marked to never show
                 if (item.show_amount === 'NEVER') return false;
 
-                // SPECIAL OVERRIDE: INK_sarskild_loneskatt has multiple conditions
-                if (item.variable_name === 'INK_sarskild_loneskatt') {
-                  // First check: if toggle_show=false, always hide
-                  if (item.toggle_show === false) return false;
-                  
-                  // Second check: only show if pension_premier > 0 AND calculated > actual
-                  const pensionPremier = companyData.pensionPremier || 0;
-                  const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
-                  const actual = companyData.sarskildLoneskattPension || 0;
-                  return pensionPremier > 0 && calculated > actual;
-                }
-
                 // NEW TOGGLE LOGIC: When toggle is ON, override with toggle_show logic
                 if (showAllTax) {
+                  // Special case: INK_sarskild_loneskatt must still meet its conditions even when toggle is ON
+                  if (item.variable_name === 'INK_sarskild_loneskatt') {
+                    if (item.toggle_show === false) return false;
+                    const pensionPremier = companyData.pensionPremier || 0;
+                    const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
+                    const actual = companyData.sarskildLoneskattPension || 0;
+                    return item.toggle_show === true && (pensionPremier > 0 && calculated > actual);
+                  }
                   return item.toggle_show === true;
                 }
 
@@ -1043,6 +1039,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   // Same logic as non-edit mode: show if always_show=true OR (always_show=null AND amount≠0)
                   if (item.always_show === true) return true;
                   
+                  // Special case: INK_sarskild_loneskatt in edit mode
+                  if (item.variable_name === 'INK_sarskild_loneskatt') {
+                    const pensionPremier = companyData.pensionPremier || 0;
+                    const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
+                    const actual = companyData.sarskildLoneskattPension || 0;
+                    return pensionPremier > 0 && calculated > actual;
+                  }
+                  
                   // For always_show = null/undefined, show only if amount is non-zero
                   const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
                                          item.amount !== 0;
@@ -1056,6 +1060,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
                 if (item.header === true) {
                   return shouldShowBlockContent(item.block);
+                }
+
+                // Special case: INK_sarskild_loneskatt in normal mode
+                if (item.variable_name === 'INK_sarskild_loneskatt') {
+                  const pensionPremier = companyData.pensionPremier || 0;
+                  const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
+                  const actual = companyData.sarskildLoneskattPension || 0;
+                  return pensionPremier > 0 && calculated > actual;
                 }
 
                 // For non-headers with always_show = null/undefined, show only if amount is non-zero
