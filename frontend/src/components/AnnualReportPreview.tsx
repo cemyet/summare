@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -754,10 +754,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     editable: boolean;
     onCommit: (value: number) => void;
   }) {
-    const [focused, setFocused] = React.useState(false);
-    const [local, setLocal] = React.useState<string>("");
+    const [focused, setFocused] = useState(false);
+    const [local, setLocal] = useState<string>("");
 
-    React.useEffect(() => {
+    useEffect(() => {
       if (!focused) setLocal(value ? String(Math.round(value)) : "");
     }, [value, focused]);
 
