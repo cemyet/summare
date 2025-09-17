@@ -403,6 +403,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const [showAllRR, setShowAllRR] = useState(false);
   const [showAllBR, setShowAllBR] = useState(false);
   const [showAllTax, setShowAllTax] = useState(false);
+  const [isInk2ManualEdit, setIsInk2ManualEdit] = useState(false);
 
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
   const [originalAmounts, setOriginalAmounts] = useState<Record<string, number>>({});
@@ -695,6 +696,22 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     return `${formatAmount(amount)} kr`;
   };
 
+  // Simple edit functions
+  const handleUndo = () => {
+    setEditedAmounts({});
+    setRecalculatedData([]);
+    setIsInk2ManualEdit(false);
+  };
+
+  const handleApproveChanges = () => {
+    // Apply changes and exit edit mode
+    if (recalculatedData.length > 0) {
+      onDataUpdate({ ink2Data: recalculatedData });
+    }
+    setIsInk2ManualEdit(false);
+    setShowAllTax(false);
+  };
+
   // Helper function to check if a block should be shown
   const shouldShowBlock = (data: any[], startIndex: number, endIndex: number, alwaysShowItems: string[], showAll: boolean): boolean => {
     if (showAll) return true;
@@ -956,7 +973,22 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
           <div className="space-y-4 bg-gradient-to-r from-yellow-50 to-amber-50 p-4 rounded-lg border border-yellow-200" data-section="tax-calculation">
             <div className="mb-4">
               <div className="flex items-center justify-between border-b pb-2">
-                <h2 className="text-lg font-semibold text-foreground">Skatteberäkning</h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-semibold text-foreground">Skatteberäkning</h2>
+                  <button
+                    onClick={() => setIsInk2ManualEdit(!isInk2ManualEdit)}
+                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                      isInk2ManualEdit 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                    }`}
+                    title={isInk2ManualEdit ? 'Avsluta redigering' : 'Redigera värden'}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                  </button>
+                </div>
                 <div className="flex items-center space-x-2">
                   <label 
                     htmlFor="toggle-show-all-tax" 
@@ -1240,7 +1272,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 </div>
                  <span className="text-right font-medium">
                   {item.show_amount === 'NEVER' || item.header ? '' :
-                    (isEditing && (!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount) ? (
+                    ((isEditing || isInk2ManualEdit) && (!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount) ? (
                       (() => {
                         // Field is editable
                         return (
@@ -1308,7 +1340,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             ))}
             
             {/* Tax Action Buttons */}
-            {isEditing && (
+            {(isEditing || isInk2ManualEdit) && (
               <div className="pt-4 border-t border-gray-200 flex justify-between">
                 {/* Undo Button - Left */}
                 <Button 
@@ -1324,10 +1356,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 
                 {/* Update Button - Right */}
                 <Button 
-                  onClick={() => {
-                    // Handle tax update - this would typically update the chat state
-                    console.log('Updated amounts:', editedAmounts);
-                  }}
+                  onClick={handleApproveChanges}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
                 >
                   Godkänn och uppdatera skatt
