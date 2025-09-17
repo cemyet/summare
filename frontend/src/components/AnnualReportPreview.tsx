@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -786,7 +786,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   };
 
   // Auto-recalculate when manual amounts change (mirroring Noter pattern)
-  const handleInk2AmountChange = async (variableName: string, value: number) => {
+  const handleInk2AmountChange = React.useCallback(async (variableName: string, value: number) => {
     const newEditedAmounts = {
       ...ink2EditedAmounts,
       [variableName]: value
@@ -797,15 +797,15 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Trigger immediate recalculation (like Noter does)
     try {
       const result = await apiService.recalculateInk2({
-        current_accounts: companyData.seFileData.current_accounts || {},
-        fiscal_year: companyData.fiscalYear,
-        rr_data: companyData.seFileData.rr_data || [],
-        br_data: companyData.seFileData.br_data || [],
+        current_accounts: cd.seFileData?.current_accounts || {},
+        fiscal_year: cd.fiscalYear,
+        rr_data: cd.seFileData?.rr_data || [],
+        br_data: cd.seFileData?.br_data || [],
         manual_amounts: newEditedAmounts,
         // Preserve chat-inserted values
-        justering_sarskild_loneskatt: companyData.justeringSarskildLoneskatt || 0,
-        ink4_14a_outnyttjat_underskott: companyData.unusedTaxLossAmount || 0,
-        ink4_16_underskott_adjustment: companyData.ink4_16_underskott_adjustment || 0
+        justering_sarskild_loneskatt: cd.justeringSarskildLoneskatt || 0,
+        ink4_14a_outnyttjat_underskott: cd.unusedTaxLossAmount || 0,
+        ink4_16_underskott_adjustment: cd.ink4_16_underskott_adjustment || 0
       });
       
       if (result.success) {
@@ -814,7 +814,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     } catch (error) {
       console.error('Error recalculating INK2:', error);
     }
-  };
+  }, [ink2EditedAmounts, cd]);
 
   // Apply final changes and exit edit mode (called by "Godkänn ändringar")
   const applyInk2Changes = async () => {
@@ -853,7 +853,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   };
 
   // Tab navigation for INK2 cells
-  const handleTabNavigation = (currentVariable: string, direction: 'next' | 'prev') => {
+  const handleTabNavigation = useCallback((currentVariable: string, direction: 'next' | 'prev') => {
     // Get all editable variables in order
     const allData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
     const editableVariables = allData
@@ -876,7 +876,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         nextInput.focus();
       }
     }, 10);
-  };
+  }, [recalculatedData, ink2Data]);
 
   // Helper function to check if a block should be shown
   const shouldShowBlock = (data: any[], startIndex: number, endIndex: number, alwaysShowItems: string[], showAll: boolean): boolean => {
