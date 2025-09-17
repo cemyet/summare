@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -392,8 +392,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // Safe access; never destructure undefined
   const cd = companyData as CompanyData;
   
-  // Requirement 2: inputs become editable when taxEditingEnabled OR editableAmounts is true
+  // Requirement 2: inputs become editable when taxEditingEnabled OR editableAmounts is true OR manual edit button is clicked
   const isEditing = Boolean(cd.taxEditingEnabled || editableAmounts);
+  const isInk2EditingActive = isInk2Editing || isEditing;
 
   // Requirement 1: render when showTaxPreview OR showRRBR is true
   if (!cd.showTaxPreview && !cd.showRRBR) {
@@ -709,21 +710,23 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     setShowAllTax(false); // Hide extra rows
   };
 
-  const handleInk2AmountChange = (variableName: string, value: number) => {
-    setInk2EditedAmounts(prev => ({
-      ...prev,
+  // Auto-recalculate when manual amounts change (mirroring Noter pattern)
+  const handleInk2AmountChange = async (variableName: string, value: number) => {
+    const newEditedAmounts = {
+      ...ink2EditedAmounts,
       [variableName]: value
-    }));
-  };
-
-  const applyInk2Changes = async () => {
+    };
+    
+    setInk2EditedAmounts(newEditedAmounts);
+    
+    // Trigger immediate recalculation (like Noter does)
     try {
       const result = await apiService.recalculateInk2({
         current_accounts: companyData.seFileData.current_accounts || {},
         fiscal_year: companyData.fiscalYear,
         rr_data: companyData.seFileData.rr_data || [],
         br_data: companyData.seFileData.br_data || [],
-        manual_amounts: ink2EditedAmounts,
+        manual_amounts: newEditedAmounts,
         // Preserve chat-inserted values
         justering_sarskild_loneskatt: companyData.justeringSarskildLoneskatt || 0,
         ink4_14a_outnyttjat_underskott: companyData.unusedTaxLossAmount || 0,
@@ -731,31 +734,66 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       });
       
       if (result.success) {
-        onDataUpdate({ ink2Data: result.ink2_data });
         setRecalculatedData(result.ink2_data);
-        setIsInk2Editing(false);
-        setInk2EditedAmounts({});
-        setShowAllTax(false);
       }
+    } catch (error) {
+      console.error('Error recalculating INK2:', error);
+    }
+  };
+
+  // Apply final changes and exit edit mode (called by "Godkänn ändringar")
+  const applyInk2Changes = async () => {
+    try {
+      // Use the most recent recalculated data
+      if (recalculatedData.length > 0) {
+        onDataUpdate({ ink2Data: recalculatedData });
+      }
+      
+      setIsInk2Editing(false);
+      setInk2EditedAmounts({});
+      setShowAllTax(false);
     } catch (error) {
       console.error('Error applying INK2 changes:', error);
     }
   };
 
-  // INK2 AmountCell component (mirroring Noter AmountCell)
+  // Undo function - preserve chat values, clear manual edits
+  const undoInk2Changes = () => {
+    // Clear only manual edits, preserve chat-inserted values
+    const preservedValues: Record<string, number> = {};
+    
+    // Preserve specific chat-inserted values
+    if (companyData.justeringSarskildLoneskatt) {
+      preservedValues['justering_sarskild_loneskatt'] = companyData.justeringSarskildLoneskatt;
+    }
+    if (companyData.unusedTaxLossAmount) {
+      preservedValues['INK4.14a'] = companyData.unusedTaxLossAmount;
+    }
+    if (companyData.ink4_16_underskott_adjustment) {
+      preservedValues['ink4_16_underskott_adjustment'] = companyData.ink4_16_underskott_adjustment;
+    }
+    
+    setInk2EditedAmounts(preservedValues);
+    setRecalculatedData([]); // Reset to original data
+  };
+
+  // INK2 AmountCell component with auto-recalculation and tab navigation
   const Ink2AmountCell = React.memo(function Ink2AmountCell({
     variableName,
     value,
     editable,
-    onCommit
+    onCommit,
+    onTabNavigate
   }: {
     variableName: string;
     value: number;
     editable: boolean;
     onCommit: (value: number) => void;
+    onTabNavigate?: (direction: 'next' | 'prev') => void;
   }) {
     const [focused, setFocused] = useState(false);
     const [local, setLocal] = useState<string>("");
+    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
       if (!focused) setLocal(value ? String(Math.round(value)) : "");
@@ -782,7 +820,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
     return (
       <input
+        ref={inputRef}
         type="text"
+        data-variable={variableName}
         className={`w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 focus:border-gray-400 focus:outline-none ${
           value === 0 ? 'bg-gray-50 opacity-70' : 'bg-white'
         }`}
@@ -794,14 +834,47 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         }}
         onBlur={() => { setFocused(false); commit(); }}
         onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === "Tab") {
+          if (e.key === "Enter") {
             e.currentTarget.blur();
+            commit();
+          } else if (e.key === "Tab") {
+            e.preventDefault();
+            setFocused(false);
+            commit();
+            // Move to next/previous cell
+            setTimeout(() => onTabNavigate?.(e.shiftKey ? 'prev' : 'next'), 50);
           }
         }}
         placeholder="0"
       />
     );
   });
+
+  // Tab navigation for INK2 cells
+  const handleTabNavigation = (currentVariable: string, direction: 'next' | 'prev') => {
+    // Get all editable variables in order
+    const allData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+    const editableVariables = allData
+      .filter(item => !item.header && (!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount)
+      .map(item => item.variable_name);
+    
+    const currentIndex = editableVariables.indexOf(currentVariable);
+    if (currentIndex === -1) return;
+    
+    const nextIndex = direction === 'next' 
+      ? (currentIndex + 1) % editableVariables.length
+      : (currentIndex - 1 + editableVariables.length) % editableVariables.length;
+    
+    const nextVariable = editableVariables[nextIndex];
+    
+    // Focus the next input
+    setTimeout(() => {
+      const nextInput = document.querySelector(`input[data-variable="${nextVariable}"]`) as HTMLInputElement;
+      if (nextInput) {
+        nextInput.focus();
+      }
+    }, 10);
+  };
 
   // Helper function to check if a block should be shown
   const shouldShowBlock = (data: any[], startIndex: number, endIndex: number, alwaysShowItems: string[], showAll: boolean): boolean => {
@@ -1151,7 +1224,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
                 // ORIGINAL LOGIC: When toggle is OFF, use original always_show logic
                 // In manual edit mode, use the same filtering rules as non-edit mode
-                if (isEditing || isInk2Editing) {
+                if (isInk2EditingActive) {
                   // Special case: INK_sarskild_loneskatt overrides all normal logic in edit mode too
                   if (item.variable_name === 'INK_sarskild_loneskatt') {
                     const pensionPremier = companyData.pensionPremier || 0;
@@ -1170,10 +1243,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   // Same logic as non-edit mode: show if always_show=true OR (always_show=null AND amount≠0)
                   if (item.always_show === true) return true;
                   
-                  // For always_show = null/undefined, show only if amount is non-zero
+                  // For always_show = null/undefined, show if amount is non-zero OR has been manually edited
                   const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
                                          item.amount !== 0;
-                  return hasNonZeroAmount;
+                  const hasBeenEdited = ink2EditedAmounts.hasOwnProperty(item.variable_name);
+                  return hasNonZeroAmount || hasBeenEdited;
                 }
 
                 // Normal (read-only) mode filter logic
@@ -1193,11 +1267,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   return shouldShowBlockContent(item.block);
                 }
 
-                // For non-headers with always_show = null/undefined, show only if amount is non-zero
+                // For non-headers with always_show = null/undefined, show if amount is non-zero OR has been manually edited
                 const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
                                        item.amount !== 0;
+                const hasBeenEdited = ink2EditedAmounts.hasOwnProperty(item.variable_name);
                 
-                return hasNonZeroAmount;
+                return hasNonZeroAmount || hasBeenEdited;
               });
               
               // Debug logging
@@ -1364,10 +1439,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                  <span className="text-right font-medium">
                   {item.show_amount === 'NEVER' || item.header ? '' : (() => {
                     // Determine if this field should be editable
-                    const shouldBeEditable = isInk2Editing && (!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount;
+                    const shouldBeEditable = isInk2EditingActive && (!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount;
                     
-                    // Get current value (edited value takes precedence)
-                    const currentValue = ink2EditedAmounts[item.variable_name] ?? item.amount ?? 0;
+                    // Get current value (use recalculated data if available, then edited values, then original)
+                    const allData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+                    const dataItem = allData.find(d => d.variable_name === item.variable_name);
+                    const currentValue = dataItem?.amount ?? item.amount ?? 0;
                     
                     return (
                       <Ink2AmountCell
@@ -1375,6 +1452,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                         value={currentValue}
                         editable={shouldBeEditable}
                         onCommit={(value) => handleInk2AmountChange(item.variable_name, value)}
+                        onTabNavigate={(direction) => handleTabNavigation(item.variable_name, direction)}
                       />
                     );
                   })()}
@@ -1383,11 +1461,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             ))}
             
             {/* Tax Action Buttons */}
-            {isEditing && (
+            {isInk2EditingActive && (
               <div className="pt-4 border-t border-gray-200 flex justify-between">
                 {/* Undo Button - Left */}
                 <Button 
-                  onClick={handleUndo}
+                  onClick={undoInk2Changes}
                   variant="outline"
                   className="flex items-center gap-2"
                 >
@@ -1399,10 +1477,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 
                 {/* Update Button - Right */}
                 <Button 
-                  onClick={() => {
-                    // Handle tax update - this would typically update the chat state
-                    console.log('Updated amounts:', editedAmounts);
-                  }}
+                  onClick={applyInk2Changes}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
                 >
                   Godkänn och uppdatera skatt
