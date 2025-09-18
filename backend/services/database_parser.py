@@ -2320,13 +2320,14 @@ class DatabaseParser:
             return re.sub(r"\s+", " ", s).strip()
         
         def _fix_mojibake(s: str) -> str:
-            """Fix common SIE encoding issues"""
-            # Common fixes for SIE files
-            s = s.replace("Ñ", "ä").replace("ñ", "ä")
-            s = s.replace("î", "ö").replace("Î", "Ö") 
-            s = s.replace("ô", "ö").replace("Ô", "Ö")
-            s = s.replace("Ý", "å").replace("ý", "å")
-            return s
+            """Fix common SIE encoding issues using proven patterns from koncern parser"""
+            return (s or "").translate(str.maketrans({
+                "Ñ": "ä", "ñ": "ä",
+                "î": "ö", "Î": "Ö",
+                "ô": "ö", "Ô": "Ö", 
+                "Õ": "å", "õ": "å",
+                "Ý": "å", "ý": "å",
+            }))
         
         konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"')
         
