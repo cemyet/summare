@@ -1918,13 +1918,30 @@ class DatabaseParser:
             # Periodiseringsfonder previous_year * statslaneranta
             rate = float(self.global_variables.get('statslaneranta', 0.0))
             prev = 0.0
+            
+            print(f"DEBUG INK4.6a: statslaneranta rate = {rate}")
+            print(f"DEBUG INK4.6a: br_data length = {len(br_data) if br_data else 0}")
+            
             if br_data:
+                # Debug: Print all BR variable names to see what's available
+                br_variable_names = [item.get('variable_name') for item in br_data if item.get('variable_name')]
+                print(f"DEBUG INK4.6a: Available BR variable names: {br_variable_names}")
+                
+                # Look for any variable that might contain periodiseringsfond
+                periodiseringsfond_items = [item for item in br_data if item.get('variable_name') and 'periodiseringsfond' in item.get('variable_name', '').lower()]
+                print(f"DEBUG INK4.6a: Periodiseringsfond-related variables: {[(item.get('variable_name'), item.get('previous_amount')) for item in periodiseringsfond_items]}")
+                
                 for item in br_data:
-                    if item.get('variable_name') == 'Periodiseringsfonder':
+                    var_name = item.get('variable_name', '')
+                    if var_name and 'periodiseringsfond' in var_name.lower():
                         val = item.get('previous_amount')
                         prev = float(val) if val is not None else 0.0
+                        print(f"DEBUG INK4.6a: Found {var_name} with previous_amount = {prev}")
                         break
-            return prev * rate
+                        
+            result = prev * rate
+            print(f"DEBUG INK4.6a: Final calculation = {prev} * {rate} = {result}")
+            return result
         
         # New pension tax variables
         if variable_name == 'pension_premier':
