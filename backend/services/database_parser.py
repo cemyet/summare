@@ -2371,27 +2371,42 @@ class DatabaseParser:
                 if previous_balance < 0 and current_balance > previous_balance:
                     aterforing_amount = current_balance - previous_balance
                     
-                    # Determine tax rate and add to details
-                    if account_id in [2123, 2124, 2125]:  # 2021, 2020, 2019 funds (4%)
+                    # Extract avsättning year from account description (e.g., "Periodiseringsfond TAX 2022" → 2022)
+                    account_text = self._get_account_text(account_id)
+                    avsattning_year = None
+                    
+                    # Try to extract year from account description
+                    import re
+                    year_match = re.search(r'(\d{4})', account_text)
+                    if year_match:
+                        avsattning_year = int(year_match.group(1))
+                    else:
+                        # Fallback mapping based on account number
+                        year_mapping = {2121: 2023, 2122: 2022, 2123: 2021, 2124: 2020, 2125: 2019}
+                        avsattning_year = year_mapping.get(account_id, 2018)
+                    
+                    # Determine tax rate based on avsättning year and återföring year (2024)
+                    if avsattning_year >= 2021:  # 2021 and later (0% tax)
+                        tax_rate = 0.0
+                        tax_rate_str = '0%'
+                    elif 2019 <= avsattning_year <= 2020:  # 2019-2020 (4% tax)
                         tax_rate = 0.04
-                        tax_amount = aterforing_amount * tax_rate
-                        details.append({
-                            'account_id': account_str,
-                            'account_text': self._get_account_text(account_id),
-                            'balance': aterforing_amount,  # Show återförd amount
-                            'tax_rate': '4%',
-                            'tax_amount': tax_amount
-                        })
-                    elif account_id <= 2122:  # 2018 and earlier (6%)
+                        tax_rate_str = '4%'
+                    else:  # 2018 and earlier (6% tax)
                         tax_rate = 0.06
-                        tax_amount = aterforing_amount * tax_rate
-                        details.append({
-                            'account_id': account_str,
-                            'account_text': self._get_account_text(account_id),
-                            'balance': aterforing_amount,  # Show återförd amount
-                            'tax_rate': '6%',
-                            'tax_amount': tax_amount
-                        })
+                        tax_rate_str = '6%'
+                    
+                    tax_amount = aterforing_amount * tax_rate
+                    
+                    # Only add to details if there's actually a återföring
+                    details.append({
+                        'account_id': account_str,
+                        'account_text': account_text,
+                        'balance': aterforing_amount,  # Show återförd amount
+                        'tax_rate': tax_rate_str,
+                        'tax_amount': tax_amount,
+                        'avsattning_year': avsattning_year
+                    })
             
             # Sort by account_id
             details.sort(key=lambda x: int(x['account_id']))
