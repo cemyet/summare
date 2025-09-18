@@ -34,6 +34,7 @@ class DatabaseParser:
         self.noter_mappings = None
         self.global_variables = None
         self.accounts_lookup = None
+        self.sie_account_descriptions = {}  # Cache for SIE file account descriptions
         self._load_mappings()
     
     def _load_mappings(self):
@@ -1710,11 +1711,15 @@ class DatabaseParser:
             'rr_data': updated_rr_data
         }
     
-    def parse_ink2_data(self, current_accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, br_data: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def parse_ink2_data(self, current_accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, br_data: List[Dict[str, Any]] = None, sie_text: str = None) -> List[Dict[str, Any]]:
         """
         Parse INK2 tax calculation data using database mappings.
         Returns simplified structure: row_title and amount only.
         """
+        # Parse SIE account descriptions if provided
+        if sie_text:
+            self._parse_sie_account_descriptions(sie_text)
+        
         # Force reload mappings to get fresh data from database
         self._load_mappings()
         if not self.ink2_mappings:
@@ -2301,19 +2306,44 @@ class DatabaseParser:
         details.sort(key=lambda x: int(x['account_id']))
         return details
 
+    def _parse_sie_account_descriptions(self, sie_text: str):
+        """Parse account descriptions from SIE file #KONTO lines"""
+        import re
+        konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"')
+        
+        for line in sie_text.splitlines():
+            line = line.strip()
+            match = konto_re.match(line)
+            if match:
+                account_id = int(match.group(1))
+                description = match.group(2)
+                self.sie_account_descriptions[account_id] = description
+                self.sie_account_descriptions[str(account_id)] = description
+
     def _get_account_text(self, account_id: Any) -> str:
-        """Return kontotext for given account id using cache and DB fallback."""
-        # Try int key
+        """Return kontotext for given account id using SIE file first, then cache and DB fallback."""
+        # Try SIE account descriptions first (most accurate)
         try:
             acc_int = int(account_id)
-            if acc_int in self.accounts_lookup:
-                return self.accounts_lookup[acc_int]
+            if acc_int in self.sie_account_descriptions:
+                return self.sie_account_descriptions[acc_int]
         except Exception:
             acc_int = None
-        # Try string key
+        
         key_str = str(account_id)
+        if key_str in self.sie_account_descriptions:
+            return self.sie_account_descriptions[key_str]
+        
+        # Try cached database lookup
+        try:
+            if acc_int and acc_int in self.accounts_lookup:
+                return self.accounts_lookup[acc_int]
+        except Exception:
+            pass
+        
         if key_str in self.accounts_lookup:
             return self.accounts_lookup[key_str]
+            
         # Fallback: query Supabase directly and update cache
         try:
             resp = supabase.table('accounts_table').select('account_text,account_id').eq('account_id', key_str).limit(1).execute()
