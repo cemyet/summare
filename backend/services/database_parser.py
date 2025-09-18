@@ -1918,13 +1918,26 @@ class DatabaseParser:
             # Periodiseringsfonder previous_year * statslaneranta
             rate = float(self.global_variables.get('statslaneranta', 0.0))
             prev = 0.0
+            
+            print(f"🔍 INK4.6a DEBUG: statslaneranta rate = {rate}")
+            print(f"🔍 INK4.6a DEBUG: global_variables keys = {list(self.global_variables.keys())}")
+            print(f"🔍 INK4.6a DEBUG: br_data length = {len(br_data) if br_data else 0}")
+            
             if br_data:
+                print(f"🔍 INK4.6a DEBUG: BR variable names = {[item.get('variable_name') for item in br_data[:10]]}")
                 for item in br_data:
-                    if item.get('variable_name') == 'Periodiseringsfonder':
+                    var_name = item.get('variable_name')
+                    if var_name == 'Periodiseringsfonder':
                         val = item.get('previous_amount')
                         prev = float(val) if val is not None else 0.0
+                        print(f"🔍 INK4.6a DEBUG: Found Periodiseringsfonder with previous_amount = {prev}")
                         break
-            return prev * rate
+                else:
+                    print("🔍 INK4.6a DEBUG: Periodiseringsfonder variable NOT found in br_data")
+                    
+            result = prev * rate
+            print(f"🔍 INK4.6a DEBUG: Final = {prev} * {rate} = {result}")
+            return result
         
         # New pension tax variables
         if variable_name == 'pension_premier':
