@@ -2398,15 +2398,16 @@ class DatabaseParser:
                     
                     tax_amount = aterforing_amount * tax_rate
                     
-                    # Only add to details if there's actually a återföring
-                    details.append({
-                        'account_id': account_str,
-                        'account_text': account_text,
-                        'balance': aterforing_amount,  # Show återförd amount
-                        'tax_rate': tax_rate_str,
-                        'tax_amount': tax_amount,
-                        'avsattning_year': avsattning_year
-                    })
+                    # Only add to details if there's actually tax (> 0%)
+                    if tax_rate > 0:
+                        details.append({
+                            'account_id': account_str,
+                            'account_text': account_text,
+                            'balance': aterforing_amount,  # Show återförd amount
+                            'tax_rate': tax_rate_str,
+                            'tax_amount': tax_amount,
+                            'avsattning_year': avsattning_year
+                        })
             
             # Sort by account_id
             details.sort(key=lambda x: int(x['account_id']))
