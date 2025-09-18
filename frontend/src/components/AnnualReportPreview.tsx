@@ -1186,21 +1186,37 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                       {new Intl.NumberFormat('sv-SE', {
                                         minimumFractionDigits: 0,
                                         maximumFractionDigits: 0
-                                      }).format(detail.balance)} kr
+                                      }).format(Math.abs(detail.balance))} kr
                                     </td>
                                   </tr>
                                 ))}
-                                {/* Sum row */}
-                                <tr className="border-t border-gray-300 font-semibold">
-                                  <td className="py-2">Summa</td>
-                                  <td className="py-2"></td>
-                                  <td className="text-right py-2">
-                                    {new Intl.NumberFormat('sv-SE', {
-                                      minimumFractionDigits: 0,
-                                      maximumFractionDigits: 0
-                                    }).format(item.account_details.reduce((sum: number, detail: any) => sum + detail.balance, 0))} kr
-                                  </td>
-                                </tr>
+                                {/* Special calculation row for INK4.6a */}
+                                {item.variable_name === 'INK4.6a' ? (
+                                  <tr className="border-t border-gray-300 font-semibold">
+                                    <td className="py-2">Schablonintäkt:</td>
+                                    <td className="py-2 text-xs text-gray-600">
+                                      (2,62%) × ({new Intl.NumberFormat('sv-SE').format(Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + detail.balance, 0)))})
+                                    </td>
+                                    <td className="text-right py-2">
+                                      {new Intl.NumberFormat('sv-SE', {
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0
+                                      }).format(item.amount)} kr
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  /* Standard sum row for other variables */
+                                  <tr className="border-t border-gray-300 font-semibold">
+                                    <td className="py-2">Summa</td>
+                                    <td className="py-2"></td>
+                                    <td className="text-right py-2">
+                                      {new Intl.NumberFormat('sv-SE', {
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0
+                                      }).format(Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + detail.balance, 0)))} kr
+                                    </td>
+                                  </tr>
+                                )}
                               </tbody>
                             </table>
                           </div>
