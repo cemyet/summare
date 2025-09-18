@@ -81,14 +81,36 @@ async def upload_se_file(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, temp_file)
             temp_path = temp_file.name
         
-        # Read SE file content with encoding detection
-        encodings = ['iso-8859-1', 'windows-1252', 'utf-8', 'cp1252']
+        # Read SE file content with encoding detection including PC8 format
+        def detect_sie_encoding(file_path: str) -> str:
+            """Detect SIE file encoding based on FORMAT header"""
+            try:
+                # Read first 200 bytes to check format
+                with open(file_path, "rb") as f:
+                    head = f.read(200).decode("latin-1", errors="ignore")
+                
+                if "#FORMAT PC8" in head:
+                    return "cp437"  # IBM CP437 for PC8
+                elif "#FORMAT UTF8" in head:
+                    return "utf-8"
+                else:
+                    return "iso-8859-1"  # Default for older SIE files
+            except Exception:
+                return "iso-8859-1"  # Safe fallback
+        
+        # Try detected encoding first, then fallbacks
+        detected_encoding = detect_sie_encoding(temp_path)
+        encodings = [detected_encoding, 'cp437', 'iso-8859-1', 'windows-1252', 'utf-8', 'cp1252']
         se_content = None
         
         for encoding in encodings:
             try:
                 with open(temp_path, 'r', encoding=encoding) as f:
-                    se_content = f.read()
+                    content = f.read()
+                    # Apply unicode normalization after reading
+                    import unicodedata
+                    se_content = unicodedata.normalize("NFKC", content)
+                    se_content = se_content.replace("\u00A0", " ").replace("\u200B", "")
                 break
             except UnicodeDecodeError:
                 continue
@@ -236,25 +258,53 @@ async def upload_two_se_files(
             shutil.copyfileobj(previous_year_file.file, temp_file)
             previous_temp_path = temp_file.name
         
-        # Read both SE file contents with encoding detection
-        encodings = ['iso-8859-1', 'windows-1252', 'utf-8', 'cp1252']
+        # Read both SE file contents with proper PC8 encoding detection
+        def detect_sie_encoding(file_path: str) -> str:
+            """Detect SIE file encoding based on FORMAT header"""
+            try:
+                # Read first 200 bytes to check format
+                with open(file_path, "rb") as f:
+                    head = f.read(200).decode("latin-1", errors="ignore")
+                
+                if "#FORMAT PC8" in head:
+                    return "cp437"  # IBM CP437 for PC8
+                elif "#FORMAT UTF8" in head:
+                    return "utf-8"
+                else:
+                    return "iso-8859-1"  # Default for older SIE files
+            except Exception:
+                return "iso-8859-1"  # Safe fallback
         
         # Read current year file
+        current_detected_encoding = detect_sie_encoding(current_temp_path)
+        current_encodings = [current_detected_encoding, 'cp437', 'iso-8859-1', 'windows-1252', 'utf-8', 'cp1252']
         current_se_content = None
-        for encoding in encodings:
+        
+        for encoding in current_encodings:
             try:
                 with open(current_temp_path, 'r', encoding=encoding) as f:
-                    current_se_content = f.read()
+                    content = f.read()
+                    # Apply unicode normalization after reading
+                    import unicodedata
+                    current_se_content = unicodedata.normalize("NFKC", content)
+                    current_se_content = current_se_content.replace("\u00A0", " ").replace("\u200B", "")
                 break
             except UnicodeDecodeError:
                 continue
         
-        # Read previous year file
+        # Read previous year file  
+        previous_detected_encoding = detect_sie_encoding(previous_temp_path)
+        previous_encodings = [previous_detected_encoding, 'cp437', 'iso-8859-1', 'windows-1252', 'utf-8', 'cp1252']
         previous_se_content = None
-        for encoding in encodings:
+        
+        for encoding in previous_encodings:
             try:
                 with open(previous_temp_path, 'r', encoding=encoding) as f:
-                    previous_se_content = f.read()
+                    content = f.read()
+                    # Apply unicode normalization after reading
+                    import unicodedata
+                    previous_se_content = unicodedata.normalize("NFKC", content)
+                    previous_se_content = previous_se_content.replace("\u00A0", " ").replace("\u200B", "")
                 break
             except UnicodeDecodeError:
                 continue
