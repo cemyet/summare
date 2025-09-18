@@ -1188,6 +1188,15 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                         maximumFractionDigits: 0
                                       }).format(Math.abs(detail.balance))} kr
                                     </td>
+                                    {/* Extra column for INK4.6d tax calculation per row */}
+                                    {item.variable_name === 'INK4.6d' && detail.tax_rate && (
+                                      <td className="text-right py-2 text-gray-600">
+                                        {detail.tax_rate} = {new Intl.NumberFormat('sv-SE', {
+                                          minimumFractionDigits: 0,
+                                          maximumFractionDigits: 0
+                                        }).format(detail.tax_amount)} kr
+                                      </td>
+                                    )}
                                   </tr>
                                 ))}
                                 {/* Special calculation row for INK4.6a */}
@@ -1196,6 +1205,22 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                     <td className="py-2">Schablonintäkt:</td>
                                     <td className="py-2 text-gray-600">
                                       2,62% × {new Intl.NumberFormat('sv-SE').format(Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + detail.balance, 0)))} =
+                                    </td>
+                                    <td className="text-right py-2">
+                                      {new Intl.NumberFormat('sv-SE', {
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0
+                                      }).format(item.amount)} kr
+                                    </td>
+                                  </tr>
+                                ) : item.variable_name === 'INK4.6d' ? (
+                                  /* Special calculation for INK4.6d - show tax per account and total */
+                                  <tr className="border-t border-gray-300 font-semibold">
+                                    <td className="py-2">Total återföringsskatt:</td>
+                                    <td className="py-2 text-gray-600">
+                                      {item.account_details?.map((detail: any) => 
+                                        `${detail.tax_rate} × ${new Intl.NumberFormat('sv-SE').format(detail.balance)}`
+                                      ).join(' + ')} =
                                     </td>
                                     <td className="text-right py-2">
                                       {new Intl.NumberFormat('sv-SE', {

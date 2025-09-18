@@ -1734,7 +1734,7 @@ class DatabaseParser:
         for mapping in sorted_mappings:
             try:
                 # Always calculate (or default to 0) so rows can be shown with blank amount if needed
-                amount = self.calculate_ink2_variable_value(mapping, current_accounts, fiscal_year, rr_data, ink_values, br_data)
+                amount = self.calculate_ink2_variable_value(mapping, current_accounts, fiscal_year, rr_data, ink_values, br_data, previous_accounts)
                 
                 
                 # Special handling: hide INK4_header (duplicate "Skatteberäkning")
@@ -1820,7 +1820,7 @@ class DatabaseParser:
                     print(f"Using manual override for {variable_name}: {amount}")
                 else:
                     # Calculate normally (or force recalculate for dependent values)
-                    amount = self.calculate_ink2_variable_value(mapping, current_accounts, fiscal_year, rr_data, ink_values, br_data)
+                    amount = self.calculate_ink2_variable_value(mapping, current_accounts, fiscal_year, rr_data, ink_values, br_data, previous_accounts)
                     # Round all INK2 values to 0 decimals (skattemässigt resultat already has special rounding)
                     if variable_name != 'INK_skattemassigt_resultat':
                         amount = round(amount, 0)
@@ -1896,7 +1896,7 @@ class DatabaseParser:
                 return None  # Empty string or other values = None (show if amount != 0 OR toggle on)
         return None  # Default to None for any other type
     
-    def calculate_ink2_variable_value(self, mapping: Dict[str, Any], accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, ink_values: Optional[Dict[str, float]] = None, br_data: Optional[List[Dict[str, Any]]] = None) -> float:
+    def calculate_ink2_variable_value(self, mapping: Dict[str, Any], accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, ink_values: Optional[Dict[str, float]] = None, br_data: Optional[List[Dict[str, Any]]] = None, previous_accounts: Dict[str, float] = None) -> float:
         """
         Calculate the value for an INK2 variable using accounts and formulas.
         """
@@ -1930,6 +1930,40 @@ class DatabaseParser:
                         prev = float(val) if val is not None else 0.0
                         break
             return prev * rate
+        
+        if variable_name == 'INK4.6d':
+            # Återföring av periodiseringsfonder - tax on reversed funds
+            # 4% for 2019-2020 funds, 6% for 2018 and earlier
+            total_tax = 0.0
+            
+            if not previous_accounts:
+                return 0.0
+            
+            # Check each periodiseringsfond account for återföring
+            for account_id in range(2110, 2150):
+                account_str = str(account_id)
+                current_balance = float(accounts.get(account_str, 0.0))
+                previous_balance = float(previous_accounts.get(account_str, 0.0))
+                
+                # Calculate återföring: if balance becomes less negative, that's återföring
+                # Example: -500,000 → -300,000 = 200,000 återförd
+                if previous_balance < 0 and current_balance > previous_balance:
+                    aterforing_amount = current_balance - previous_balance  # Positive amount
+                    
+                    # Determine tax rate based on fund year (approximate mapping from account number)
+                    if account_id == 2121:  # 2023 fund - too recent for återföring tax
+                        continue
+                    elif account_id == 2122:  # 2022 fund - too recent
+                        continue  
+                    elif account_id in [2123, 2124, 2125]:  # 2021, 2020, 2019 funds (4% rate)
+                        tax_rate = 0.04
+                    else:  # 2018 and earlier (6% rate)
+                        tax_rate = 0.06
+                    
+                    account_tax = aterforing_amount * tax_rate
+                    total_tax += account_tax
+            
+            return total_tax
         
         # New pension tax variables
         if variable_name == 'pension_premier':
@@ -2316,6 +2350,48 @@ class DatabaseParser:
                         })
                 except ValueError:
                     continue
+            
+            # Sort by account_id
+            details.sort(key=lambda x: int(x['account_id']))
+            return details
+            
+        elif variable_name == 'INK4.6d':
+            # Special case: Show återföring details for each account with tax calculation
+            details = []
+            
+            if not previous_accounts:
+                return details
+            
+            for account_id in range(2110, 2150):
+                account_str = str(account_id)
+                current_balance = float(accounts.get(account_str, 0.0))
+                previous_balance = float(previous_accounts.get(account_str, 0.0))
+                
+                # Only show accounts with återföring (balance became less negative)
+                if previous_balance < 0 and current_balance > previous_balance:
+                    aterforing_amount = current_balance - previous_balance
+                    
+                    # Determine tax rate and add to details
+                    if account_id in [2123, 2124, 2125]:  # 2021, 2020, 2019 funds (4%)
+                        tax_rate = 0.04
+                        tax_amount = aterforing_amount * tax_rate
+                        details.append({
+                            'account_id': account_str,
+                            'account_text': self._get_account_text(account_id),
+                            'balance': aterforing_amount,  # Show återförd amount
+                            'tax_rate': '4%',
+                            'tax_amount': tax_amount
+                        })
+                    elif account_id <= 2122:  # 2018 and earlier (6%)
+                        tax_rate = 0.06
+                        tax_amount = aterforing_amount * tax_rate
+                        details.append({
+                            'account_id': account_str,
+                            'account_text': self._get_account_text(account_id),
+                            'balance': aterforing_amount,  # Show återförd amount
+                            'tax_rate': '6%',
+                            'tax_amount': tax_amount
+                        })
             
             # Sort by account_id
             details.sort(key=lambda x: int(x['account_id']))
