@@ -2307,8 +2307,21 @@ class DatabaseParser:
         return details
 
     def _parse_sie_account_descriptions(self, sie_text: str):
-        """Parse account descriptions from SIE file #KONTO lines"""
+        """Parse account descriptions from SIE file #KONTO lines with character normalization"""
         import re
+        import unicodedata
+        
+        def _normalize_text(text: str) -> str:
+            """Normalize Swedish characters from SIE encoding issues"""
+            # Common SIE encoding fixes
+            text = text.replace("Ñ", "ä").replace("ñ", "ä")
+            text = text.replace("î", "ö").replace("Î", "Ö") 
+            text = text.replace("ô", "ö").replace("Ô", "Ö")
+            text = text.replace("Ý", "å").replace("ý", "å")
+            # Unicode normalization
+            text = unicodedata.normalize('NFC', text)
+            return text
+        
         konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"')
         
         for line in sie_text.splitlines():
@@ -2316,7 +2329,7 @@ class DatabaseParser:
             match = konto_re.match(line)
             if match:
                 account_id = int(match.group(1))
-                description = match.group(2)
+                description = _normalize_text(match.group(2))
                 self.sie_account_descriptions[account_id] = description
                 self.sie_account_descriptions[str(account_id)] = description
 
