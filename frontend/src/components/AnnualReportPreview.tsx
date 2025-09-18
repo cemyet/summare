@@ -1175,10 +1175,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                 <tr className="border-b">
                                   <th className={`text-left py-2 ${item.variable_name === 'INK4.6d' ? 'w-16' : ''}`}>Konto</th>
                                   <th className="text-left py-2">{item.variable_name === 'INK4.6d' ? 'Kontotext' : ''}</th>
-                                  <th className={`text-right py-2 ${item.variable_name === 'INK4.6d' ? 'w-24' : ''}`}>{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
-                                  {item.variable_name === 'INK4.6d' && (
-                                    <th className="text-right py-2 w-24">Skatt</th>
-                                  )}
+                                  <th className="text-right py-2">{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -1187,20 +1184,27 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                     <td className="py-2">{detail.account_id}</td>
                                     <td className="py-2">{detail.account_text}</td>
                                     <td className="text-right py-2">
-                                      {new Intl.NumberFormat('sv-SE', {
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0
-                                      }).format(Math.abs(detail.balance))} kr
+                                      {item.variable_name === 'INK4.6d' && detail.tax_rate ? (
+                                        /* INK4.6d: Show full calculation in one column */
+                                        <span>
+                                          {detail.tax_rate} × {new Intl.NumberFormat('sv-SE', {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0
+                                          }).format(Math.abs(detail.balance))} kr = {new Intl.NumberFormat('sv-SE', {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0
+                                          }).format(detail.tax_amount)} kr
+                                        </span>
+                                      ) : (
+                                        /* Standard: Just show amount */
+                                        <span>
+                                          {new Intl.NumberFormat('sv-SE', {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0
+                                          }).format(Math.abs(detail.balance))} kr
+                                        </span>
+                                      )}
                                     </td>
-                                    {/* Extra column for INK4.6d tax calculation per row */}
-                                    {item.variable_name === 'INK4.6d' && detail.tax_rate && (
-                                      <td className="text-right py-2 text-gray-600">
-                                        {detail.tax_rate} = {new Intl.NumberFormat('sv-SE', {
-                                          minimumFractionDigits: 0,
-                                          maximumFractionDigits: 0
-                                        }).format(detail.tax_amount)} kr
-                                      </td>
-                                    )}
                                   </tr>
                                 ))}
                                 {/* Special calculation row for INK4.6a */}
@@ -1220,7 +1224,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                 ) : item.variable_name === 'INK4.6d' ? (
                                   /* Special calculation for INK4.6d - total row spans multiple columns */
                                   <tr className="border-t border-gray-300 font-semibold">
-                                    <td className="py-2" colSpan="3">
+                                    <td className="py-2" colSpan="2">
                                       Total uppräkning av återfört belopp:
                                     </td>
                                     <td className="text-right py-2">
