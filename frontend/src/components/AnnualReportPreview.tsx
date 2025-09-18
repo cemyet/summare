@@ -1194,7 +1194,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                 {item.variable_name === 'INK4.6a' ? (
                                   <tr className="border-t border-gray-300 font-semibold text-base">
                                     <td className="py-2">Schablonintäkt:</td>
-                                    <td className="py-2 text-gray-600">
+                                    <td className="py-2 text-gray-600 text-base">
                                       (2,62%) × ({new Intl.NumberFormat('sv-SE').format(Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + detail.balance, 0)))})
                                     </td>
                                     <td className="text-right py-2">
