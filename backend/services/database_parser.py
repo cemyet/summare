@@ -2329,7 +2329,10 @@ class DatabaseParser:
                 "Ý": "å", "ý": "å",
             }))
         
-        konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"')
+        # Pre-normalize SIE text like other parsers
+        sie_text = sie_text.replace("\u00A0", " ").replace("\t", " ")
+        
+        konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"\s*$')
         
         for line in sie_text.splitlines():
             line = line.strip()
