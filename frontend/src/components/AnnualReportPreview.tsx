@@ -1214,14 +1214,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                     </td>
                                   </tr>
                                 ) : item.variable_name === 'INK4.6d' ? (
-                                  /* Special calculation for INK4.6d - show tax per account and total */
+                                  /* Special calculation for INK4.6d - simplified total row */
                                   <tr className="border-t border-gray-300 font-semibold">
-                                    <td className="py-2">Total återföringsskatt:</td>
-                                    <td className="py-2 text-gray-600">
-                                      {item.account_details?.map((detail: any) => 
-                                        `${detail.tax_rate} × ${new Intl.NumberFormat('sv-SE').format(detail.balance)}`
-                                      ).join(' + ')} =
-                                    </td>
+                                    <td className="py-2">Total uppräkning av återfört belopp:</td>
+                                    <td className="py-2"></td>
                                     <td className="text-right py-2">
                                       {new Intl.NumberFormat('sv-SE', {
                                         minimumFractionDigits: 0,
