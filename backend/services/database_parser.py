@@ -1950,18 +1950,32 @@ class DatabaseParser:
                 if previous_balance < 0 and current_balance > previous_balance:
                     aterforing_amount = current_balance - previous_balance  # Positive amount
                     
-                    # Determine tax rate based on fund year (approximate mapping from account number)
-                    if account_id == 2121:  # 2023 fund - too recent for återföring tax
-                        continue
-                    elif account_id == 2122:  # 2022 fund - too recent
-                        continue  
-                    elif account_id in [2123, 2124, 2125]:  # 2021, 2020, 2019 funds (4% rate)
+                    # Extract avsättning year from account description (same logic as account details)
+                    account_text = self._get_account_text(account_id)
+                    avsattning_year = None
+                    
+                    # Try to extract year from account description
+                    import re
+                    year_match = re.search(r'(\d{4})', account_text)
+                    if year_match:
+                        avsattning_year = int(year_match.group(1))
+                    else:
+                        # Fallback mapping based on account number
+                        year_mapping = {2121: 2023, 2122: 2022, 2123: 2021, 2124: 2020, 2125: 2019}
+                        avsattning_year = year_mapping.get(account_id, 2018)
+                    
+                    # Determine tax rate based on avsättning year and återföring year (2024)
+                    if avsattning_year >= 2021:  # 2021 and later (0% tax)
+                        tax_rate = 0.0
+                    elif 2019 <= avsattning_year <= 2020:  # 2019-2020 (4% tax)
                         tax_rate = 0.04
-                    else:  # 2018 and earlier (6% rate)
+                    else:  # 2018 and earlier (6% tax)
                         tax_rate = 0.06
                     
-                    account_tax = aterforing_amount * tax_rate
-                    total_tax += account_tax
+                    # Only add tax if rate > 0
+                    if tax_rate > 0:
+                        account_tax = aterforing_amount * tax_rate
+                        total_tax += account_tax
             
             return total_tax
         
