@@ -1711,7 +1711,7 @@ class DatabaseParser:
             'rr_data': updated_rr_data
         }
     
-    def parse_ink2_data(self, current_accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, br_data: List[Dict[str, Any]] = None, sie_text: str = None) -> List[Dict[str, Any]]:
+    def parse_ink2_data(self, current_accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, br_data: List[Dict[str, Any]] = None, sie_text: str = None, previous_accounts: Dict[str, float] = None) -> List[Dict[str, Any]]:
         """
         Parse INK2 tax calculation data using database mappings.
         Returns simplified structure: row_title and amount only.
@@ -1750,7 +1750,7 @@ class DatabaseParser:
                         'variable_name': mapping.get('variable_name', ''),
                         'show_tag': mapping.get('show_tag', False),
                         'accounts_included': mapping.get('accounts_included', ''),
-                        'account_details': self._get_ink2_account_details(mapping, current_accounts) if mapping.get('show_tag', False) else None,
+                        'account_details': self._get_ink2_account_details(mapping, current_accounts, previous_accounts) if mapping.get('show_tag', False) else None,
                         'show_amount': self._normalize_show_amount(mapping.get('show_amount', True)),
                         'is_calculated': self._normalize_is_calculated(mapping.get('is_calculated', True)),
                         'always_show': self._normalize_always_show(mapping.get('always_show', False)),
@@ -1838,7 +1838,7 @@ class DatabaseParser:
                 # Get account details for SHOW button if needed
                 account_details = []
                 if mapping.get('show_tag'):
-                    account_details = self._get_ink2_account_details(mapping, current_accounts)
+                    account_details = self._get_ink2_account_details(mapping, current_accounts, None)
                 
                 results.append({
                         'row_id': mapping.get('row_id', 0),
@@ -2293,17 +2293,19 @@ class DatabaseParser:
         details.sort(key=lambda x: int(x['account_id']))
         return details
 
-    def _get_ink2_account_details(self, mapping: Dict[str, Any], accounts: Dict[str, float]) -> List[Dict[str, Any]]:
+    def _get_ink2_account_details(self, mapping: Dict[str, Any], accounts: Dict[str, float], previous_accounts: Dict[str, float] = None) -> List[Dict[str, Any]]:
         """
         Get account details for INK2 variables with special handling for INK4.6a.
-        INK4.6a should show all accounts in range 2110-2149 with balances.
+        INK4.6a should show all accounts in range 2110-2149 with PREVIOUS YEAR balances.
         """
         variable_name = mapping.get('variable_name', '')
         
         if variable_name == 'INK4.6a':
-            # Special case: Show all periodiseringsfond accounts (2110-2149) with balances
+            # Special case: Show all periodiseringsfond accounts (2110-2149) with PREVIOUS YEAR balances
             details = []
-            for account_id, balance in accounts.items():
+            accounts_to_check = previous_accounts if previous_accounts else accounts
+            
+            for account_id, balance in accounts_to_check.items():
                 try:
                     account_num = int(account_id)
                     if 2110 <= account_num <= 2149 and balance != 0:

@@ -144,8 +144,8 @@ async def upload_se_file(file: UploadFile = File(...)):
         # Use koncern-aware BR parsing for automatic reconciliation with K2 notes
         br_data = parser.parse_br_data_with_koncern(se_content, current_accounts, previous_accounts, rr_data)
         
-        # Parse INK2 data (tax calculations) - pass RR data, BR data, and SIE content for account descriptions
-        ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, se_content)
+        # Parse INK2 data (tax calculations) - pass RR data, BR data, SIE content, and previous accounts for account descriptions
+        ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, se_content, previous_accounts)
         
         # Parse Noter data (notes) - pass SE content and user toggles if needed
         try:
@@ -390,8 +390,8 @@ async def upload_two_se_files(
             previous_year_se_content=previous_se_content
         )
         
-        # Parse INK2 data (tax calculations) - pass RR data, BR data, and SIE content for account descriptions
-        ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, se_content)
+        # Parse INK2 data (tax calculations) - pass RR data, BR data, SIE content, and previous accounts for account descriptions
+        ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, se_content, previous_accounts)
         
         # Parse Noter data (notes) - pass SE content and user toggles if needed
         try:
