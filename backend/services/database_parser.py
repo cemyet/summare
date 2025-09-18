@@ -2359,7 +2359,11 @@ class DatabaseParser:
             # Special case: Show återföring details for each account with tax calculation
             details = []
             
+            print(f"🔍 INK4.6d DEBUG: show_tag = {mapping.get('show_tag')}")
+            print(f"🔍 INK4.6d DEBUG: previous_accounts available = {previous_accounts is not None}")
+            
             if not previous_accounts:
+                print("🔍 INK4.6d DEBUG: No previous_accounts, returning empty details")
                 return details
             
             for account_id in range(2110, 2150):
@@ -2370,6 +2374,7 @@ class DatabaseParser:
                 # Only show accounts with återföring (balance became less negative)
                 if previous_balance < 0 and current_balance > previous_balance:
                     aterforing_amount = current_balance - previous_balance
+                    print(f"🔍 INK4.6d DEBUG: Account {account_id}: {previous_balance} → {current_balance} = {aterforing_amount} återförd")
                     
                     # Determine tax rate and add to details
                     if account_id in [2123, 2124, 2125]:  # 2021, 2020, 2019 funds (4%)
@@ -2393,6 +2398,7 @@ class DatabaseParser:
                             'tax_amount': tax_amount
                         })
             
+            print(f"🔍 INK4.6d DEBUG: Generated {len(details)} account details")
             # Sort by account_id
             details.sort(key=lambda x: int(x['account_id']))
             return details
