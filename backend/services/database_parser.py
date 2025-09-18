@@ -1750,7 +1750,7 @@ class DatabaseParser:
                         'variable_name': mapping.get('variable_name', ''),
                         'show_tag': mapping.get('show_tag', False),
                         'accounts_included': mapping.get('accounts_included', ''),
-                        'account_details': self._get_account_details(mapping.get('accounts_included', ''), current_accounts) if mapping.get('show_tag', False) else None,
+                        'account_details': self._get_ink2_account_details(mapping, current_accounts) if mapping.get('show_tag', False) else None,
                         'show_amount': self._normalize_show_amount(mapping.get('show_amount', True)),
                         'is_calculated': self._normalize_is_calculated(mapping.get('is_calculated', True)),
                         'always_show': self._normalize_always_show(mapping.get('always_show', False)),
@@ -1837,8 +1837,8 @@ class DatabaseParser:
                 # Return all rows - let frontend handle visibility logic
                 # Get account details for SHOW button if needed
                 account_details = []
-                if mapping.get('show_tag') and mapping.get('accounts_included'):
-                    account_details = self._get_account_details(mapping['accounts_included'], current_accounts)
+                if mapping.get('show_tag'):
+                    account_details = self._get_ink2_account_details(mapping, current_accounts)
                 
                 results.append({
                         'row_id': mapping.get('row_id', 0),
@@ -2292,6 +2292,35 @@ class DatabaseParser:
         # Sort by account_id
         details.sort(key=lambda x: int(x['account_id']))
         return details
+
+    def _get_ink2_account_details(self, mapping: Dict[str, Any], accounts: Dict[str, float]) -> List[Dict[str, Any]]:
+        """
+        Get account details for INK2 variables with special handling for INK4.6a.
+        INK4.6a should show all accounts in range 2110-2149 with balances.
+        """
+        variable_name = mapping.get('variable_name', '')
+        
+        if variable_name == 'INK4.6a':
+            # Special case: Show all periodiseringsfond accounts (2110-2149) with balances
+            details = []
+            for account_id, balance in accounts.items():
+                try:
+                    account_num = int(account_id)
+                    if 2110 <= account_num <= 2149 and balance != 0:
+                        details.append({
+                            'account_id': account_id,
+                            'account_text': self._get_account_text(account_num),
+                            'balance': balance
+                        })
+                except ValueError:
+                    continue
+            
+            # Sort by account_id
+            details.sort(key=lambda x: int(x['account_id']))
+            return details
+        else:
+            # Standard account details for other variables
+            return self._get_account_details(mapping.get('accounts_included', ''), accounts)
 
     def _parse_sie_account_descriptions(self, sie_text: str):
         """Parse account descriptions from SIE file #KONTO lines with character normalization"""
