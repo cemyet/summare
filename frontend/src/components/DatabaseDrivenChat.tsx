@@ -70,7 +70,7 @@ interface ChatFlowResponse {
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // Cache last non-zero sticky values to prevent chat-path wipes
-  const stickyVars = ['INK4.6a', 'INK4.6b', 'INK4.6d', 'INK4.14a'];
+  const stickyVars = ['INK4.3c', 'INK4.5c', 'INK4.6a', 'INK4.6b', 'INK4.6d', 'INK4.14a'];
   const lastNonZeroRef = useRef<Record<string, number>>({});
 
   // Update cache whenever fresh ink2 data arrives
@@ -105,9 +105,11 @@ interface ChatFlowResponse {
   // Helper: build manual preservation set for sticky calculated rows
   const buildPreservedManuals = () => {
     const keep: Record<string, number> = {};
-    stickyVars.forEach(v => {
-      const val = getInk2Amount(v);
-      if (typeof val === 'number' && val !== 0) keep[v] = val;
+    ['INK4.3c', 'INK4.5c', 'INK4.6a', 'INK4.6b', 'INK4.6d', 'INK4.14a'].forEach(v => {
+      // prefer freshest non-zero; fall back to cached previous non-zero
+      const live = getInk2Amount(v, 0);
+      const val = (live !== 0) ? live : (lastNonZeroRef.current[v] ?? 0);
+      if (val !== 0) keep[v] = val;
     });
     return keep;
   };
@@ -189,7 +191,7 @@ interface ChatFlowResponse {
           item.variable_name === 'INK_beraknad_skatt'
         );
       }
-      const response: ChatFlowResponse = await apiService.getChatFlowStep(stepNumber);
+      const response = await apiService.getChatFlowStep(stepNumber) as ChatFlowResponse;
       
       if (response.success) {
         setCurrentStep(stepNumber);
@@ -724,21 +726,19 @@ interface ChatFlowResponse {
 
         
         if (companyData.seFileData) {
-          // Preserve sticky calculated rows (merge without overwriting explicit non-zero inputs)
+          // Build final manual_amounts: keep preserved AND respect explicit incoming manual edits
           const preservedManuals = buildPreservedManuals();
           const incomingManuals = substitutedParams.manual_amounts || {};
-          const finalManuals = {
-            ...preservedManuals,
-            ...incomingManuals,
-          };
+          const finalManuals = { ...preservedManuals, ...incomingManuals };
 
           const result = await apiService.recalculateInk2({
             current_accounts: companyData.seFileData.current_accounts || {},
             fiscal_year: companyData.fiscalYear,
             rr_data: companyData.seFileData.rr_data || [],
             br_data: companyData.seFileData.br_data || [],
+            // PUT manual_amounts LAST so it isn't overridden by any default inside the API
+            ...substitutedParams,
             manual_amounts: finalManuals,
-            ...substitutedParams
           });
           
           if (result.success) {
@@ -774,7 +774,7 @@ interface ChatFlowResponse {
     const displayValue = inputType === 'amount' 
       ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value as number) + ' kr'
       : value;
-    addMessage(displayValue, false);
+    addMessage(String(displayValue), false);
 
     // Find the submit option for this step from the last loaded response (not filtered options)
     const submitOption = lastLoadedOptions?.find(opt => opt.option_value === 'submit');
