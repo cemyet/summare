@@ -739,6 +739,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
     setIsInk2ManualEdit(false);
     setShowAllTax(false);
+    
+    // Auto-scroll to top of INK2 module after changes are approved
+    setTimeout(() => {
+      const taxModule = document.querySelector('[data-section="tax-calculation"]');
+      if (taxModule) {
+        taxModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 200);
   };
 
   // Helper function to check if a block should be shown
