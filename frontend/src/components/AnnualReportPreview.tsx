@@ -10,7 +10,7 @@ import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from "@
 import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@/utils/seFileCalculations';
 import { apiService } from '@/services/api';
 
-// Helper functions for Swedish number formatting (from Noter)
+// Helper functions for Swedish number formatting (from Noter) - deploy trigger
 const fmt0 = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
 
 // Editable INK2 variables whitelist
