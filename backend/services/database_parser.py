@@ -1810,6 +1810,11 @@ class DatabaseParser:
             ink_values['INK4.6b'] = manual_amounts['INK4.6b']
             print(f"Injected INK4.6b (outnyttjat underskott): {manual_amounts['INK4.6b']}")
 
+        # Inject INK4.6d (återföring periodiseringsfonder) into ink_values if provided
+        if 'INK4.6d' in manual_amounts:
+            ink_values['INK4.6d'] = manual_amounts['INK4.6d']
+            print(f"Injected INK4.6d (återföring periodiseringsfonder): {manual_amounts['INK4.6d']}")
+
         
         # Inject underskott adjustment for INK4.16 if provided
         if 'ink4_16_underskott_adjustment' in manual_amounts:
@@ -1965,9 +1970,12 @@ class DatabaseParser:
             # 4% for 2019-2020 funds, 6% for 2018 and earlier
             total_tax = 0.0
             
-            # If no previous_accounts available (e.g., during recalculation), return 0
-            # This maintains compatibility with recalculation API
+            # If no previous_accounts available (e.g., during recalculation), 
+            # check if we have a manual amount to preserve stickiness
             if not previous_accounts:
+                # During recalculation, preserve existing calculated value if available
+                if ink_values and 'INK4.6d' in ink_values:
+                    return float(ink_values['INK4.6d'])
                 return 0.0
             
             # Check each periodiseringsfond account for återföring
