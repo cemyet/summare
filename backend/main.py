@@ -391,7 +391,7 @@ async def upload_two_se_files(
         )
         
         # Parse INK2 data (tax calculations) - pass RR data, BR data, SIE content, and previous accounts for account descriptions
-        ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, se_content, previous_accounts)
+        ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, current_se_content, previous_accounts)
         
         # Parse Noter data (notes) - pass SE content and user toggles if needed
         try:

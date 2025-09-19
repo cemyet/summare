@@ -1774,10 +1774,14 @@ class DatabaseParser:
     
     def parse_ink2_data_with_overrides(self, current_accounts: Dict[str, float], fiscal_year: int = None, 
                                        rr_data: List[Dict[str, Any]] = None, br_data: List[Dict[str, Any]] = None,
-                                       manual_amounts: Dict[str, float] = None) -> List[Dict[str, Any]]:
+                                       manual_amounts: Dict[str, float] = None, sie_text: str = None, previous_accounts: Dict[str, float] = None) -> List[Dict[str, Any]]:
         """
         Parse INK2 tax calculation data with manual amount overrides for dynamic recalculation.
         """
+        # Parse SIE account descriptions if provided
+        if sie_text:
+            self._parse_sie_account_descriptions(sie_text)
+        
         # Force reload mappings to get fresh data from database
         self._load_mappings()
         if not self.ink2_mappings:
@@ -1838,7 +1842,7 @@ class DatabaseParser:
                 # Get account details for SHOW button if needed
                 account_details = []
                 if mapping.get('show_tag'):
-                    account_details = self._get_ink2_account_details(mapping, current_accounts, None)
+                    account_details = self._get_ink2_account_details(mapping, current_accounts, previous_accounts)
                 
                 results.append({
                         'row_id': mapping.get('row_id', 0),
