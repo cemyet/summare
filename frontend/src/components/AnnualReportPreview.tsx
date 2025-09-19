@@ -728,13 +728,46 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Simple edit functions for INK2
   const handleInk2Undo = () => {
-    // Reset to original baseline (like Noter undoEdit)
+    // Clear manual edits but preserve chat-injected values
     setEditedAmounts({});
     setRecalculatedData([]);
     
-    // Reset ink2Data to original baseline to clear all manual edits
+    // Reset ink2Data to original baseline but preserve chat-injected values
     if (originalInk2BaselineRef.current.length > 0) {
-      onDataUpdate({ ink2Data: originalInk2BaselineRef.current });
+      // Create a copy of original data
+      const resetData = JSON.parse(JSON.stringify(originalInk2BaselineRef.current));
+      
+      // Preserve chat-injected values by updating them in the reset data
+      if (companyData.unusedTaxLossAmount) {
+        const ink4_14a_item = resetData.find((item: any) => item.variable_name === 'INK4.14a');
+        if (ink4_14a_item) {
+          ink4_14a_item.amount = companyData.unusedTaxLossAmount;
+          console.log('Preserving chat-injected INK4.14a in undo:', companyData.unusedTaxLossAmount);
+        }
+      }
+      
+      // Preserve pension tax adjustment if it was injected from chat
+      if (typeof companyData.justeringSarskildLoneskatt === 'number' && companyData.justeringSarskildLoneskatt !== 0) {
+        const sarskild_item = resetData.find((item: any) => item.variable_name === 'INK_sarskild_loneskatt');
+        if (sarskild_item) {
+          sarskild_item.amount = companyData.justeringSarskildLoneskatt;
+          console.log('Preserving chat-injected INK_sarskild_loneskatt in undo:', companyData.justeringSarskildLoneskatt);
+        }
+      }
+      
+      // For INK4.6b, we need to check if it was injected from chat
+      // This might require checking if the current value differs from the original baseline
+      const currentInk4_6b = ink2Data.find((item: any) => item.variable_name === 'INK4.6b');
+      const originalInk4_6b = originalInk2BaselineRef.current.find((item: any) => item.variable_name === 'INK4.6b');
+      if (currentInk4_6b && originalInk4_6b && currentInk4_6b.amount !== originalInk4_6b.amount && currentInk4_6b.amount !== 0) {
+        const ink4_6b_item = resetData.find((item: any) => item.variable_name === 'INK4.6b');
+        if (ink4_6b_item) {
+          ink4_6b_item.amount = currentInk4_6b.amount;
+          console.log('Preserving potentially chat-injected INK4.6b in undo:', currentInk4_6b.amount);
+        }
+      }
+      
+      onDataUpdate({ ink2Data: resetData });
     }
     
     // Keep edit mode active - don't close it
