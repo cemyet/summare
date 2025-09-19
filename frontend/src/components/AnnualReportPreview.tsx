@@ -671,8 +671,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       }
       
       // Preserve INK4.6b (outnyttjat underskott) if it exists and not being manually edited
-      const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
-      const existingInk4_6b = currentData.find((item: any) => item.variable_name === 'INK4.6b');
+      const currentDataForInk4_6b = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+      const existingInk4_6b = currentDataForInk4_6b.find((item: any) => item.variable_name === 'INK4.6b');
       if (existingInk4_6b && existingInk4_6b.amount !== undefined && existingInk4_6b.amount !== 0 && !('INK4.6b' in updatedAmounts)) {
         preservedAmounts['INK4.6b'] = existingInk4_6b.amount;
         console.log('Preserving existing INK4.6b (outnyttjat underskott):', existingInk4_6b.amount);
@@ -690,8 +690,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         console.log('Preserving existing justering_sarskild_loneskatt:', companyData.justeringSarskildLoneskatt);
       } else {
         // Check if there's an existing INK_sarskild_loneskatt value in the current ink2_data that needs to be preserved
-        const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
-        const existingSarskildRow = currentData.find((item: any) => item.variable_name === 'INK_sarskild_loneskatt');
+        const currentDataForSarskild = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+        const existingSarskildRow = currentDataForSarskild.find((item: any) => item.variable_name === 'INK_sarskild_loneskatt');
         if (existingSarskildRow && existingSarskildRow.amount && existingSarskildRow.amount !== 0) {
           // Preserve the existing value by converting it to justering_sarskild_loneskatt
           preservedAmounts.justering_sarskild_loneskatt = existingSarskildRow.amount;
@@ -700,11 +700,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       }
       
       // Preserve calculated values in editable ranges (INK4.3a-4.14c, 4.17-4.22) for proper undo functionality
-      const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+      const currentDataForCalculated = recalculatedData.length > 0 ? recalculatedData : ink2Data;
       const calculatedEditableVars = ['INK4.6a', 'INK4.6b', 'INK4.6d']; // Add other calculated vars as needed
       
       calculatedEditableVars.forEach(varName => {
-        const existingItem = currentData.find((item: any) => item.variable_name === varName);
+        const existingItem = currentDataForCalculated.find((item: any) => item.variable_name === varName);
         if (existingItem && existingItem.amount !== undefined && existingItem.amount !== 0) {
           preservedAmounts[varName] = existingItem.amount;
           console.log(`Preserving calculated value ${varName}:`, existingItem.amount);
