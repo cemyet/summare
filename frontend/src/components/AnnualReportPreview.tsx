@@ -610,7 +610,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       
       // Preserve calculated values in editable ranges (INK4.3a-4.14c, 4.17-4.22) for proper undo functionality
       const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
-      const calculatedEditableVars = ['INK4.6a', 'INK4.6d']; // Add other calculated vars as needed
+      const calculatedEditableVars = ['INK4.6a', 'INK4.6b', 'INK4.6d']; // Add other calculated vars as needed
       
       calculatedEditableVars.forEach(varName => {
         const existingItem = currentData.find((item: any) => item.variable_name === varName);

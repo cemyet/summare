@@ -1811,7 +1811,7 @@ class DatabaseParser:
             print(f"Injected ink4_16_underskott_adjustment: {manual_amounts['ink4_16_underskott_adjustment']}")
         
         # Inject calculated values from editable ranges if provided (sticky values)
-        calculated_editable_vars = ['INK4.6a', 'INK4.6d']  # Add others as needed
+        calculated_editable_vars = ['INK4.6a', 'INK4.6b', 'INK4.6d']  # Add others as needed
         for var_name in calculated_editable_vars:
             if var_name in manual_amounts:
                 ink_values[var_name] = manual_amounts[var_name]
