@@ -729,7 +729,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       onDataUpdate({ ink2Data: originalInk2BaselineRef.current });
     }
     
-    setIsInk2ManualEdit(false);
+    // Keep edit mode active - don't close it
+    // setIsInk2ManualEdit(false); // Removed to stay in edit mode
   };
 
   const handleApproveChanges = () => {
