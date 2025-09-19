@@ -706,7 +706,7 @@ interface ChatFlowResponse {
         // 1) correct copy
         const substitutedParams: any = { ...params };
 
-        // 2) keep your existing placeholder substitution — but coerce to numbers robustly
+        // 2) Substitute placeholders AND coerce to numbers if possible
         for (const [key, value] of Object.entries(substitutedParams)) {
           if (typeof value === 'string' && value.includes('{')) {
             const substituted = value.replace(/{(\w+)}/g, (match, varName) => {
@@ -717,19 +717,34 @@ interface ChatFlowResponse {
               const repl = (companyData as any)[varName];
               return (repl ?? match).toString();
             });
-
             const asNum = toNumber(substituted);
             substitutedParams[key] = Number.isFinite(asNum) ? asNum : substituted;
           }
         }
 
+        // 2b) ALSO coerce known numeric params even if they had no {placeholder}
+        ['justering_sarskild_loneskatt', 'ink4_14a_outnyttjat_underskott'].forEach(k => {
+          if (k in substitutedParams) {
+            const coerced = toNumber(substitutedParams[k]);
+            if (Number.isFinite(coerced)) substitutedParams[k] = coerced;
+          }
+        });
+
         if (companyData.seFileData) {
           // 3) build preserved manuals so 4.6d etc stay sticky
           const preservedManuals = buildPreservedManuals();
-          const incomingManuals = substitutedParams.manual_amounts || {};
+
+          // 3b) coerce incoming manual_amounts to numbers too
+          const incomingManualsRaw = substitutedParams.manual_amounts || {};
+          const incomingManuals: Record<string, number> = {};
+          for (const [k, v] of Object.entries(incomingManualsRaw)) {
+            const n = toNumber(v);
+            incomingManuals[k] = Number.isFinite(n) ? n : (v as number);
+          }
+
           let finalManuals: Record<string, number> = { ...preservedManuals, ...incomingManuals };
 
-          // 4) normalize 4.14a from ANY chat key -> manual INK4.14a too
+          // 4) normalize 4.14a from ANY chat key -> manual INK4.14a
           const underskottRaw =
             substitutedParams.ink4_14a_outnyttjat_underskott ??
             substitutedParams.INK4_14a_outnyttjat_underskott ??
@@ -739,7 +754,6 @@ interface ChatFlowResponse {
           const underskottNum = toNumber(underskottRaw);
           if (Number.isFinite(underskottNum)) {
             finalManuals = { ...finalManuals, 'INK4.14a': underskottNum };
-            // Optional: remove the loose param to avoid backend ambiguity
             delete substitutedParams.ink4_14a_outnyttjat_underskott;
             delete substitutedParams.INK4_14a_outnyttjat_underskott;
             delete substitutedParams.INK4_14a;
@@ -756,7 +770,7 @@ interface ChatFlowResponse {
             manual_amounts: finalManuals,
           });
 
-          if (result.success) {
+          if (result?.success) {
             onDataUpdate({
               ink2Data: result.ink2_data,
               inkBeraknadSkatt:
