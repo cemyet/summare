@@ -1922,6 +1922,7 @@ class DatabaseParser:
     def calculate_ink2_variable_value(self, mapping: Dict[str, Any], accounts: Dict[str, float], fiscal_year: int = None, rr_data: List[Dict[str, Any]] = None, ink_values: Optional[Dict[str, float]] = None, br_data: Optional[List[Dict[str, Any]]] = None, previous_accounts: Dict[str, float] = None) -> float:
         """
         Calculate the value for an INK2 variable using accounts and formulas.
+        # Updated: INK4.6b stickiness preservation implemented
         """
         variable_name = mapping.get('variable_name', '')
 
