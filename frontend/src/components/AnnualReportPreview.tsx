@@ -404,6 +404,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const [showAllBR, setShowAllBR] = useState(false);
   const [showAllTax, setShowAllTax] = useState(false);
   const [isInk2ManualEdit, setIsInk2ManualEdit] = useState(false);
+  
+  // Store original baseline for proper undo functionality (like Noter)
+  const originalInk2BaselineRef = useRef<any[]>([]);
 
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
   const [originalAmounts, setOriginalAmounts] = useState<Record<string, number>>({});
@@ -417,6 +420,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const brData = seFileData?.br_data || [];
   const ink2Data = cd.ink2Data || seFileData?.ink2_data || [];
   const companyInfo = seFileData?.company_info || {};
+
+  // Capture original baseline when ink2Data first loads (like Noter)
+  useEffect(() => {
+    if (ink2Data && ink2Data.length > 0 && originalInk2BaselineRef.current.length === 0) {
+      originalInk2BaselineRef.current = JSON.parse(JSON.stringify(ink2Data));
+    }
+  }, [ink2Data]);
 
   // Calculate dynamic note numbers based on Noter visibility logic
   const calculateDynamicNoteNumbers = () => {
@@ -698,8 +708,15 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Simple edit functions for INK2
   const handleInk2Undo = () => {
+    // Reset to original baseline (like Noter undoEdit)
     setEditedAmounts({});
     setRecalculatedData([]);
+    
+    // Reset ink2Data to original baseline to clear all manual edits
+    if (originalInk2BaselineRef.current.length > 0) {
+      onDataUpdate({ ink2Data: originalInk2BaselineRef.current });
+    }
+    
     setIsInk2ManualEdit(false);
   };
 
