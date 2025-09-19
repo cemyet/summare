@@ -70,12 +70,16 @@ interface ChatFlowResponse {
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // Helper: get latest amount for an INK2 variable from the freshest source
+  // Prefer the most recent NON-ZERO across both sources
   const getInk2Amount = (varName: string, fallback = 0) => {
-    const source = (globalInk2Data && globalInk2Data.length > 0)
-      ? globalInk2Data
-      : (companyData.ink2Data || []);
-    const item = source.find((x: any) => x.variable_name === varName);
-    return (item && typeof item.amount === 'number') ? item.amount : fallback;
+    const fromGlobal = (globalInk2Data || []).find((x: any) => x.variable_name === varName)?.amount;
+    const fromCompany = (companyData.ink2Data || []).find((x: any) => x.variable_name === varName)?.amount;
+
+    const candidates = [fromGlobal, fromCompany].filter((v) => typeof v === 'number') as number[];
+
+    // Prefer first non-zero; otherwise first defined; otherwise fallback
+    const nonZero = candidates.find((v) => v !== 0);
+    return (nonZero ?? candidates[0] ?? fallback);
   };
 
   // Helper: build manual preservation set for sticky calculated rows
