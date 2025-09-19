@@ -687,6 +687,16 @@ interface ChatFlowResponse {
     }
   };
 
+  // Robust number coercion helper
+  const toNumber = (v: any) => {
+    if (typeof v === 'number') return v;
+    if (typeof v !== 'string') return NaN;
+    // keep minus, digits, dot/comma; normalize comma -> dot; strip spaces
+    const cleaned = v.replace(/[^\d\-,.]/g, '').replace(/\s+/g, '').replace(',', '.');
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : NaN;
+  };
+
   // Handle API calls triggered by chat actions
   const handleApiCall = async (actionData: any) => {
     if (actionData?.endpoint === 'recalculate_ink2') {
@@ -696,17 +706,20 @@ interface ChatFlowResponse {
         // 1) correct copy
         const substitutedParams: any = { ...params };
 
-        // 2) keep your existing placeholder substitution
+        // 2) keep your existing placeholder substitution — but coerce to numbers robustly
         for (const [key, value] of Object.entries(substitutedParams)) {
           if (typeof value === 'string' && value.includes('{')) {
             const substituted = value.replace(/{(\w+)}/g, (match, varName) => {
               if (varName === 'unusedTaxLossAmount') {
                 const pending = companyData.unusedTaxLossAmount;
-                if (pending && pending > 0) return pending;
+                if (pending && pending > 0) return String(pending);
               }
-              return (companyData as any)[varName] ?? match;
+              const repl = (companyData as any)[varName];
+              return (repl ?? match).toString();
             });
-            substitutedParams[key] = isNaN(Number(substituted)) ? substituted : Number(substituted);
+
+            const asNum = toNumber(substituted);
+            substitutedParams[key] = Number.isFinite(asNum) ? asNum : substituted;
           }
         }
 
@@ -716,10 +729,21 @@ interface ChatFlowResponse {
           const incomingManuals = substitutedParams.manual_amounts || {};
           let finalManuals: Record<string, number> = { ...preservedManuals, ...incomingManuals };
 
-          // 4) normalize 4.14a from any chat key -> manual INK4.14a too
-          const underskott = substitutedParams.ink4_14a_outnyttjat_underskott;
-          if (typeof underskott === 'number' && !Number.isNaN(underskott)) {
-            finalManuals = { ...finalManuals, INK4.14a: underskott };
+          // 4) normalize 4.14a from ANY chat key -> manual INK4.14a too
+          const underskottRaw =
+            substitutedParams.ink4_14a_outnyttjat_underskott ??
+            substitutedParams.INK4_14a_outnyttjat_underskott ??
+            substitutedParams.INK4_14a ??
+            substitutedParams.outnyttjat_underskott;
+
+          const underskottNum = toNumber(underskottRaw);
+          if (Number.isFinite(underskottNum)) {
+            finalManuals = { ...finalManuals, 'INK4.14a': underskottNum };
+            // Optional: remove the loose param to avoid backend ambiguity
+            delete substitutedParams.ink4_14a_outnyttjat_underskott;
+            delete substitutedParams.INK4_14a_outnyttjat_underskott;
+            delete substitutedParams.INK4_14a;
+            delete substitutedParams.outnyttjat_underskott;
           }
 
           // 5) real API call: spread params correctly; keep manuals LAST
