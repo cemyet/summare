@@ -69,6 +69,25 @@ interface ChatFlowResponse {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
+  // Helper: get latest amount for an INK2 variable from the freshest source
+  const getInk2Amount = (varName: string, fallback = 0) => {
+    const source = (globalInk2Data && globalInk2Data.length > 0)
+      ? globalInk2Data
+      : (companyData.ink2Data || []);
+    const item = source.find((x: any) => x.variable_name === varName);
+    return (item && typeof item.amount === 'number') ? item.amount : fallback;
+  };
+
+  // Helper: build manual preservation set for sticky calculated rows
+  const buildPreservedManuals = () => {
+    const keep: Record<string, number> = {};
+    ['INK4.6a', 'INK4.6b', 'INK4.6d', 'INK4.14a'].forEach(v => {
+      const val = getInk2Amount(v);
+      if (typeof val === 'number' && val !== 0) keep[v] = val;
+    });
+    return keep;
+  };
+
   // Auto-scroll to bottom
   const scrollToBottom = () => {
     setTimeout(() => {
@@ -397,17 +416,19 @@ interface ChatFlowResponse {
         // Trigger recalculation to update tax preview
         if (companyData.seFileData && companyData.sarskildLoneskattPensionCalculated) {
           try {
+            const preservedManuals = buildPreservedManuals();
             const result = await apiService.recalculateInk2({
               current_accounts: companyData.seFileData.current_accounts || {},
               fiscal_year: companyData.fiscalYear,
               rr_data: companyData.seFileData.rr_data || [],
               br_data: companyData.seFileData.br_data || [],
-              manual_amounts: {},
+              manual_amounts: preservedManuals,
               justering_sarskild_loneskatt: companyData.sarskildLoneskattPensionCalculated
             });
             
             if (result.success) {
               onDataUpdate({ ink2Data: result.ink2_data });
+              setGlobalInk2Data(result.ink2_data);
             }
           } catch (error) {
             console.error('Error recalculating tax:', error);
@@ -682,12 +703,20 @@ interface ChatFlowResponse {
 
         
         if (companyData.seFileData) {
+          // Preserve sticky calculated rows (merge without overwriting explicit non-zero inputs)
+          const preservedManuals = buildPreservedManuals();
+          const incomingManuals = substitutedParams.manual_amounts || {};
+          const finalManuals = {
+            ...preservedManuals,
+            ...incomingManuals,
+          };
+
           const result = await apiService.recalculateInk2({
             current_accounts: companyData.seFileData.current_accounts || {},
             fiscal_year: companyData.fiscalYear,
             rr_data: companyData.seFileData.rr_data || [],
             br_data: companyData.seFileData.br_data || [],
-            manual_amounts: {},
+            manual_amounts: finalManuals,
             ...substitutedParams
           });
           
@@ -698,6 +727,7 @@ interface ChatFlowResponse {
                 item.variable_name === 'INK_beraknad_skatt'
               )?.amount || companyData.inkBeraknadSkatt
             });
+            setGlobalInk2Data(result.ink2_data);
           }
         }
       } catch (error) {
