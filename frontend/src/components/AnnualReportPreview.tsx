@@ -874,6 +874,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     setIsInk2ManualEdit(false);
     setShowAllTax(false);
     
+    // Also turn off chat-triggered editing state to fully close manual edit mode
+    onDataUpdate({ taxEditingEnabled: false });
+    
     // Auto-scroll to top of INK2 module after changes are approved
     setTimeout(() => {
       const taxModule = document.querySelector('[data-section="tax-calculation"]');
