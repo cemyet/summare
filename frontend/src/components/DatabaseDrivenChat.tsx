@@ -538,10 +538,18 @@ interface ChatFlowResponse {
         
         switch (action_type) {
           case 'set_variable':
-            // Handle variable setting
+            // Handle variable setting while preserving existing data
             if (action_data?.variable && action_data?.value !== undefined) {
               console.log('🔧 Setting variable:', action_data.variable, 'to:', action_data.value);
-              onDataUpdate({ [action_data.variable]: action_data.value });
+              // Preserve existing ink2Data when setting variables to prevent data loss
+              const updateData: any = { [action_data.variable]: action_data.value };
+              if (companyData.ink2Data && companyData.ink2Data.length > 0) {
+                updateData.ink2Data = companyData.ink2Data;
+              }
+              if (globalInk2Data && globalInk2Data.length > 0) {
+                updateData.ink2Data = globalInk2Data;
+              }
+              onDataUpdate(updateData);
             }
             break;
             
