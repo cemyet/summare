@@ -13,6 +13,15 @@ import { apiService } from '@/services/api';
 // Helper functions for Swedish number formatting (from Noter)
 const fmt0 = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
 
+// Editable INK2 variables whitelist
+const EDITABLE_INK2_WHITELIST = new Set([
+  'INK4.3c', 'INK4.5c', 'INK4.6a', 'INK4.6d', // calculated but user-tweakable
+  'INK_sarskild_loneskatt'                     // already editable special
+]);
+
+// Sticky variables that should preserve their show_tag when non-zero
+const STICKY_VARS = new Set(['INK4.3c','INK4.5c','INK4.6a','INK4.6b','INK4.6d','INK4.14a']);
+
 const svToNumber = (raw: string): number => {
   if (!raw) return 0;
   const s = raw.replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".");
@@ -25,6 +34,27 @@ const numberToSv = (n: number): string => {
   const sign = n < 0 ? "-" : "";
   const abs = Math.abs(n);
   return sign + fmt0.format(abs);
+};
+
+// Normalize INK2 rows to keep show_tag visible for sticky variables when non-zero
+const normalizeInk2Rows = (rows: any[]) => rows.map(r => {
+  if (STICKY_VARS.has(r.variable_name)) {
+    const amt = Number(r.amount) || 0;
+    return { ...r, show_tag: (r.always_show === true) || amt !== 0 };
+  }
+  return r;
+});
+
+// Helper to build preserved manuals from current rows (for Ångra ändringar)
+const buildPreservedManualsFrom = (rows: any[]) => {
+  const keep: Record<string, number> = {};
+  for (const r of rows) {
+    if (STICKY_VARS.has(r.variable_name)) {
+      const n = typeof r.amount === 'number' ? r.amount : Number(r.amount);
+      if (Number.isFinite(n) && n !== 0) keep[r.variable_name] = n;
+    }
+  }
+  return keep;
 };
 
 // Ink2AmountInput component based on Noter's smooth input handling
@@ -649,8 +679,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
       const amounts: Record<string, number> = {};
       currentData.forEach((item: any) => {
-        if ((!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount) {
-          amounts[item.variable_name] = item.amount || 0;
+        if ((EDITABLE_INK2_WHITELIST.has(item.variable_name) || !item.is_calculated) && item.show_amount !== false) {
+          amounts[item.variable_name] = item.amount ?? 0;
         }
       });
       setOriginalAmounts(amounts);
@@ -730,12 +760,22 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       });
       
       if (result.success) {
+        // Normalize rows to keep show_tag visible for sticky variables
+        const normalized = normalizeInk2Rows(result.ink2_data);
+        
         // Update the seFileData with new calculated values
         if (companyData.seFileData) {
-          companyData.seFileData.ink2_data = result.ink2_data;
+          companyData.seFileData.ink2_data = normalized;
           // Force re-render by updating the state
-          setRecalculatedData(result.ink2_data);
+          setRecalculatedData(normalized);
         }
+        
+        // Update parent component with normalized data
+        onDataUpdate({
+          ink2Data: normalized,
+          inkBeraknadSkatt: normalized.find((i: any) => i.variable_name === 'INK_beraknad_skatt')?.amount ?? companyData.inkBeraknadSkatt
+        });
+        
         console.log('Successfully recalculated INK2 values');
       } else {
         console.error('Failed to recalculate: API returned success=false');
@@ -819,51 +859,34 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   };
 
   // Simple edit functions for INK2
-  const handleInk2Undo = () => {
-    // Clear manual edits but preserve chat-injected values
+  const handleInk2Undo = async () => {
+    setIsInk2ManualEdit(true); // Keep edit mode active
     setEditedAmounts({});
-    setRecalculatedData([]);
     
-    // Reset ink2Data to original baseline but preserve chat-injected values
-    if (originalInk2BaselineRef.current.length > 0) {
-      // Create a copy of original data
-      const resetData = JSON.parse(JSON.stringify(originalInk2BaselineRef.current));
+    // Preserve chat-injected stickies (e.g. INK4.14a, INK4.6d) from current rows
+    const preservedManuals = buildPreservedManualsFrom(companyData.ink2Data || recalculatedData || []);
+    
+    try {
+      const res = await apiService.recalculateInk2({
+        current_accounts: companyData.seFileData?.current_accounts || {},
+        fiscal_year: companyData.fiscalYear,
+        rr_data: companyData.seFileData?.rr_data || [],
+        br_data: companyData.seFileData?.br_data || [],
+        manual_amounts: preservedManuals, // key line - preserve chat-injected values
+      });
       
-      // Preserve chat-injected values by updating them in the reset data
-      if (companyData.unusedTaxLossAmount) {
-        const ink4_14a_item = resetData.find((item: any) => item.variable_name === 'INK4.14a');
-        if (ink4_14a_item) {
-          ink4_14a_item.amount = companyData.unusedTaxLossAmount;
-          console.log('Preserving chat-injected INK4.14a in undo:', companyData.unusedTaxLossAmount);
-        }
+      if (res?.success) {
+        const normalized = normalizeInk2Rows(res.ink2_data);
+        setRecalculatedData(normalized);
+        onDataUpdate({
+          ink2Data: normalized,
+          inkBeraknadSkatt: normalized.find((i: any) => i.variable_name === 'INK_beraknad_skatt')?.amount ?? companyData.inkBeraknadSkatt
+        });
+        console.log('Undo completed with preserved chat values');
       }
-      
-      // Preserve pension tax adjustment if it was injected from chat
-      if (typeof companyData.justeringSarskildLoneskatt === 'number' && companyData.justeringSarskildLoneskatt !== 0) {
-        const sarskild_item = resetData.find((item: any) => item.variable_name === 'INK_sarskild_loneskatt');
-        if (sarskild_item) {
-          sarskild_item.amount = companyData.justeringSarskildLoneskatt;
-          console.log('Preserving chat-injected INK_sarskild_loneskatt in undo:', companyData.justeringSarskildLoneskatt);
-        }
-      }
-      
-      // For INK4.6b, we need to check if it was injected from chat
-      // This might require checking if the current value differs from the original baseline
-      const currentInk4_6b = ink2Data.find((item: any) => item.variable_name === 'INK4.6b');
-      const originalInk4_6b = originalInk2BaselineRef.current.find((item: any) => item.variable_name === 'INK4.6b');
-      if (currentInk4_6b && originalInk4_6b && currentInk4_6b.amount !== originalInk4_6b.amount && currentInk4_6b.amount !== 0) {
-        const ink4_6b_item = resetData.find((item: any) => item.variable_name === 'INK4.6b');
-        if (ink4_6b_item) {
-          ink4_6b_item.amount = currentInk4_6b.amount;
-          console.log('Preserving potentially chat-injected INK4.6b in undo:', currentInk4_6b.amount);
-        }
-      }
-      
-      onDataUpdate({ ink2Data: resetData });
+    } catch (e) {
+      console.error('Undo recalc failed', e);
     }
-    
-    // Keep edit mode active - don't close it
-    // setIsInk2ManualEdit(false); // Removed to stay in edit mode
   };
 
   const handleApproveChanges = () => {
@@ -1493,13 +1516,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                  <span className="text-right font-medium">
                   {item.show_amount === 'NEVER' || item.header ? '' :
                     ((isEditing || isInk2ManualEdit) && (
-                      !item.is_calculated || 
-                      item.variable_name === 'INK_sarskild_loneskatt' ||
+                      EDITABLE_INK2_WHITELIST.has(item.variable_name) || 
+                      (!item.is_calculated &&
                       // Make INK4.3a to INK4.14c editable (including calculated ones)
-                      item.variable_name?.match(/^INK4\.(3[a-c]|[4-9][a-c]|1[0-4][a-c])$/) ||
+                      (item.variable_name?.match(/^INK4\.(3[a-c]|[4-9][a-c]|1[0-4][a-c])$/) ||
                       // Make INK4.17 to INK4.22 editable (already mostly editable)
-                      item.variable_name?.match(/^INK4\.(1[7-9]|2[0-2])$/)
-                    ) && item.show_amount && 
+                      item.variable_name?.match(/^INK4\.(1[7-9]|2[0-2])$/)))
+                    ) && item.show_amount !== false && 
                     // Exclude INK4.15 and INK4.16 from editing (keep calculated-only)
                     !item.variable_name?.match(/^INK4\.1[56]$/)) ? (
                       (() => {
