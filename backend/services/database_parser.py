@@ -1803,6 +1803,12 @@ class DatabaseParser:
         # Inject INK4.14a (outnyttjat underskott) into ink_values if provided
         if 'INK4.14a' in manual_amounts:
             ink_values['INK4.14a'] = manual_amounts['INK4.14a']
+            print(f"Injected INK4.14a (outnyttjat underskott): {manual_amounts['INK4.14a']}")
+        
+        # Inject INK4.6b (outnyttjat underskott) into ink_values if provided
+        if 'INK4.6b' in manual_amounts:
+            ink_values['INK4.6b'] = manual_amounts['INK4.6b']
+            print(f"Injected INK4.6b (outnyttjat underskott): {manual_amounts['INK4.6b']}")
 
         
         # Inject underskott adjustment for INK4.16 if provided

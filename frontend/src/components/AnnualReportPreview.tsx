@@ -587,6 +587,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         console.log('Preserving existing INK4.14a (unused tax loss):', companyData.unusedTaxLossAmount);
       }
       
+      // Preserve INK4.6b (outnyttjat underskott) if it exists and not being manually edited
+      const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+      const existingInk4_6b = currentData.find((item: any) => item.variable_name === 'INK4.6b');
+      if (existingInk4_6b && existingInk4_6b.amount !== undefined && existingInk4_6b.amount !== 0 && !('INK4.6b' in updatedAmounts)) {
+        preservedAmounts['INK4.6b'] = existingInk4_6b.amount;
+        console.log('Preserving existing INK4.6b (outnyttjat underskott):', existingInk4_6b.amount);
+      }
+      
       // If user edited INK_sarskild_loneskatt, convert it to justering_sarskild_loneskatt for backend
       if ('INK_sarskild_loneskatt' in updatedAmounts) {
         // Frontend stores positive value, backend expects justering_sarskild_loneskatt (positive = increase, negative = decrease)
