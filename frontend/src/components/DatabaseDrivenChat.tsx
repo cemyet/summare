@@ -503,12 +503,18 @@ interface ChatFlowResponse {
             console.log('📊 justering_sarskild_loneskatt:', justeringSarskildLoneskattValue);
             console.log('📊 ink4_14a_outnyttjat_underskott: 0');
             
+            const preservedManuals = buildPreservedManuals();
+            console.log('INK2 payload (step 301 none) ->', {
+              manuals_sent: preservedManuals
+            });
+
             const response = await apiService.recalculateInk2({
               current_accounts: companyData.seFileData.current_accounts || {},
               rr_data: companyData.seFileData.rr_data || [],
               br_data: companyData.seFileData.br_data || [],
               fiscal_year: companyData.fiscalYear,
-              manual_amounts: {}, // Keep manual_amounts separate
+              // ✅ keep preserved manuals so 4.6d survives
+              manual_amounts: preservedManuals,
               ink4_14a_outnyttjat_underskott: 0, // No unused tax loss
               justering_sarskild_loneskatt: justeringSarskildLoneskattValue
             });
@@ -859,12 +865,18 @@ interface ChatFlowResponse {
           // Trigger recalculation to update tax preview
           if (companyData.seFileData) {
             try {
+              const preservedManuals = buildPreservedManuals();
+              console.log('INK2 payload (pension tax adjustment) ->', {
+                manuals_sent: preservedManuals
+              });
+
               const result = await apiService.recalculateInk2({
                 current_accounts: companyData.seFileData.current_accounts || {},
                 fiscal_year: companyData.fiscalYear,
                 rr_data: companyData.seFileData.rr_data || [],
                 br_data: companyData.seFileData.br_data || [],
-                manual_amounts: {},
+                // ✅ keep preserved manuals so 4.6d survives
+                manual_amounts: preservedManuals,
                 justering_sarskild_loneskatt: adjustment
               });
               
@@ -1242,13 +1254,27 @@ interface ChatFlowResponse {
           justering_sarskild_loneskatt: pensionTaxAdjustment
         });
         
+        const preservedManuals = buildPreservedManuals();
+        console.log('INK2 payload (underskott path) ->', {
+          manuals_sent: {
+            ...preservedManuals,
+            'INK4.14a': amount
+          }
+        });
+
         const result = await apiService.recalculateInk2({
           current_accounts: companyData.seFileData.current_accounts || {},
           fiscal_year: companyData.fiscalYear,
           rr_data: companyData.seFileData.rr_data || [],
           br_data: companyData.seFileData.br_data || [],
-          manual_amounts: {}, // Keep manual_amounts separate
-          ink4_14a_outnyttjat_underskott: amount, // Use the correct parameter
+          // ✅ use preserved manuals (4.6d etc) + mirror 4.14a into manuals
+          manual_amounts: { 
+            ...preservedManuals,
+            // mirror 4.14a into manuals so it's definitely applied in the preview calculations
+            'INK4.14a': amount,
+          },
+          // still send the param if backend uses it, doesn't hurt
+          ink4_14a_outnyttjat_underskott: amount,
           justering_sarskild_loneskatt: pensionTaxAdjustment
         });
         
