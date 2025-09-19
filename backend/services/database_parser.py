@@ -1954,6 +1954,11 @@ class DatabaseParser:
                         break
             return prev * rate
         
+        if variable_name == 'INK4.6b':
+            # Outnyttjat underskott - this is typically a manual field set from chat
+            # For now, return 0 as it's usually set manually
+            return 0.0
+        
         if variable_name == 'INK4.6d':
             # Återföring av periodiseringsfonder - tax on reversed funds
             # 4% for 2019-2020 funds, 6% for 2018 and earlier
