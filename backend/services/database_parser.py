@@ -1879,6 +1879,12 @@ class DatabaseParser:
                 print(f"Error processing INK2 mapping {mapping.get('variable_name', 'unknown')}: {e}")
                 continue
         
+        # Add calculated values to ink_values to make them sticky
+        for result in results:
+            if result['variable_name'] in ['INK4.6a', 'INK4.6b', 'INK4.6d'] and result['amount'] != 0:
+                ink_values[result['variable_name']] = result['amount']
+                print(f"Added {result['variable_name']} to ink_values: {result['amount']}")
+        
         return results
 
     def _normalize_show_amount(self, value: Any) -> bool:

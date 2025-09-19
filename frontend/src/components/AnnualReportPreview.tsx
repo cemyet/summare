@@ -9,6 +9,89 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from "@/components/ui/table";
 import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@/utils/seFileCalculations';
 import { apiService } from '@/services/api';
+
+// Helper functions for Swedish number formatting (from Noter)
+const fmt0 = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
+
+const svToNumber = (raw: string): number => {
+  if (!raw) return 0;
+  const s = raw.replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".");
+  const n = Number(s);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const numberToSv = (n: number): string => {
+  if (!Number.isFinite(n)) return "";
+  const sign = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+  return sign + fmt0.format(abs);
+};
+
+// Ink2AmountInput component based on Noter's smooth input handling
+const Ink2AmountInput = ({ value, onChange, onCommit, variableName }: {
+  value: number;
+  onChange: (value: number) => void;
+  onCommit: (value: number) => void;
+  variableName: string;
+}) => {
+  const [focused, setFocused] = React.useState(false);
+  const [local, setLocal] = React.useState<string>("");
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  React.useEffect(() => {
+    if (!focused) setLocal(value ? String(Math.round(value)) : "");
+  }, [value, focused]);
+
+  const shown = focused
+    ? local
+    : (local ? fmt0.format(parseInt(local.replace(/[^\d-]/g, "") || "0", 10)) : "");
+
+  const commit = () => {
+    const raw = local.replace(/[^\d-]/g, "");
+    const num = svToNumber(raw);
+    const adjusted = variableName === 'INK_sarskild_loneskatt' ? -Math.abs(num) : Math.abs(num);
+    onChange(adjusted);
+    onCommit(adjusted);
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      className="w-32 px-1 py-1 text-sm border border-gray-400 rounded text-right font-medium h-7 bg-white focus:border-gray-500 focus:outline-none"
+      value={shown}
+      onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
+      onChange={(e) => {
+        let raw = e.target.value.replace(/[^\d-]/g, "");
+        if (variableName !== 'INK_sarskild_loneskatt') {
+          raw = raw.replace(/-/g, '');
+        } else {
+          raw = raw.replace(/(?!^)-/g, '');
+        }
+        setLocal(raw);
+      }}
+      onBlur={() => { setFocused(false); commit(); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          setFocused(false);
+          commit();
+          // Move to next editable cell
+          const currentInput = e.currentTarget;
+          const allInputs = document.querySelectorAll('input[type="text"]');
+          const currentIndex = Array.from(allInputs).indexOf(currentInput);
+          const nextInput = allInputs[currentIndex + 1] as HTMLInputElement;
+          if (nextInput) {
+            nextInput.focus();
+          }
+        }
+      }}
+      placeholder="0"
+    />
+  );
+};
 import { Periodiseringsfonder } from './Periodiseringsfonder';
 import { Noter } from './Noter';
 import { Forvaltningsberattelse } from './Forvaltningsberattelse';
@@ -1410,46 +1493,20 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                       (() => {
                         // Field is editable
                         return (
-                          <input
-                            type="number"
-                            className="w-32 px-1 py-1 text-sm border border-gray-400 rounded text-right font-medium h-7 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={
-                              item.variable_name === 'INK_sarskild_loneskatt' 
-                                ? Math.abs(editedAmounts[item.variable_name] ?? item.amount ?? 0)
-                                : (editedAmounts[item.variable_name] ?? item.amount ?? 0)
-                            }
-                            onChange={(e) => {
-                              // Only allow positive values for manual editing
-                              const rawValue = Math.abs(parseFloat(e.target.value)) || 0;
-                              const value = item.variable_name === 'INK_sarskild_loneskatt' ? -rawValue : rawValue;
+                          <Ink2AmountInput
+                            value={editedAmounts[item.variable_name] ?? item.amount ?? 0}
+                            onChange={(value) => {
                               setEditedAmounts(prev => ({
                                 ...prev,
                                 [item.variable_name]: value
                               }));
                             }}
-                            onBlur={(e) => {
-                              const rawValue = parseFloat(e.target.value) || 0;
-                              // Force positive values only
-                              const correctedValue = Math.abs(rawValue);
-                              const finalValue = item.variable_name === 'INK_sarskild_loneskatt' ? -correctedValue : correctedValue;
-                              const updatedAmounts = { ...editedAmounts, [item.variable_name]: finalValue };
+                            onCommit={(value) => {
+                              const updatedAmounts = { ...editedAmounts, [item.variable_name]: value };
                               setEditedAmounts(updatedAmounts);
                               recalculateValues(updatedAmounts);
                             }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                const rawValue = parseFloat(e.currentTarget.value) || 0;
-                                // Force positive values only
-                                const correctedValue = Math.abs(rawValue);
-                                const finalValue = item.variable_name === 'INK_sarskild_loneskatt' ? -correctedValue : correctedValue;
-                                const updatedAmounts = { ...editedAmounts, [item.variable_name]: finalValue };
-                                setEditedAmounts(updatedAmounts);
-                                recalculateValues(updatedAmounts);
-                                e.currentTarget.blur(); // Remove focus
-                              }
-                            }}
-                            step="0.01"
-                            min="0"
+                            variableName={item.variable_name}
                           />
                         );
                       })()
