@@ -69,9 +69,29 @@ interface ChatFlowResponse {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
+  // Cache last non-zero sticky values to prevent chat-path wipes
+  const stickyVars = ['INK4.6a', 'INK4.6b', 'INK4.6d', 'INK4.14a'];
+  const lastNonZeroRef = useRef<Record<string, number>>({});
+
+  // Update cache whenever fresh ink2 data arrives
+  useEffect(() => {
+    const src = (globalInk2Data && globalInk2Data.length ? globalInk2Data : companyData.ink2Data) || [];
+    stickyVars.forEach(v => {
+      const amt = src.find((x: any) => x.variable_name === v)?.amount;
+      if (typeof amt === 'number' && amt !== 0) {
+        lastNonZeroRef.current[v] = amt;
+      }
+    });
+  }, [globalInk2Data, companyData.ink2Data]);
+
   // Helper: get latest amount for an INK2 variable from the freshest source
-  // Prefer the most recent NON-ZERO across both sources
+  // Prefer cached non-zero values first, then most recent NON-ZERO across both sources
   const getInk2Amount = (varName: string, fallback = 0) => {
+    // First check cache for previously non-zero values
+    if (typeof lastNonZeroRef.current[varName] === 'number') {
+      return lastNonZeroRef.current[varName];
+    }
+    
     const fromGlobal = (globalInk2Data || []).find((x: any) => x.variable_name === varName)?.amount;
     const fromCompany = (companyData.ink2Data || []).find((x: any) => x.variable_name === varName)?.amount;
 
@@ -85,7 +105,7 @@ interface ChatFlowResponse {
   // Helper: build manual preservation set for sticky calculated rows
   const buildPreservedManuals = () => {
     const keep: Record<string, number> = {};
-    ['INK4.6a', 'INK4.6b', 'INK4.6d', 'INK4.14a'].forEach(v => {
+    stickyVars.forEach(v => {
       const val = getInk2Amount(v);
       if (typeof val === 'number' && val !== 0) keep[v] = val;
     });
@@ -233,7 +253,6 @@ interface ChatFlowResponse {
         }
         
         // Substitute variables in question text
-        console.log('🔍 Loading step', stepNumber, 'with inkBeraknadSkatt:', mostRecentInkBeraknadSkatt);
         const substitutionVars = {
           SumAretsResultat: companyData.sumAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.sumAretsResultat) : '0',
           SkattAretsResultat: companyData.skattAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.skattAretsResultat) : '0',
@@ -244,9 +263,7 @@ interface ChatFlowResponse {
           inkBokfordSkatt: companyData.inkBokfordSkatt ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.inkBokfordSkatt) : '0',
           unusedTaxLossAmount: companyData.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.unusedTaxLossAmount) : '0'
         };
-        console.log('🔍 Substitution variables:', substitutionVars);
         const questionText = substituteVariables(response.question_text, substitutionVars);
-        console.log('🔍 Substituted question text:', questionText);
         
         // Add the question message
         addMessage(questionText, true, response.question_icon);

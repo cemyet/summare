@@ -592,46 +592,55 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   };
 
   // Load BR and RR data with note numbers when data changes
+  // Debounced and guarded API call to prevent multiple requests
+  const inFlightRef = useRef(false);
+  const lastSigRef = useRef<string>("");
+
   useEffect(() => {
     const loadDataWithNotes = async () => {
-      if (brData.length > 0 || rrData.length > 0) {
-        try {
-          // Calculate dynamic note numbers based on Noter visibility
-          const dynamicNoteNumbers = calculateDynamicNoteNumbers();
-          console.log('Dynamic note numbers for BR/RR:', dynamicNoteNumbers);
-          console.log('Sending to API - BR data length:', brData.length);
-          console.log('Sending to API - RR data length:', rrData.length);
-          console.log('RR data sample:', rrData.slice(0, 3));
-          
-          const response = await apiService.addNoteNumbersToBr({ 
-            br_data: brData,
-            rr_data: rrData,
-            note_numbers: dynamicNoteNumbers
-          });
-          if (response.success) {
-            console.log('API Response - BR data length:', response.br_data?.length || 0);
-            console.log('API Response - RR data length:', response.rr_data?.length || 0);
-            console.log('API Response - RR data sample with notes:', response.rr_data?.slice(0, 5));
-            setBrDataWithNotes(response.br_data || brData);
-            setRrDataWithNotes(response.rr_data || rrData);
-          } else {
-            // Fallback to original data if API fails
-            setBrDataWithNotes(brData);
-            setRrDataWithNotes(rrData);
-          }
-        } catch (error) {
-          console.error('Error loading financial data with note numbers:', error);
+      if (!brData.length && !rrData.length) {
+        setBrDataWithNotes([]);
+        setRrDataWithNotes([]);
+        return;
+      }
+
+      // Create a cheap signature so we don't re-call on identical data
+      const sig = `${brData.length}|${rrData.length}`;
+      if (sig === lastSigRef.current || inFlightRef.current) return;
+
+      inFlightRef.current = true;
+      lastSigRef.current = sig;
+
+      try {
+        // Calculate dynamic note numbers based on Noter visibility
+        const dynamicNoteNumbers = calculateDynamicNoteNumbers();
+        
+        const response = await apiService.addNoteNumbersToBr({ 
+          br_data: brData,
+          rr_data: rrData,
+          note_numbers: dynamicNoteNumbers
+        });
+        
+        if (response.success) {
+          setBrDataWithNotes(response.br_data || brData);
+          setRrDataWithNotes(response.rr_data || rrData);
+        } else {
           // Fallback to original data if API fails
           setBrDataWithNotes(brData);
           setRrDataWithNotes(rrData);
         }
-      } else {
-        setBrDataWithNotes([]);
-        setRrDataWithNotes([]);
+      } catch (error) {
+        console.error('Error loading financial data with note numbers:', error);
+        // Fallback to original data if API fails
+        setBrDataWithNotes(brData);
+        setRrDataWithNotes(rrData);
+      } finally {
+        inFlightRef.current = false;
       }
     };
 
-    loadDataWithNotes();
+    const t = setTimeout(loadDataWithNotes, 200); // debounce
+    return () => clearTimeout(t);
   }, [brData, rrData, cd.noterData]);
 
   // Capture original amounts when isEditing becomes true (for undo functionality)
