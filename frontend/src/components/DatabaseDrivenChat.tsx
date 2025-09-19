@@ -73,12 +73,17 @@ interface ChatFlowResponse {
   const stickyVars = ['INK4.3c', 'INK4.5c', 'INK4.6a', 'INK4.6b', 'INK4.6d', 'INK4.14a'];
   const lastNonZeroRef = useRef<Record<string, number>>({});
 
+  // Reset cache on company/year change
+  useEffect(() => {
+    lastNonZeroRef.current = {}; // clear all cached stickies
+  }, [companyData.orgnr, companyData.fiscalYear, companyData.seFileData?.fileHash]);
+
   // Update cache whenever fresh ink2 data arrives
   useEffect(() => {
     const src = (globalInk2Data && globalInk2Data.length ? globalInk2Data : companyData.ink2Data) || [];
     stickyVars.forEach(v => {
       const amt = src.find((x: any) => x.variable_name === v)?.amount;
-      if (typeof amt === 'number' && amt !== 0) {
+      if (typeof amt === 'number' && Number.isFinite(amt) && Object.is(amt, -0) ? 0 !== 0 : amt !== 0) {
         lastNonZeroRef.current[v] = amt;
       }
     });
@@ -95,7 +100,9 @@ interface ChatFlowResponse {
     const fromGlobal = (globalInk2Data || []).find((x: any) => x.variable_name === varName)?.amount;
     const fromCompany = (companyData.ink2Data || []).find((x: any) => x.variable_name === varName)?.amount;
 
-    const candidates = [fromGlobal, fromCompany].filter((v) => typeof v === 'number') as number[];
+    // Be tolerant to -0, NaN, and stringy amounts
+    const isNum = (x: any): x is number => typeof x === 'number' && Number.isFinite(x);
+    const candidates = [fromGlobal, fromCompany].filter(isNum) as number[];
 
     // Prefer first non-zero; otherwise first defined; otherwise fallback
     const nonZero = candidates.find((v) => v !== 0);
@@ -740,6 +747,14 @@ interface ChatFlowResponse {
           for (const [k, v] of Object.entries(incomingManualsRaw)) {
             const n = toNumber(v);
             incomingManuals[k] = Number.isFinite(n) ? n : (v as number);
+          }
+
+          // 3c) Invalidate cache when user explicitly sets a value (incl. zero)
+          for (const k of Object.keys(incomingManuals)) {
+            if (stickyVars.includes(k)) {
+              // user explicitly provided a value -> trust it
+              delete lastNonZeroRef.current[k];
+            }
           }
 
           let finalManuals: Record<string, number> = { ...preservedManuals, ...incomingManuals };
