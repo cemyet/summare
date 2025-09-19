@@ -994,6 +994,11 @@ async def recalculate_ink2(request: RecalculateRequest):
             manual_amounts['justering_sarskild_loneskatt'] = request.justering_sarskild_loneskatt
             print(f"💰 Injecting pension tax adjustment: {request.justering_sarskild_loneskatt}")
         
+        # Preserve INK4.6d if it exists in manual_amounts (sticky value from original calculation)
+        if 'INK4.6d' in request.manual_amounts:
+            manual_amounts['INK4.6d'] = request.manual_amounts['INK4.6d']
+            print(f"📋 Preserving INK4.6d återföring tax: {manual_amounts['INK4.6d']}")
+        
         # Parse INK2 data with manual overrides
         ink2_data = parser.parse_ink2_data_with_overrides(
             current_accounts=current_accounts,

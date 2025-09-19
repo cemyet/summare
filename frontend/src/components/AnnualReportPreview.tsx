@@ -608,6 +608,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         }
       }
       
+      // Preserve INK4.6d value from original calculation (needs previous_accounts which recalculation doesn't have)
+      const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+      const existingInk4_6d = currentData.find((item: any) => item.variable_name === 'INK4.6d');
+      if (existingInk4_6d && existingInk4_6d.amount !== undefined) {
+        preservedAmounts['INK4.6d'] = existingInk4_6d.amount;
+        console.log('Preserving existing INK4.6d (återföring tax):', existingInk4_6d.amount);
+      }
+
       // Call backend API to recalculate INK2 values using API service
       const result = await apiService.recalculateInk2({
         current_accounts: seFileData?.current_accounts || {},
