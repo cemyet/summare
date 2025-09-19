@@ -1940,6 +1940,8 @@ class DatabaseParser:
             # 4% for 2019-2020 funds, 6% for 2018 and earlier
             total_tax = 0.0
             
+            # If no previous_accounts available (e.g., during recalculation), return 0
+            # This maintains compatibility with recalculation API
             if not previous_accounts:
                 return 0.0
             
