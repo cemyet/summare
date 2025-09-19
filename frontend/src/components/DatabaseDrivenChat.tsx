@@ -692,61 +692,52 @@ interface ChatFlowResponse {
     if (actionData?.endpoint === 'recalculate_ink2') {
       try {
         const params = actionData.params || {};
-        
-        // Substitute variables in params (e.g., {unusedTaxLossAmount} -> actual value)
-        const substitutedParams = { ...params };
+
+        // 1) correct copy
+        const substitutedParams: any = { ...params };
+
+        // 2) keep your existing placeholder substitution
         for (const [key, value] of Object.entries(substitutedParams)) {
           if (typeof value === 'string' && value.includes('{')) {
-            // Replace {unusedTaxLossAmount} with actual value
             const substituted = value.replace(/{(\w+)}/g, (match, varName) => {
-              // Special handling for unusedTaxLossAmount to ensure we get the latest value
               if (varName === 'unusedTaxLossAmount') {
-                // Check if we have a pending unusedTaxLossAmount value from recent input
-                const pendingValue = companyData.unusedTaxLossAmount;
-                if (pendingValue && pendingValue > 0) {
-                  console.log('🔥 Using pending unusedTaxLossAmount value:', pendingValue);
-                  return pendingValue;
-                }
+                const pending = companyData.unusedTaxLossAmount;
+                if (pending && pending > 0) return pending;
               }
-              return companyData[varName as keyof typeof companyData] || match;
+              return (companyData as any)[varName] ?? match;
             });
-            // Convert to number if it's a numeric string
             substitutedParams[key] = isNaN(Number(substituted)) ? substituted : Number(substituted);
           }
         }
-        
-        console.log('🔥 API call with substituted params:', substitutedParams);
-        
-        // Skip the API call if we're trying to set unusedTaxLossAmount to 0 but we already have a value
-        if (substitutedParams.ink4_14a_outnyttjat_underskott === 0 && companyData.unusedTaxLossAmount > 0) {
-          console.log('🚫 Skipping API call - unusedTaxLossAmount already set to', companyData.unusedTaxLossAmount);
-          return;
-        }
-        
 
-        
         if (companyData.seFileData) {
-          // Build final manual_amounts: keep preserved AND respect explicit incoming manual edits
+          // 3) build preserved manuals so 4.6d etc stay sticky
           const preservedManuals = buildPreservedManuals();
           const incomingManuals = substitutedParams.manual_amounts || {};
-          const finalManuals = { ...preservedManuals, ...incomingManuals };
+          let finalManuals: Record<string, number> = { ...preservedManuals, ...incomingManuals };
 
+          // 4) normalize 4.14a from any chat key -> manual INK4.14a too
+          const underskott = substitutedParams.ink4_14a_outnyttjat_underskott;
+          if (typeof underskott === 'number' && !Number.isNaN(underskott)) {
+            finalManuals = { ...finalManuals, INK4.14a: underskott };
+          }
+
+          // 5) real API call: spread params correctly; keep manuals LAST
           const result = await apiService.recalculateInk2({
             current_accounts: companyData.seFileData.current_accounts || {},
             fiscal_year: companyData.fiscalYear,
             rr_data: companyData.seFileData.rr_data || [],
             br_data: companyData.seFileData.br_data || [],
-            // PUT manual_amounts LAST so it isn't overridden by any default inside the API
             ...substitutedParams,
             manual_amounts: finalManuals,
           });
-          
+
           if (result.success) {
             onDataUpdate({
               ink2Data: result.ink2_data,
-              inkBeraknadSkatt: result.ink2_data.find((item: any) => 
-                item.variable_name === 'INK_beraknad_skatt'
-              )?.amount || companyData.inkBeraknadSkatt
+              inkBeraknadSkatt:
+                result.ink2_data.find((i: any) => i.variable_name === 'INK_beraknad_skatt')?.amount
+                ?? companyData.inkBeraknadSkatt,
             });
             setGlobalInk2Data(result.ink2_data);
           }
