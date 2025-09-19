@@ -608,13 +608,17 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         }
       }
       
-      // Preserve INK4.6d value from original calculation (needs previous_accounts which recalculation doesn't have)
+      // Preserve calculated values in editable ranges (INK4.3a-4.14c, 4.17-4.22) for proper undo functionality
       const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
-      const existingInk4_6d = currentData.find((item: any) => item.variable_name === 'INK4.6d');
-      if (existingInk4_6d && existingInk4_6d.amount !== undefined) {
-        preservedAmounts['INK4.6d'] = existingInk4_6d.amount;
-        console.log('Preserving existing INK4.6d (återföring tax):', existingInk4_6d.amount);
-      }
+      const calculatedEditableVars = ['INK4.6a', 'INK4.6d']; // Add other calculated vars as needed
+      
+      calculatedEditableVars.forEach(varName => {
+        const existingItem = currentData.find((item: any) => item.variable_name === varName);
+        if (existingItem && existingItem.amount !== undefined && existingItem.amount !== 0) {
+          preservedAmounts[varName] = existingItem.amount;
+          console.log(`Preserving calculated value ${varName}:`, existingItem.amount);
+        }
+      });
 
       // Call backend API to recalculate INK2 values using API service
       const result = await apiService.recalculateInk2({
@@ -1343,7 +1347,16 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 </div>
                  <span className="text-right font-medium">
                   {item.show_amount === 'NEVER' || item.header ? '' :
-                    ((isEditing || isInk2ManualEdit) && (!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount) ? (
+                    ((isEditing || isInk2ManualEdit) && (
+                      !item.is_calculated || 
+                      item.variable_name === 'INK_sarskild_loneskatt' ||
+                      // Make INK4.3a to INK4.14c editable (including calculated ones)
+                      item.variable_name?.match(/^INK4\.(3[a-c]|[4-9][a-c]|1[0-4][a-c])$/) ||
+                      // Make INK4.17 to INK4.22 editable (already mostly editable)
+                      item.variable_name?.match(/^INK4\.(1[7-9]|2[0-2])$/)
+                    ) && item.show_amount && 
+                    // Exclude INK4.15 and INK4.16 from editing (keep calculated-only)
+                    !item.variable_name?.match(/^INK4\.1[56]$/)) ? (
                       (() => {
                         // Field is editable
                         return (
