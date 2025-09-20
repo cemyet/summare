@@ -610,7 +610,14 @@ interface ChatFlowResponse {
       fiscal_year: companyData.fiscalYear,
       rr_data: companyData.seFileData?.rr_data || [],
       br_data: companyData.seFileData?.br_data || [],
-      manual_amounts: manuals // CHAT ONLY
+      manual_amounts: manuals, // CHAT ONLY
+      // @ts-ignore - Optional optimization hint; safe if backend ignores it
+      recalc_only_vars: [
+        'INK_skattemassigt_resultat',
+        'INK_beraknad_skatt',
+        'INK4.15',
+        'INK4.16'
+      ]
     });
 
     if (resp?.success) {

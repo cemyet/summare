@@ -685,13 +685,32 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Universal recalc helper
   const recalcWithManuals = async (manuals: Record<string, number>) => {
-    const result = await apiService.recalculateInk2({
+    // 1) translate table keys -> backend keys
+    const translated: Record<string, number> = { ...manuals };
+    if (typeof translated['INK_sarskild_loneskatt'] === 'number') {
+      const rowVal = translated['INK_sarskild_loneskatt'];
+      // Row shows negative; backend expects positive adjustment that is subtracted later
+      translated['justering_sarskild_loneskatt'] = Math.abs(rowVal);
+      delete translated['INK_sarskild_loneskatt'];
+    }
+
+    // 2) build payload (add optional fast-only hint)
+    const payload = {
       current_accounts: companyData.seFileData?.current_accounts || {},
       fiscal_year: companyData.fiscalYear,
       rr_data: companyData.seFileData?.rr_data || [],
       br_data: companyData.seFileData?.br_data || [],
-      manual_amounts: manuals
-    });
+      manual_amounts: translated,
+      // @ts-ignore - Optional optimization hint; safe if backend ignores it
+      recalc_only_vars: [
+        'INK_skattemassigt_resultat',
+        'INK_beraknad_skatt',
+        'INK4.15',
+        'INK4.16'
+      ]
+    };
+
+    const result = await apiService.recalculateInk2(payload);
     if (result?.success) {
       onDataUpdate({
         ink2Data: result.ink2_data,
