@@ -578,31 +578,91 @@ interface ChatFlowResponse {
   const isNonZeroNumber = (v: any): v is number =>
     typeof v === 'number' && Number.isFinite(v) && v !== 0;
 
+  // When a recalc response arrives, only replace CALC_ONLY amounts;
+  // for all others, keep the previous amount unless the user explicitly edited
+  // or a chat override targets it.
+  const selectiveMergeInk2 = (
+    prevRows: any[],
+    newRows: any[],
+    manuals: Record<string, number>
+  ) => {
+    const CALC_ONLY = new Set<string>([
+      'INK_skattemassigt_resultat',
+      'INK_beraknad_skatt',
+      'INK4.15',
+      'INK4.16',
+      'Arets_resultat_justerat',
+    ]);
+
+    const prevByVar = new Map(prevRows.map((r: any) => [r.variable_name, r]));
+    const nextByVar = new Map(newRows.map((r: any) => [r.variable_name, r]));
+    const out: any[] = [];
+
+    // union of all variable names
+    const names = new Set<string>([
+      ...Array.from(prevByVar.keys()),
+      ...Array.from(nextByVar.keys()),
+    ]);
+
+    for (const name of names) {
+      const prev = prevByVar.get(name);
+      const next = nextByVar.get(name);
+
+      // Start from previous if we had it; otherwise from server row; otherwise stub
+      const base = prev ?? next ?? {
+        variable_name: name,
+        row_title: name,
+        amount: 0,
+        always_show: true,
+        show_tag: true,
+        style: 'TNORMAL',
+      };
+
+      let amount = base.amount;
+
+      // 1) If the user or chat provided a manual/override for this var, that wins
+      if (Object.prototype.hasOwnProperty.call(manuals, name)) {
+        amount = manuals[name];
+      }
+      // 2) Else, if this var is allowed to be recalculated, take the server's new amount
+      else if (CALC_ONLY.has(name) && next) {
+        amount = next.amount;
+      }
+      // 3) Else keep the previous amount exactly as-is
+
+      out.push({
+        ...base,
+        amount,
+        // keep tags visible for editable INK4.* rows if you already do so elsewhere
+      });
+    }
+
+    // keep your ordering if needed (use order_index if present)
+    out.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+    return out;
+  };
+
   // Chat override helper (call this whenever chat injects values)
   const applyChatOverrides = async ({
     underskott,   // INK4.14a
     sarskild      // justering_sarskild_loneskatt
   }: { underskott?: number; sarskild?: number }) => {
 
-    const manuals: Record<string, number> = {};
+    // Build manuals starting from accepted (so override-only rows persist)
+    const acceptedManuals = companyData.acceptedInk2Manuals || {};
+    const manuals: Record<string, number> = { ...acceptedManuals };
 
-    // underskott (INK4.14a)
-    if (isNonZeroNumber(underskott)) {
+    if (typeof underskott === 'number') {
       onDataUpdate({ unusedTaxLossAmount: underskott });
-      manuals['INK4.14a'] = underskott;
-    } else if (typeof underskott === 'number') {
-      onDataUpdate({ unusedTaxLossAmount: 0 });
+      if (underskott !== 0) manuals['INK4.14a'] = underskott;
     }
 
-    // justering särskild löneskatt
-    if (isNonZeroNumber(sarskild)) {
+    if (typeof sarskild === 'number') {
       onDataUpdate({ justeringSarskildLoneskatt: sarskild });
-      manuals['justering_sarskild_loneskatt'] = sarskild;
-    } else if (typeof sarskild === 'number') {
-      onDataUpdate({ justeringSarskildLoneskatt: 0 });
+      if (sarskild !== 0) manuals['justering_sarskild_loneskatt'] = sarskild;
     }
 
-    // If neither override is non-zero, skip backend call
+    // If both are zero/undefined and there are no accepted manuals, nothing to send
     if (Object.keys(manuals).length === 0) return;
 
     const resp = await apiService.recalculateInk2({
@@ -616,14 +676,18 @@ interface ChatFlowResponse {
         'INK_skattemassigt_resultat',
         'INK_beraknad_skatt',
         'INK4.15',
-        'INK4.16'
+        'INK4.16',
+        'Arets_resultat_justerat',
       ]
     });
 
+    const prev = companyData.ink2Data || [];
     if (resp?.success) {
-      const skatt = resp.ink2_data.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount || 0;
-      onDataUpdate({ ink2Data: resp.ink2_data, inkBeraknadSkatt: skatt });
-      setGlobalInk2Data?.(resp.ink2_data);
+      // client-side selective merge to enforce calc-only updates
+      const merged = selectiveMergeInk2(prev, resp.ink2_data, manuals);
+      const skatt = merged.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount || 0;
+      onDataUpdate({ ink2Data: merged, inkBeraknadSkatt: skatt });
+      setGlobalInk2Data?.(merged);
       setGlobalInkBeraknadSkatt?.(skatt);
     }
   };
@@ -720,6 +784,10 @@ interface ChatFlowResponse {
         // Special handling for unused tax loss amount
         if (submitOption.action_data.variable === 'unusedTaxLossAmount') {
           await applyChatOverrides({ underskott: Number(value || 0) });
+          const target = submitOption.next_step ?? 303;  // your flow: 302 -> 303
+          setShowInput(false);
+          setInputValue('');
+          setTimeout(() => loadChatStep(target), 300);
           return;
         }
 

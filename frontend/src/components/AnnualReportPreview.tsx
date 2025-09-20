@@ -494,6 +494,80 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const isEditableCell = (name?: string) =>
     !!name && !CALCULATED.has(name) && !isHeader(name);
 
+  // Only these variables may change on any recalc
+  const CALC_ONLY = new Set<string>([
+    'INK_skattemassigt_resultat',
+    'INK_beraknad_skatt',
+    'INK4.15',
+    'INK4.16',
+    'Arets_resultat_justerat',
+  ]);
+
+  // When a recalc response arrives, only replace CALC_ONLY amounts;
+  // for all others, keep the previous amount unless the user explicitly edited
+  // or a chat override targets it.
+  const selectiveMergeInk2 = (
+    prevRows: any[],
+    newRows: any[],
+    manuals: Record<string, number>
+  ) => {
+    const prevByVar = new Map(prevRows.map((r: any) => [r.variable_name, r]));
+    const nextByVar = new Map(newRows.map((r: any) => [r.variable_name, r]));
+    const out: any[] = [];
+
+    // union of all variable names
+    const names = new Set<string>([
+      ...Array.from(prevByVar.keys()),
+      ...Array.from(nextByVar.keys()),
+    ]);
+
+    for (const name of names) {
+      const prev = prevByVar.get(name);
+      const next = nextByVar.get(name);
+
+      // Start from previous if we had it; otherwise from server row; otherwise stub
+      const base = prev ?? next ?? {
+        variable_name: name,
+        row_title: name,
+        amount: 0,
+        always_show: true,
+        show_tag: true,
+        style: 'TNORMAL',
+      };
+
+      let amount = base.amount;
+
+      // 1) If the user or chat provided a manual/override for this var, that wins
+      if (Object.prototype.hasOwnProperty.call(manuals, name)) {
+        amount = manuals[name];
+      }
+      // 2) Else, if this var is allowed to be recalculated, take the server's new amount
+      else if (CALC_ONLY.has(name) && next) {
+        amount = next.amount;
+      }
+      // 3) Else keep the previous amount exactly as-is
+
+      out.push({
+        ...base,
+        amount,
+        // keep tags visible for editable INK4.* rows if you already do so elsewhere
+      });
+    }
+
+    // keep your ordering if needed (use order_index if present)
+    out.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+    return out;
+  };
+
+  const translateManualsForApi = (manuals: Record<string, number>) => {
+    const out: Record<string, number> = { ...manuals };
+    if (typeof out['INK_sarskild_loneskatt'] === 'number') {
+      out['justering_sarskild_loneskatt'] = Math.abs(out['INK_sarskild_loneskatt']);
+      delete out['INK_sarskild_loneskatt'];
+    }
+    return out;
+  };
+
   // Manuals the user has approved previously (persisted in companyData)
   const acceptedManuals: Record<string, number> = companyData.acceptedInk2Manuals || {};
 
@@ -685,38 +759,25 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Universal recalc helper
   const recalcWithManuals = async (manuals: Record<string, number>) => {
-    // 1) translate table keys -> backend keys
-    const translated: Record<string, number> = { ...manuals };
-    if (typeof translated['INK_sarskild_loneskatt'] === 'number') {
-      const rowVal = translated['INK_sarskild_loneskatt'];
-      // Row shows negative; backend expects positive adjustment that is subtracted later
-      translated['justering_sarskild_loneskatt'] = Math.abs(rowVal);
-      delete translated['INK_sarskild_loneskatt'];
-    }
-
-    // 2) build payload (add optional fast-only hint)
     const payload = {
       current_accounts: companyData.seFileData?.current_accounts || {},
       fiscal_year: companyData.fiscalYear,
       rr_data: companyData.seFileData?.rr_data || [],
       br_data: companyData.seFileData?.br_data || [],
-      manual_amounts: translated,
+      manual_amounts: translateManualsForApi(manuals),
       // @ts-ignore - Optional optimization hint; safe if backend ignores it
-      recalc_only_vars: [
-        'INK_skattemassigt_resultat',
-        'INK_beraknad_skatt',
-        'INK4.15',
-        'INK4.16'
-      ]
+      recalc_only_vars: Array.from(CALC_ONLY),
     };
 
-    const result = await apiService.recalculateInk2(payload);
-    if (result?.success) {
+    const prev = companyData.ink2Data || [];
+    const resp = await apiService.recalculateInk2(payload);
+    if (resp?.success) {
+      const merged = selectiveMergeInk2(prev, resp.ink2_data, manuals);
       onDataUpdate({
-        ink2Data: result.ink2_data,
+        ink2Data: merged,
         inkBeraknadSkatt:
-          result.ink2_data.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount
-          ?? companyData.inkBeraknadSkatt
+          merged.find((i: any) => i.variable_name === 'INK_beraknad_skatt')?.amount
+          ?? companyData.inkBeraknadSkatt,
       });
     }
   };
