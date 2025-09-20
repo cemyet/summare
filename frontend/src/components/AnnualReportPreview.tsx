@@ -486,7 +486,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // --- calculated rows (read-only) ---
   const CALCULATED = new Set([
     'INK4.1','INK4.2','INK4.3a','INK_skattemassigt_resultat',
-    'INK_beraknad_skatt','INK4.15','INK4.16'
+    'INK_beraknad_skatt','INK4.15','INK4.16','Arets_resultat_justerat'
   ]);
 
   const isHeader = (name?: string) => !!name && /_header$/i.test(name || '');
