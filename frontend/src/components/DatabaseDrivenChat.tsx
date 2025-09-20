@@ -676,6 +676,14 @@ interface ChatFlowResponse {
     // If both are zero/undefined and there are no accepted manuals, nothing to send
     if (Object.keys(manuals).length === 0) return;
 
+    // Optional: Skip backend call when nothing actually changed
+    const before = Object.keys(acceptedManuals).sort().join('|');
+    const after = Object.keys(manuals).sort().join('|');
+    if (before === after) {
+      // No new chat values were added; nothing to recalc
+      return;
+    }
+
     const resp = await apiService.recalculateInk2({
       current_accounts: companyData.seFileData?.current_accounts || {},
       fiscal_year: companyData.fiscalYear,
