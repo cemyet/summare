@@ -588,8 +588,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     const o: Record<string, number> = {};
     const underskott = Number(companyData.unusedTaxLossAmount || 0);
     const sarskild = Number(companyData.justeringSarskildLoneskatt || 0);
-    if (Number.isFinite(underskott) && underskott !== 0) o['INK4.14a'] = underskott;
-    if (Number.isFinite(sarskild)   && sarskild   !== 0) o['justering_sarskild_loneskatt'] = sarskild;
+    if (Number.isFinite(underskott) && underskott !== 0) {
+      o['INK4.14a'] = underskott; // UI key
+    }
+    if (Number.isFinite(sarskild) && sarskild !== 0) {
+      o['INK_sarskild_loneskatt'] = -Math.abs(sarskild); // UI row shows negative
+    }
     return o;
   };
 
