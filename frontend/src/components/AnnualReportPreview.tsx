@@ -580,15 +580,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     return out;
   };
 
-  const translateManualsForApi = (manuals: Record<string, number>) => {
-    const out: Record<string, number> = { ...manuals };
-    if (typeof out['INK_sarskild_loneskatt'] === 'number') {
-      out['justering_sarskild_loneskatt'] = Math.abs(out['INK_sarskild_loneskatt']);
-      delete out['INK_sarskild_loneskatt'];
-    }
-    return out;
-  };
-
   // Manuals the user has approved previously (persisted in companyData)
   const acceptedManuals: Record<string, number> = companyData.acceptedInk2Manuals || {};
 
