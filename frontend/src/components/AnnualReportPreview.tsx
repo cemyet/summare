@@ -769,18 +769,26 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
 
 
-  // Universal recalc helper
-  const recalcWithManuals = async (sessionManuals: Record<string, number>) => {
-    // 0) Start from what the user currently sees for non-calculated rows
-    const currentRows = companyData.ink2Data || [];
-    const baseline = buildBaselineManualsFromCurrent(currentRows);
+  // NEW: options to control whether to include accepted manuals and which baseline to use
+  type RecalcOpts = { includeAccepted?: boolean; baselineSource?: 'current' | 'original' };
 
-    // 1) Compose manual map by priority: baseline → accepted → chat → session
-    //    (later entries override earlier ones)
+  const recalcWithManuals = async (
+    sessionManuals: Record<string, number>,
+    opts: RecalcOpts = {}
+  ) => {
+    const { includeAccepted = true, baselineSource = 'current' } = opts;
+
+    // 0) Pick baseline source
+    const currentRows = companyData.ink2Data || [];
+    const originalRows = originalInk2BaselineRef.current || [];
+    const rowsForBaseline = baselineSource === 'original' ? originalRows : currentRows;
+    const baseline = buildBaselineManualsFromCurrent(rowsForBaseline);
+
+    // 1) Compose: baseline → (accepted?) → chat → session
     const manualComposite = {
       ...baseline,
-      ...(companyData.acceptedInk2Manuals || {}),
-      ...getChatOverrides(),             // your helper that returns {INK4.14a, justering_sarskild_loneskatt}
+      ...(includeAccepted ? (companyData.acceptedInk2Manuals || {}) : {}),
+      ...getChatOverrides(),
       ...sessionManuals,
     };
 
@@ -808,11 +816,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
   };
 
-  // Ångra: Base + Chat (ignore accepted + session edits)
+  // Ångra → Base + Chat only, use ORIGINAL baseline, EXCLUDE accepted
   const handleUndo = async () => {
-    // To really go to "base + chat", do NOT include accepted manuals nor session edits
-    await recalcWithManuals({}); // recalcWithManuals will build baseline & add chat
-    // (baseline ensures non-calculated rows equal the original base values still shown)
+    await recalcWithManuals({}, { includeAccepted: false, baselineSource: 'original' });
   };
 
   
@@ -891,12 +897,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
 
   // Godkänn: accept current session edits, persist, recalc, exit edit mode
+  // Godkänn → store accepted, then include accepted on recalc (current baseline is fine)
   const handleApproveChanges = async () => {
     const nextAccepted = { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
     onDataUpdate({ acceptedInk2Manuals: nextAccepted });
-
-    await recalcWithManuals({}); // recalc will include accepted+chat over baseline
-
+    await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current' });
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false });
     setManualEdits({});
     

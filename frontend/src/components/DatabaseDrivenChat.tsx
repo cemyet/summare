@@ -606,9 +606,6 @@ interface ChatFlowResponse {
     return out;
   };
 
-  // When a recalc response arrives, only replace CALC_ONLY amounts;
-  // for all others, keep the previous amount unless the user explicitly edited
-  // or a chat override targets it.
   const selectiveMergeInk2 = (
     prevRows: any[],
     newRows: any[],
@@ -622,21 +619,20 @@ interface ChatFlowResponse {
       'Arets_resultat_justerat',
     ]);
 
-    const prevByVar = new Map(prevRows.map((r: any) => [r.variable_name, r]));
-    const nextByVar = new Map(newRows.map((r: any) => [r.variable_name, r]));
-    const out: any[] = [];
+    const prevBy = new Map(prevRows.map((r:any)=>[r.variable_name,r]));
+    const nextBy = new Map(newRows.map((r:any)=>[r.variable_name,r]));
+    const manualNames = Object.keys(manuals);
 
-    // union of all variable names
     const names = new Set<string>([
-      ...Array.from(prevByVar.keys()),
-      ...Array.from(nextByVar.keys()),
+      ...prevBy.keys(),
+      ...nextBy.keys(),
+      ...manualNames,   // ← ensure manual-only rows (e.g., INK4.14a) appear
     ]);
 
+    const out: any[] = [];
     for (const name of names) {
-      const prev = prevByVar.get(name);
-      const next = nextByVar.get(name);
-
-      // Start from previous if we had it; otherwise from server row; otherwise stub
+      const prev = prevBy.get(name);
+      const next = nextBy.get(name);
       const base = prev ?? next ?? {
         variable_name: name,
         row_title: name,
@@ -647,26 +643,13 @@ interface ChatFlowResponse {
       };
 
       let amount = base.amount;
+      if (Object.prototype.hasOwnProperty.call(manuals, name)) amount = manuals[name];
+      else if (CALC_ONLY.has(name) && next) amount = next.amount;
 
-      // 1) If the user or chat provided a manual/override for this var, that wins
-      if (Object.prototype.hasOwnProperty.call(manuals, name)) {
-        amount = manuals[name];
-      }
-      // 2) Else, if this var is allowed to be recalculated, take the server's new amount
-      else if (CALC_ONLY.has(name) && next) {
-        amount = next.amount;
-      }
-      // 3) Else keep the previous amount exactly as-is
-
-      out.push({
-        ...base,
-        amount,
-        // keep tags visible for editable INK4.* rows if you already do so elsewhere
-      });
+      out.push({ ...base, amount });
     }
 
-    // keep your ordering if needed (use order_index if present)
-    out.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+    out.sort((a,b)=>(a.order_index??0)-(b.order_index??0));
     return out;
   };
 
