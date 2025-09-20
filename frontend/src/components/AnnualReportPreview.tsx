@@ -482,6 +482,33 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   if (!cd.showTaxPreview && !cd.showRRBR) {
     return null;
   }
+
+  // --- calculated rows (read-only) ---
+  const CALCULATED = new Set([
+    'INK4.1','INK4.2','INK4.3a','INK_skattemassigt_resultat',
+    'INK_beraknad_skatt','INK4.15','INK4.16'
+  ]);
+
+  const isHeader = (name?: string) => !!name && /_header$/i.test(name || '');
+
+  const isEditableCell = (name?: string) =>
+    !!name && !CALCULATED.has(name) && !isHeader(name);
+
+  // Manuals the user has approved previously (persisted in companyData)
+  const acceptedManuals: Record<string, number> = companyData.acceptedInk2Manuals || {};
+
+  // Two chat overrides (only ones allowed to come from chat)
+  const getChatOverrides = (): Record<string, number> => {
+    const o: Record<string, number> = {};
+    const underskott = Number(companyData.unusedTaxLossAmount || 0);
+    const sarskild = Number(companyData.justeringSarskildLoneskatt || 0);
+    if (Number.isFinite(underskott) && underskott !== 0) o['INK4.14a'] = underskott;
+    if (Number.isFinite(sarskild)   && sarskild   !== 0) o['justering_sarskild_loneskatt'] = sarskild;
+    return o;
+  };
+
+  // In-session edits (cleared when leaving edit mode or on approve)
+  const [manualEdits, setManualEdits] = useState<Record<string, number>>({});
   
   const [showAllRR, setShowAllRR] = useState(false);
   const [showAllBR, setShowAllBR] = useState(false);
@@ -643,107 +670,44 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     return () => clearTimeout(t);
   }, [brData, rrData, cd.noterData]);
 
-  // Capture original amounts when isEditing becomes true (for undo functionality)
+  // Enter/leave edit mode behavior
   useEffect(() => {
-    if (isEditing && Object.keys(originalAmounts).length === 0) {
-      const currentData = recalculatedData.length > 0 ? recalculatedData : ink2Data;
-      const amounts: Record<string, number> = {};
-      currentData.forEach((item: any) => {
-        if ((!item.is_calculated || item.variable_name === 'INK_sarskild_loneskatt') && item.show_amount) {
-          amounts[item.variable_name] = item.amount || 0;
-        }
-      });
-      setOriginalAmounts(amounts);
+    if (isEditing) {
+      // Start session from accepted manuals
+      setManualEdits({ ...acceptedManuals });
+    } else {
+      // Clear session edits when leaving edit mode
+      setManualEdits({});
     }
-  }, [isEditing, ink2Data, recalculatedData, originalAmounts]);
+  }, [isEditing]);
 
 
 
-  // Undo all changes
+  // Universal recalc helper
+  const recalcWithManuals = async (manuals: Record<string, number>) => {
+    const result = await apiService.recalculateInk2({
+      current_accounts: companyData.seFileData?.current_accounts || {},
+      fiscal_year: companyData.fiscalYear,
+      rr_data: companyData.seFileData?.rr_data || [],
+      br_data: companyData.seFileData?.br_data || [],
+      manual_amounts: manuals
+    });
+    if (result?.success) {
+      onDataUpdate({
+        ink2Data: result.ink2_data,
+        inkBeraknadSkatt:
+          result.ink2_data.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount
+          ?? companyData.inkBeraknadSkatt
+      });
+    }
+  };
+
+  // Ångra: return to Base + Chat only (ignore accepted & session manuals)
   const handleUndo = async () => {
-    setEditedAmounts(originalAmounts);
-    await recalculateValues(originalAmounts);
+    setManualEdits({});
+    await recalcWithManuals({ ...getChatOverrides() });
   };
 
-  // Recalculate dependent values when amounts change
-  const recalculateValues = async (updatedAmounts: Record<string, number>) => {
-    try {
-      console.log('Recalculating with amounts:', updatedAmounts);
-      
-      // Handle pension tax field mapping and preserve existing values
-      const preservedAmounts = { ...updatedAmounts };
-      
-      // Preserve INK4.14a (unused tax loss) if it exists and not being manually edited
-      if (companyData.unusedTaxLossAmount && !('INK4.14a' in updatedAmounts)) {
-        preservedAmounts['INK4.14a'] = companyData.unusedTaxLossAmount;
-        console.log('Preserving existing INK4.14a (unused tax loss):', companyData.unusedTaxLossAmount);
-      }
-      
-      // Preserve INK4.6b (outnyttjat underskott) if it exists and not being manually edited
-      const currentDataForInk4_6b = recalculatedData.length > 0 ? recalculatedData : ink2Data;
-      const existingInk4_6b = currentDataForInk4_6b.find((item: any) => item.variable_name === 'INK4.6b');
-      if (existingInk4_6b && existingInk4_6b.amount !== undefined && existingInk4_6b.amount !== 0 && !('INK4.6b' in updatedAmounts)) {
-        preservedAmounts['INK4.6b'] = existingInk4_6b.amount;
-        console.log('Preserving existing INK4.6b (outnyttjat underskott):', existingInk4_6b.amount);
-      }
-      
-      // If user edited INK_sarskild_loneskatt, convert it to justering_sarskild_loneskatt for backend
-      if ('INK_sarskild_loneskatt' in updatedAmounts) {
-        // Frontend stores positive value, backend expects justering_sarskild_loneskatt (positive = increase, negative = decrease)
-        preservedAmounts.justering_sarskild_loneskatt = updatedAmounts.INK_sarskild_loneskatt;
-        delete preservedAmounts.INK_sarskild_loneskatt; // Remove the INK version
-        console.log('Converting INK_sarskild_loneskatt to justering_sarskild_loneskatt:', preservedAmounts.justering_sarskild_loneskatt);
-      } else if (typeof companyData.justeringSarskildLoneskatt === 'number' && companyData.justeringSarskildLoneskatt !== 0) {
-        // Preserve existing numeric value if not being edited
-        preservedAmounts.justering_sarskild_loneskatt = companyData.justeringSarskildLoneskatt;
-        console.log('Preserving existing justering_sarskild_loneskatt:', companyData.justeringSarskildLoneskatt);
-      } else {
-        // Check if there's an existing INK_sarskild_loneskatt value in the current ink2_data that needs to be preserved
-        const currentDataForSarskild = recalculatedData.length > 0 ? recalculatedData : ink2Data;
-        const existingSarskildRow = currentDataForSarskild.find((item: any) => item.variable_name === 'INK_sarskild_loneskatt');
-        if (existingSarskildRow && existingSarskildRow.amount && existingSarskildRow.amount !== 0) {
-          // Preserve the existing value by converting it to justering_sarskild_loneskatt
-          preservedAmounts.justering_sarskild_loneskatt = existingSarskildRow.amount;
-          console.log('Preserving existing INK_sarskild_loneskatt from ink2_data:', existingSarskildRow.amount);
-        }
-      }
-      
-      // Preserve calculated values in editable ranges (INK4.3a-4.14c, 4.17-4.22) for proper undo functionality
-      const currentDataForCalculated = recalculatedData.length > 0 ? recalculatedData : ink2Data;
-      const calculatedEditableVars = ['INK4.6a', 'INK4.6b', 'INK4.6d']; // Add other calculated vars as needed
-      
-      calculatedEditableVars.forEach(varName => {
-        const existingItem = currentDataForCalculated.find((item: any) => item.variable_name === varName);
-        if (existingItem && existingItem.amount !== undefined && existingItem.amount !== 0) {
-          preservedAmounts[varName] = existingItem.amount;
-          console.log(`Preserving calculated value ${varName}:`, existingItem.amount);
-        }
-      });
-
-      // Call backend API to recalculate INK2 values using API service
-      const result = await apiService.recalculateInk2({
-        current_accounts: seFileData?.current_accounts || {},
-        fiscal_year: seFileData?.company_info?.fiscal_year,
-        rr_data: seFileData?.rr_data || [],
-        br_data: seFileData?.br_data || [],
-        manual_amounts: preservedAmounts
-      });
-      
-      if (result.success) {
-        // Update the seFileData with new calculated values
-        if (companyData.seFileData) {
-          companyData.seFileData.ink2_data = result.ink2_data;
-          // Force re-render by updating the state
-          setRecalculatedData(result.ink2_data);
-        }
-        console.log('Successfully recalculated INK2 values');
-      } else {
-        console.error('Failed to recalculate: API returned success=false');
-      }
-    } catch (error) {
-      console.error('Error recalculating values:', error);
-    }
-  };
   
   // Debug logging
 
@@ -818,61 +782,16 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     return `${formatAmount(amount)} kr`;
   };
 
-  // Simple edit functions for INK2
-  const handleInk2Undo = () => {
-    // Clear manual edits but preserve chat-injected values
-    setEditedAmounts({});
-    setRecalculatedData([]);
-    
-    // Reset ink2Data to original baseline but preserve chat-injected values
-    if (originalInk2BaselineRef.current.length > 0) {
-      // Create a copy of original data
-      const resetData = JSON.parse(JSON.stringify(originalInk2BaselineRef.current));
-      
-      // Preserve chat-injected values by updating them in the reset data
-      if (companyData.unusedTaxLossAmount) {
-        const ink4_14a_item = resetData.find((item: any) => item.variable_name === 'INK4.14a');
-        if (ink4_14a_item) {
-          ink4_14a_item.amount = companyData.unusedTaxLossAmount;
-          console.log('Preserving chat-injected INK4.14a in undo:', companyData.unusedTaxLossAmount);
-        }
-      }
-      
-      // Preserve pension tax adjustment if it was injected from chat
-      if (typeof companyData.justeringSarskildLoneskatt === 'number' && companyData.justeringSarskildLoneskatt !== 0) {
-        const sarskild_item = resetData.find((item: any) => item.variable_name === 'INK_sarskild_loneskatt');
-        if (sarskild_item) {
-          sarskild_item.amount = companyData.justeringSarskildLoneskatt;
-          console.log('Preserving chat-injected INK_sarskild_loneskatt in undo:', companyData.justeringSarskildLoneskatt);
-        }
-      }
-      
-      // For INK4.6b, we need to check if it was injected from chat
-      // This might require checking if the current value differs from the original baseline
-      const currentInk4_6b = ink2Data.find((item: any) => item.variable_name === 'INK4.6b');
-      const originalInk4_6b = originalInk2BaselineRef.current.find((item: any) => item.variable_name === 'INK4.6b');
-      if (currentInk4_6b && originalInk4_6b && currentInk4_6b.amount !== originalInk4_6b.amount && currentInk4_6b.amount !== 0) {
-        const ink4_6b_item = resetData.find((item: any) => item.variable_name === 'INK4.6b');
-        if (ink4_6b_item) {
-          ink4_6b_item.amount = currentInk4_6b.amount;
-          console.log('Preserving potentially chat-injected INK4.6b in undo:', currentInk4_6b.amount);
-        }
-      }
-      
-      onDataUpdate({ ink2Data: resetData });
-    }
-    
-    // Keep edit mode active - don't close it
-    // setIsInk2ManualEdit(false); // Removed to stay in edit mode
-  };
 
-  const handleApproveChanges = () => {
-    // Apply changes and exit edit mode
-    if (recalculatedData.length > 0) {
-      onDataUpdate({ ink2Data: recalculatedData });
-    }
-    setIsInk2ManualEdit(false);
-    setShowAllTax(false);
+  // Godkänn: accept current session edits, persist, recalc, exit edit mode
+  const handleApproveChanges = async () => {
+    const nextAccepted = { ...acceptedManuals, ...manualEdits };
+    onDataUpdate({ acceptedInk2Manuals: nextAccepted });
+
+    await recalcWithManuals({ ...getChatOverrides(), ...nextAccepted });
+
+    onDataUpdate({ taxEditingEnabled: false, editableAmounts: false });
+    setManualEdits({});
     
     // Auto-scroll to top of INK2 module after changes are approved
     setTimeout(() => {
@@ -1489,50 +1408,35 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 </div>
                  <span className="text-right font-medium">
                   {item.show_amount === 'NEVER' || item.header ? '' :
-                    ((isEditing || isInk2ManualEdit) && (
-                      !item.is_calculated || 
-                      item.variable_name === 'INK_sarskild_loneskatt' ||
-                      // Make INK4.3a to INK4.14c editable (including calculated ones)
-                      item.variable_name?.match(/^INK4\.(3[a-c]|[4-9][a-c]|1[0-4][a-c])$/) ||
-                      // Make INK4.17 to INK4.22 editable (already mostly editable)
-                      item.variable_name?.match(/^INK4\.(1[7-9]|2[0-2])$/)
-                    ) && item.show_amount && 
-                    // Exclude INK4.15 and INK4.16 from editing (keep calculated-only)
-                    !item.variable_name?.match(/^INK4\.1[56]$/)) ? (
-                      (() => {
-                        // Field is editable
-                        return (
-                          <Ink2AmountInput
-                            value={editedAmounts[item.variable_name] ?? item.amount ?? 0}
-                            onChange={(value) => {
-                              setEditedAmounts(prev => ({
-                                ...prev,
-                                [item.variable_name]: value
-                              }));
-                            }}
-                            onCommit={(value) => {
-                              const updatedAmounts = { ...editedAmounts, [item.variable_name]: value };
-                              setEditedAmounts(updatedAmounts);
-                              recalculateValues(updatedAmounts);
-                            }}
-                            variableName={item.variable_name}
-                          />
-                        );
-                      })()
+                    ((isEditing || isInk2ManualEdit) && isEditableCell(item.variable_name) && item.show_amount) ? (
+                      <Ink2AmountInput
+                        value={manualEdits[item.variable_name] ?? item.amount ?? 0}
+                        disabled={!isEditing || !isEditableCell(item.variable_name)}
+                        onChange={(value) => {
+                          if (!isEditing || !isEditableCell(item.variable_name)) return;
+                          setManualEdits(prev => ({ ...prev, [item.variable_name]: value }));
+                        }}
+                        onCommit={(value) => {
+                          if (!isEditing || !isEditableCell(item.variable_name)) return;
+                          setManualEdits(prev => {
+                            const updated = { ...prev, [item.variable_name]: value };
+                            // Recalc with Chat + Accepted + current session edits
+                            const manuals = { ...getChatOverrides(), ...acceptedManuals, ...updated };
+                            recalcWithManuals(manuals);
+                            return updated;
+                          });
+                        }}
+                        variableName={item.variable_name}
+                      />
                     ) : (
-                      (() => {
-                        // Field not editable
-                        return (
-                        (item.amount !== null && item.amount !== undefined) ? 
-                        (item.amount === 0 ? '0 kr' : (() => {
-                        // Tax calculation should always show integers with Swedish formatting and kr suffix
-                        return new Intl.NumberFormat('sv-SE', {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0
-                        }).format(item.amount) + ' kr';
-                        })()) : '0 kr'
-                        );
-                      })()
+                      (item.amount !== null && item.amount !== undefined) ? 
+                      (item.amount === 0 ? '0 kr' : (() => {
+                      // Tax calculation should always show integers with Swedish formatting and kr suffix
+                      return new Intl.NumberFormat('sv-SE', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      }).format(item.amount) + ' kr';
+                      })()) : '0 kr'
                     )
                   }
                 </span>
@@ -1544,7 +1448,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
               <div className="pt-4 border-t border-gray-200 flex justify-between">
                 {/* Undo Button - Left */}
                 <Button 
-                  onClick={handleInk2Undo}
+                  onClick={handleUndo}
                   variant="outline"
                   className="flex items-center gap-2"
                 >

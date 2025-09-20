@@ -69,57 +69,6 @@ interface ChatFlowResponse {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  // Cache last non-zero sticky values to prevent chat-path wipes
-  const stickyVars = ['INK4.3c', 'INK4.5c', 'INK4.6a', 'INK4.6b', 'INK4.6d', 'INK4.14a'];
-  const lastNonZeroRef = useRef<Record<string, number>>({});
-
-  // Reset cache on company/year change
-  useEffect(() => {
-    lastNonZeroRef.current = {}; // clear all cached stickies
-  }, [companyData.orgnr, companyData.fiscalYear, companyData.seFileData?.fileHash]);
-
-  // Update cache whenever fresh ink2 data arrives
-  useEffect(() => {
-    const src = (globalInk2Data && globalInk2Data.length ? globalInk2Data : companyData.ink2Data) || [];
-    stickyVars.forEach(v => {
-      const amt = src.find((x: any) => x.variable_name === v)?.amount;
-      if (typeof amt === 'number' && Number.isFinite(amt) && Object.is(amt, -0) ? 0 !== 0 : amt !== 0) {
-        lastNonZeroRef.current[v] = amt;
-      }
-    });
-  }, [globalInk2Data, companyData.ink2Data]);
-
-  // Helper: get latest amount for an INK2 variable from the freshest source
-  // Prefer cached non-zero values first, then most recent NON-ZERO across both sources
-  const getInk2Amount = (varName: string, fallback = 0) => {
-    // First check cache for previously non-zero values
-    if (typeof lastNonZeroRef.current[varName] === 'number') {
-      return lastNonZeroRef.current[varName];
-    }
-    
-    const fromGlobal = (globalInk2Data || []).find((x: any) => x.variable_name === varName)?.amount;
-    const fromCompany = (companyData.ink2Data || []).find((x: any) => x.variable_name === varName)?.amount;
-
-    // Be tolerant to -0, NaN, and stringy amounts
-    const isNum = (x: any): x is number => typeof x === 'number' && Number.isFinite(x);
-    const candidates = [fromGlobal, fromCompany].filter(isNum) as number[];
-
-    // Prefer first non-zero; otherwise first defined; otherwise fallback
-    const nonZero = candidates.find((v) => v !== 0);
-    return (nonZero ?? candidates[0] ?? fallback);
-  };
-
-  // Helper: build manual preservation set for sticky calculated rows
-  const buildPreservedManuals = () => {
-    const keep: Record<string, number> = {};
-    ['INK4.3c', 'INK4.5c', 'INK4.6a', 'INK4.6b', 'INK4.6d', 'INK4.14a'].forEach(v => {
-      // prefer freshest non-zero; fall back to cached previous non-zero
-      const live = getInk2Amount(v, 0);
-      const val = (live !== 0) ? live : (lastNonZeroRef.current[v] ?? 0);
-      if (val !== 0) keep[v] = val;
-    });
-    return keep;
-  };
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -440,30 +389,9 @@ interface ChatFlowResponse {
       
       // Handle pension tax adjustments
       if (option.option_value === 'adjust_calculated') {
-        // Set pension tax adjustment to calculated value
-        onDataUpdate({ justeringSarskildLoneskatt: 'calculated' });
-        
-        // Trigger recalculation to update tax preview
-        if (companyData.seFileData && companyData.sarskildLoneskattPensionCalculated) {
-          try {
-            const preservedManuals = buildPreservedManuals();
-            const result = await apiService.recalculateInk2({
-              current_accounts: companyData.seFileData.current_accounts || {},
-              fiscal_year: companyData.fiscalYear,
-              rr_data: companyData.seFileData.rr_data || [],
-              br_data: companyData.seFileData.br_data || [],
-              manual_amounts: preservedManuals,
-              justering_sarskild_loneskatt: companyData.sarskildLoneskattPensionCalculated
-            });
-            
-            if (result.success) {
-              onDataUpdate({ ink2Data: result.ink2_data });
-              setGlobalInk2Data(result.ink2_data);
-            }
-          } catch (error) {
-            console.error('Error recalculating tax:', error);
-          }
-        }
+        const delta = (companyData.sarskildLoneskattPensionCalculated || 0)
+                    - (companyData.sarskildLoneskattPension || 0);
+        await applyChatOverrides({ sarskild: delta });
         
         try {
           const step202Response = await apiService.getChatFlowStep(202) as ChatFlowResponse;
@@ -472,7 +400,7 @@ interface ChatFlowResponse {
           console.error('❌ Error fetching step 202:', error);
           addMessage('Perfekt, nu är den särskilda löneskatten justerad som du kan se i skatteuträkningen till höger.', true, '✅');
         }
-        setTimeout(() => loadChatStep(301), 1000); // Go to underskott question
+        setTimeout(() => loadChatStep(301), 1000);
         return;
       }
       
@@ -485,71 +413,8 @@ interface ChatFlowResponse {
       
       // Handle "no unused tax loss" from step 301
       if (option.option_value === 'none' && (explicitStepNumber || currentStep) === 301) {
-        // Set unused tax loss to 0 and trigger tax recalculation
         onDataUpdate({ unusedTaxLossAmount: 0 });
-        
-        // Trigger recalculation to update inkBeraknadSkatt
-        if (companyData.seFileData) {
-          try {
-            const justeringSarskildLoneskattValue = companyData.justeringSarskildLoneskatt === 'calculated' 
-              ? (companyData.sarskildLoneskattPensionCalculated || 0) - (companyData.sarskildLoneskattPension || 0)
-              : 0;
-              
-            console.log('🔍 Step 301 option 1 - API call parameters:');
-            console.log('📊 current_accounts:', companyData.seFileData.accountBalances);
-            console.log('📊 rr_data length:', companyData.seFileData.rr_data?.length || 0);
-            console.log('📊 br_data length:', companyData.seFileData.br_data?.length || 0);
-            console.log('📊 fiscal_year:', companyData.fiscalYear);
-            console.log('📊 justering_sarskild_loneskatt:', justeringSarskildLoneskattValue);
-            console.log('📊 ink4_14a_outnyttjat_underskott: 0');
-            
-            const preservedManuals = buildPreservedManuals();
-            console.log('INK2 payload (step 301 none) ->', {
-              manuals_sent: preservedManuals
-            });
-
-            const response = await apiService.recalculateInk2({
-              current_accounts: companyData.seFileData.current_accounts || {},
-              rr_data: companyData.seFileData.rr_data || [],
-              br_data: companyData.seFileData.br_data || [],
-              fiscal_year: companyData.fiscalYear,
-              // ✅ keep preserved manuals so 4.6d survives
-              manual_amounts: preservedManuals,
-              ink4_14a_outnyttjat_underskott: 0, // No unused tax loss
-              justering_sarskild_loneskatt: justeringSarskildLoneskattValue
-            });
-            
-            if (response.success) {
-              console.log('🔍 Step 301 option 1 - Tax recalculation result:', response.ink2_data);
-              
-              // Get the updated inkBeraknadSkatt value (same as option 2 pattern)
-              const updatedInkBeraknadSkatt = response.ink2_data.find((item: any) => 
-                item.variable_name === 'INK_beraknad_skatt'
-              )?.amount || companyData.inkBeraknadSkatt;
-              
-              console.log('💰 Updated inkBeraknadSkatt for step 401:', updatedInkBeraknadSkatt);
-              
-              // Store values in state to ensure they're always available (same as option 2)
-              setGlobalInk2Data(response.ink2_data);
-              setGlobalInkBeraknadSkatt(updatedInkBeraknadSkatt);
-              
-              // Update the tax data in company state (same as option 2)
-              onDataUpdate({
-                ink2Data: response.ink2_data,
-                inkBeraknadSkatt: updatedInkBeraknadSkatt,
-                unusedTaxLossAmount: 0
-              });
-              
-              // Pass updated ink2Data to step 401
-              setTimeout(() => loadChatStep(401, response.ink2_data), 1000);
-              return;
-            }
-          } catch (error) {
-            console.error('Error recalculating tax for no unused loss:', error);
-          }
-        }
-        
-        setTimeout(() => loadChatStep(401), 1000);
+        await loadChatStep(401, globalInk2Data);
         return;
       }
 
@@ -710,16 +575,60 @@ interface ChatFlowResponse {
     return Number.isFinite(n) ? n : NaN;
   };
 
+  const isNonZeroNumber = (v: any): v is number =>
+    typeof v === 'number' && Number.isFinite(v) && v !== 0;
+
+  // Chat override helper (call this whenever chat injects values)
+  const applyChatOverrides = async ({
+    underskott,   // INK4.14a
+    sarskild      // justering_sarskild_loneskatt
+  }: { underskott?: number; sarskild?: number }) => {
+
+    const manuals: Record<string, number> = {};
+
+    // underskott (INK4.14a)
+    if (isNonZeroNumber(underskott)) {
+      onDataUpdate({ unusedTaxLossAmount: underskott });
+      manuals['INK4.14a'] = underskott;
+    } else if (typeof underskott === 'number') {
+      onDataUpdate({ unusedTaxLossAmount: 0 });
+    }
+
+    // justering särskild löneskatt
+    if (isNonZeroNumber(sarskild)) {
+      onDataUpdate({ justeringSarskildLoneskatt: sarskild });
+      manuals['justering_sarskild_loneskatt'] = sarskild;
+    } else if (typeof sarskild === 'number') {
+      onDataUpdate({ justeringSarskildLoneskatt: 0 });
+    }
+
+    // If neither override is non-zero, skip backend call
+    if (Object.keys(manuals).length === 0) return;
+
+    const resp = await apiService.recalculateInk2({
+      current_accounts: companyData.seFileData?.current_accounts || {},
+      fiscal_year: companyData.fiscalYear,
+      rr_data: companyData.seFileData?.rr_data || [],
+      br_data: companyData.seFileData?.br_data || [],
+      manual_amounts: manuals // CHAT ONLY
+    });
+
+    if (resp?.success) {
+      const skatt = resp.ink2_data.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount || 0;
+      onDataUpdate({ ink2Data: resp.ink2_data, inkBeraknadSkatt: skatt });
+      setGlobalInk2Data?.(resp.ink2_data);
+      setGlobalInkBeraknadSkatt?.(skatt);
+    }
+  };
+
   // Handle API calls triggered by chat actions
   const handleApiCall = async (actionData: any) => {
     if (actionData?.endpoint === 'recalculate_ink2') {
       try {
         const params = actionData.params || {};
-
-        // 1) correct copy
         const substitutedParams: any = { ...params };
 
-        // 2) Substitute placeholders AND coerce to numbers if possible
+        // Substitute placeholders AND coerce to numbers if possible
         for (const [key, value] of Object.entries(substitutedParams)) {
           if (typeof value === 'string' && value.includes('{')) {
             const substituted = value.replace(/{(\w+)}/g, (match, varName) => {
@@ -735,7 +644,7 @@ interface ChatFlowResponse {
           }
         }
 
-        // 2b) ALSO coerce known numeric params even if they had no {placeholder}
+        // Coerce known numeric params
         ['justering_sarskild_loneskatt', 'ink4_14a_outnyttjat_underskott'].forEach(k => {
           if (k in substitutedParams) {
             const coerced = toNumber(substitutedParams[k]);
@@ -744,51 +653,12 @@ interface ChatFlowResponse {
         });
 
         if (companyData.seFileData) {
-          // 3) build preserved manuals so 4.6d etc stay sticky
-          const preservedManuals = buildPreservedManuals();
-
-          // 3b) coerce incoming manual_amounts to numbers too
-          const incomingManualsRaw = substitutedParams.manual_amounts || {};
-          const incomingManuals: Record<string, number> = {};
-          for (const [k, v] of Object.entries(incomingManualsRaw)) {
-            const n = toNumber(v);
-            incomingManuals[k] = Number.isFinite(n) ? n : (v as number);
-          }
-
-          // 3c) Invalidate cache when user explicitly sets a value (incl. zero)
-          for (const k of Object.keys(incomingManuals)) {
-            if (stickyVars.includes(k)) {
-              // user explicitly provided a value -> trust it
-              delete lastNonZeroRef.current[k];
-            }
-          }
-
-          let finalManuals: Record<string, number> = { ...preservedManuals, ...incomingManuals };
-
-          // 4) normalize 4.14a from ANY chat key -> manual INK4.14a
-          const underskottRaw =
-            substitutedParams.ink4_14a_outnyttjat_underskott ??
-            substitutedParams.INK4_14a_outnyttjat_underskott ??
-            substitutedParams.INK4_14a ??
-            substitutedParams.outnyttjat_underskott;
-
-          const underskottNum = toNumber(underskottRaw);
-          if (Number.isFinite(underskottNum)) {
-            finalManuals = { ...finalManuals, 'INK4.14a': underskottNum };
-            delete substitutedParams.ink4_14a_outnyttjat_underskott;
-            delete substitutedParams.INK4_14a_outnyttjat_underskott;
-            delete substitutedParams.INK4_14a;
-            delete substitutedParams.outnyttjat_underskott;
-          }
-
-          // 5) real API call: spread params correctly; keep manuals LAST
           const result = await apiService.recalculateInk2({
             current_accounts: companyData.seFileData.current_accounts || {},
             fiscal_year: companyData.fiscalYear,
             rr_data: companyData.seFileData.rr_data || [],
             br_data: companyData.seFileData.br_data || [],
-            ...substitutedParams,
-            manual_amounts: finalManuals,
+            ...substitutedParams
           });
 
           if (result?.success) {
@@ -842,9 +712,8 @@ interface ChatFlowResponse {
 
         // Special handling for unused tax loss amount
         if (submitOption.action_data.variable === 'unusedTaxLossAmount') {
-          console.log('🔥 Calling specialized unused tax loss handler');
-          await handleUnusedTaxLossSubmission(value as number);
-          return; // Don't continue with normal flow
+          await applyChatOverrides({ underskott: Number(value || 0) });
+          return;
         }
 
         onDataUpdate({ [submitOption.action_data.variable]: value });
@@ -862,61 +731,8 @@ interface ChatFlowResponse {
             sarskildLoneskattPensionSubmitted: amount 
           });
           
-          // Trigger recalculation to update tax preview
-          if (companyData.seFileData) {
-            try {
-              const preservedManuals = buildPreservedManuals();
-              console.log('INK2 payload (pension tax adjustment) ->', {
-                manuals_sent: preservedManuals
-              });
-
-              const result = await apiService.recalculateInk2({
-                current_accounts: companyData.seFileData.current_accounts || {},
-                fiscal_year: companyData.fiscalYear,
-                rr_data: companyData.seFileData.rr_data || [],
-                br_data: companyData.seFileData.br_data || [],
-                // ✅ keep preserved manuals so 4.6d survives
-                manual_amounts: preservedManuals,
-                justering_sarskild_loneskatt: adjustment
-              });
-              
-              if (result.success) {
-                console.log('✅ Tax recalculation successful');
-                console.log('📋 New INK2 data:', result.ink2_data);
-                
-                // Get the updated inkBeraknadSkatt value
-                const updatedInkBeraknadSkatt = result.ink2_data.find((item: any) => 
-                  item.variable_name === 'INK_beraknad_skatt'
-                )?.amount || companyData.inkBeraknadSkatt;
-                
-                console.log('💰 Updated inkBeraknadSkatt:', updatedInkBeraknadSkatt);
-                
-                // Store values in state to ensure they're always available (like in handleUnusedTaxLossSubmission)
-                setGlobalInk2Data(result.ink2_data);
-                setGlobalInkBeraknadSkatt(updatedInkBeraknadSkatt);
-                console.log('🌍 Stored in state - globalInkBeraknadSkatt:', updatedInkBeraknadSkatt);
-                
-                // Update the tax data in company state in a single call to prevent multiple updates
-                onDataUpdate({
-                  ink2Data: result.ink2_data,
-                  inkBeraknadSkatt: updatedInkBeraknadSkatt,
-                  showTaxPreview: true
-                });
-                
-                setShowInput(false);
-                setInputValue('');
-
-                // Navigate to step 202 with the updated ink2Data (step 202 will show its own message)
-                console.log('🔄 Navigating to step 202 with updated inkBeraknadSkatt:', updatedInkBeraknadSkatt);
-                loadChatStep(202, result.ink2_data);
-                return;
-              }
-            } catch (error) {
-              console.error('Error recalculating tax:', error);
-            }
-          }
+          await applyChatOverrides({ sarskild: adjustment });
           
-          // Fallback if recalculation fails
           try {
             const step202Response = await apiService.getChatFlowStep(202) as ChatFlowResponse;
             addMessage(step202Response.question_text, true, step202Response.question_icon);
@@ -1224,114 +1040,6 @@ interface ChatFlowResponse {
     }, 1000);
   };
 
-  // Special handler for unused tax loss submission
-  const handleUnusedTaxLossSubmission = async (amount: number) => {
-    try {
-      console.log('🔥 Handling unused tax loss submission:', amount);
-      console.log('💰 Current companyData:', { 
-        justeringSarskildLoneskatt: companyData.justeringSarskildLoneskatt,
-        sarskildLoneskattPensionCalculated: companyData.sarskildLoneskattPensionCalculated,
-        sarskildLoneskattPensionSubmitted: companyData.sarskildLoneskattPensionSubmitted
-      });
-      
-      // Update company data with the amount
-      onDataUpdate({ unusedTaxLossAmount: amount });
-
-      // Trigger API recalculation to update INK4.14a and all dependent tax calculations
-      if (companyData.seFileData) {
-        // Calculate the correct pension tax adjustment value
-        let pensionTaxAdjustment = 0;
-        if (companyData.justeringSarskildLoneskatt === 'calculated') {
-          pensionTaxAdjustment = companyData.sarskildLoneskattPensionCalculated || 0;
-        } else if (companyData.justeringSarskildLoneskatt === 'custom') {
-          pensionTaxAdjustment = companyData.sarskildLoneskattPensionSubmitted || 0;
-        } else if (typeof companyData.justeringSarskildLoneskatt === 'number') {
-          pensionTaxAdjustment = companyData.justeringSarskildLoneskatt;
-        }
-        
-        console.log('📊 Recalculating with:', {
-          ink4_14a_outnyttjat_underskott: amount,
-          justering_sarskild_loneskatt: pensionTaxAdjustment
-        });
-        
-        const preservedManuals = buildPreservedManuals();
-        console.log('INK2 payload (underskott path) ->', {
-          manuals_sent: {
-            ...preservedManuals,
-            'INK4.14a': amount
-          }
-        });
-
-        const result = await apiService.recalculateInk2({
-          current_accounts: companyData.seFileData.current_accounts || {},
-          fiscal_year: companyData.fiscalYear,
-          rr_data: companyData.seFileData.rr_data || [],
-          br_data: companyData.seFileData.br_data || [],
-          // ✅ use preserved manuals (4.6d etc) + mirror 4.14a into manuals
-          manual_amounts: { 
-            ...preservedManuals,
-            // mirror 4.14a into manuals so it's definitely applied in the preview calculations
-            'INK4.14a': amount,
-          },
-          // still send the param if backend uses it, doesn't hurt
-          ink4_14a_outnyttjat_underskott: amount,
-          justering_sarskild_loneskatt: pensionTaxAdjustment
-        });
-        
-        if (result.success) {
-          console.log('✅ Tax recalculation successful');
-          console.log('📋 New INK2 data:', result.ink2_data);
-          
-          // Check if INK4.14a was updated
-          const ink4_14a = result.ink2_data.find((item: any) => 
-            item.variable_name === 'INK4.14a'
-          );
-          console.log('🔍 INK4.14a after recalculation:', ink4_14a);
-          
-          // Get the updated inkBeraknadSkatt value
-          const updatedInkBeraknadSkatt = result.ink2_data.find((item: any) => 
-            item.variable_name === 'INK_beraknad_skatt'
-          )?.amount || companyData.inkBeraknadSkatt;
-          
-          console.log('💰 Updated inkBeraknadSkatt:', updatedInkBeraknadSkatt);
-          console.log('🔍 Full INK2 data for debugging:', result.ink2_data.filter((item: any) => 
-            item.variable_name === 'INK_beraknad_skatt' || 
-            item.variable_name === 'INK_skattemassigt_resultat' ||
-            item.variable_name === 'INK4.14a'
-          ));
-          
-          // Store values in state to ensure they're always available
-          setGlobalInk2Data(result.ink2_data);
-          setGlobalInkBeraknadSkatt(updatedInkBeraknadSkatt);
-          console.log('🌍 Stored in state - globalInkBeraknadSkatt:', updatedInkBeraknadSkatt);
-          
-          // Update the tax data in company state in a single call to prevent multiple updates
-          onDataUpdate({
-            ink2Data: result.ink2_data,
-            inkBeraknadSkatt: updatedInkBeraknadSkatt,
-            showTaxPreview: true
-          });
-          
-          // Hide input and clear value
-          setShowInput(false);
-          setInputValue('');
-
-          // Navigate to step 303 with the updated ink2Data
-          console.log('🔄 Navigating to step 303 with updated inkBeraknadSkatt:', updatedInkBeraknadSkatt);
-          loadChatStep(303, result.ink2_data);
-
-        }
-      }
-
-      // Hide input and clear value (fallback)
-      setShowInput(false);
-      setInputValue('');
-
-    } catch (error) {
-      console.error('❌ Error handling unused tax loss:', error);
-      addMessage('Något gick fel vid uppdatering av underskottet. Försök igen.', true, '❌');
-    }
-  };
 
   // Initialize chat on mount
   useEffect(() => {
