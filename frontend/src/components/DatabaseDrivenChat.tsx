@@ -589,69 +589,73 @@ interface ChatFlowResponse {
     return null;
   };
 
-  const buildBaselineManualsFromCurrent = (rows: any[]): Record<string, number> => {
-    const out: Record<string, number> = {};
-    for (const r of rows || []) {
-      const v = r.variable_name;
-      const isHeader = /_header$/i.test(v || '');
-      const isCalculated = new Set([
-        'INK4.1','INK4.2','INK4.3a','INK_skattemassigt_resultat',
-        'INK_beraknad_skatt','INK4.15','INK4.16','Arets_resultat_justerat'
-      ]).has(v);
-      if (!isHeader && !isCalculated) {
-        const n = typeof r.amount === 'number' ? r.amount : Number(r.amount || 0);
-        if (Number.isFinite(n)) out[v] = n;
-      }
+/* =====================  INK2 LOGIC (Chat)  ===================== */
+
+// Same CALC_ONLY as preview
+const CALC_ONLY = new Set<string>([
+  "INK_skattemassigt_resultat",
+  "INK_beraknad_skatt",
+  "INK4.15",
+  "INK4.16",
+  "Arets_resultat_justerat",
+]);
+
+const isHeader = (n?: string) => !!n && /_header$/i.test(n || "");
+const isCalculated = (n?: string) =>
+  !!n && (CALC_ONLY.has(n) || n === "INK4.1" || n === "INK4.2" || n === "INK4.3a");
+
+/** Build baseline manuals from current visible rows */
+const buildBaselineManualsFromCurrent = (rows: any[]): Record<string, number> => {
+  const out: Record<string, number> = {};
+  for (const r of rows || []) {
+    const v = r.variable_name;
+    if (!isHeader(v) && !isCalculated(v)) {
+      const n = typeof r.amount === "number" ? r.amount : Number(r.amount || 0);
+      if (Number.isFinite(n)) out[v] = n;
     }
-    return out;
-  };
+  }
+  return out;
+};
 
-  const selectiveMergeInk2 = (
-    prevRows: any[],
-    newRows: any[],
-    manuals: Record<string, number>
-  ) => {
-    const CALC_ONLY = new Set<string>([
-      'INK_skattemassigt_resultat',
-      'INK_beraknad_skatt',
-      'INK4.15',
-      'INK4.16',
-      'Arets_resultat_justerat',
-    ]);
+/** Selective merge: include manual keys; only CALC_ONLY from server */
+const selectiveMergeInk2 = (
+  prevRows: any[],
+  newRows: any[],
+  manuals: Record<string, number>
+) => {
+  const prevBy = new Map(prevRows.map((r: any) => [r.variable_name, r]));
+  const nextBy = new Map(newRows.map((r: any) => [r.variable_name, r]));
+  const manualNames = Object.keys(manuals);
 
-    const prevBy = new Map(prevRows.map((r:any)=>[r.variable_name,r]));
-    const nextBy = new Map(newRows.map((r:any)=>[r.variable_name,r]));
-    const manualNames = Object.keys(manuals);
+  const names = new Set<string>([
+    ...prevBy.keys(),
+    ...nextBy.keys(),
+    ...manualNames,
+  ]);
 
-    const names = new Set<string>([
-      ...prevBy.keys(),
-      ...nextBy.keys(),
-      ...manualNames,   // ← ensure manual-only rows (e.g., INK4.14a) appear
-    ]);
-
-    const out: any[] = [];
-    for (const name of names) {
-      const prev = prevBy.get(name);
-      const next = nextBy.get(name);
-      const base = prev ?? next ?? {
+  const out: any[] = [];
+  for (const name of names) {
+    const prev = prevBy.get(name);
+    const next = nextBy.get(name);
+    const base =
+      prev ??
+      next ?? {
         variable_name: name,
         row_title: name,
         amount: 0,
         always_show: true,
         show_tag: true,
-        style: 'TNORMAL',
+        style: "TNORMAL",
       };
+    let amount = base.amount;
+    if (Object.prototype.hasOwnProperty.call(manuals, name)) amount = manuals[name];
+    else if (CALC_ONLY.has(name) && next) amount = next.amount;
+    out.push({ ...base, amount });
+  }
 
-      let amount = base.amount;
-      if (Object.prototype.hasOwnProperty.call(manuals, name)) amount = manuals[name];
-      else if (CALC_ONLY.has(name) && next) amount = next.amount;
-
-      out.push({ ...base, amount });
-    }
-
-    out.sort((a,b)=>(a.order_index??0)-(b.order_index??0));
-    return out;
-  };
+  out.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+  return out;
+};
 
   // Chat override helper (call this whenever chat injects values)
   const applyChatOverrides = async ({
