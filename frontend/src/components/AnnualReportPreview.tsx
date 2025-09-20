@@ -494,6 +494,30 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const isEditableCell = (name?: string) =>
     !!name && !CALCULATED.has(name) && !isHeader(name);
 
+  // Build a baseline manual map from the currently shown table so the backend uses
+  // exactly these amounts for non-calculated rows (unless overridden by chat/session).
+  const buildBaselineManualsFromCurrent = (rows: any[]): Record<string, number> => {
+    const out: Record<string, number> = {};
+    for (const r of rows || []) {
+      const v = r.variable_name;
+      if (isEditableCell(v)) {
+        const n = typeof r.amount === 'number' ? r.amount : Number(r.amount || 0);
+        if (Number.isFinite(n)) out[v] = n;
+      }
+    }
+    return out;
+  };
+
+  // Translate UI pension row to backend key (UI shows negative, backend expects positive delta)
+  const translateManualsForApi = (manuals: Record<string, number>) => {
+    const out: Record<string, number> = { ...manuals };
+    if (typeof out['INK_sarskild_loneskatt'] === 'number') {
+      out['justering_sarskild_loneskatt'] = Math.abs(out['INK_sarskild_loneskatt']);
+      delete out['INK_sarskild_loneskatt'];
+    }
+    return out;
+  };
+
   // Only these variables may change on any recalc
   const CALC_ONLY = new Set<string>([
     'INK_skattemassigt_resultat',
@@ -511,21 +535,24 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     newRows: any[],
     manuals: Record<string, number>
   ) => {
-    const prevByVar = new Map(prevRows.map((r: any) => [r.variable_name, r]));
-    const nextByVar = new Map(newRows.map((r: any) => [r.variable_name, r]));
+    const prevBy = new Map(prevRows.map((r:any)=>[r.variable_name,r]));
+    const nextBy = new Map(newRows.map((r:any)=>[r.variable_name,r]));
     const out: any[] = [];
 
-    // union of all variable names
+    // include anything we used as a manual (e.g., 4.14a) even if server omitted it
+    const manualNames = Object.keys(manuals);
+
     const names = new Set<string>([
-      ...Array.from(prevByVar.keys()),
-      ...Array.from(nextByVar.keys()),
+      ...prevBy.keys(),
+      ...nextBy.keys(),
+      ...manualNames,
     ]);
 
     for (const name of names) {
-      const prev = prevByVar.get(name);
-      const next = nextByVar.get(name);
+      const prev = prevBy.get(name);
+      const next = nextBy.get(name);
 
-      // Start from previous if we had it; otherwise from server row; otherwise stub
+      // base row (prefer prev for metadata)
       const base = prev ?? next ?? {
         variable_name: name,
         row_title: name,
@@ -537,25 +564,19 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
       let amount = base.amount;
 
-      // 1) If the user or chat provided a manual/override for this var, that wins
       if (Object.prototype.hasOwnProperty.call(manuals, name)) {
+        // 1) manual values (chat / accepted / session) win for non-calculated lines
         amount = manuals[name];
-      }
-      // 2) Else, if this var is allowed to be recalculated, take the server's new amount
-      else if (CALC_ONLY.has(name) && next) {
+      } else if (CALC_ONLY.has(name) && next) {
+        // 2) only these can be refreshed by server
         amount = next.amount;
       }
-      // 3) Else keep the previous amount exactly as-is
+      // 3) everything else stays exactly as previously shown
 
-      out.push({
-        ...base,
-        amount,
-        // keep tags visible for editable INK4.* rows if you already do so elsewhere
-      });
+      out.push({ ...base, amount });
     }
 
-    // keep your ordering if needed (use order_index if present)
-    out.sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+    out.sort((a,b)=>(a.order_index??0)-(b.order_index??0));
     return out;
   };
 
@@ -758,34 +779,49 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
 
   // Universal recalc helper
-  const recalcWithManuals = async (manuals: Record<string, number>) => {
+  const recalcWithManuals = async (sessionManuals: Record<string, number>) => {
+    // 0) Start from what the user currently sees for non-calculated rows
+    const currentRows = companyData.ink2Data || [];
+    const baseline = buildBaselineManualsFromCurrent(currentRows);
+
+    // 1) Compose manual map by priority: baseline → accepted → chat → session
+    //    (later entries override earlier ones)
+    const manualComposite = {
+      ...baseline,
+      ...(companyData.acceptedInk2Manuals || {}),
+      ...getChatOverrides(),             // your helper that returns {INK4.14a, justering_sarskild_loneskatt}
+      ...sessionManuals,
+    };
+
+    // 2) Send to backend (with calc-only hint)
     const payload = {
       current_accounts: companyData.seFileData?.current_accounts || {},
       fiscal_year: companyData.fiscalYear,
       rr_data: companyData.seFileData?.rr_data || [],
       br_data: companyData.seFileData?.br_data || [],
-      manual_amounts: translateManualsForApi(manuals),
+      manual_amounts: translateManualsForApi(manualComposite),
       // @ts-ignore - Optional optimization hint; safe if backend ignores it
       recalc_only_vars: Array.from(CALC_ONLY),
     };
 
-    const prev = companyData.ink2Data || [];
-    const resp = await apiService.recalculateInk2(payload);
-    if (resp?.success) {
-      const merged = selectiveMergeInk2(prev, resp.ink2_data, manuals);
+    const prev = currentRows;
+    const result = await apiService.recalculateInk2(payload);
+    if (result?.success) {
+      const merged = selectiveMergeInk2(prev, result.ink2_data, manualComposite);
       onDataUpdate({
         ink2Data: merged,
         inkBeraknadSkatt:
-          merged.find((i: any) => i.variable_name === 'INK_beraknad_skatt')?.amount
-          ?? companyData.inkBeraknadSkatt,
+          merged.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount
+          ?? companyData.inkBeraknadSkatt
       });
     }
   };
 
-  // Ångra: return to Base + Chat only (ignore accepted & session manuals)
+  // Ångra: Base + Chat (ignore accepted + session edits)
   const handleUndo = async () => {
-    setManualEdits({});
-    await recalcWithManuals({ ...getChatOverrides() });
+    // To really go to "base + chat", do NOT include accepted manuals nor session edits
+    await recalcWithManuals({}); // recalcWithManuals will build baseline & add chat
+    // (baseline ensures non-calculated rows equal the original base values still shown)
   };
 
   
@@ -865,10 +901,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Godkänn: accept current session edits, persist, recalc, exit edit mode
   const handleApproveChanges = async () => {
-    const nextAccepted = { ...acceptedManuals, ...manualEdits };
+    const nextAccepted = { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
     onDataUpdate({ acceptedInk2Manuals: nextAccepted });
 
-    await recalcWithManuals({ ...getChatOverrides(), ...nextAccepted });
+    await recalcWithManuals({}); // recalc will include accepted+chat over baseline
 
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false });
     setManualEdits({});

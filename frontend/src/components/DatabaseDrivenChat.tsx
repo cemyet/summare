@@ -589,6 +589,23 @@ interface ChatFlowResponse {
     return null;
   };
 
+  const buildBaselineManualsFromCurrent = (rows: any[]): Record<string, number> => {
+    const out: Record<string, number> = {};
+    for (const r of rows || []) {
+      const v = r.variable_name;
+      const isHeader = /_header$/i.test(v || '');
+      const isCalculated = new Set([
+        'INK4.1','INK4.2','INK4.3a','INK_skattemassigt_resultat',
+        'INK_beraknad_skatt','INK4.15','INK4.16','Arets_resultat_justerat'
+      ]).has(v);
+      if (!isHeader && !isCalculated) {
+        const n = typeof r.amount === 'number' ? r.amount : Number(r.amount || 0);
+        if (Number.isFinite(n)) out[v] = n;
+      }
+    }
+    return out;
+  };
+
   // When a recalc response arrives, only replace CALC_ONLY amounts;
   // for all others, keep the previous amount unless the user explicitly edited
   // or a chat override targets it.
@@ -659,9 +676,13 @@ interface ChatFlowResponse {
     sarskild      // justering_sarskild_loneskatt
   }: { underskott?: number; sarskild?: number }) => {
 
-    // Build manuals starting from accepted (so override-only rows persist)
-    const acceptedManuals = companyData.acceptedInk2Manuals || {};
-    const manuals: Record<string, number> = { ...acceptedManuals };
+    const prevRows = companyData.ink2Data || [];
+    const baseline = buildBaselineManualsFromCurrent(prevRows);
+
+    const manuals: Record<string, number> = {
+      ...baseline,
+      ...(companyData.acceptedInk2Manuals || {}),
+    };
 
     if (typeof underskott === 'number') {
       onDataUpdate({ unusedTaxLossAmount: underskott });
@@ -677,6 +698,7 @@ interface ChatFlowResponse {
     if (Object.keys(manuals).length === 0) return;
 
     // Optional: Skip backend call when nothing actually changed
+    const acceptedManuals = companyData.acceptedInk2Manuals || {};
     const before = Object.keys(acceptedManuals).sort().join('|');
     const after = Object.keys(manuals).sort().join('|');
     if (before === after) {
