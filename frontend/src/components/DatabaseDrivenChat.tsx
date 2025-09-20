@@ -578,6 +578,17 @@ interface ChatFlowResponse {
   const isNonZeroNumber = (v: any): v is number =>
     typeof v === 'number' && Number.isFinite(v) && v !== 0;
 
+  // Utility: normalize a SQL variable name to the backend key(s) we support
+  const normalizeSqlVar = (v?: string) => {
+    if (!v) return null;
+    const key = v.trim();
+    // Allow SQL to send either friendly or backend key
+    if (/^INK4\.14a$/i.test(key) || /underskott/i.test(key)) return 'INK4.14a';
+    if (/justering.*sarskild.*loneskatt/i.test(key) || /^INK_sarskild_loneskatt$/i.test(key))
+      return 'justering_sarskild_loneskatt';
+    return null;
+  };
+
   // When a recalc response arrives, only replace CALC_ONLY amounts;
   // for all others, keep the previous amount unless the user explicitly edited
   // or a chat override targets it.
@@ -781,13 +792,27 @@ interface ChatFlowResponse {
           parsedValue: inputType === 'amount' ? Math.abs(parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0) : inputValue.trim()
         });
 
-        // Special handling for unused tax loss amount
-        if (submitOption.action_data.variable === 'unusedTaxLossAmount') {
-          await applyChatOverrides({ underskott: Number(value || 0) });
-          const target = submitOption.next_step ?? 303;  // your flow: 302 -> 303
+        // Handle chat override variables (driven by SQL action_data.variable)
+        const opt = submitOption; // from SQL
+        const varFromSql = normalizeSqlVar(opt?.action_data?.variable);
+
+        // Preserve existing value parsing
+        const numericValue = inputType === 'amount' 
+          ? Math.abs(parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0)
+          : (typeof value === 'number' ? value : Number(String(value).replace(/\s/g, '').replace(',', '.')));
+
+        if (opt?.action_type === 'input' && varFromSql) {
+          // Route to our chat override helper
+          await applyChatOverrides({
+            underskott: varFromSql === 'INK4.14a' ? numericValue : undefined,
+            sarskild: varFromSql === 'justering_sarskild_loneskatt' ? numericValue : undefined,
+          });
+
+          // Advance using SQL next_step (no hard-coding)
+          const next = opt.next_step ?? currentStep + 1; // conservative fallback
           setShowInput(false);
           setInputValue('');
-          setTimeout(() => loadChatStep(target), 300);
+          setTimeout(() => loadChatStep(next), 300);
           return;
         }
 
