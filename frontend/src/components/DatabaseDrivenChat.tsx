@@ -550,6 +550,21 @@ interface ChatFlowResponse {
             break;
         }
 
+        // 🔔 Instant UX for chat-driven edit mode (step 401 -> 402 or explicit edit_mode)
+        if (
+          // 1) explicit SQL signal
+          action_data?.edit_mode === 'enable'
+          // 2) OR the common 401 -> 402 flow used in your script
+          || (currentStep === 401 && (next_step === 402))
+        ) {
+          // Open manual edit + show all rows (including zeros) immediately
+          onDataUpdate({ taxEditingEnabled: true, editableAmounts: true, showAllTax: true });
+        }
+
+        if (action_data?.edit_mode === 'disable') {
+          onDataUpdate({ taxEditingEnabled: false, editableAmounts: false, showAllTax: false });
+        }
+
         // Navigate to next step
         console.log('🔍 General navigation check:', { next_step, action_type });
         if (next_step) {
