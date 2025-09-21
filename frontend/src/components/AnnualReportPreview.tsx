@@ -875,63 +875,49 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Same styling semantics as RR/BR but for INK2's 2-column layout
   const getInkStyleClasses = (style?: string, variableName?: string) => {
-    const baseClasses = 'grid gap-x-2 leading-tight'; // tighter columns + smaller line-height
-    let additionalClasses = '';
-
-    // Support legacy and T-styles (TH1/TH2/TH3/TS1/TS2/TS3/TNORMAL)
     const s = style || '';
-    
+    const classes = ['grid', 'gap-x-2', 'leading-tight']; // no vertical gap, tight line-height
+
     // Bold styles - TNORMAL should NOT be bold
     const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
-    // Special case: Apply bold styling to specific variable names
     const specialBoldVariables = ['INK_skattemassigt_resultat'];
     if (boldStyles.includes(s) || (variableName && specialBoldVariables.includes(variableName))) {
-      additionalClasses += ' font-semibold';
-    }
-    
-    // Line styles - only S2/S3/TS2/TS3 get darker lines
-    const lineStyles = ['S2','S3','TS2','TS3'];
-    // Special case: Apply line styling to specific variable names
-    const specialLineVariables = ['INK_skattemassigt_resultat'];
-    if (lineStyles.includes(s) || (variableName && specialLineVariables.includes(variableName))) {
-      additionalClasses += ' border-t border-b border-gray-300 pt-1 pb-1';
+      classes.push('font-semibold');
     }
 
-    // Heading styles should keep their padding
+    // Headings (keep inner padding)
     const headingStyles = ['H0','H1','H2','H3','TH0','TH1','TH2','TH3'];
     const isHeading = headingStyles.includes(s);
-    
-    // Headings keep some vertical padding
-    if (isHeading) {
-      additionalClasses += ' py-1.5';
-    }
-    
-    // Special padding for TH3 - add 7px before (3px + 4px more)
+    if (isHeading) classes.push('py-1.5');
+
+    // Lines (S2/S3/TS2/TS3) get borders; do NOT add py-0 later to these
+    const lineStyles = ['S2','S3','TS2','TS3'];
+    const isLine = lineStyles.includes(s) || (variableName === 'INK_skattemassigt_resultat');
+    if (isLine) classes.push('border-t','border-b','border-gray-300');
+
+    // Special spacing:
+    // TH3: clear space BEFORE the heading + a touch of top padding inside
     if (s === 'TH3') {
-      additionalClasses += ' pt-2'; // 7px padding before TH3 (pt-1.5 = 6px, pt-2 = 8px, using pt-2 for closest to 7px)
+      classes.push('mt-2', 'pt-2');
     }
-    
-    // Special padding for TS2 - add 5px before and after (2px + 3px more)
+    // TS2: inner padding AND outer margin so it doesn't look crushed
     if (s === 'TS2') {
-      additionalClasses += ' py-1.5'; // 6px padding before and after TS2 (closest to 5px)
-    }
-    
-    // Compact styling for TNORMAL rows - larger font size and minimal padding
-    const compactStyles = ['TNORMAL'];
-    if (compactStyles.includes(s)) {
-      additionalClasses += ' text-base py-0.5 pb-0.5'; // text-base (16px) with 1pt padding and 1px padding after
-    } else if (!isHeading && !lineStyles.includes(s) && !compactStyles.includes(s)) {
-      // Remove padding from all non-heading, non-line-styled, non-TNORMAL rows to eliminate space between rows
-      additionalClasses += ' py-0';
+      classes.push('py-1.5', 'my-1');
     }
 
-    // Indentation for TNORMAL only
-    const indentStyles = ['TNORMAL'];
-    const indentation = indentStyles.includes(s) ? ' pl-6' : '';
+    // Compact default rows (not heading, not line, not TNORMAL)
+    if (!isHeading && !isLine && s !== 'TNORMAL') {
+      classes.push('py-0'); // keep rows ultra-tight by default
+    }
+
+    // TNORMAL: tiny inner padding and normal text size, plus indent
+    if (s === 'TNORMAL') {
+      classes.push('text-base', 'py-0.5', 'pl-6');
+    }
 
     return {
-      className: `${baseClasses}${additionalClasses}${indentation}`,
-      style: { gridTemplateColumns: '3fr 1fr' }
+      className: classes.join(' '),
+      style: { gridTemplateColumns: '3fr 1fr' },
     };
   };
 
