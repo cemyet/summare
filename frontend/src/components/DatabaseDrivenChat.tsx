@@ -754,7 +754,13 @@ const selectiveMergeInk2 = (
       onDataUpdate({ ink2Data: merged, inkBeraknadSkatt: skatt });
       setGlobalInk2Data?.(merged);
       setGlobalInkBeraknadSkatt?.(skatt);
+      
+      // Return the updated values for immediate use
+      return { ink2Data: merged, inkBeraknadSkatt: skatt };
     }
+    
+    // Return null if no response
+    return null;
   };
 
   // Handle API calls triggered by chat actions
@@ -857,8 +863,8 @@ const selectiveMergeInk2 = (
 
         // Route into overrides for our two supported variables, regardless of action_type
         if (varFromSql) {
-          // Route to our chat override helper
-          await applyChatOverrides({
+          // Route to our chat override helper and get updated values
+          const updatedData = await applyChatOverrides({
             underskott: varFromSql === 'INK4.14a' ? numericValue : undefined,
             sarskild: varFromSql === 'justering_sarskild_loneskatt' ? numericValue : undefined,
           });
@@ -872,7 +878,8 @@ const selectiveMergeInk2 = (
 
           setShowInput(false);
           setInputValue('');
-          setTimeout(() => loadChatStep(next), 300);
+          // Pass the updated ink2Data to ensure step 401 gets the latest inkBeraknadSkatt
+          setTimeout(() => loadChatStep(next, updatedData?.ink2Data || globalInk2Data), 300);
           return; // ← Important: we handled it, don't continue to legacy paths
         }
 
