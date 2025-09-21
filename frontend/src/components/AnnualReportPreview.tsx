@@ -897,10 +897,17 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       additionalClasses += ' border-t border-b border-gray-300 pt-1 pb-1';
     }
 
-    // Compact styling for TNORMAL rows - reduced font size and no padding
+    // Heading styles should keep their padding
+    const headingStyles = ['H0','H1','H2','H3','TH0','TH1','TH2','TH3'];
+    const isHeading = headingStyles.includes(s);
+    
+    // Compact styling for TNORMAL rows - reduced font size and minimal padding
     const compactStyles = ['TNORMAL'];
     if (compactStyles.includes(s)) {
-      additionalClasses += ' text-xs py-0'; // 80% font size (text-xs) and no vertical padding
+      additionalClasses += ' text-xs py-0.5'; // 80% font size (text-xs) and minimal vertical padding
+    } else if (!isHeading && !lineStyles.includes(s) && !compactStyles.includes(s)) {
+      // Remove padding from all non-heading, non-line-styled, non-TNORMAL rows to eliminate space between rows
+      additionalClasses += ' py-0';
     }
 
     // Indentation for TNORMAL only
@@ -1392,7 +1399,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button className="w-4 h-4 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center hover:bg-blue-600 transition-colors">
+                            <button className="w-3 h-3 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center hover:bg-blue-600 transition-colors">
                               i
                             </button>
                           </TooltipTrigger>
@@ -1406,7 +1413,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   {item.show_tag && item.account_details && item.account_details.length > 0 && (
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="ml-2 h-5 px-2 text-xs">
+                        <Button variant="outline" size="sm" className="ml-2 h-4 px-1.5 text-xs">
                           SHOW
                         </Button>
                       </PopoverTrigger>
@@ -1505,7 +1512,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                    companyData.sarskildLoneskattPensionCalculated > companyData.sarskildLoneskattPension && (
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="ml-2 h-5 px-2 text-xs">
+                        <Button variant="outline" size="sm" className="ml-2 h-4 px-1.5 text-xs">
                           SHOW
                         </Button>
                       </PopoverTrigger>
