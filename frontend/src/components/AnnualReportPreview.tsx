@@ -1404,7 +1404,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <button className="w-3 h-3 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center hover:bg-blue-600 transition-colors">
+                            <button className="w-3.5 h-3.5 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center hover:bg-blue-600 transition-colors">
                               i
                             </button>
                           </TooltipTrigger>
