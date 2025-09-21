@@ -477,9 +477,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   
   // Requirement 2: inputs become editable when taxEditingEnabled OR editableAmounts is true
   const isEditing = Boolean(cd.taxEditingEnabled || editableAmounts);
-  
-  // Unified edit gate: works for both taxEditingEnabled and isInk2ManualEdit paths
-  const canEdit = Boolean(isEditing || isInk2ManualEdit);
 
   // Requirement 1: render when showTaxPreview OR showRRBR is true
   if (!cd.showTaxPreview && !cd.showRRBR) {
@@ -607,6 +604,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const [showAllBR, setShowAllBR] = useState(false);
   const [showAllTax, setShowAllTax] = useState(false);
   const [isInk2ManualEdit, setIsInk2ManualEdit] = useState(false);
+  
+  // Unified edit gate: works for both taxEditingEnabled and isInk2ManualEdit paths
+  const canEdit = Boolean(isEditing || isInk2ManualEdit);
   
   // Store original baseline for proper undo functionality (like Noter)
   const originalInk2BaselineRef = useRef<any[]>([]);
