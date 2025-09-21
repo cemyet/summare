@@ -935,16 +935,16 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false, showTaxPreview: true });
     setShowAllTax(false);
 
-    // recalc: baseline=current, include accepted (use the new nextAccepted, not stale companyData)
-    await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current', acceptedManualsOverride: nextAccepted });
-    
-    // Auto-scroll to tax module (mirror chat flow behavior)
+    // Auto-scroll to tax module immediately (before recalculation for faster UX)
     setTimeout(() => {
       const taxModule = document.querySelector('[data-section="tax-calculation"]');
       if (taxModule) {
         taxModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 200);
+    }, 100); // Reduced delay for faster response
+
+    // recalc: baseline=current, include accepted (use the new nextAccepted, not stale companyData)
+    await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current', acceptedManualsOverride: nextAccepted });
   };
 
   // Helper function to check if a block should be shown
