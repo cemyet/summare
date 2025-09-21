@@ -906,10 +906,20 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       additionalClasses += ' py-1.5';
     }
     
-    // Compact styling for TNORMAL rows - slightly larger font size and minimal padding
+    // Special padding for TH3 - add 3px before
+    if (s === 'TH3') {
+      additionalClasses += ' pt-1.5'; // 3px padding before TH3
+    }
+    
+    // Special padding for TS2 - add 2px before and after
+    if (s === 'TS2') {
+      additionalClasses += ' py-0.5'; // 2px padding before and after TS2
+    }
+    
+    // Compact styling for TNORMAL rows - larger font size and minimal padding
     const compactStyles = ['TNORMAL'];
     if (compactStyles.includes(s)) {
-      additionalClasses += ' text-sm py-0.5 pb-0.5'; // text-sm (14px) with 1pt padding and 1px padding after
+      additionalClasses += ' text-base py-0.5 pb-0.5'; // text-base (16px) with 1pt padding and 1px padding after
     } else if (!isHeading && !lineStyles.includes(s) && !compactStyles.includes(s)) {
       // Remove padding from all non-heading, non-line-styled, non-TNORMAL rows to eliminate space between rows
       additionalClasses += ' py-0';
