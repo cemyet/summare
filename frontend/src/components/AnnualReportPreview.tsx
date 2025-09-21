@@ -826,6 +826,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Ångra → Base + Chat only, use ORIGINAL baseline, EXCLUDE accepted
   const handleUndo = async () => {
+    if (isRecalcPending) return; // guard against re-entry without changing button UI
     setManualEdits({});
     setIsRecalcPending(true);
     // 🔮 Optimistic UI: show Base + Chat immediately
@@ -920,6 +921,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // Godkänn: accept current session edits, persist, recalc, exit edit mode
   // Godkänn → store accepted, then include accepted on recalc (current baseline is fine)
   const handleApproveChanges = async () => {
+    if (isRecalcPending) return; // guard against re-entry without changing button UI
     const nextAccepted = { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
     onDataUpdate({ acceptedInk2Manuals: nextAccepted });
     // Close edit mode instantly (buttons disappear) and hide 0-rows
@@ -1590,23 +1592,21 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 {/* Undo Button - Left */}
                 <Button 
                   onClick={handleUndo}
-                  disabled={isRecalcPending}
                   variant="outline"
                   className="flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
                   </svg>
-                  {isRecalcPending ? 'Ångrar…' : 'Ångra ändringar'}
+                  Ångra ändringar
                 </Button>
                 
                 {/* Update Button - Right */}
                 <Button 
                   onClick={handleApproveChanges}
-                  disabled={isRecalcPending}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
                 >
-                  {isRecalcPending ? 'Sparar…' : 'Godkänn och uppdatera skatt'}
+                  Godkänn och uppdatera skatt
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
                   </svg>
