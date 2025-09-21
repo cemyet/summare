@@ -875,7 +875,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Same styling semantics as RR/BR but for INK2's 2-column layout
   const getInkStyleClasses = (style?: string, variableName?: string) => {
-    const baseClasses = 'grid gap-4';
+    const baseClasses = 'grid gap-x-2 leading-tight'; // tighter columns + smaller line-height
     let additionalClasses = '';
 
     // Support legacy and T-styles (TH1/TH2/TH3/TS1/TS2/TS3/TNORMAL)
@@ -901,10 +901,15 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     const headingStyles = ['H0','H1','H2','H3','TH0','TH1','TH2','TH3'];
     const isHeading = headingStyles.includes(s);
     
-    // Compact styling for TNORMAL rows - reduced font size and minimal padding
+    // Headings keep some vertical padding
+    if (isHeading) {
+      additionalClasses += ' py-1.5';
+    }
+    
+    // Compact styling for TNORMAL rows - reduced font size and no padding
     const compactStyles = ['TNORMAL'];
     if (compactStyles.includes(s)) {
-      additionalClasses += ' text-xs py-0.5'; // 80% font size (text-xs) and minimal vertical padding
+      additionalClasses += ' text-xs py-0'; // 80% font size (text-xs) and no vertical padding on TNORMAL rows
     } else if (!isHeading && !lineStyles.includes(s) && !compactStyles.includes(s)) {
       // Remove padding from all non-heading, non-line-styled, non-TNORMAL rows to eliminate space between rows
       additionalClasses += ' py-0';
@@ -1218,7 +1223,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
         {/* Tax Calculation Section */}
         {companyData.showTaxPreview && ink2Data && ink2Data.length > 0 && (
-          <div className="space-y-4 bg-gradient-to-r from-yellow-50 to-amber-50 p-4 rounded-lg border border-yellow-200" data-section="tax-calculation">
+          <div className="bg-gradient-to-r from-yellow-50 to-amber-50 p-4 rounded-lg border border-yellow-200" data-section="tax-calculation">
             <div className="mb-4">
               <div className="flex items-center justify-between border-b pb-2">
                 <div className="flex items-center gap-3">
