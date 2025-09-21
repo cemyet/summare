@@ -477,6 +477,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   
   // Requirement 2: inputs become editable when taxEditingEnabled OR editableAmounts is true
   const isEditing = Boolean(cd.taxEditingEnabled || editableAmounts);
+  
+  // Unified edit gate: works for both taxEditingEnabled and isInk2ManualEdit paths
+  const canEdit = Boolean(isEditing || isInk2ManualEdit);
 
   // Requirement 1: render when showTaxPreview OR showRRBR is true
   if (!cd.showTaxPreview && !cd.showRRBR) {
@@ -1182,7 +1185,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 <div className="flex items-center gap-3">
                   <h2 className="text-lg font-semibold text-foreground">Skatteberäkning</h2>
                   <button
-                    onClick={() => setIsInk2ManualEdit(!isInk2ManualEdit)}
+                    onClick={() => {
+                      setIsInk2ManualEdit(!isInk2ManualEdit);
+                      // Optional: sync global flag for consistency
+                      onDataUpdate({ taxEditingEnabled: !isInk2ManualEdit });
+                    }}
                     className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
                       isInk2ManualEdit 
                         ? 'bg-blue-600 text-white' 
@@ -1524,16 +1531,16 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                 </div>
                  <span className="text-right font-medium">
                   {item.show_amount === 'NEVER' || item.header ? '' :
-                    ((isEditing || isInk2ManualEdit) && isEditableCell(item.variable_name) && item.show_amount) ? (
+                    (canEdit && isEditableCell(item.variable_name) && item.show_amount) ? (
                       <Ink2AmountInput
                         value={manualEdits[item.variable_name] ?? item.amount ?? 0}
-                        disabled={!isEditing || !isEditableCell(item.variable_name)}
+                        disabled={!canEdit || !isEditableCell(item.variable_name)}
                         onChange={(value) => {
-                          if (!isEditing || !isEditableCell(item.variable_name)) return;
+                          if (!canEdit || !isEditableCell(item.variable_name)) return;
                           setManualEdits(prev => ({ ...prev, [item.variable_name]: value }));
                         }}
                         onCommit={(value) => {
-                          if (!isEditing || !isEditableCell(item.variable_name)) return;
+                          if (!canEdit || !isEditableCell(item.variable_name)) return;
                           setManualEdits(prev => {
                             const updated = { ...prev, [item.variable_name]: value };
                             // Recalc with Chat + Accepted + current session edits
@@ -1560,7 +1567,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             ))}
             
             {/* Tax Action Buttons */}
-            {(isEditing || isInk2ManualEdit) && (
+            {canEdit && (
               <div className="pt-4 border-t border-gray-200 flex justify-between">
                 {/* Undo Button - Left */}
                 <Button 
