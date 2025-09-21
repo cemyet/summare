@@ -59,7 +59,7 @@ const Ink2AmountInput = ({ value, onChange, onCommit, variableName }: {
     <input
       ref={inputRef}
       type="text"
-      className="w-32 px-1 py-1 text-sm border border-gray-400 rounded text-right font-medium h-7 bg-white focus:border-gray-500 focus:outline-none"
+      className="w-32 px-1 py-0.5 text-sm border border-gray-400 rounded text-right font-medium h-5 bg-white focus:border-gray-500 focus:outline-none"
       value={shown}
       onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
       onChange={(e) => {
@@ -895,6 +895,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     const specialLineVariables = ['INK_skattemassigt_resultat'];
     if (lineStyles.includes(s) || (variableName && specialLineVariables.includes(variableName))) {
       additionalClasses += ' border-t border-b border-gray-300 pt-1 pb-1';
+    }
+
+    // Compact styling for TNORMAL rows - reduced font size and no padding
+    const compactStyles = ['TNORMAL'];
+    if (compactStyles.includes(s)) {
+      additionalClasses += ' text-xs py-0'; // 80% font size (text-xs) and no vertical padding
     }
 
     // Indentation for TNORMAL only
