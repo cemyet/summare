@@ -768,15 +768,16 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // Enter/leave edit mode behavior
   useEffect(() => {
     if (isEditing) {
-      // Start session from accepted manuals
-      setManualEdits({ ...acceptedManuals });
+      // Start session from accepted manuals (get fresh value from companyData)
+      const currentAccepted = companyData.acceptedInk2Manuals || {};
+      setManualEdits({ ...currentAccepted });
       clearAcceptedOnNextApproveRef.current = false; // fresh session
     } else {
       // Clear session edits when leaving edit mode
       setManualEdits({});
       clearAcceptedOnNextApproveRef.current = false;
     }
-  }, [isEditing]);
+  }, [isEditing, companyData.acceptedInk2Manuals]);
 
 
 
