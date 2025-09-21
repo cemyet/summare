@@ -937,6 +937,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
     // recalc: baseline=current, include accepted (use the new nextAccepted, not stale companyData)
     await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current', acceptedManualsOverride: nextAccepted });
+    
+    // Auto-scroll to tax module (mirror chat flow behavior)
+    setTimeout(() => {
+      const taxModule = document.querySelector('[data-section="tax-calculation"]');
+      if (taxModule) {
+        taxModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 200);
   };
 
   // Helper function to check if a block should be shown
