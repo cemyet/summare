@@ -726,8 +726,15 @@ const selectiveMergeInk2 = (
 
     const prev = companyData.ink2Data || [];
     if (resp?.success) {
+      // For UI merge, translate backend pension key → UI row name so it shows immediately
+      const displayManuals = { ...manuals };
+      if (Object.prototype.hasOwnProperty.call(displayManuals, 'justering_sarskild_loneskatt')) {
+        const v = Math.abs(displayManuals['justering_sarskild_loneskatt'] || 0);
+        displayManuals['INK_sarskild_loneskatt'] = -v; // UI row shows (-)
+        delete displayManuals['justering_sarskild_loneskatt'];
+      }
       // client-side selective merge to enforce calc-only updates
-      const merged = selectiveMergeInk2(prev, resp.ink2_data, manuals);
+      const merged = selectiveMergeInk2(prev, resp.ink2_data, displayManuals);
       const skatt = merged.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount || 0;
       onDataUpdate({ ink2Data: merged, inkBeraknadSkatt: skatt });
       setGlobalInk2Data?.(merged);
@@ -833,7 +840,8 @@ const selectiveMergeInk2 = (
           ? Math.abs(parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0)
           : (typeof value === 'number' ? value : Number(String(value).replace(/\s/g, '').replace(',', '.')));
 
-        if (opt?.action_type === 'input' && varFromSql) {
+        // Route into overrides for our two supported variables, regardless of action_type
+        if (varFromSql) {
           // Route to our chat override helper
           await applyChatOverrides({
             underskott: varFromSql === 'INK4.14a' ? numericValue : undefined,
