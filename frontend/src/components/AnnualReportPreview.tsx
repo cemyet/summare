@@ -825,6 +825,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Ångra → Base + Chat only, use ORIGINAL baseline, EXCLUDE accepted
   const handleUndo = async () => {
+    setManualEdits({}); // <<< THIS clears visible session edits so inputs stop overriding table amounts
     await recalcWithManuals({}, { includeAccepted: false, baselineSource: 'original' });
   };
 
@@ -1545,7 +1546,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                             const updated = { ...prev, [item.variable_name]: value };
                             // Recalc with Chat + Accepted + current session edits
                             const manuals = { ...getChatOverrides(), ...acceptedManuals, ...updated };
-                            recalcWithManuals(manuals);
+                            recalcWithManuals(updated); // Pass session edits, use defaults (includeAccepted: true, baselineSource: 'current')
                             return updated;
                           });
                         }}
