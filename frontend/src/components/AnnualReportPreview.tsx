@@ -906,14 +906,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       additionalClasses += ' py-1.5';
     }
     
-    // Special padding for TH3 - add 3px before
+    // Special padding for TH3 - add 7px before (3px + 4px more)
     if (s === 'TH3') {
-      additionalClasses += ' pt-1.5'; // 3px padding before TH3
+      additionalClasses += ' pt-2'; // 7px padding before TH3 (pt-1.5 = 6px, pt-2 = 8px, using pt-2 for closest to 7px)
     }
     
-    // Special padding for TS2 - add 2px before and after
+    // Special padding for TS2 - add 5px before and after (2px + 3px more)
     if (s === 'TS2') {
-      additionalClasses += ' py-0.5'; // 2px padding before and after TS2
+      additionalClasses += ' py-1.5'; // 6px padding before and after TS2 (closest to 5px)
     }
     
     // Compact styling for TNORMAL rows - larger font size and minimal padding
