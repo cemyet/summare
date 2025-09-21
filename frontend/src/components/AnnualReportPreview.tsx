@@ -611,6 +611,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   
   // Store original baseline for proper undo functionality (like Noter)
   const originalInk2BaselineRef = useRef<any[]>([]);
+  const clearAcceptedOnNextApproveRef = React.useRef(false);
 
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
   const [originalAmounts, setOriginalAmounts] = useState<Record<string, number>>({});
@@ -769,9 +770,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     if (isEditing) {
       // Start session from accepted manuals
       setManualEdits({ ...acceptedManuals });
+      clearAcceptedOnNextApproveRef.current = false; // fresh session
     } else {
       // Clear session edits when leaving edit mode
       setManualEdits({});
+      clearAcceptedOnNextApproveRef.current = false;
     }
   }, [isEditing]);
 
@@ -828,6 +831,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const handleUndo = async () => {
     if (isRecalcPending) return; // guard against re-entry without changing button UI
     setManualEdits({});
+    clearAcceptedOnNextApproveRef.current = true; // next Godkänn should drop old accepted
     setIsRecalcPending(true);
     // 🔮 Optimistic UI: show Base + Chat immediately
     const currentRows = companyData.ink2Data || [];
@@ -922,8 +926,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // Godkänn → store accepted, then include accepted on recalc (current baseline is fine)
   const handleApproveChanges = async () => {
     if (isRecalcPending) return; // guard against re-entry without changing button UI
-    const nextAccepted = { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
+    // If Undo was used in this session, we approve the cleared state:
+    // drop previously accepted edits and only keep current session edits (if any).
+    const nextAccepted = clearAcceptedOnNextApproveRef.current
+      ? { ...manualEdits }                       // erase old accepted
+      : { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
     onDataUpdate({ acceptedInk2Manuals: nextAccepted });
+    clearAcceptedOnNextApproveRef.current = false;
     // Close edit mode instantly (buttons disappear) and hide 0-rows
     setIsInk2ManualEdit(false);
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false, showTaxPreview: true });
