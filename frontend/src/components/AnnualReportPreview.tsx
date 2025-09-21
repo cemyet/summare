@@ -828,24 +828,16 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
   };
 
-  // Ångra → Base + Chat only, use ORIGINAL baseline, EXCLUDE accepted
+  // Canonical Undo
   const handleUndo = async () => {
-    if (isRecalcPending) return; // guard against re-entry without changing button UI
+    // this session's manual edits are discarded
     setManualEdits({});
-    clearAcceptedOnNextApproveRef.current = true; // next Godkänn should drop old accepted
-    setIsRecalcPending(true);
-    // 🔮 Optimistic UI: show Base + Chat immediately
-    const currentRows = companyData.ink2Data || [];
-    const originalRows = originalInk2BaselineRef.current || [];
-    const baseline = buildBaselineManualsFromCurrent(originalRows);
-    const optimisticManuals = { ...baseline, ...getChatOverrides() };
-    const optimistic = selectiveMergeInk2(currentRows, currentRows, optimisticManuals);
-    onDataUpdate({ ink2Data: optimistic });
-    try {
-      await recalcWithManuals({}, { includeAccepted: false, baselineSource: 'original' });
-    } finally {
-      setIsRecalcPending(false);
-    }
+
+    // mark that the next approve should clear old accepted edits
+    clearAcceptedOnNextApproveRef.current = true;
+
+    // recalc with baseline=original, without accepted
+    await recalcWithManuals({}, { includeAccepted: false, baselineSource: 'original' });
   };
 
   
@@ -923,32 +915,24 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   };
 
 
-  // Godkänn: accept current session edits, persist, recalc, exit edit mode
-  // Godkänn → store accepted, then include accepted on recalc (current baseline is fine)
+  // Canonical Approve
   const handleApproveChanges = async () => {
-    if (isRecalcPending) return; // guard against re-entry without changing button UI
-    // If Undo was used in this session, we approve the cleared state:
-    // drop previously accepted edits and only keep current session edits (if any).
+    // If Undo was used this session, drop previously accepted edits
     const nextAccepted = clearAcceptedOnNextApproveRef.current
-      ? { ...manualEdits }                       // erase old accepted
+      ? { ...manualEdits }                      // approve only current session edits
       : { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
+
     onDataUpdate({ acceptedInk2Manuals: nextAccepted });
+
+    // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
     clearAcceptedOnNextApproveRef.current = false;
-    // Close edit mode instantly (buttons disappear) and hide 0-rows
+    setManualEdits({});
     setIsInk2ManualEdit(false);
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false, showTaxPreview: true });
-    setShowAllTax(false); // collapse zero rows after approval
-    setManualEdits({});
-    setIsRecalcPending(true);
-    try {
-      await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current' });
-    } finally {
-      setIsRecalcPending(false);
-    }
-    setTimeout(() => {
-      const taxModule = document.querySelector('[data-section="tax-calculation"]');
-      if (taxModule) taxModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 200);
+    setShowAllTax(false);
+
+    // recalc: baseline=current, include accepted
+    await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current' });
   };
 
   // Helper function to check if a block should be shown
