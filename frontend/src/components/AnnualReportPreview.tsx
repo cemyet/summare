@@ -1418,8 +1418,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   {item.show_tag && item.account_details && item.account_details.length > 0 && (
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="ml-2 h-4 px-1.5 text-xs">
-                          SHOW
+                        <Button variant="outline" size="sm" className="ml-2 h-4 px-1.5 text-xs" style={{fontSize: '0.75rem'}}>
+                          VISA
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
@@ -1517,8 +1517,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                    companyData.sarskildLoneskattPensionCalculated > companyData.sarskildLoneskattPension && (
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="ml-2 h-4 px-1.5 text-xs">
-                          SHOW
+                        <Button variant="outline" size="sm" className="ml-2 h-4 px-1.5 text-xs" style={{fontSize: '0.75rem'}}>
+                          VISA
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
