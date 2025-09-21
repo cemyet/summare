@@ -783,13 +783,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
 
   // NEW: options to control whether to include accepted manuals and which baseline to use
-  type RecalcOpts = { includeAccepted?: boolean; baselineSource?: 'current' | 'original' };
+  type RecalcOpts = { includeAccepted?: boolean; baselineSource?: 'current' | 'original'; acceptedManualsOverride?: Record<string, number> | null; };
 
   const recalcWithManuals = async (
     sessionManuals: Record<string, number>,
     opts: RecalcOpts = {}
   ) => {
-    const { includeAccepted = true, baselineSource = 'current' } = opts;
+    const { includeAccepted = true, baselineSource = 'current', acceptedManualsOverride = null } = opts;
 
     // 0) Pick baseline source
     const currentRows = companyData.ink2Data || [];
@@ -798,9 +798,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     const baseline = buildBaselineManualsFromCurrent(rowsForBaseline);
 
     // 1) Compose: baseline → (accepted?) → chat → session
+    const accepted = includeAccepted 
+      ? (acceptedManualsOverride ?? (companyData.acceptedInk2Manuals || {}))
+      : {};
     const manualComposite = {
       ...baseline,
-      ...(includeAccepted ? (companyData.acceptedInk2Manuals || {}) : {}),
+      ...accepted,
       ...getChatOverrides(),
       ...sessionManuals,
     };
@@ -932,8 +935,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false, showTaxPreview: true });
     setShowAllTax(false);
 
-    // recalc: baseline=current, include accepted
-    await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current' });
+    // recalc: baseline=current, include accepted (use the new nextAccepted, not stale companyData)
+    await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current', acceptedManualsOverride: nextAccepted });
   };
 
   // Helper function to check if a block should be shown
