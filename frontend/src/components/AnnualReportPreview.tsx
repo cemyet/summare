@@ -902,7 +902,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
     // TS2: inner padding AND outer margin so it doesn't look crushed
     if (s === 'TS2') {
-      classes.push('py-1.5', 'my-1');
+      classes.push('py-2', 'my-2'); // More space over and under TS2
+    }
+    // Extra space before "Skattemässigt resultat" row
+    if (variableName === 'INK_skattemassigt_resultat') {
+      classes.push('mt-3'); // Extra space before this specific row
     }
 
     // Compact default rows (not heading, not line, not TNORMAL)
