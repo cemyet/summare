@@ -59,7 +59,7 @@ const Ink2AmountInput = ({ value, onChange, onCommit, variableName }: {
     <input
       ref={inputRef}
       type="text"
-      className="w-32 px-1 py-0.5 text-sm border border-gray-400 rounded text-right font-medium h-5 bg-white focus:border-gray-500 focus:outline-none"
+      className="w-24 px-1 py-0.5 text-sm border border-gray-400 rounded text-right font-medium h-5 bg-white focus:border-gray-500 focus:outline-none"
       value={shown}
       onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
       onChange={(e) => {
