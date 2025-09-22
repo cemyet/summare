@@ -109,6 +109,18 @@ interface ChatFlowResponse {
         // Call API to update RR/BR data
         console.log('🌐 Calling API to update RR/BR data from chat...');
         
+        // First test if the endpoint is available
+        try {
+          const testResponse = await fetch('/api/test-tax-endpoint');
+          console.log('🧪 Test endpoint response:', testResponse.status);
+          if (testResponse.ok) {
+            const testResult = await testResponse.json();
+            console.log('✅ Test endpoint working:', testResult);
+          }
+        } catch (testError) {
+          console.log('❌ Test endpoint failed:', testError);
+        }
+        
         const requestData = {
           inkBeraknadSkatt,
           inkBokfordSkatt,
