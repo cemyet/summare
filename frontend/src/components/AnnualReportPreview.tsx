@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from "@/components/ui/table";
 import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@/utils/seFileCalculations';
 import { apiService } from '@/services/api';
+import { computeCombinedFinancialSig } from '@/utils/financeSig';
 
 // Helper functions for Swedish number formatting (from Noter)
 const fmt0 = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
@@ -727,8 +728,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         return;
       }
 
-      // Create a cheap signature so we don't re-call on identical data
-      const sig = `${brData.length}|${rrData.length}`;
+      // Create a content-sensitive signature so we re-call when amounts change
+      const sig = computeCombinedFinancialSig(rrData, brData);
       if (sig === lastSigRef.current || inFlightRef.current) return;
 
       inFlightRef.current = true;
@@ -1254,7 +1255,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
             {/* Income Statement Rows */}
             {rrData.length > 0 ? (
-              (rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData).map((item, index) => {
+              (() => {
+                const liveSig = computeCombinedFinancialSig(rrData, brData);
+                const useRR = (rrDataWithNotes.length > 0 && liveSig === lastSigRef.current) ? rrDataWithNotes : rrData;
+                return useRR.map((item, index) => {
                 if (!shouldShowRow(item, showAllRR, rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData)) {
                   return null;
                 }
@@ -1279,7 +1283,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                     </span>
                   </div>
                 );
-              })
+              });
+              })()
             ) : (
               <div className="text-sm text-muted-foreground">
                 <span className="text-xs text-muted-foreground">SE-fil</span>
@@ -1313,8 +1318,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             </div>
 
             {/* Balance Sheet Rows */}
-            {brDataWithNotes.length > 0 ? (
-              brDataWithNotes.map((item, index) => {
+            {(() => {
+              const liveSig = computeCombinedFinancialSig(rrData, brData);
+              const useBR = (brDataWithNotes.length > 0 && liveSig === lastSigRef.current) ? brDataWithNotes : brData;
+              return useBR.length > 0 ? (
+                useBR.map((item, index) => {
                 if (!shouldShowRow(item, showAllBR, brDataWithNotes)) {
                   return null;
                 }
@@ -1340,12 +1348,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                   </div>
                 );
               })
-            ) : (
-              <div className="text-sm text-muted-foreground">
-                <span className="text-xs text-muted-foreground">SE-fil</span>
-                <span>Data från uppladdad SE-fil</span>
-              </div>
-            )}
+              ) : (
+                <div className="text-sm text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">SE-fil</span>
+                  <span>Data från uppladdad SE-fil</span>
+                </div>
+              );
+            })()}
           </div>
         )}
 
