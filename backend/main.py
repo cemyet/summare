@@ -1328,6 +1328,133 @@ async def add_note_numbers_to_br(request: dict):
         print(f"Error adding note numbers to financial data: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+class TaxUpdateRequest(BaseModel):
+    inkBeraknadSkatt: float
+    inkBokfordSkatt: float
+    taxDifference: float
+    rr_data: List[dict]
+    br_data: List[dict]
+    organizationNumber: Optional[str] = None
+    fiscalYear: Optional[int] = None
+
+@app.post("/api/update-tax-in-financial-data")
+async def update_tax_in_financial_data(request: TaxUpdateRequest):
+    """
+    Update RR and BR data when tax calculations change.
+    
+    When INK_beraknad_skatt != INK_bokford_skatt:
+    1. Update RR row_id 277 "Skatt på årets resultat" (SkattAretsResultat) = INK_beraknad_skatt
+    2. Recalculate RR row_id 279 "Årets resultat" (SumAretsResultat)
+    3. Update BR row_id 380 "Årets resultat" (AretsResultat) = new SumAretsResultat
+    4. Update BR row_id 413 "Skatteskulder" = Skatteskulder + (INK_beraknad_skatt - INK_bokford_skatt)
+    """
+    try:
+        parser = DatabaseParser()
+        
+        # Make copies of the data to avoid modifying the original
+        updated_rr_data = [dict(item) for item in request.rr_data]
+        updated_br_data = [dict(item) for item in request.br_data]
+        
+        # 1. Update RR row_id 277 "Skatt på årets resultat" (SkattAretsResultat)
+        for item in updated_rr_data:
+            if item.get('id') == '277' or item.get('variable_name') == 'SkattAretsResultat':
+                old_value = item.get('current_amount', 0)
+                item['current_amount'] = request.inkBeraknadSkatt
+                print(f"Updated RR SkattAretsResultat: {old_value} -> {request.inkBeraknadSkatt}")
+                break
+        
+        # 2. Recalculate RR row_id 279 "Årets resultat" (SumAretsResultat)
+        # Formula: SumResultatForeSkatt + SkattAretsResultat + OvrigaSkatter
+        sum_resultat_fore_skatt = 0
+        ovriga_skatter = 0
+        
+        for item in updated_rr_data:
+            if item.get('variable_name') == 'SumResultatForeSkatt':
+                sum_resultat_fore_skatt = item.get('current_amount', 0) or 0
+            elif item.get('variable_name') == 'OvrigaSkatter':
+                ovriga_skatter = item.get('current_amount', 0) or 0
+        
+        new_sum_arets_resultat = sum_resultat_fore_skatt + request.inkBeraknadSkatt + ovriga_skatter
+        
+        for item in updated_rr_data:
+            if item.get('id') == '279' or item.get('variable_name') == 'SumAretsResultat':
+                old_value = item.get('current_amount', 0)
+                item['current_amount'] = new_sum_arets_resultat
+                print(f"Updated RR SumAretsResultat: {old_value} -> {new_sum_arets_resultat}")
+                break
+        
+        # 3. Update BR row_id 380 "Årets resultat" (AretsResultat) = new SumAretsResultat
+        for item in updated_br_data:
+            if item.get('id') == '380' or item.get('variable_name') == 'AretsResultat':
+                old_value = item.get('current_amount', 0)
+                item['current_amount'] = new_sum_arets_resultat
+                print(f"Updated BR AretsResultat: {old_value} -> {new_sum_arets_resultat}")
+                break
+        
+        # 4. Update BR row_id 413 "Skatteskulder" = Skatteskulder + (INK_beraknad_skatt - INK_bokford_skatt)
+        for item in updated_br_data:
+            if item.get('id') == '413' or item.get('variable_name') == 'Skatteskulder':
+                old_value = item.get('current_amount', 0) or 0
+                new_value = old_value + request.taxDifference
+                item['current_amount'] = new_value
+                print(f"Updated BR Skatteskulder: {old_value} -> {new_value} (difference: {request.taxDifference})")
+                break
+        
+        # Recalculate dependent sums in BR data
+        # Update SumFrittEgetKapital (includes AretsResultat)
+        overkursfond_fri = 0
+        balanserat_resultat = 0
+        
+        for item in updated_br_data:
+            if item.get('variable_name') == 'OverkursfondFri':
+                overkursfond_fri = item.get('current_amount', 0) or 0
+            elif item.get('variable_name') == 'BalanseratResultat':
+                balanserat_resultat = item.get('current_amount', 0) or 0
+        
+        new_sum_fritt_eget_kapital = overkursfond_fri + balanserat_resultat + new_sum_arets_resultat
+        
+        for item in updated_br_data:
+            if item.get('variable_name') == 'SumFrittEgetKapital':
+                old_value = item.get('current_amount', 0)
+                item['current_amount'] = new_sum_fritt_eget_kapital
+                print(f"Updated BR SumFrittEgetKapital: {old_value} -> {new_sum_fritt_eget_kapital}")
+                break
+        
+        # Update SumEgetKapital (includes SumFrittEgetKapital)
+        sum_bundet_eget_kapital = 0
+        
+        for item in updated_br_data:
+            if item.get('variable_name') == 'SumBundetEgetKapital':
+                sum_bundet_eget_kapital = item.get('current_amount', 0) or 0
+                break
+        
+        new_sum_eget_kapital = sum_bundet_eget_kapital + new_sum_fritt_eget_kapital
+        
+        for item in updated_br_data:
+            if item.get('variable_name') == 'SumEgetKapital':
+                old_value = item.get('current_amount', 0)
+                item['current_amount'] = new_sum_eget_kapital
+                print(f"Updated BR SumEgetKapital: {old_value} -> {new_sum_eget_kapital}")
+                break
+        
+        return {
+            "success": True,
+            "message": "Successfully updated RR and BR data with tax changes",
+            "rr_data": updated_rr_data,
+            "br_data": updated_br_data,
+            "changes": {
+                "skatt_arets_resultat": request.inkBeraknadSkatt,
+                "sum_arets_resultat": new_sum_arets_resultat,
+                "skatteskulder_difference": request.taxDifference,
+                "sum_fritt_eget_kapital": new_sum_fritt_eget_kapital,
+                "sum_eget_kapital": new_sum_eget_kapital
+            }
+        }
+        
+    except Exception as e:
+        print(f"Error updating tax in financial data: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating tax in financial data: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     import os

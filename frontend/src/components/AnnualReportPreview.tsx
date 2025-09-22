@@ -946,6 +946,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
     onDataUpdate({ acceptedInk2Manuals: nextAccepted });
 
+    // Check if we need to update RR/BR data based on tax differences
+    await handleTaxUpdateLogic(nextAccepted);
+
     // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
     clearAcceptedOnNextApproveRef.current = false;
     setManualEdits({});
@@ -963,6 +966,81 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
     // recalc: baseline=current, include accepted (use the new nextAccepted, not stale companyData)
     await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current', acceptedManualsOverride: nextAccepted });
+  };
+
+  // Handle tax update logic when approving changes
+  const handleTaxUpdateLogic = async (acceptedManuals: any) => {
+    try {
+      // Get current INK2 data with accepted manual edits
+      const currentInk2Data = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+      
+      // Find INK_beraknad_skatt and INK_bokford_skatt values
+      const beraknadSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_beraknad_skatt');
+      const bokfordSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_bokford_skatt');
+      
+      if (!beraknadSkattItem || !bokfordSkattItem) {
+        console.log('Could not find INK_beraknad_skatt or INK_bokford_skatt items');
+        return;
+      }
+
+      const inkBeraknadSkatt = beraknadSkattItem.amount || 0;
+      const inkBokfordSkatt = bokfordSkattItem.amount || 0;
+      
+      console.log('Tax comparison:', { inkBeraknadSkatt, inkBokfordSkatt });
+      
+      // Only proceed if there's a difference
+      if (inkBeraknadSkatt === inkBokfordSkatt) {
+        console.log('No tax difference, skipping RR/BR updates');
+        return;
+      }
+
+      const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
+      console.log('Tax difference detected:', taxDifference);
+
+      // Call API to update RR/BR data
+      const response = await fetch('/api/update-tax-in-financial-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inkBeraknadSkatt,
+          inkBokfordSkatt,
+          taxDifference,
+          rr_data: companyData.seFileData?.data?.rr_data || [],
+          br_data: companyData.seFileData?.data?.br_data || [],
+          organizationNumber: companyData.organizationNumber,
+          fiscalYear: companyData.fiscalYear
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('Successfully updated RR/BR data with tax changes');
+        
+        // Update company data with new RR/BR data
+        onDataUpdate({
+          seFileData: {
+            ...companyData.seFileData,
+            data: {
+              ...companyData.seFileData?.data,
+              rr_data: result.rr_data,
+              br_data: result.br_data
+            }
+          }
+        });
+      } else {
+        console.error('Failed to update RR/BR data:', result.error);
+      }
+      
+    } catch (error) {
+      console.error('Error in handleTaxUpdateLogic:', error);
+    }
   };
 
   // Helper function to check if a block should be shown
