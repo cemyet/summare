@@ -971,57 +971,103 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // Handle tax update logic when approving changes
   const handleTaxUpdateLogic = async (acceptedManuals: any) => {
     try {
+      console.log('🔍 Starting handleTaxUpdateLogic...');
+      
       // Get current INK2 data with accepted manual edits
       const currentInk2Data = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+      
+      console.log('📊 Current INK2 data:', {
+        recalculatedDataLength: recalculatedData.length,
+        ink2DataLength: ink2Data.length,
+        currentInk2DataLength: currentInk2Data.length,
+        usingRecalculated: recalculatedData.length > 0
+      });
+      
+      // Debug: Log all variable names in the data
+      const variableNames = currentInk2Data.map((item: any) => item.variable_name).filter(Boolean);
+      console.log('📋 Available variable names:', variableNames);
       
       // Find INK_beraknad_skatt and INK_bokford_skatt values
       const beraknadSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_beraknad_skatt');
       const bokfordSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_bokford_skatt');
       
+      console.log('🔍 Tax items found:', {
+        beraknadSkattItem: beraknadSkattItem ? {
+          variable_name: beraknadSkattItem.variable_name,
+          amount: beraknadSkattItem.amount,
+          row_title: beraknadSkattItem.row_title
+        } : null,
+        bokfordSkattItem: bokfordSkattItem ? {
+          variable_name: bokfordSkattItem.variable_name,
+          amount: bokfordSkattItem.amount,
+          row_title: bokfordSkattItem.row_title
+        } : null
+      });
+      
       if (!beraknadSkattItem || !bokfordSkattItem) {
-        console.log('Could not find INK_beraknad_skatt or INK_bokford_skatt items');
+        console.log('❌ Could not find INK_beraknad_skatt or INK_bokford_skatt items');
         return;
       }
 
       const inkBeraknadSkatt = beraknadSkattItem.amount || 0;
       const inkBokfordSkatt = bokfordSkattItem.amount || 0;
       
-      console.log('Tax comparison:', { inkBeraknadSkatt, inkBokfordSkatt });
+      console.log('💰 Tax comparison:', { inkBeraknadSkatt, inkBokfordSkatt });
       
       // Only proceed if there's a difference
       if (inkBeraknadSkatt === inkBokfordSkatt) {
-        console.log('No tax difference, skipping RR/BR updates');
+        console.log('✅ No tax difference, skipping RR/BR updates');
         return;
       }
 
       const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
-      console.log('Tax difference detected:', taxDifference);
+      console.log('🚨 Tax difference detected:', taxDifference);
 
       // Call API to update RR/BR data
+      console.log('🌐 Calling API to update RR/BR data...');
+      
+      const requestData = {
+        inkBeraknadSkatt,
+        inkBokfordSkatt,
+        taxDifference,
+        rr_data: companyData.seFileData?.data?.rr_data || [],
+        br_data: companyData.seFileData?.data?.br_data || [],
+        organizationNumber: companyData.organizationNumber,
+        fiscalYear: companyData.fiscalYear
+      };
+      
+      console.log('📤 API request data:', {
+        inkBeraknadSkatt,
+        inkBokfordSkatt,
+        taxDifference,
+        rr_data_length: requestData.rr_data.length,
+        br_data_length: requestData.br_data.length,
+        organizationNumber: companyData.organizationNumber,
+        fiscalYear: companyData.fiscalYear
+      });
+      
       const response = await fetch('/api/update-tax-in-financial-data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          inkBeraknadSkatt,
-          inkBokfordSkatt,
-          taxDifference,
-          rr_data: companyData.seFileData?.data?.rr_data || [],
-          br_data: companyData.seFileData?.data?.br_data || [],
-          organizationNumber: companyData.organizationNumber,
-          fiscalYear: companyData.fiscalYear
-        }),
+        body: JSON.stringify(requestData),
       });
 
+      console.log('📥 API response status:', response.status);
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ API error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
       }
 
       const result = await response.json();
+      console.log('✅ API response result:', result);
       
       if (result.success) {
-        console.log('Successfully updated RR/BR data with tax changes');
+        console.log('🎉 Successfully updated RR/BR data with tax changes');
+        console.log('📊 Changes made:', result.changes);
         
         // Update company data with new RR/BR data
         onDataUpdate({
@@ -1035,7 +1081,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
           }
         });
       } else {
-        console.error('Failed to update RR/BR data:', result.error);
+        console.error('❌ Failed to update RR/BR data:', result.error);
       }
       
     } catch (error) {
