@@ -1030,8 +1030,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         inkBeraknadSkatt,
         inkBokfordSkatt,
         taxDifference,
-        rr_data: companyData.seFileData?.data?.rr_data || [],
-        br_data: companyData.seFileData?.data?.br_data || [],
+        rr_data: companyData.seFileData?.rr_data || [],
+        br_data: companyData.seFileData?.br_data || [],
         organizationNumber: companyData.organizationNumber,
         fiscalYear: companyData.fiscalYear
       };
@@ -1076,17 +1076,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         console.log('🎉 Successfully updated RR/BR data with tax changes');
         console.log('📊 Changes made:', result.changes);
         
-        // Update company data with new RR/BR data
-        onDataUpdate({
-          seFileData: {
-            ...companyData.seFileData,
-            data: {
-              ...companyData.seFileData?.data,
-              rr_data: result.rr_data,
-              br_data: result.br_data
-            }
-          }
-        });
+      // Update company data with new RR/BR data
+      onDataUpdate({
+        seFileData: {
+          ...companyData.seFileData,
+          rr_data: result.rr_data,
+          br_data: result.br_data,
+        }
+      });
       } else {
         console.error('❌ Failed to update RR/BR data:', result.error);
       }

@@ -125,8 +125,8 @@ interface ChatFlowResponse {
           inkBeraknadSkatt,
           inkBokfordSkatt,
           taxDifference,
-          rr_data: companyData.seFileData?.data?.rr_data || [],
-          br_data: companyData.seFileData?.data?.br_data || [],
+          rr_data: companyData.seFileData?.rr_data || [],
+          br_data: companyData.seFileData?.br_data || [],
           organizationNumber: companyData.organizationNumber,
           fiscalYear: companyData.fiscalYear
         };
@@ -175,11 +175,8 @@ interface ChatFlowResponse {
           onDataUpdate({
             seFileData: {
               ...companyData.seFileData,
-              data: {
-                ...companyData.seFileData?.data,
-                rr_data: result.rr_data,
-                br_data: result.br_data
-              }
+              rr_data: result.rr_data,
+              br_data: result.br_data,
             }
           });
         } else {
