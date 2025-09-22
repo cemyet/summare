@@ -1348,6 +1348,7 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
     3. Update BR row_id 380 "Årets resultat" (AretsResultat) = new SumAretsResultat
     4. Update BR row_id 413 "Skatteskulder" = Skatteskulder + (INK_beraknad_skatt - INK_bokford_skatt)
     """
+    print(f"🚀 Tax update endpoint called with: inkBeraknadSkatt={request.inkBeraknadSkatt}, inkBokfordSkatt={request.inkBokfordSkatt}")
     try:
         parser = DatabaseParser()
         
