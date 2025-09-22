@@ -1537,8 +1537,19 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                 # Ripple only by the applied magnitude
                 applied_slp = abs(delta_rr252)
                 if applied_slp > 0:
+                    # 256 SumRörelsekostnader -= SLP (more personnel cost => total operating costs become more negative)
                     if (x := _find_by_row_id(rr, 256, varname="SumRorelsekostnader", label="Summa rörelsekostnader")):
-                        _add_current(x, applied_slp)
+                        _add_current(x, -applied_slp)
+                    
+                    # Rörelseresultat -= SLP
+                    if (x := _find_by_row_id(rr, 260, varname="Rorelseresultat", label="Rörelseresultat")):
+                        _add_current(x, -applied_slp)
+                    else:
+                        # Fallback if row_id differs: try by variable or label contains
+                        if (x := _get(rr, name="Rorelseresultat") or _get(rr, label_contains="rörelseresultat")):
+                            _add_current(x, -applied_slp)
+                    
+                    # 267, 275, 279 each -= SLP (these are already correct)
                     if (x := _find_by_row_id(rr, 267, varname="SumResultatEfterFinansiellaPoster", label="Resultat efter finansiella poster")):
                         _add_current(x, -applied_slp)
                     if (x := _find_by_row_id(rr, 275, varname="SumResultatForeSkatt", label="Resultat före skatt")):
