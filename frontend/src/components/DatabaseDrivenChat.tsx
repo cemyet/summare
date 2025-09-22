@@ -51,6 +51,14 @@ interface ChatFlowResponse {
 }
 
   const DatabaseDrivenChat: React.FC<ChatFlowProps> = ({ companyData, onDataUpdate }) => {
+    // Helper: accepted SLP (positive) from ink2Data/companyData
+    const getAcceptedSLP = (ink2Data: any[], cd: any) => {
+      const by = (n: string) => ink2Data?.find((x: any) => x.variable_name === n);
+      const manualPos = Number(by('justering_sarskild_loneskatt')?.amount) || Number(cd?.justeringSarskildLoneskatt) || 0;
+      const signedInInk = Number(by('INK_sarskild_loneskatt')?.amount) || 0;
+      const slp = manualPos !== 0 ? manualPos : Math.abs(signedInInk);
+      return Math.abs(Number(slp || 0));
+    };
     // State to store the most recent calculated values
     const [globalInk2Data, setGlobalInk2Data] = useState<any[]>([]);
 
@@ -121,13 +129,8 @@ interface ChatFlowResponse {
           console.log('❌ Test endpoint failed:', testError);
         }
         
-        // Find accepted SLP amount (in order of preference)
-        const slpItem =
-          currentInk2Data.find((i: any) => i.variable_name === 'INK_sarskild_loneskatt_accepted') ||
-          currentInk2Data.find((i: any) => i.variable_name === 'sarskild_loneskatt_pension_final') ||
-          currentInk2Data.find((i: any) => i.variable_name === 'sarskild_loneskatt_pension_calculated');
-
-        const inkSarskildLoneskatt = Math.abs(Number(slpItem?.amount || 0));
+        // Accepted SLP (positive) via helper
+        const inkSarskildLoneskatt = getAcceptedSLP(currentInk2Data, companyData);
 
         const requestData = {
           inkBeraknadSkatt,

@@ -12,6 +12,17 @@ import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@
 import { apiService } from '@/services/api';
 import { computeCombinedFinancialSig } from '@/utils/financeSig';
 
+// Select accepted SLP (positive) from INK2 + companyData
+function getAcceptedSLP(ink2Data: any[], companyData: any) {
+  const by = (n: string) => ink2Data?.find((x: any) => x.variable_name === n);
+  const manualPos =
+    Number(by('justering_sarskild_loneskatt')?.amount) ||
+    Number((companyData as any)?.justeringSarskildLoneskatt) || 0;
+  const signedInInk = Number(by('INK_sarskild_loneskatt')?.amount) || 0; // negative in table
+  const slp = manualPos !== 0 ? manualPos : Math.abs(signedInInk);
+  return Math.abs(Number(slp || 0));
+}
+
 // Helper functions for Swedish number formatting (from Noter)
 const fmt0 = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
 
@@ -280,6 +291,9 @@ interface CompanyData {
     type: string;
     bold: boolean;
   }>;
+  // Client state used by preview
+  acceptedInk2Manuals?: Record<string, number>;
+  inkBeraknadSkatt?: number;
 }
 
 interface AnnualReportPreviewProps {
@@ -1027,13 +1041,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       // Call API to update RR/BR data
       console.log('🌐 Calling API to update RR/BR data...');
       
-      // Find accepted SLP amount (in order of preference)
-      const slpItem =
-        currentInk2Data.find((i: any) => i.variable_name === 'INK_sarskild_loneskatt_accepted') ||
-        currentInk2Data.find((i: any) => i.variable_name === 'sarskild_loneskatt_pension_final') ||
-        currentInk2Data.find((i: any) => i.variable_name === 'sarskild_loneskatt_pension_calculated');
-
-      const inkSarskildLoneskatt = Math.abs(Number(slpItem?.amount || 0));
+      // Accepted SLP (positive) via helper
+      const inkSarskildLoneskatt = getAcceptedSLP(currentInk2Data, companyData);
 
       const requestData = {
         inkBeraknadSkatt,
@@ -1628,8 +1637,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                   </tr>
                                 ) : item.variable_name === 'INK4.6d' ? (
                                   /* Special calculation for INK4.6d - total row spans multiple columns */
-                                  <tr className="border-t border-gray-300 font-semibold">
-                                    <td className="py-2" colSpan="2">
+                  <tr className="border-t border-gray-300 font-semibold">
+                                    <td className="py-2" colSpan={2}>
                                       Total uppräkning av återfört belopp:
                                     </td>
                                     <td className="text-right py-2">
@@ -1724,9 +1733,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                  <span className="text-right font-medium">
                   {item.show_amount === 'NEVER' || item.header ? '' :
                     (canEdit && isEditableCell(item.variable_name) && item.show_amount) ? (
-                      <Ink2AmountInput
+                  <Ink2AmountInput
                         value={manualEdits[item.variable_name] ?? item.amount ?? 0}
-                        disabled={isRecalcPending || !canEdit || !isEditableCell(item.variable_name)}
                         onChange={(value) => {
                           if (!canEdit || !isEditableCell(item.variable_name)) return;
                           setManualEdits(prev => ({ ...prev, [item.variable_name]: value }));
