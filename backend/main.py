@@ -1559,16 +1559,20 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
 
         rr_tax_new = -ink_calc  # << negative in RR
         d_rr_tax = _delta_set(rr_tax, rr_tax_new)
-        print(f"Updated RR SkattAretsResultat: {rr_tax.get('current_amount', 0)} -> {rr_tax_new} (negative)")
+        # Derive previous calculated tax (absolute) to compute deltas idempotently
+        rr_tax_old = rr_tax_new - d_rr_tax
+        prev_calc = abs(rr_tax_old)
+        d_calc = ink_calc - prev_calc
+        print(f"Updated RR SkattAretsResultat: prev={rr_tax_old} new={rr_tax_new} (delta={d_rr_tax})")
 
         rr_result = _find_by_row_id(rr, 279, varname="SumAretsResultat", label="Årets resultat")
         if not rr_result:
             raise HTTPException(400, "RR row 279 (SumAretsResultat) missing")
 
-        # If you prefer a full recompute, do it here. A safe delta update (only tax changed):
+        # Safe delta update for RR 279 (only tax changed at this step):
         rr_result_new = float(rr_result.get("current_amount") or 0) + d_rr_tax
         _ = _delta_set(rr_result, rr_result_new)
-        print(f"Updated RR SumAretsResultat: {rr_result.get('current_amount', 0)} -> {rr_result_new}")
+        print(f"Updated RR SumAretsResultat by tax delta: +{d_rr_tax}; new={rr_result_new}")
 
         # --- BR: sync Årets resultat (380) to RR result, update equity sums ---
         br_result = _get(br, id=380) or _get(br, name="AretsResultat")
@@ -1578,37 +1582,24 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_br_result = _delta_set(br_result, rr_result_new)  # returns delta vs old
         print(f"Updated BR AretsResultat: {br_result.get('current_amount', 0)} -> {rr_result_new}")
 
-        br_sum_fritt = _get(br, id=381) or _get(br, name="SumFrittEgetKapital")
-        if br_sum_fritt:
-            _add(br_sum_fritt, d_br_result)
-            print(f"Updated BR SumFrittEgetKapital: +{d_br_result}")
-
-        br_sum_eq = _get(br, id=382) or _get(br, name="SumEgetKapital")
-        if br_sum_eq:
-            _add(br_sum_eq, d_br_result)
-            print(f"Updated BR SumEgetKapital: +{d_br_result}")
+        # Note: Let 381/382/417 be recomputed by your BR formula pass; avoid accumulating here
 
         # --- BR: update Skatteskulder (413) by the tax DIFF, then roll up short-term debts (416) ---
         br_tax_liab = _get(br, id=413) or _get(br, name="Skatteskulder")
         if not br_tax_liab:
             raise HTTPException(400, "BR row 413 (Skatteskulder) missing")
 
-        d_tax_liab = _add(br_tax_liab, tax_diff)  # += (calc - booked)
-        print(f"Updated BR Skatteskulder: +{tax_diff} (total: {br_tax_liab.get('current_amount', 0)})")
+        # Idempotent liabilities update: apply only the change in calculated tax
+        d_tax_liab = _add(br_tax_liab, d_calc)
+        print(f"Updated BR Skatteskulder by tax delta: +{d_calc}; total={br_tax_liab.get('current_amount', 0)}")
 
         br_sum_short = _get(br, id=416) or _get(br, name="SumKortfristigaSkulder")
         if br_sum_short:
             _add(br_sum_short, d_tax_liab)
-            print(f"Updated BR SumKortfristigaSkulder: +{d_tax_liab}")
+            print(f"Updated BR SumKortfristigaSkulder by tax delta: +{d_tax_liab}")
 
         # --- BR: total liabilities + equity (417). Recalculate conservatively via deltas. ---
-        br_total = _get(br, id=417) or _get(br, name="SumEgetKapitalSkulder")
-        if br_total:
-            # Only parts changed here: equity (via 382) and short-term liabilities (via 416)
-            # If 382/416 exist, we already applied the deltas above → total should remain balanced.
-            # Still, update to be mathematically consistent:
-            _add(br_total, (d_br_result + d_tax_liab))
-            print(f"Updated BR SumEgetKapitalSkulder: +{d_br_result + d_tax_liab}")
+        # Avoid accumulating 417 here; let BR recompute totals downstream if needed
 
         # return updated arrays
         return {
