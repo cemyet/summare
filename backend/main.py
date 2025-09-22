@@ -1355,105 +1355,103 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
     """
     print(f"🚀 Tax update endpoint called with: inkBeraknadSkatt={request.inkBeraknadSkatt}, inkBokfordSkatt={request.inkBokfordSkatt}")
     try:
-        parser = DatabaseParser()
+        # Helper functions for robust data manipulation
+        def _get(items, *, id=None, name=None):
+            for x in items:
+                if id is not None and str(x.get("id")) == str(id):
+                    return x
+                if name is not None and x.get("variable_name") == name:
+                    return x
+            return None
+
+        def _delta_set(item, new_val):
+            old = float(item.get("current_amount") or 0)
+            item["current_amount"] = float(new_val)
+            return float(new_val) - old
+
+        def _add(item, add_val):
+            old = float(item.get("current_amount") or 0)
+            item["current_amount"] = old + float(add_val)
+            return float(item["current_amount"]) - old  # == add_val
+
+        # --- inputs from request ---
+        ink_calc = float(abs(request.inkBeraknadSkatt or 0))     # INK_beraknad_skatt (always +)
+        ink_booked = float(request.inkBokfordSkatt or 0)         # INK_bokford_skatt (may be 0)
+        tax_diff = ink_calc - ink_booked                         # used for BR 413
+
+        rr = [dict(item) for item in request.rr_data] or []
+        br = [dict(item) for item in request.br_data] or []
         
-        # Make copies of the data to avoid modifying the original
-        updated_rr_data = [dict(item) for item in request.rr_data]
-        updated_br_data = [dict(item) for item in request.br_data]
-        
-        # 1. Update RR row_id 277 "Skatt på årets resultat" (SkattAretsResultat)
-        for item in updated_rr_data:
-            if item.get('id') == '277' or item.get('variable_name') == 'SkattAretsResultat':
-                old_value = item.get('current_amount', 0)
-                item['current_amount'] = request.inkBeraknadSkatt
-                print(f"Updated RR SkattAretsResultat: {old_value} -> {request.inkBeraknadSkatt}")
-                break
-        
-        # 2. Recalculate RR row_id 279 "Årets resultat" (SumAretsResultat)
-        # Formula: SumResultatForeSkatt + SkattAretsResultat + OvrigaSkatter
-        sum_resultat_fore_skatt = 0
-        ovriga_skatter = 0
-        
-        for item in updated_rr_data:
-            if item.get('variable_name') == 'SumResultatForeSkatt':
-                sum_resultat_fore_skatt = item.get('current_amount', 0) or 0
-            elif item.get('variable_name') == 'OvrigaSkatter':
-                ovriga_skatter = item.get('current_amount', 0) or 0
-        
-        new_sum_arets_resultat = sum_resultat_fore_skatt + request.inkBeraknadSkatt + ovriga_skatter
-        
-        for item in updated_rr_data:
-            if item.get('id') == '279' or item.get('variable_name') == 'SumAretsResultat':
-                old_value = item.get('current_amount', 0)
-                item['current_amount'] = new_sum_arets_resultat
-                print(f"Updated RR SumAretsResultat: {old_value} -> {new_sum_arets_resultat}")
-                break
-        
-        # 3. Update BR row_id 380 "Årets resultat" (AretsResultat) = new SumAretsResultat
-        for item in updated_br_data:
-            if item.get('id') == '380' or item.get('variable_name') == 'AretsResultat':
-                old_value = item.get('current_amount', 0)
-                item['current_amount'] = new_sum_arets_resultat
-                print(f"Updated BR AretsResultat: {old_value} -> {new_sum_arets_resultat}")
-                break
-        
-        # 4. Update BR row_id 413 "Skatteskulder" = Skatteskulder + (INK_beraknad_skatt - INK_bokford_skatt)
-        for item in updated_br_data:
-            if item.get('id') == '413' or item.get('variable_name') == 'Skatteskulder':
-                old_value = item.get('current_amount', 0) or 0
-                new_value = old_value + request.taxDifference
-                item['current_amount'] = new_value
-                print(f"Updated BR Skatteskulder: {old_value} -> {new_value} (difference: {request.taxDifference})")
-                break
-        
-        # Recalculate dependent sums in BR data
-        # Update SumFrittEgetKapital (includes AretsResultat)
-        overkursfond_fri = 0
-        balanserat_resultat = 0
-        
-        for item in updated_br_data:
-            if item.get('variable_name') == 'OverkursfondFri':
-                overkursfond_fri = item.get('current_amount', 0) or 0
-            elif item.get('variable_name') == 'BalanseratResultat':
-                balanserat_resultat = item.get('current_amount', 0) or 0
-        
-        new_sum_fritt_eget_kapital = overkursfond_fri + balanserat_resultat + new_sum_arets_resultat
-        
-        for item in updated_br_data:
-            if item.get('variable_name') == 'SumFrittEgetKapital':
-                old_value = item.get('current_amount', 0)
-                item['current_amount'] = new_sum_fritt_eget_kapital
-                print(f"Updated BR SumFrittEgetKapital: {old_value} -> {new_sum_fritt_eget_kapital}")
-                break
-        
-        # Update SumEgetKapital (includes SumFrittEgetKapital)
-        sum_bundet_eget_kapital = 0
-        
-        for item in updated_br_data:
-            if item.get('variable_name') == 'SumBundetEgetKapital':
-                sum_bundet_eget_kapital = item.get('current_amount', 0) or 0
-                break
-        
-        new_sum_eget_kapital = sum_bundet_eget_kapital + new_sum_fritt_eget_kapital
-        
-        for item in updated_br_data:
-            if item.get('variable_name') == 'SumEgetKapital':
-                old_value = item.get('current_amount', 0)
-                item['current_amount'] = new_sum_eget_kapital
-                print(f"Updated BR SumEgetKapital: {old_value} -> {new_sum_eget_kapital}")
-                break
-        
+        # --- RR: set tax NEGATIVE and ripple to Årets resultat ---
+        rr_tax = _get(rr, id=277) or _get(rr, name="SkattAretsResultat")
+        if not rr_tax:
+            raise HTTPException(400, "RR row 277 (SkattAretsResultat) missing")
+
+        rr_tax_new = -ink_calc  # << negative in RR
+        d_rr_tax = _delta_set(rr_tax, rr_tax_new)
+        print(f"Updated RR SkattAretsResultat: {rr_tax.get('current_amount', 0)} -> {rr_tax_new} (negative)")
+
+        rr_result = _get(rr, id=279) or _get(rr, name="SumAretsResultat")
+        if not rr_result:
+            raise HTTPException(400, "RR row 279 (SumAretsResultat) missing")
+
+        # If you prefer a full recompute, do it here. A safe delta update (only tax changed):
+        rr_result_new = float(rr_result.get("current_amount") or 0) + d_rr_tax
+        _ = _delta_set(rr_result, rr_result_new)
+        print(f"Updated RR SumAretsResultat: {rr_result.get('current_amount', 0)} -> {rr_result_new}")
+
+        # --- BR: sync Årets resultat (380) to RR result, update equity sums ---
+        br_result = _get(br, id=380) or _get(br, name="AretsResultat")
+        if not br_result:
+            raise HTTPException(400, "BR row 380 (AretsResultat) missing")
+
+        d_br_result = _delta_set(br_result, rr_result_new)  # returns delta vs old
+        print(f"Updated BR AretsResultat: {br_result.get('current_amount', 0)} -> {rr_result_new}")
+
+        br_sum_fritt = _get(br, id=381) or _get(br, name="SumFrittEgetKapital")
+        if br_sum_fritt:
+            _add(br_sum_fritt, d_br_result)
+            print(f"Updated BR SumFrittEgetKapital: +{d_br_result}")
+
+        br_sum_eq = _get(br, id=382) or _get(br, name="SumEgetKapital")
+        if br_sum_eq:
+            _add(br_sum_eq, d_br_result)
+            print(f"Updated BR SumEgetKapital: +{d_br_result}")
+
+        # --- BR: update Skatteskulder (413) by the tax DIFF, then roll up short-term debts (416) ---
+        br_tax_liab = _get(br, id=413) or _get(br, name="Skatteskulder")
+        if not br_tax_liab:
+            raise HTTPException(400, "BR row 413 (Skatteskulder) missing")
+
+        d_tax_liab = _add(br_tax_liab, tax_diff)  # += (calc - booked)
+        print(f"Updated BR Skatteskulder: +{tax_diff} (total: {br_tax_liab.get('current_amount', 0)})")
+
+        br_sum_short = _get(br, id=416) or _get(br, name="SumKortfristigaSkulder")
+        if br_sum_short:
+            _add(br_sum_short, d_tax_liab)
+            print(f"Updated BR SumKortfristigaSkulder: +{d_tax_liab}")
+
+        # --- BR: total liabilities + equity (417). Recalculate conservatively via deltas. ---
+        br_total = _get(br, id=417) or _get(br, name="SumEgetKapitalSkulder")
+        if br_total:
+            # Only parts changed here: equity (via 382) and short-term liabilities (via 416)
+            # If 382/416 exist, we already applied the deltas above → total should remain balanced.
+            # Still, update to be mathematically consistent:
+            _add(br_total, (d_br_result + d_tax_liab))
+            print(f"Updated BR SumEgetKapitalSkulder: +{d_br_result + d_tax_liab}")
+
+        # return updated arrays
         return {
             "success": True,
             "message": "Successfully updated RR and BR data with tax changes",
-            "rr_data": updated_rr_data,
-            "br_data": updated_br_data,
+            "rr_data": rr,
+            "br_data": br,
             "changes": {
-                "skatt_arets_resultat": request.inkBeraknadSkatt,
-                "sum_arets_resultat": new_sum_arets_resultat,
-                "skatteskulder_difference": request.taxDifference,
-                "sum_fritt_eget_kapital": new_sum_fritt_eget_kapital,
-                "sum_eget_kapital": new_sum_eget_kapital
+                "rr_tax_neg": rr_tax_new,
+                "rr_delta_tax": d_rr_tax,
+                "rr_sum_arets_resultat": rr_result_new,
+                "br_delta_arets_resultat": d_br_result,
+                "br_delta_skatteskulder": d_tax_liab,
             }
         }
         
