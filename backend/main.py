@@ -1382,7 +1382,7 @@ class TaxUpdateRequest(BaseModel):
     organizationNumber: Optional[str] = None
     fiscalYear: Optional[int] = None
     # NEW: accepted SLP (Särskild löneskatt). Pass 0 or omit if not accepted/entered.
-    inkSarskildLoneskatt: Optional[float] = 0
+    inkSarskildLoneskatt: Optional[float] = 0.0
 
 @app.get("/api/test-tax-endpoint")
 async def test_tax_endpoint():
@@ -1400,7 +1400,12 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
     3. Update BR row_id 380 "Årets resultat" (AretsResultat) = new SumAretsResultat
     4. Update BR row_id 413 "Skatteskulder" = Skatteskulder + (INK_beraknad_skatt - INK_bokford_skatt)
     """
-    print(f"🚀 Tax update endpoint called with: inkBeraknadSkatt={request.inkBeraknadSkatt}, inkBokfordSkatt={request.inkBokfordSkatt}")
+    print(
+        f"🚀 Tax update endpoint called with: "
+        f"inkBeraknadSkatt={request.inkBeraknadSkatt}, "
+        f"inkBokfordSkatt={request.inkBokfordSkatt}, "
+        f"inkSarskildLoneskatt={getattr(request, 'inkSarskildLoneskatt', None)}"
+    )
     try:
         # Helper functions for robust data manipulation
         def _eq(a, b):
@@ -1506,6 +1511,7 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         slp_raw = float(request.inkSarskildLoneskatt or 0.0)
         slp_accepted = abs(slp_raw)  # backend expects +SLP always
         d_slp = 0.0
+        print(f"🧾 SLP accepted (positive): {slp_accepted}; rr items: {len(rr)}; br items: {len(br)}")
 
         if slp_accepted > 0:
             rr_personal = _find_rr_personalkostnader(rr)
