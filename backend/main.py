@@ -1337,6 +1337,11 @@ class TaxUpdateRequest(BaseModel):
     organizationNumber: Optional[str] = None
     fiscalYear: Optional[int] = None
 
+@app.get("/api/test-tax-endpoint")
+async def test_tax_endpoint():
+    """Test endpoint to verify deployment is working"""
+    return {"success": True, "message": "Tax endpoint is available", "timestamp": datetime.now().isoformat()}
+
 @app.post("/api/update-tax-in-financial-data")
 async def update_tax_in_financial_data(request: TaxUpdateRequest):
     """
