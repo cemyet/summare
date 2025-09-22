@@ -1451,6 +1451,47 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             item["current_amount"] = float(new_val)
             return float(item["current_amount"]) - old  # delta
 
+        # Current-amount-only helpers (explicit names for clarity)
+        def _set_current(item, new_val: float):
+            return _set(item, new_val)
+
+        def _add_current(item, add_val: float):
+            return _add(item, add_val)
+
+        def _find_rr_personalkostnader(rr_items: list):
+            # 1) variable_name exact
+            for x in rr_items:
+                if (x.get("variable_name") or "") == "PersonalKostnader":
+                    return x
+            # 2) label exact (Swedish)
+            for x in rr_items:
+                if (x.get("label") or "") == "Personalkostnader":
+                    return x
+            # 3) row_id = 252
+            for x in rr_items:
+                if str(x.get("row_id")) == "252":
+                    return x
+            # 4) id = 13 (canonical) or sometimes 252 (seen in payloads)
+            for candidate in ("13", "252"):
+                for x in rr_items:
+                    if str(x.get("id")) == candidate:
+                        return x
+            return None
+
+        def _find_by_row_id(rr_items: list, rid: int, *, varname: str = None, label: str = None):
+            if varname:
+                for x in rr_items:
+                    if (x.get("variable_name") or "") == varname:
+                        return x
+            if label:
+                for x in rr_items:
+                    if (x.get("label") or "") == label:
+                        return x
+            for x in rr_items:
+                if str(x.get("row_id")) == str(rid):
+                    return x
+            return None
+
         # --- inputs from request ---
         ink_calc = float(abs(request.inkBeraknadSkatt or 0))     # INK_beraknad_skatt (always +)
         ink_booked = float(request.inkBokfordSkatt or 0)         # INK_bokford_skatt (may be 0)
@@ -1467,40 +1508,37 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_slp = 0.0
 
         if slp_accepted > 0:
-            rr_personal = _get(rr, row_id=252)
+            rr_personal = _find_rr_personalkostnader(rr)
             if not rr_personal:
-                rr_personal = _get(rr, id=13) or _get(rr, name="PersonalKostnader") or _get(rr, label_contains="Personalkostnad")
-            if not rr_personal:
-                print("WARN: RR PersonalKostnader not found (row_id=252 / id=13).")
+                print("WARN: RR PersonalKostnader not found by var/label/row_id/id.")
             else:
-                # Establish a stable base (original value before any SLP application)
-                # If previous logic added SLP, recover base as current_amount - previously_injected
+                # Establish stable base once (idempotent across calls). Support both legacy and new base keys.
                 already = _num(rr_personal.get("slp_injected"))
-                if "_base_personalkostnader" not in rr_personal:
-                    rr_personal["_base_personalkostnader"] = _num(rr_personal.get("current_amount")) - already
+                if "__base_personalkostnader" not in rr_personal and "_base_personalkostnader" in rr_personal:
+                    rr_personal["__base_personalkostnader"] = _num(rr_personal.get("_base_personalkostnader"))
+                if "__base_personalkostnader" not in rr_personal:
+                    rr_personal["__base_personalkostnader"] = _num(rr_personal.get("current_amount")) - already
 
-                base = _num(rr_personal.get("_base_personalkostnader"))
+                base = _num(rr_personal.get("__base_personalkostnader"))
 
-                # Correct sign: extra personnel cost reduces the line → base - SLP
+                before = _num(rr_personal.get("current_amount"))
                 new_rr252 = base - slp_accepted
-                delta_rr252 = _set(rr_personal, new_rr252)  # applied delta vs current
+                delta_rr252 = _set_current(rr_personal, new_rr252)
+                after = _num(rr_personal.get("current_amount"))
                 rr_personal["slp_injected"] = slp_accepted
-                print(f"Updated RR PersonalKostnader to {new_rr252} (base {base} - SLP {slp_accepted}); delta {delta_rr252}")
+                print(f"RR 252 Personalkostnader: {before} -> {after} (base {base}, SLP {slp_accepted}, delta {delta_rr252})")
 
                 # Ripple only by the applied magnitude
                 applied_slp = abs(delta_rr252)
                 if applied_slp > 0:
-                    # 256 SumRorelsekostnader += SLP
-                    if (x := _get(rr, row_id=256) or _get(rr, name="SumRorelsekostnader")):
-                        _add(x, applied_slp)
-
-                    # 267, 275, 279 each -= SLP
-                    if (x := _get(rr, row_id=267) or _get(rr, name="SumResultatEfterFinansiellaPoster")):
-                        _add(x, -applied_slp)
-                    if (x := _get(rr, row_id=275) or _get(rr, name="SumResultatForeSkatt")):
-                        _add(x, -applied_slp)
-                    if (x := _get(rr, row_id=279) or _get(rr, name="SumAretsResultat")):
-                        _add(x, -applied_slp)
+                    if (x := _find_by_row_id(rr, 256, varname="SumRorelsekostnader", label="Summa rörelsekostnader")):
+                        _add_current(x, applied_slp)
+                    if (x := _find_by_row_id(rr, 267, varname="SumResultatEfterFinansiellaPoster", label="Resultat efter finansiella poster")):
+                        _add_current(x, -applied_slp)
+                    if (x := _find_by_row_id(rr, 275, varname="SumResultatForeSkatt", label="Resultat före skatt")):
+                        _add_current(x, -applied_slp)
+                    if (x := _find_by_row_id(rr, 279, varname="SumAretsResultat", label="Årets resultat")):
+                        _add_current(x, -applied_slp)
 
         # ------------------------------
         # 2) (existing) CORPORATE TAX LOGIC
@@ -1509,7 +1547,7 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         # ------------------------------
         
         # --- RR: set tax NEGATIVE and ripple to Årets resultat ---
-        rr_tax = _get(rr, row_id=277) or _get(rr, name="SkattAretsResultat")
+        rr_tax = _find_by_row_id(rr, 277, varname="SkattAretsResultat", label="Skatt på årets resultat")
         if not rr_tax:
             raise HTTPException(400, "RR row 277 (SkattAretsResultat) missing")
 
@@ -1517,7 +1555,7 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_rr_tax = _delta_set(rr_tax, rr_tax_new)
         print(f"Updated RR SkattAretsResultat: {rr_tax.get('current_amount', 0)} -> {rr_tax_new} (negative)")
 
-        rr_result = _get(rr, row_id=279) or _get(rr, name="SumAretsResultat")
+        rr_result = _find_by_row_id(rr, 279, varname="SumAretsResultat", label="Årets resultat")
         if not rr_result:
             raise HTTPException(400, "RR row 279 (SumAretsResultat) missing")
 
