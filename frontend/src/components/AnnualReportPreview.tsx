@@ -1033,7 +1033,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         currentInk2Data.find((i: any) => i.variable_name === 'sarskild_loneskatt_pension_final') ||
         currentInk2Data.find((i: any) => i.variable_name === 'sarskild_loneskatt_pension_calculated');
 
-      const inkSarskildLoneskatt = Math.max(0, Number(slpItem?.amount || 0));
+      const inkSarskildLoneskatt = Math.abs(Number(slpItem?.amount || 0));
 
       const requestData = {
         inkBeraknadSkatt,

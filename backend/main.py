@@ -1008,6 +1008,45 @@ async def recalculate_ink2(request: RecalculateRequest):
             manual_amounts=manual_amounts
         )
         
+        # Fix Årets_resultat_justerat (row_id 78) formula
+        def _find_amt(rows, name):
+            for r in rows:
+                if r.get('variable_name') == name:
+                    return float(r.get('amount') or 0)
+            return 0.0
+
+        # SumResultatForeSkatt is RR row_id 275 in your model
+        rr_275 = next((x for x in request.rr_data or [] if str(x.get('id')) == '275'), None)
+        sum_resultat_fore_skatt = float(rr_275.get('current_amount') or 0) if rr_275 else 0.0
+
+        # SLP can come in as a manual override or dedicated field; both are positive by design
+        slp = 0.0
+        if isinstance(request.manual_amounts, dict):
+            slp = abs(float(request.manual_amounts.get('justering_sarskild_loneskatt', 0) or 0))
+        if hasattr(request, 'justering_sarskild_loneskatt') and request.justering_sarskild_loneskatt:
+            slp = max(slp, abs(float(request.justering_sarskild_loneskatt or 0)))
+
+        ink_beraknad = _find_amt(ink2_data, 'INK_beraknad_skatt')
+
+        arets_resultat_justerat = sum_resultat_fore_skatt + slp - ink_beraknad
+
+        # write back into ink2_data (update or append)
+        wrote = False
+        for r in ink2_data:
+            if r.get('variable_name') == 'Arets_resultat_justerat':
+                r['amount'] = round(arets_resultat_justerat)
+                wrote = True
+                break
+        if not wrote:
+            ink2_data.append({
+                'variable_name': 'Arets_resultat_justerat',
+                'row_title': 'Årets resultat (justerat)',
+                'header': False, 'show_amount': True, 'always_show': True, 'is_calculated': True,
+                'amount': round(arets_resultat_justerat),
+            })
+        
+        print(f"🔧 Fixed Årets_resultat_justerat: {arets_resultat_justerat} (SumResultatForeSkatt: {sum_resultat_fore_skatt} + SLP: {slp} - INK_beraknad: {ink_beraknad})")
+        
         return {
             "success": True,
             "ink2_data": ink2_data
@@ -1392,7 +1431,8 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         # ------------------------------
         # 1) APPLY SÄRSKILD LÖNESKATT TO RR
         # ------------------------------
-        slp_accepted = float(request.inkSarskildLoneskatt or 0)  # positive number user accepted/entered
+        slp_raw = float(request.inkSarskildLoneskatt or 0.0)
+        slp_accepted = abs(slp_raw)  # backend expects +SLP always
         d_slp = 0.0
 
         if slp_accepted > 0:
