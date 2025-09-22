@@ -1467,35 +1467,40 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_slp = 0.0
 
         if slp_accepted > 0:
-            rr_personal = (
-                _get(rr, row_id=252) or
-                _get(rr, id=13) or
-                _get(rr, name="PersonalKostnader") or
-                _get(rr, label_contains="Personalkostnad")
-            )
+            rr_personal = _get(rr, row_id=252)
+            if not rr_personal:
+                rr_personal = _get(rr, id=13) or _get(rr, name="PersonalKostnader") or _get(rr, label_contains="Personalkostnad")
             if not rr_personal:
                 print("WARN: RR PersonalKostnader not found (row_id=252 / id=13).")
             else:
-                # Idempotence: remember how much SLP we've already injected earlier (on the same dataset)
+                # Establish a stable base (original value before any SLP application)
+                # If previous logic added SLP, recover base as current_amount - previously_injected
                 already = _num(rr_personal.get("slp_injected"))
-                d_slp = slp_accepted - already
-                if abs(d_slp) > 0:
-                    _add(rr_personal, d_slp)                   # 252 += +SLP
-                    rr_personal["slp_injected"] = slp_accepted
-                    print(f"Updated RR PersonalKostnader: +{d_slp} (SLP accepted: {slp_accepted})")
+                if "_base_personalkostnader" not in rr_personal:
+                    rr_personal["_base_personalkostnader"] = _num(rr_personal.get("current_amount")) - already
 
-                    # Ripple RR sums by delta (+cost => results go down)
-                    rr256 = _get(rr, row_id=256) or _get(rr, name="SumRorelsekostnader")
-                    if rr256: _add(rr256, d_slp)
+                base = _num(rr_personal.get("_base_personalkostnader"))
 
-                    rr267 = _get(rr, row_id=267) or _get(rr, name="SumResultatEfterFinansiellaPoster")
-                    if rr267: _add(rr267, -d_slp)
+                # Correct sign: extra personnel cost reduces the line → base - SLP
+                new_rr252 = base - slp_accepted
+                delta_rr252 = _set(rr_personal, new_rr252)  # applied delta vs current
+                rr_personal["slp_injected"] = slp_accepted
+                print(f"Updated RR PersonalKostnader to {new_rr252} (base {base} - SLP {slp_accepted}); delta {delta_rr252}")
 
-                    rr275 = _get(rr, row_id=275) or _get(rr, name="SumResultatForeSkatt")
-                    if rr275: _add(rr275, -d_slp)
+                # Ripple only by the applied magnitude
+                applied_slp = abs(delta_rr252)
+                if applied_slp > 0:
+                    # 256 SumRorelsekostnader += SLP
+                    if (x := _get(rr, row_id=256) or _get(rr, name="SumRorelsekostnader")):
+                        _add(x, applied_slp)
 
-                    rr279 = _get(rr, row_id=279) or _get(rr, name="SumAretsResultat")
-                    if rr279: _add(rr279, -d_slp)
+                    # 267, 275, 279 each -= SLP
+                    if (x := _get(rr, row_id=267) or _get(rr, name="SumResultatEfterFinansiellaPoster")):
+                        _add(x, -applied_slp)
+                    if (x := _get(rr, row_id=275) or _get(rr, name="SumResultatForeSkatt")):
+                        _add(x, -applied_slp)
+                    if (x := _get(rr, row_id=279) or _get(rr, name="SumAretsResultat")):
+                        _add(x, -applied_slp)
 
         # ------------------------------
         # 2) (existing) CORPORATE TAX LOGIC
