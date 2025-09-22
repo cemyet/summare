@@ -443,6 +443,8 @@ interface ChatFlowResponse {
   // Handle option selection
   const handleOptionSelect = async (option: ChatOption, explicitStepNumber?: number, updatedInk2Data?: any[]) => {
     try {
+      console.log('🚀 handleOptionSelect called with option:', option.option_value);
+      
       // Add user message only if there's actual text
       const optionText = option.option_text || '';
       if (optionText && optionText.trim() !== '') {
@@ -461,7 +463,13 @@ interface ChatFlowResponse {
       // Handle approve_calculated - trigger tax update logic
       if (option.option_value === 'approve_calculated') {
         console.log('🎯 Processing approve_calculated - triggering tax update logic');
-        await handleTaxUpdateForApproval();
+        console.log('🎯 About to call handleTaxUpdateForApproval...');
+        try {
+          await handleTaxUpdateForApproval();
+          console.log('🎯 handleTaxUpdateForApproval completed successfully');
+        } catch (error) {
+          console.error('🎯 Error calling handleTaxUpdateForApproval:', error);
+        }
       }
       
       if (option.option_value === 'review_adjustments') {
