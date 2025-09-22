@@ -1336,6 +1336,8 @@ class TaxUpdateRequest(BaseModel):
     br_data: List[dict]
     organizationNumber: Optional[str] = None
     fiscalYear: Optional[int] = None
+    # NEW: accepted SLP (Särskild löneskatt). Pass 0 or omit if not accepted/entered.
+    inkSarskildLoneskatt: Optional[float] = 0
 
 @app.get("/api/test-tax-endpoint")
 async def test_tax_endpoint():
@@ -1374,6 +1376,11 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             item["current_amount"] = old + float(add_val)
             return float(item["current_amount"]) - old  # == add_val
 
+        def _set(item, new_val):
+            old = float(item.get("current_amount") or 0)
+            item["current_amount"] = float(new_val)
+            return float(item["current_amount"]) - old  # delta
+
         # --- inputs from request ---
         ink_calc = float(abs(request.inkBeraknadSkatt or 0))     # INK_beraknad_skatt (always +)
         ink_booked = float(request.inkBokfordSkatt or 0)         # INK_bokford_skatt (may be 0)
@@ -1381,6 +1388,57 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
 
         rr = [dict(item) for item in request.rr_data] or []
         br = [dict(item) for item in request.br_data] or []
+
+        # ------------------------------
+        # 1) APPLY SÄRSKILD LÖNESKATT TO RR
+        # ------------------------------
+        slp_accepted = float(request.inkSarskildLoneskatt or 0)  # positive number user accepted/entered
+        d_slp = 0.0
+
+        if slp_accepted > 0:
+            rr_personal = _get(rr, id=252) or _get(rr, name="PersonalKostnader")
+            if not rr_personal:
+                raise HTTPException(400, "RR row 252 (PersonalKostnader) missing")
+
+            # Idempotence: remember how much SLP we've already injected earlier (on the same dataset)
+            already = float(rr_personal.get("slp_injected") or 0)
+            d_slp = slp_accepted - already
+            if abs(d_slp) > 0:  # only if something actually changed
+                _add(rr_personal, d_slp)
+                rr_personal["slp_injected"] = slp_accepted
+                print(f"Updated RR PersonalKostnader: +{d_slp} (SLP accepted: {slp_accepted})")
+
+                # Update downstream RR sums by delta:
+                # 256 SumRorelsekostnader += d_slp
+                rr_sum_rorelsekost = _get(rr, id=256) or _get(rr, name="SumRorelsekostnader")
+                if rr_sum_rorelsekost: 
+                    _add(rr_sum_rorelsekost, d_slp)
+                    print(f"Updated RR SumRorelsekostnader: +{d_slp}")
+
+                # 267 SumResultatEfterFinansiellaPoster -= d_slp (more cost => lower result)
+                rr_sum_efterfin = _get(rr, id=267) or _get(rr, name="SumResultatEfterFinansiellaPoster")
+                if rr_sum_efterfin: 
+                    _add(rr_sum_efterfin, -d_slp)
+                    print(f"Updated RR SumResultatEfterFinansiellaPoster: -{d_slp}")
+
+                # 275 Resultat före skatt -= d_slp
+                rr_sum_forskatt = _get(rr, id=275) or _get(rr, name="SumResultatForeSkatt")
+                if rr_sum_forskatt: 
+                    _add(rr_sum_forskatt, -d_slp)
+                    print(f"Updated RR SumResultatForeSkatt: -{d_slp}")
+
+                # DO NOT touch RR 277 here (that is corporate tax, handled below)
+                # 279 Årets resultat -= d_slp (will also be modified by corporate tax below)
+                rr_sum_arets = _get(rr, id=279) or _get(rr, name="SumAretsResultat")
+                if rr_sum_arets: 
+                    _add(rr_sum_arets, -d_slp)
+                    print(f"Updated RR SumAretsResultat: -{d_slp} (SLP effect)")
+
+        # ------------------------------
+        # 2) (existing) CORPORATE TAX LOGIC
+        #     - set RR 277 to NEGATIVE inkBeraknadSkatt
+        #     - adjust RR 279 by delta of tax
+        # ------------------------------
         
         # --- RR: set tax NEGATIVE and ripple to Årets resultat ---
         rr_tax = _get(rr, id=277) or _get(rr, name="SkattAretsResultat")
@@ -1447,6 +1505,8 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             "rr_data": rr,
             "br_data": br,
             "changes": {
+                "slp_accepted": slp_accepted,
+                "slp_delta": d_slp,
                 "rr_tax_neg": rr_tax_new,
                 "rr_delta_tax": d_rr_tax,
                 "rr_sum_arets_resultat": rr_result_new,

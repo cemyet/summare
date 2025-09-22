@@ -121,6 +121,14 @@ interface ChatFlowResponse {
           console.log('❌ Test endpoint failed:', testError);
         }
         
+        // Find accepted SLP amount (in order of preference)
+        const slpItem =
+          currentInk2Data.find((i: any) => i.variable_name === 'INK_sarskild_loneskatt_accepted') ||
+          currentInk2Data.find((i: any) => i.variable_name === 'sarskild_loneskatt_pension_final') ||
+          currentInk2Data.find((i: any) => i.variable_name === 'sarskild_loneskatt_pension_calculated');
+
+        const inkSarskildLoneskatt = Math.max(0, Number(slpItem?.amount || 0));
+
         const requestData = {
           inkBeraknadSkatt,
           inkBokfordSkatt,
@@ -128,13 +136,16 @@ interface ChatFlowResponse {
           rr_data: companyData.seFileData?.rr_data || [],
           br_data: companyData.seFileData?.br_data || [],
           organizationNumber: companyData.organizationNumber,
-          fiscalYear: companyData.fiscalYear
+          fiscalYear: companyData.fiscalYear,
+          // NEW: SLP amount
+          inkSarskildLoneskatt,
         };
         
         console.log('📤 API request data from chat:', {
           inkBeraknadSkatt,
           inkBokfordSkatt,
           taxDifference,
+          inkSarskildLoneskatt,
           rr_data_length: requestData.rr_data.length,
           br_data_length: requestData.br_data.length,
           organizationNumber: companyData.organizationNumber,
