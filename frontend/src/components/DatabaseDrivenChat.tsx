@@ -53,6 +53,124 @@ interface ChatFlowResponse {
   const DatabaseDrivenChat: React.FC<ChatFlowProps> = ({ companyData, onDataUpdate }) => {
     // State to store the most recent calculated values
     const [globalInk2Data, setGlobalInk2Data] = useState<any[]>([]);
+
+    // Handle tax update logic when approving calculated tax in chat flow
+    const handleTaxUpdateForApproval = async () => {
+      try {
+        console.log('🔍 Starting handleTaxUpdateForApproval in chat flow...');
+        
+        // Get current INK2 data
+        const currentInk2Data = companyData.ink2Data || [];
+        
+        console.log('📊 Current INK2 data in chat:', {
+          ink2DataLength: currentInk2Data.length
+        });
+        
+        // Debug: Log all variable names in the data
+        const variableNames = currentInk2Data.map((item: any) => item.variable_name).filter(Boolean);
+        console.log('📋 Available variable names in chat:', variableNames);
+        
+        // Find INK_beraknad_skatt and INK_bokford_skatt values
+        const beraknadSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_beraknad_skatt');
+        const bokfordSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_bokford_skatt');
+        
+        console.log('🔍 Tax items found in chat:', {
+          beraknadSkattItem: beraknadSkattItem ? {
+            variable_name: beraknadSkattItem.variable_name,
+            amount: beraknadSkattItem.amount,
+            row_title: beraknadSkattItem.row_title
+          } : null,
+          bokfordSkattItem: bokfordSkattItem ? {
+            variable_name: bokfordSkattItem.variable_name,
+            amount: bokfordSkattItem.amount,
+            row_title: bokfordSkattItem.row_title
+          } : null
+        });
+        
+        if (!beraknadSkattItem || !bokfordSkattItem) {
+          console.log('❌ Could not find INK_beraknad_skatt or INK_bokford_skatt items in chat');
+          return;
+        }
+
+        const inkBeraknadSkatt = beraknadSkattItem.amount || 0;
+        const inkBokfordSkatt = bokfordSkattItem.amount || 0;
+        
+        console.log('💰 Tax comparison in chat:', { inkBeraknadSkatt, inkBokfordSkatt });
+        
+        // Only proceed if there's a difference
+        if (inkBeraknadSkatt === inkBokfordSkatt) {
+          console.log('✅ No tax difference in chat, skipping RR/BR updates');
+          return;
+        }
+
+        const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
+        console.log('🚨 Tax difference detected in chat:', taxDifference);
+
+        // Call API to update RR/BR data
+        console.log('🌐 Calling API to update RR/BR data from chat...');
+        
+        const requestData = {
+          inkBeraknadSkatt,
+          inkBokfordSkatt,
+          taxDifference,
+          rr_data: companyData.seFileData?.data?.rr_data || [],
+          br_data: companyData.seFileData?.data?.br_data || [],
+          organizationNumber: companyData.organizationNumber,
+          fiscalYear: companyData.fiscalYear
+        };
+        
+        console.log('📤 API request data from chat:', {
+          inkBeraknadSkatt,
+          inkBokfordSkatt,
+          taxDifference,
+          rr_data_length: requestData.rr_data.length,
+          br_data_length: requestData.br_data.length,
+          organizationNumber: companyData.organizationNumber,
+          fiscalYear: companyData.fiscalYear
+        });
+        
+        const response = await fetch('/api/update-tax-in-financial-data', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData),
+        });
+
+        console.log('📥 API response status from chat:', response.status);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('❌ API error response from chat:', errorText);
+          throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ API response result from chat:', result);
+        
+        if (result.success) {
+          console.log('🎉 Successfully updated RR/BR data with tax changes from chat');
+          console.log('📊 Changes made from chat:', result.changes);
+          
+          // Update company data with new RR/BR data
+          onDataUpdate({
+            seFileData: {
+              ...companyData.seFileData,
+              data: {
+                ...companyData.seFileData?.data,
+                rr_data: result.rr_data,
+                br_data: result.br_data
+              }
+            }
+          });
+        } else {
+          console.error('❌ Failed to update RR/BR data from chat:', result.error);
+        }
+        
+      } catch (error) {
+        console.error('❌ Error in handleTaxUpdateForApproval:', error);
+      }
+    };
     const [globalInkBeraknadSkatt, setGlobalInkBeraknadSkatt] = useState<number>(0);
   const [currentStep, setCurrentStep] = useState<number>(101); // Start with introduction
   const [currentQuestion, setCurrentQuestion] = useState<ChatStep | null>(null);
@@ -338,6 +456,12 @@ interface ChatFlowResponse {
         onDataUpdate({ showTaxPreview: false });
         setTimeout(() => loadChatStep(501), 1000);
         return;
+      }
+      
+      // Handle approve_calculated - trigger tax update logic
+      if (option.option_value === 'approve_calculated') {
+        console.log('🎯 Processing approve_calculated - triggering tax update logic');
+        await handleTaxUpdateForApproval();
       }
       
       if (option.option_value === 'review_adjustments') {
