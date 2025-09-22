@@ -1056,11 +1056,18 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
       console.log('📥 API response status:', response.status);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API error response:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ API error response:', errorText);
+      
+      if (response.status === 404) {
+        console.log('⚠️ Tax update endpoint not available yet - deployment in progress');
+        // Don't throw error for 404, just log and continue
+        return;
       }
+      
+      throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+    }
 
       const result = await response.json();
       console.log('✅ API response result:', result);

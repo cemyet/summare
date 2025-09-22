@@ -142,6 +142,13 @@ interface ChatFlowResponse {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('❌ API error response from chat:', errorText);
+          
+          if (response.status === 404) {
+            console.log('⚠️ Tax update endpoint not available yet - deployment in progress');
+            // Don't throw error for 404, just log and continue
+            return;
+          }
+          
           throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
         }
 
