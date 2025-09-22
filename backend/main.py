@@ -1016,8 +1016,9 @@ async def recalculate_ink2(request: RecalculateRequest):
                         return float(r.get('amount') or 0)
                 return 0.0
 
-            # SumResultatForeSkatt is RR row_id 275 in your model
-            rr_275 = next((x for x in request.rr_data or [] if str(x.get('id')) == '275'), None)
+            # SumResultatForeSkatt is RR row_id 275 in your model (prefer row_id)
+            rr_275 = next((x for x in request.rr_data or [] if str(x.get('row_id')) == '275'), None) \
+                or next((x for x in request.rr_data or [] if str(x.get('id')) == '275'), None)
             sum_resultat_fore_skatt = float(rr_275.get('current_amount') or 0) if rr_275 else 0.0
 
             # SLP can come in as a manual override or dedicated field; both are positive by design
@@ -1401,13 +1402,38 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
     print(f"🚀 Tax update endpoint called with: inkBeraknadSkatt={request.inkBeraknadSkatt}, inkBokfordSkatt={request.inkBokfordSkatt}")
     try:
         # Helper functions for robust data manipulation
-        def _get(items, *, id=None, name=None):
-            for x in items:
-                if id is not None and str(x.get("id")) == str(id):
-                    return x
-                if name is not None and x.get("variable_name") == name:
-                    return x
+        def _eq(a, b):
+            return str(a) == str(b)
+
+        def _get(items, *, row_id=None, id=None, name=None, label_contains=None):
+            # 1) Prefer canonical row_id
+            if row_id is not None:
+                for x in items:
+                    if _eq(x.get("row_id"), row_id):
+                        return x
+            # 2) Fallback to legacy id
+            if id is not None:
+                for x in items:
+                    if _eq(x.get("id"), id):
+                        return x
+            # 3) Exact variable_name match
+            if name is not None:
+                for x in items:
+                    if str(x.get("variable_name")) == name:
+                        return x
+            # 4) Best-effort label contains
+            if label_contains:
+                lc = label_contains.lower()
+                for x in items:
+                    if lc in str(x.get("label", "")).lower():
+                        return x
             return None
+
+        def _num(v):
+            try:
+                return float(v or 0)
+            except Exception:
+                return 0.0
 
         def _delta_set(item, new_val):
             old = float(item.get("current_amount") or 0)
@@ -1440,43 +1466,35 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_slp = 0.0
 
         if slp_accepted > 0:
-            rr_personal = _get(rr, id=252) or _get(rr, name="PersonalKostnader")
+            rr_personal = (
+                _get(rr, row_id=252) or
+                _get(rr, id=13) or
+                _get(rr, name="PersonalKostnader") or
+                _get(rr, label_contains="Personalkostnad")
+            )
             if not rr_personal:
-                raise HTTPException(400, "RR row 252 (PersonalKostnader) missing")
+                print("WARN: RR PersonalKostnader not found (row_id=252 / id=13).")
+            else:
+                # Idempotence: remember how much SLP we've already injected earlier (on the same dataset)
+                already = _num(rr_personal.get("slp_injected"))
+                d_slp = slp_accepted - already
+                if abs(d_slp) > 0:
+                    _add(rr_personal, d_slp)                   # 252 += +SLP
+                    rr_personal["slp_injected"] = slp_accepted
+                    print(f"Updated RR PersonalKostnader: +{d_slp} (SLP accepted: {slp_accepted})")
 
-            # Idempotence: remember how much SLP we've already injected earlier (on the same dataset)
-            already = float(rr_personal.get("slp_injected") or 0)
-            d_slp = slp_accepted - already
-            if abs(d_slp) > 0:  # only if something actually changed
-                _add(rr_personal, d_slp)
-                rr_personal["slp_injected"] = slp_accepted
-                print(f"Updated RR PersonalKostnader: +{d_slp} (SLP accepted: {slp_accepted})")
+                    # Ripple RR sums by delta (+cost => results go down)
+                    rr256 = _get(rr, row_id=256) or _get(rr, name="SumRorelsekostnader")
+                    if rr256: _add(rr256, d_slp)
 
-                # Update downstream RR sums by delta:
-                # 256 SumRorelsekostnader += d_slp
-                rr_sum_rorelsekost = _get(rr, id=256) or _get(rr, name="SumRorelsekostnader")
-                if rr_sum_rorelsekost: 
-                    _add(rr_sum_rorelsekost, d_slp)
-                    print(f"Updated RR SumRorelsekostnader: +{d_slp}")
+                    rr267 = _get(rr, row_id=267) or _get(rr, name="SumResultatEfterFinansiellaPoster")
+                    if rr267: _add(rr267, -d_slp)
 
-                # 267 SumResultatEfterFinansiellaPoster -= d_slp (more cost => lower result)
-                rr_sum_efterfin = _get(rr, id=267) or _get(rr, name="SumResultatEfterFinansiellaPoster")
-                if rr_sum_efterfin: 
-                    _add(rr_sum_efterfin, -d_slp)
-                    print(f"Updated RR SumResultatEfterFinansiellaPoster: -{d_slp}")
+                    rr275 = _get(rr, row_id=275) or _get(rr, name="SumResultatForeSkatt")
+                    if rr275: _add(rr275, -d_slp)
 
-                # 275 Resultat före skatt -= d_slp
-                rr_sum_forskatt = _get(rr, id=275) or _get(rr, name="SumResultatForeSkatt")
-                if rr_sum_forskatt: 
-                    _add(rr_sum_forskatt, -d_slp)
-                    print(f"Updated RR SumResultatForeSkatt: -{d_slp}")
-
-                # DO NOT touch RR 277 here (that is corporate tax, handled below)
-                # 279 Årets resultat -= d_slp (will also be modified by corporate tax below)
-                rr_sum_arets = _get(rr, id=279) or _get(rr, name="SumAretsResultat")
-                if rr_sum_arets: 
-                    _add(rr_sum_arets, -d_slp)
-                    print(f"Updated RR SumAretsResultat: -{d_slp} (SLP effect)")
+                    rr279 = _get(rr, row_id=279) or _get(rr, name="SumAretsResultat")
+                    if rr279: _add(rr279, -d_slp)
 
         # ------------------------------
         # 2) (existing) CORPORATE TAX LOGIC
@@ -1485,7 +1503,7 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         # ------------------------------
         
         # --- RR: set tax NEGATIVE and ripple to Årets resultat ---
-        rr_tax = _get(rr, id=277) or _get(rr, name="SkattAretsResultat")
+        rr_tax = _get(rr, row_id=277) or _get(rr, name="SkattAretsResultat")
         if not rr_tax:
             raise HTTPException(400, "RR row 277 (SkattAretsResultat) missing")
 
@@ -1493,7 +1511,7 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_rr_tax = _delta_set(rr_tax, rr_tax_new)
         print(f"Updated RR SkattAretsResultat: {rr_tax.get('current_amount', 0)} -> {rr_tax_new} (negative)")
 
-        rr_result = _get(rr, id=279) or _get(rr, name="SumAretsResultat")
+        rr_result = _get(rr, row_id=279) or _get(rr, name="SumAretsResultat")
         if not rr_result:
             raise HTTPException(400, "RR row 279 (SumAretsResultat) missing")
 
