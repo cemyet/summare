@@ -14,6 +14,8 @@ export const API_ENDPOINTS = {
   recalculateInk2: `${API_BASE_URL}/api/recalculate-ink2`,
   addNoteNumbersToBr: `${API_BASE_URL}/api/add-note-numbers-to-br`,
   chatFlow: `${API_BASE_URL}/api/chat-flow`,
+  updateTaxInFinancialData: `${API_BASE_URL}/api/update-tax-in-financial-data`,
+  testTaxEndpoint: `${API_BASE_URL}/api/test-tax-endpoint`,
   // Förvaltningsberättelse endpoints
   managementReportTemplate: `${API_BASE_URL}/forvaltningsberattelse/template`,
   managementReportValidate: `${API_BASE_URL}/forvaltningsberattelse/validate`,

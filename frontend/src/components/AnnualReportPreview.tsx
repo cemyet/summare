@@ -1046,7 +1046,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         fiscalYear: companyData.fiscalYear
       });
       
-      const response = await fetch('/api/update-tax-in-financial-data', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

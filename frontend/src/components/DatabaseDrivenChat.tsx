@@ -111,7 +111,7 @@ interface ChatFlowResponse {
         
         // First test if the endpoint is available
         try {
-          const testResponse = await fetch('/api/test-tax-endpoint');
+          const testResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/test-tax-endpoint`);
           console.log('🧪 Test endpoint response:', testResponse.status);
           if (testResponse.ok) {
             const testResult = await testResponse.json();
@@ -141,7 +141,7 @@ interface ChatFlowResponse {
           fiscalYear: companyData.fiscalYear
         });
         
-        const response = await fetch('/api/update-tax-in-financial-data', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
