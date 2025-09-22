@@ -1030,7 +1030,8 @@ async def recalculate_ink2(request: RecalculateRequest):
 
             ink_beraknad = _find_amt(ink2_data, 'INK_beraknad_skatt')
 
-            arets_resultat_justerat = sum_resultat_fore_skatt + slp - ink_beraknad
+            # SLP lowers the result: Årets_resultat_justerat = SumResultatForeSkatt - SLP - INK_beraknad_skatt
+            arets_resultat_justerat = sum_resultat_fore_skatt - slp - ink_beraknad
 
             # write back into ink2_data (update or append)
             wrote = False
@@ -1047,7 +1048,7 @@ async def recalculate_ink2(request: RecalculateRequest):
                     'amount': round(arets_resultat_justerat),
                 })
             
-            print(f"🔧 Fixed Årets_resultat_justerat: {arets_resultat_justerat} (SumResultatForeSkatt: {sum_resultat_fore_skatt} + SLP: {slp} - INK_beraknad: {ink_beraknad})")
+            print(f"🔧 Fixed Årets_resultat_justerat: {arets_resultat_justerat} (SumResultatForeSkatt: {sum_resultat_fore_skatt} - SLP: {slp} - INK_beraknad: {ink_beraknad})")
         except Exception as e:
             print(f"⚠️ Warning: Could not fix Årets_resultat_justerat: {str(e)}")
             # Continue without failing the entire request
