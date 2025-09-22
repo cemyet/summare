@@ -998,6 +998,21 @@ async def recalculate_ink2(request: RecalculateRequest):
         if 'INK4.6d' in request.manual_amounts:
             manual_amounts['INK4.6d'] = request.manual_amounts['INK4.6d']
             print(f"📋 Preserving INK4.6d återföring tax: {manual_amounts['INK4.6d']}")
+
+        # STATELESS FIX: If SLP has already been booked to RR (after approval),
+        # zero out the INK adjustment so it isn't counted twice in skattemässigt resultat
+        rr_252_has_slp = False
+        if request.rr_data:
+            for rr_item in request.rr_data:
+                if (str(rr_item.get("row_id")) == "252" or 
+                    rr_item.get("variable_name") == "PersonalKostnader"):
+                    if rr_item.get("slp_injected") or rr_item.get("__slp_applied"):
+                        rr_252_has_slp = True
+                        break
+        
+        if rr_252_has_slp:
+            manual_amounts['justering_sarskild_loneskatt'] = 0.0
+            print(f"🔄 SLP already booked to RR 252, zeroing INK adjustment to prevent double-counting")
         
         # Parse INK2 data with manual overrides
         ink2_data = parser.parse_ink2_data_with_overrides(
@@ -1030,8 +1045,14 @@ async def recalculate_ink2(request: RecalculateRequest):
 
             ink_beraknad = _find_amt(ink2_data, 'INK_beraknad_skatt')
 
-            # SLP lowers the result: Årets_resultat_justerat = SumResultatForeSkatt - SLP - INK_beraknad_skatt
-            arets_resultat_justerat = sum_resultat_fore_skatt - slp - ink_beraknad
+            # If SLP already booked to RR, don't subtract again (RR 275 already includes SLP effect)
+            if rr_252_has_slp:
+                arets_resultat_justerat = sum_resultat_fore_skatt - ink_beraknad
+                print(f"🔄 SLP already in RR 275, formula: {sum_resultat_fore_skatt} - {ink_beraknad}")
+            else:
+                # SLP lowers the result: Årets_resultat_justerat = SumResultatForeSkatt - SLP - INK_beraknad_skatt
+                arets_resultat_justerat = sum_resultat_fore_skatt - slp - ink_beraknad
+                print(f"🔧 SLP not yet in RR, formula: {sum_resultat_fore_skatt} - {slp} - {ink_beraknad}")
 
             # write back into ink2_data (update or append)
             wrote = False
@@ -1537,25 +1558,38 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                 # Ripple only by the applied magnitude
                 applied_slp = abs(delta_rr252)
                 if applied_slp > 0:
-                    # 256 SumRörelsekostnader -= SLP (more personnel cost => total operating costs become more negative)
-                    if (x := _find_by_row_id(rr, 256, varname="SumRorelsekostnader", label="Summa rörelsekostnader")):
-                        _add_current(x, -applied_slp)
-                    
-                    # Rörelseresultat -= SLP
-                    if (x := _find_by_row_id(rr, 260, varname="Rorelseresultat", label="Rörelseresultat")):
-                        _add_current(x, -applied_slp)
-                    else:
-                        # Fallback if row_id differs: try by variable or label contains
-                        if (x := _get(rr, name="Rorelseresultat") or _get(rr, label_contains="rörelseresultat")):
-                            _add_current(x, -applied_slp)
-                    
-                    # 267, 275, 279 each -= SLP (these are already correct)
-                    if (x := _find_by_row_id(rr, 267, varname="SumResultatEfterFinansiellaPoster", label="Resultat efter finansiella poster")):
-                        _add_current(x, -applied_slp)
-                    if (x := _find_by_row_id(rr, 275, varname="SumResultatForeSkatt", label="Resultat före skatt")):
-                        _add_current(x, -applied_slp)
-                    if (x := _find_by_row_id(rr, 279, varname="SumAretsResultat", label="Årets resultat")):
-                        _add_current(x, -applied_slp)
+                    def row(rr_list, rid, var=None, label=None):
+                        for r in rr_list:
+                            if str(r.get("row_id")) == str(rid):
+                                return r
+                        if var:    # fallbacks if row_id differs in some files
+                            for r in rr_list:
+                                if r.get("variable_name") == var:
+                                    return r
+                        if label:
+                            for r in rr_list:
+                                if label.lower() in (r.get("label","").lower()):
+                                    return r
+                        return None
+
+                    def add(r, d):
+                        if not r:
+                            return 0.0
+                        cur = _num(r.get("current_amount"))
+                        r["current_amount"] = cur + float(d)
+                        return float(d)
+
+                    # --- SLP booked as extra cost ---
+                    # sums must move in the SAME direction as the cost (down)
+                    add(row(rr, 256, var="SumRorelsekostnader", label="Summa rörelsekostnader"), -applied_slp)
+
+                    # Rörelseresultat must DECREASE by the cost
+                    add(row(rr, 260, var="Rorelseresultat", label="Rörelseresultat"), -applied_slp)
+
+                    # Keep existing ripples (down) for these:
+                    add(row(rr, 267, var="SumResultatEfterFinansiellaPoster", label="Resultat efter finansiella poster"), -applied_slp)
+                    add(row(rr, 275, var="SumResultatForeSkatt", label="Resultat före skatt"), -applied_slp)
+                    add(row(rr, 279, var="SumAretsResultat", label="Årets resultat"), -applied_slp)
 
         # ------------------------------
         # 2) (existing) CORPORATE TAX LOGIC
