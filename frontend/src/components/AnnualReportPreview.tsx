@@ -1759,10 +1759,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                 {/* Show booked amount if > 0 */}
                                 {companyData.sarskildLoneskattPension > 0 && (
                                   <tr className="border-b">
-                                    <td className="py-2" colSpan={2}>
+                                    <td className="py-1" colSpan={2}>
                                       Bokförd särskild löneskatt
                                     </td>
-                                    <td className="text-right py-2">
+                                    <td className="text-right py-1">
                                       {(() => {
                                         const booked = companyData.sarskildLoneskattPension || 0;
                                         const formatted = new Intl.NumberFormat('sv-SE', {
@@ -1779,13 +1779,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                  (companyData.sarskildLoneskattPensionCalculated || 0) !== (companyData.sarskildLoneskattPension || 0) && (
                                   <>
                                     <tr className="border-t border-gray-200">
-                                      <td className="py-2" colSpan={3}></td>
+                                      <td className="py-0" colSpan={3}></td>
                                     </tr>
                                     <tr className="font-semibold">
-                                      <td className="py-2" colSpan={2}>
+                                      <td className="py-1" colSpan={2}>
                                         Justering särskild löneskatt
                                       </td>
-                                      <td className="text-right py-2">
+                                      <td className="text-right py-1">
                                         {(() => {
                                           const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
                                           const booked = companyData.sarskildLoneskattPension || 0;
