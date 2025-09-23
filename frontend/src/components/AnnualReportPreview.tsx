@@ -627,6 +627,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   
   // Store original baseline for proper undo functionality (like Noter)
   const originalInk2BaselineRef = useRef<any[]>([]);
+  const originalRrDataRef = useRef<any[]>([]);
+  const originalBrDataRef = useRef<any[]>([]);
   const clearAcceptedOnNextApproveRef = React.useRef(false);
 
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
@@ -642,12 +644,18 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const ink2Data = cd.ink2Data || seFileData?.ink2_data || [];
   const companyInfo = seFileData?.company_info || {};
 
-  // Capture original baseline when ink2Data first loads (like Noter)
+  // Capture original baseline when data first loads (like Noter)
   useEffect(() => {
     if (ink2Data && ink2Data.length > 0 && originalInk2BaselineRef.current.length === 0) {
       originalInk2BaselineRef.current = JSON.parse(JSON.stringify(ink2Data));
     }
-  }, [ink2Data]);
+    if (rrData && rrData.length > 0 && originalRrDataRef.current.length === 0) {
+      originalRrDataRef.current = JSON.parse(JSON.stringify(rrData));
+    }
+    if (brData && brData.length > 0 && originalBrDataRef.current.length === 0) {
+      originalBrDataRef.current = JSON.parse(JSON.stringify(brData));
+    }
+  }, [ink2Data, rrData, brData]);
 
   // Calculate dynamic note numbers based on Noter visibility logic
   const calculateDynamicNoteNumbers = () => {
@@ -824,11 +832,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     };
 
     // 2) Send to backend (with calc-only hint)
+    // CRITICAL: Always use original baseline RR/BR data for INK2 calculations
+    // to prevent feedback loops where INK4.1/INK4.2 use already-mutated values
     const payload = {
       current_accounts: companyData.seFileData?.current_accounts || {},
       fiscal_year: companyData.fiscalYear,
-      rr_data: companyData.seFileData?.rr_data || [],
-      br_data: companyData.seFileData?.br_data || [],
+      rr_data: originalRrDataRef.current.length > 0 ? originalRrDataRef.current : (companyData.seFileData?.rr_data || []),
+      br_data: originalBrDataRef.current.length > 0 ? originalBrDataRef.current : (companyData.seFileData?.br_data || []),
       manual_amounts: translateManualsForApi(manualComposite),
       // @ts-ignore - Optional optimization hint; safe if backend ignores it
       recalc_only_vars: Array.from(CALC_ONLY),
