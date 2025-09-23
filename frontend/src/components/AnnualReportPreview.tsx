@@ -1774,8 +1774,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                     </td>
                                   </tr>
                                 )}
-                                {/* Show adjustment calculation if booked > 0 */}
-                                {companyData.sarskildLoneskattPension > 0 && (
+                                {/* Show adjustment calculation only if booked > 0 AND there's a difference */}
+                                {companyData.sarskildLoneskattPension > 0 && 
+                                 (companyData.sarskildLoneskattPensionCalculated || 0) !== (companyData.sarskildLoneskattPension || 0) && (
                                   <>
                                     <tr className="border-t border-gray-200">
                                       <td className="py-2" colSpan={3}></td>
