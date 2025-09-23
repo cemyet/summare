@@ -51,13 +51,20 @@ interface ChatFlowResponse {
 }
 
   const DatabaseDrivenChat: React.FC<ChatFlowProps> = ({ companyData, onDataUpdate }) => {
-    // Helper: accepted SLP (positive) from ink2Data/companyData
+    // Helper: accepted SLP difference (positive) from ink2Data/companyData
     const getAcceptedSLP = (ink2Data: any[], cd: any) => {
       const by = (n: string) => ink2Data?.find((x: any) => x.variable_name === n);
       const manualPos = Number(by('justering_sarskild_loneskatt')?.amount) || Number(cd?.justeringSarskildLoneskatt) || 0;
       const signedInInk = Number(by('INK_sarskild_loneskatt')?.amount) || 0;
-      const slp = manualPos !== 0 ? manualPos : Math.abs(signedInInk);
-      return Math.abs(Number(slp || 0));
+      
+      // If we have manual adjustment, use it (it's already the difference)
+      if (manualPos !== 0) {
+        return Math.abs(manualPos);
+      }
+      
+      // If we have INK value, it should be the difference amount (calculated - booked)
+      // The INK value is the adjustment needed, not the total calculated amount
+      return Math.abs(signedInInk);
     };
     // State to store the most recent calculated values
     const [globalInk2Data, setGlobalInk2Data] = useState<any[]>([]);

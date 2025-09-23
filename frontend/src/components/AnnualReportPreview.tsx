@@ -12,15 +12,22 @@ import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@
 import { apiService } from '@/services/api';
 import { computeCombinedFinancialSig } from '@/utils/financeSig';
 
-// Select accepted SLP (positive) from INK2 + companyData
+// Select accepted SLP difference (positive) from INK2 + companyData
 function getAcceptedSLP(ink2Data: any[], companyData: any) {
   const by = (n: string) => ink2Data?.find((x: any) => x.variable_name === n);
   const manualPos =
     Number(by('justering_sarskild_loneskatt')?.amount) ||
     Number((companyData as any)?.justeringSarskildLoneskatt) || 0;
   const signedInInk = Number(by('INK_sarskild_loneskatt')?.amount) || 0; // negative in table
-  const slp = manualPos !== 0 ? manualPos : Math.abs(signedInInk);
-  return Math.abs(Number(slp || 0));
+  
+  // If we have manual adjustment, use it (it's already the difference)
+  if (manualPos !== 0) {
+    return Math.abs(manualPos);
+  }
+  
+  // If we have INK value, it should be the difference amount (calculated - booked)
+  // The INK value is the adjustment needed, not the total calculated amount
+  return Math.abs(signedInInk);
 }
 
 // Helper functions for Swedish number formatting (from Noter)
