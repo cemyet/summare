@@ -651,9 +651,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
     if (rrData && rrData.length > 0 && originalRrDataRef.current.length === 0) {
       originalRrDataRef.current = JSON.parse(JSON.stringify(rrData));
+      // Expose to window for chat component access
+      (window as any).__originalRrData = originalRrDataRef.current;
     }
     if (brData && brData.length > 0 && originalBrDataRef.current.length === 0) {
       originalBrDataRef.current = JSON.parse(JSON.stringify(brData));
+      // Expose to window for chat component access
+      (window as any).__originalBrData = originalBrDataRef.current;
     }
   }, [ink2Data, rrData, brData]);
 

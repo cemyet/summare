@@ -885,12 +885,26 @@ const selectiveMergeInk2 = (
       return;
     }
 
+    // For chat injections, we need to:
+    // 1. Use original baseline RR/BR data (so INK4.1/INK4.2 calculate from clean values)
+    // 2. But include the accepted SLP amount in manual_amounts (so it's in the formula)
+    
+    // Get original baseline RR/BR data if available
+    const originalRrData = (window as any).__originalRrData || companyData.seFileData?.rr_data || [];
+    const originalBrData = (window as any).__originalBrData || companyData.seFileData?.br_data || [];
+    
+    // Include accepted SLP in manual_amounts for chat injections
+    const chatManuals = { ...manuals };
+    if (companyData.justeringSarskildLoneskatt) {
+      chatManuals['justering_sarskild_loneskatt'] = Math.abs(companyData.justeringSarskildLoneskatt);
+    }
+
     const resp = await apiService.recalculateInk2({
       current_accounts: companyData.seFileData?.current_accounts || {},
       fiscal_year: companyData.fiscalYear,
-      rr_data: companyData.seFileData?.rr_data || [],
-      br_data: companyData.seFileData?.br_data || [],
-      manual_amounts: manuals, // CHAT ONLY
+      rr_data: originalRrData,
+      br_data: originalBrData,
+      manual_amounts: chatManuals, // CHAT ONLY with SLP included
       is_chat_injection: true, // Flag to preserve SLP in calculation
       // @ts-ignore - Optional optimization hint; safe if backend ignores it
       recalc_only_vars: [
