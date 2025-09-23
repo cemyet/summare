@@ -1743,7 +1743,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                 {/* Sum row with special calculation - merged columns */}
                                 <tr className="border-t border-gray-300">
                                   <td className="py-2" colSpan={2}>
-                                    Särskild löneskatt (24,26%)
+                                    Beräknad särskild löneskatt (24,26%)
                                   </td>
                                   <td className="text-right py-2">
                                     {(() => {
@@ -1789,7 +1789,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                         {(() => {
                                           const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
                                           const booked = companyData.sarskildLoneskattPension || 0;
-                                          const adjustment = calculated - booked;
+                                          const adjustment = booked - calculated; // Negative value: booked - calculated
                                           const formatted = new Intl.NumberFormat('sv-SE', {
                                             minimumFractionDigits: 0,
                                             maximumFractionDigits: 0
