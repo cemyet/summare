@@ -1583,6 +1583,9 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                     # sums must move in the SAME direction as the cost (down)
                     add(row(rr, 256, var="SumRorelsekostnader", label="Summa rörelsekostnader"), -applied_slp)
 
+                    # SumRorelseresultat must DECREASE by the cost
+                    add(row(rr, 257, var="SumRorelseresultat", label="Summa rörelseresultat"), -applied_slp)
+
                     # Rörelseresultat must DECREASE by the cost
                     add(row(rr, 260, var="Rorelseresultat", label="Rörelseresultat"), -applied_slp)
 
