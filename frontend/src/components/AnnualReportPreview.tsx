@@ -11,6 +11,7 @@ import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from "@
 import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@/utils/seFileCalculations';
 import { apiService } from '@/services/api';
 import { computeCombinedFinancialSig } from '@/utils/financeSig';
+import { useToast } from '@/hooks/use-toast';
 
 // Select accepted SLP difference (positive) from INK2 + companyData
 function getAcceptedSLP(ink2Data: any[], companyData: any) {
@@ -497,6 +498,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
 export function AnnualReportPreview({ companyData, currentStep, editableAmounts = false, onDataUpdate }: AnnualReportPreviewProps) {
   // Safe access; never destructure undefined
   const cd = companyData as CompanyData;
+  const { toast } = useToast();
   
   // Requirement 2: inputs become editable when taxEditingEnabled OR editableAmounts is true
   const isEditing = Boolean(cd.taxEditingEnabled || editableAmounts);
@@ -1130,6 +1132,18 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       if (result.success) {
         console.log('🎉 Successfully updated RR/BR data with tax changes');
         console.log('📊 Changes made:', result.changes);
+        
+        // Show success toast notification
+        const taxAmount = new Intl.NumberFormat('sv-SE', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
+        }).format(inkBeraknadSkatt);
+        
+        toast({
+          title: "Skatteberäkning uppdaterad",
+          description: `Skatt på årets resultat har uppdaterats till ${taxAmount} kr i resultat- och balansräkningen.`,
+          duration: 4000,
+        });
         
       // Update company data with new RR/BR data
       onDataUpdate({
