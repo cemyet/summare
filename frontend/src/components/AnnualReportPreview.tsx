@@ -1756,6 +1756,49 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                                     })()}
                                   </td>
                                 </tr>
+                                {/* Show booked amount if > 0 */}
+                                {companyData.sarskildLoneskattPension > 0 && (
+                                  <tr className="border-b">
+                                    <td className="py-2" colSpan={2}>
+                                      Bokförd särskild löneskatt
+                                    </td>
+                                    <td className="text-right py-2">
+                                      {(() => {
+                                        const booked = companyData.sarskildLoneskattPension || 0;
+                                        const formatted = new Intl.NumberFormat('sv-SE', {
+                                          minimumFractionDigits: 0,
+                                          maximumFractionDigits: 0
+                                        }).format(booked);
+                                        return `${formatted} kr`;
+                                      })()}
+                                    </td>
+                                  </tr>
+                                )}
+                                {/* Show adjustment calculation if booked > 0 */}
+                                {companyData.sarskildLoneskattPension > 0 && (
+                                  <>
+                                    <tr className="border-t border-gray-200">
+                                      <td className="py-2" colSpan={3}></td>
+                                    </tr>
+                                    <tr className="font-semibold">
+                                      <td className="py-2" colSpan={2}>
+                                        Justering särskild löneskatt
+                                      </td>
+                                      <td className="text-right py-2">
+                                        {(() => {
+                                          const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
+                                          const booked = companyData.sarskildLoneskattPension || 0;
+                                          const adjustment = calculated - booked;
+                                          const formatted = new Intl.NumberFormat('sv-SE', {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0
+                                          }).format(adjustment);
+                                          return `${formatted} kr`;
+                                        })()}
+                                      </td>
+                                    </tr>
+                                  </>
+                                )}
                               </tbody>
                             </table>
                           </div>
