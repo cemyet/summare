@@ -998,16 +998,16 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false, showTaxPreview: true });
     setShowAllTax(false);
 
-    // Auto-scroll to tax module immediately (before recalculation for faster UX)
+    // Auto-scroll to tax module immediately
     setTimeout(() => {
       const taxModule = document.querySelector('[data-section="tax-calculation"]');
       if (taxModule) {
         taxModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    }, 100); // Reduced delay for faster response
+    }, 100);
 
-    // recalc: baseline=current, include accepted (use the new nextAccepted, not stale companyData)
-    await recalcWithManuals({}, { includeAccepted: true, baselineSource: 'current', acceptedManualsOverride: nextAccepted });
+    // DON'T recalculate INK2 after approval - keep the approved manual edits stable
+    // The INK2 data should remain exactly as the user approved it
   };
 
   // Handle tax update logic when approving changes
