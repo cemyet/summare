@@ -498,15 +498,16 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
 export function AnnualReportPreview({ companyData, currentStep, editableAmounts = false, onDataUpdate }: AnnualReportPreviewProps) {
   // Safe access; never destructure undefined
   const cd = companyData as CompanyData;
-  const { toast } = useToast();
   
-  // Requirement 2: inputs become editable when taxEditingEnabled OR editableAmounts is true
-  const isEditing = Boolean(cd.taxEditingEnabled || editableAmounts);
-
   // Requirement 1: render when showTaxPreview OR showRRBR is true
   if (!cd.showTaxPreview && !cd.showRRBR) {
     return null;
   }
+
+  const { toast } = useToast();
+  
+  // Requirement 2: inputs become editable when taxEditingEnabled OR editableAmounts is true
+  const isEditing = Boolean(cd.taxEditingEnabled || editableAmounts);
 
   // --- calculated rows (read-only) ---
   const CALCULATED = new Set([
