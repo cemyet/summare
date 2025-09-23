@@ -175,7 +175,13 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         # Calculate pension tax variables for frontend
         pension_premier = abs(float(current_accounts.get('7410', 0.0)))
-        sarskild_loneskatt_pension = abs(float(current_accounts.get('7531', 0.0)))
+        # Särskild löneskatt can be booked in multiple accounts: 7530, 7531, 7532, 7533
+        sarskild_loneskatt_pension = (
+            abs(float(current_accounts.get('7530', 0.0))) +
+            abs(float(current_accounts.get('7531', 0.0))) +
+            abs(float(current_accounts.get('7532', 0.0))) +
+            abs(float(current_accounts.get('7533', 0.0)))
+        )
         # Get sarskild_loneskatt rate from global variables
         sarskild_loneskatt_rate = float(parser.global_variables.get('sarskild_loneskatt', 0.0))
         sarskild_loneskatt_pension_calculated = pension_premier * sarskild_loneskatt_rate
@@ -423,7 +429,13 @@ async def upload_two_se_files(
         
         # Calculate pension tax variables for frontend
         pension_premier = abs(float(current_accounts.get('7410', 0.0)))
-        sarskild_loneskatt_pension = abs(float(current_accounts.get('7531', 0.0)))
+        # Särskild löneskatt can be booked in multiple accounts: 7530, 7531, 7532, 7533
+        sarskild_loneskatt_pension = (
+            abs(float(current_accounts.get('7530', 0.0))) +
+            abs(float(current_accounts.get('7531', 0.0))) +
+            abs(float(current_accounts.get('7532', 0.0))) +
+            abs(float(current_accounts.get('7533', 0.0)))
+        )
         # Get sarskild_loneskatt rate from global variables
         sarskild_loneskatt_pension_calculated = pension_premier * 0.2431
         

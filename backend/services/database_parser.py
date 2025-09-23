@@ -2023,8 +2023,13 @@ class DatabaseParser:
             # Amount in account 7410
             return abs(float(accounts.get('7410', 0.0)))
         if variable_name == 'sarskild_loneskatt_pension':
-            # Amount in account 7531
-            return abs(float(accounts.get('7531', 0.0)))
+            # Amount in accounts 7530, 7531, 7532, 7533 (särskild löneskatt can be booked in any of these)
+            return (
+                abs(float(accounts.get('7530', 0.0))) +
+                abs(float(accounts.get('7531', 0.0))) +
+                abs(float(accounts.get('7532', 0.0))) +
+                abs(float(accounts.get('7533', 0.0)))
+            )
         if variable_name == 'sarskild_loneskatt_pension_calculated':
             # pension_premier * sarskild_loneskatt (global variable)
             pension_premier = abs(float(accounts.get('7410', 0.0)))
