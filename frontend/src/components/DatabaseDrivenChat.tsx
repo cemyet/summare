@@ -1305,15 +1305,6 @@ const selectiveMergeInk2 = (
     
     setShowFileUpload(false);
     
-    // Add the success message from database (step 102)
-    try {
-      const step102Response = await apiService.getChatFlowStep(102) as ChatFlowResponse;
-      addMessage(step102Response.question_text, true, step102Response.question_icon);
-    } catch (error) {
-      console.error('❌ Error fetching step 102:', error);
-      addMessage('Perfekt! Resultatrapport och balansräkning är nu skapad från SE-filen.', true, '✅');
-    }
-    
     // Add the result overview message from database (step 103) - with variable substitution
     try {
       const step103Response = await apiService.getChatFlowStep(103) as ChatFlowResponse;
