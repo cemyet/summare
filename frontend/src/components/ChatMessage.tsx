@@ -1,6 +1,9 @@
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
+// 🔧 TOGGLE: Switch between emoji and customer agent image
+const USE_CUSTOMER_AGENT_IMAGE = false; // Set to true to use customer_agent_small.png
+
 interface ChatMessageProps {
   message: string;
   isBot?: boolean;
@@ -65,7 +68,16 @@ export function ChatMessage({ message, isBot = false, emoji, className }: ChatMe
       <div className={cn("flex w-full mb-6 animate-fade-in", className)}>
         <div className="flex items-start space-x-3 max-w-[90%]">
           {emoji && (
-            <span className="text-base mt-1 flex-shrink-0">{emoji}</span>
+            USE_CUSTOMER_AGENT_IMAGE ? (
+              <img 
+                src="/customer_agent_small.png" 
+                alt="Customer Service Agent"
+                className="w-4 h-4 mt-1 flex-shrink-0 rounded-full object-cover"
+                style={{ width: '60%', height: 'auto' }}
+              />
+            ) : (
+              <span className="text-base mt-1 flex-shrink-0">{emoji}</span>
+            )
           )}
           <div className="text-sm text-foreground leading-relaxed font-light font-inter chat-message">
             {processMessageWithTooltips(message)}
