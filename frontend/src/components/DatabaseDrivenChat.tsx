@@ -891,6 +891,7 @@ const selectiveMergeInk2 = (
       rr_data: companyData.seFileData?.rr_data || [],
       br_data: companyData.seFileData?.br_data || [],
       manual_amounts: manuals, // CHAT ONLY
+      is_chat_injection: true, // Flag to preserve SLP in calculation
       // @ts-ignore - Optional optimization hint; safe if backend ignores it
       recalc_only_vars: [
         'INK_skattemassigt_resultat',

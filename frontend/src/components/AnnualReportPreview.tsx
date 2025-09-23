@@ -806,13 +806,18 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
 
   // NEW: options to control whether to include accepted manuals and which baseline to use
-  type RecalcOpts = { includeAccepted?: boolean; baselineSource?: 'current' | 'original'; acceptedManualsOverride?: Record<string, number> | null; };
+  type RecalcOpts = { 
+    includeAccepted?: boolean; 
+    baselineSource?: 'current' | 'original'; 
+    acceptedManualsOverride?: Record<string, number> | null;
+    useCurrentRrBr?: boolean; // For chat injections that need SLP effects preserved
+  };
 
   const recalcWithManuals = async (
     sessionManuals: Record<string, number>,
     opts: RecalcOpts = {}
   ) => {
-    const { includeAccepted = true, baselineSource = 'current', acceptedManualsOverride = null } = opts;
+    const { includeAccepted = true, baselineSource = 'current', acceptedManualsOverride = null, useCurrentRrBr = false } = opts;
 
     // 0) Pick baseline source
     const currentRows = companyData.ink2Data || [];
@@ -832,13 +837,21 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     };
 
     // 2) Send to backend (with calc-only hint)
-    // CRITICAL: Always use original baseline RR/BR data for INK2 calculations
-    // to prevent feedback loops where INK4.1/INK4.2 use already-mutated values
+    // Choose RR/BR data source based on context:
+    // - Chat injections: use current data (includes SLP effects)
+    // - Manual edit mode: use original baseline (prevents feedback loops)
+    const rrDataToUse = useCurrentRrBr 
+      ? (companyData.seFileData?.rr_data || [])
+      : (originalRrDataRef.current.length > 0 ? originalRrDataRef.current : (companyData.seFileData?.rr_data || []));
+    const brDataToUse = useCurrentRrBr 
+      ? (companyData.seFileData?.br_data || [])
+      : (originalBrDataRef.current.length > 0 ? originalBrDataRef.current : (companyData.seFileData?.br_data || []));
+
     const payload = {
       current_accounts: companyData.seFileData?.current_accounts || {},
       fiscal_year: companyData.fiscalYear,
-      rr_data: originalRrDataRef.current.length > 0 ? originalRrDataRef.current : (companyData.seFileData?.rr_data || []),
-      br_data: originalBrDataRef.current.length > 0 ? originalBrDataRef.current : (companyData.seFileData?.br_data || []),
+      rr_data: rrDataToUse,
+      br_data: brDataToUse,
       manual_amounts: translateManualsForApi(manualComposite),
       // @ts-ignore - Optional optimization hint; safe if backend ignores it
       recalc_only_vars: Array.from(CALC_ONLY),

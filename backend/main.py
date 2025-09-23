@@ -819,6 +819,7 @@ class RecalculateRequest(BaseModel):
     justering_sarskild_loneskatt: Optional[float] = 0.0
     ink4_14a_outnyttjat_underskott: Optional[float] = 0.0
     ink4_16_underskott_adjustment: Optional[float] = 0.0
+    is_chat_injection: Optional[bool] = False
 
 @app.get("/api/chat-flow/{step_number}")
 async def get_chat_flow_step(step_number: int):
@@ -1001,8 +1002,9 @@ async def recalculate_ink2(request: RecalculateRequest):
 
         # STATELESS FIX: If SLP has already been booked to RR (after approval),
         # zero out the INK adjustment so it isn't counted twice in skattemässigt resultat
+        # BUT: preserve SLP for chat injections (they need the full calculation)
         rr_252_has_slp = False
-        if request.rr_data:
+        if request.rr_data and not getattr(request, 'is_chat_injection', False):
             for rr_item in request.rr_data:
                 if (str(rr_item.get("row_id")) == "252" or 
                     rr_item.get("variable_name") == "PersonalKostnader"):
@@ -1013,6 +1015,8 @@ async def recalculate_ink2(request: RecalculateRequest):
         if rr_252_has_slp:
             manual_amounts['justering_sarskild_loneskatt'] = 0.0
             print(f"🔄 SLP already booked to RR 252, zeroing INK adjustment to prevent double-counting")
+        elif getattr(request, 'is_chat_injection', False):
+            print(f"💬 Chat injection mode: preserving SLP in calculation")
         
         # Parse INK2 data with manual overrides
         ink2_data = parser.parse_ink2_data_with_overrides(
