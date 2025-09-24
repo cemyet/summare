@@ -1897,12 +1897,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
         {/* Noter Section */}
         {companyData.noterData && companyData.noterData.length > 0 && (
-          <Noter 
-            noterData={companyData.noterData}
-            fiscalYear={companyData.fiscalYear}
-            previousYear={companyData.fiscalYear ? companyData.fiscalYear - 1 : undefined}
-            companyData={companyData}
-          />
+          <div data-section="noter">
+            <Noter 
+              noterData={companyData.noterData}
+              fiscalYear={companyData.fiscalYear}
+              previousYear={companyData.fiscalYear ? companyData.fiscalYear - 1 : undefined}
+              companyData={companyData}
+            />
+          </div>
         )}
 
         {/* Förvaltningsberättelse Section */}

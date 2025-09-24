@@ -741,6 +741,25 @@ interface ChatFlowResponse {
         console.log('🔍 General navigation check:', { next_step, action_type });
         if (next_step) {
           console.log('🚀 Navigating to step:', next_step);
+          
+          // Auto-scroll to noter section for step 420
+          if (next_step === 420) {
+            setTimeout(() => {
+              const noterModule = document.querySelector('[data-section="noter"]');
+              const scrollContainer = document.querySelector('.overflow-auto');
+              if (noterModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const noterRect = noterModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 5-7pt padding from top
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+              }
+            }, 500);
+          }
+          
           setTimeout(() => loadChatStep(next_step, updatedInk2Data), 1000);
         } else {
           console.log('❌ No next_step specified');
