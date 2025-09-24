@@ -18,18 +18,7 @@ export function ChatMessage({ message, isBot = false, emoji, className }: ChatMe
     let processedText = text.replace(/(\[i1\])/g, '<span class="info-hover" data-gif="ink2_fortryckt_outnyttjat_underskott.gif">ⓘ</span>');
     processedText = processedText.replace(/(\[i2\])/g, '<span class="info-hover" data-gif="ink2_inlamnad_outnyttjat_underskott.gif">ⓘ</span>');
     
-    // Keywords to make semibold (add more as needed)
-    const keywords = [
-      'Årets resultat',
-      'Skatt på årets resultat', 
-      'Särskild löneskatt',
-      'Personalkostnader',
-      'Skatteberäkning',
-      'INK2',
-      'Resultaträkning',
-      'Balansräkning',
-      'kr'
-    ];
+    // Process custom formatting tags from SQL messages
     
     // Split by info icons to create JSX elements
     const parts = text.split(/(\[i1\]|\[i2\])/);
@@ -70,26 +59,20 @@ export function ChatMessage({ message, isBot = false, emoji, className }: ChatMe
           </TooltipProvider>
         );
       } else {
-        // Format keywords as semibold
-        const formatKeywords = (text: string) => {
-          let formattedText = text;
-          keywords.forEach(keyword => {
-            const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-            formattedText = formattedText.replace(regex, `**${keyword}**`);
-          });
-          
-          // Convert **text** to JSX elements
-          const textParts = formattedText.split(/(\*\*[^*]+\*\*)/);
-          return textParts.map((textPart, textIndex) => {
-            if (textPart.startsWith('**') && textPart.endsWith('**')) {
-              const boldText = textPart.slice(2, -2);
+        // Process formatting tags from SQL messages
+        const formatText = (text: string) => {
+          // Process <b>text</b> tags for semibold formatting
+          const boldParts = text.split(/(<b>.*?<\/b>)/);
+          return boldParts.map((textPart, textIndex) => {
+            if (textPart.startsWith('<b>') && textPart.endsWith('</b>')) {
+              const boldText = textPart.slice(3, -4); // Remove <b> and </b>
               return <span key={textIndex} className="font-semibold">{boldText}</span>;
             }
             return <span key={textIndex}>{textPart}</span>;
           });
         };
         
-        return <span key={index}>{formatKeywords(part)}</span>;
+        return <span key={index}>{formatText(part)}</span>;
       }
     });
   };
