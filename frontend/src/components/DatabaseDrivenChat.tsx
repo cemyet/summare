@@ -374,7 +374,8 @@ interface ChatFlowResponse {
           sarskild_loneskatt_pension: companyData.sarskildLoneskattPension ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.sarskildLoneskattPension) : '0',
           inkBeraknadSkatt: mostRecentInkBeraknadSkatt ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(mostRecentInkBeraknadSkatt) : '0',
           inkBokfordSkatt: companyData.inkBokfordSkatt ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.inkBokfordSkatt) : '0',
-          unusedTaxLossAmount: companyData.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.unusedTaxLossAmount) : '0'
+          unusedTaxLossAmount: companyData.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.unusedTaxLossAmount) : '0',
+          SumFrittEgetKapital: companyData.sumFrittEgetKapital ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.sumFrittEgetKapital) : '0'
         };
         const questionText = substituteVariables(response.question_text, substitutionVars);
         
@@ -751,6 +752,24 @@ interface ChatFlowResponse {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
                 const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 5-7pt padding from top
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+              }
+            }, 500);
+          }
+          
+          // Auto-scroll to förvaltningsberättelse section for step 422
+          if (next_step === 422) {
+            setTimeout(() => {
+              const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]');
+              const scrollContainer = document.querySelector('.overflow-auto');
+              if (fbModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const fbRect = fbModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top - 10; // 5-7pt padding from top
                 
                 scrollContainer.scrollTo({
                   top: scrollTop,

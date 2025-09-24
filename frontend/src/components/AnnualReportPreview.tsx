@@ -302,6 +302,7 @@ interface CompanyData {
   // Client state used by preview
   acceptedInk2Manuals?: Record<string, number>;
   inkBeraknadSkatt?: number;
+  arets_utdelning?: number;
 }
 
 interface AnnualReportPreviewProps {
@@ -1908,10 +1909,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         )}
 
         {/* Förvaltningsberättelse Section */}
-        <ManagementReportModule 
-          companyData={companyData}
-          onDataUpdate={onDataUpdate}
-        />
+        <div data-section="forvaltningsberattelse">
+          <ManagementReportModule 
+            companyData={companyData}
+            onDataUpdate={onDataUpdate}
+          />
+        </div>
 
         {/* Significant Events Section */}
         {currentStep >= 2 && (

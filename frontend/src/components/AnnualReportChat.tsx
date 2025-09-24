@@ -42,6 +42,8 @@ interface CompanyData {
   sarskildLoneskattPensionSubmitted?: number | null;
   // Unused tax loss variables
   unusedTaxLossAmount?: number | null;
+  // Dividend variables
+  arets_utdelning?: number | null;
 }
 
 export function AnnualReportChat() {
