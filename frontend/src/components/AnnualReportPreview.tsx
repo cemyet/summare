@@ -485,6 +485,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
             fbVariables={companyData.fbVariables || {}}
             fiscalYear={fy}
             onDataUpdate={onDataUpdate}
+            arets_utdelning={companyData.arets_utdelning}
           />
         </section>
 

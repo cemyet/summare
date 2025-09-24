@@ -29,10 +29,11 @@ interface ForvaltningsberattelseProps {
   fbVariables: FBVariables;
   fiscalYear?: number;
   onDataUpdate?: (updates: Partial<any>) => void;
+  arets_utdelning?: number;
 }
 
 export function Forvaltningsberattelse({
-  fbTable, fbVariables, fiscalYear, onDataUpdate, embedded = false
+  fbTable, fbVariables, fiscalYear, onDataUpdate, embedded = false, arets_utdelning
 }: ForvaltningsberattelseProps & { embedded?: boolean }) {
   const [showAllRows, setShowAllRows] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -618,7 +619,7 @@ export function Forvaltningsberattelse({
         const currentArets = row13?.arets_resultat || 0;
         const currentTotal = currentBalanserat + currentArets;
         // Use chat-entered dividend amount if available, otherwise fall back to calculated amount
-        const utdelning = (companyData as any).arets_utdelning || fbVariables.fb_arets_utdelning || 0;
+        const utdelning = arets_utdelning || fbVariables.fb_arets_utdelning || 0;
         
         return (
           <div className="mt-8">
