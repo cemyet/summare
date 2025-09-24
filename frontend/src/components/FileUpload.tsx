@@ -590,7 +590,7 @@ Bearbeta {previousYearFile ? 'filerna' : 'filen'}
 
       <div className="text-center">
         <p className="text-xs text-muted-foreground">
-          Ladda upp åtminstonde nuvarande räkenskapsårs SIE-fil. Föregående år är valfritt men ger ett bättre och mer detaljerat resultat i framställningen av noterna.
+          Ladda upp åtminstone nuvarande räkenskapsårs SIE-fil. Föregående år är valfritt men ger ett bättre och mer detaljerat resultat i framställningen av noterna.
         </p>
       </div>
 
