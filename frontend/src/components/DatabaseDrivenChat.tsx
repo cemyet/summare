@@ -489,12 +489,7 @@ interface ChatFlowResponse {
       }
 
       // Handle special cases first
-      // Handle custom tax options that need special UI updates
-      if (option.option_value === 'approve_tax') {
-        // Hide tax preview (important UI state change)
-        onDataUpdate({ showTaxPreview: false });
-        // Then continue with normal SQL-based flow (don't return early)
-      }
+      // (approve_tax UI handling moved to action processing section)
       
       // Handle approve_calculated - trigger tax update logic
       if (option.option_value === 'approve_calculated') {
@@ -625,6 +620,13 @@ interface ChatFlowResponse {
 
         // Process the action
         console.log('🔍 Processing action:', action_type, 'with data:', action_data);
+        
+        // Handle special option values that need UI state changes
+        if (option.option_value === 'approve_tax') {
+          // Hide tax preview when user approves booked tax
+          onDataUpdate({ showTaxPreview: false });
+          console.log('🔧 UI state: Hidden tax preview for approve_tax');
+        }
         
         switch (action_type) {
           case 'set_variable':
