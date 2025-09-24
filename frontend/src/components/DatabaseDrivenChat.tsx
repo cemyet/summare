@@ -490,12 +490,13 @@ interface ChatFlowResponse {
 
       // Handle special cases first
       // Handle custom tax options to bypass API call
-      if (option.option_value === 'approve_tax') {
-        // Hide tax preview and go directly to dividends
-        onDataUpdate({ showTaxPreview: false });
-        setTimeout(() => loadChatStep(501), 1000);
-        return;
-      }
+      // REMOVED: approve_tax hardcoded override - now uses SQL database routing
+      // if (option.option_value === 'approve_tax') {
+      //   // Hide tax preview and go directly to dividends
+      //   onDataUpdate({ showTaxPreview: false });
+      //   setTimeout(() => loadChatStep(501), 1000);
+      //   return;
+      // }
       
       // Handle approve_calculated - trigger tax update logic
       if (option.option_value === 'approve_calculated') {
@@ -1352,25 +1353,9 @@ const selectiveMergeInk2 = (
           const taxAmount = new Intl.NumberFormat('sv-SE').format(skattAretsResultat);
           addMessage(`Den bokförda skatten är ${taxAmount} kr. Vill du godkänna den eller vill du se över de skattemässiga justeringarna?`, true, '🏛️');
           
-          // Fallback hardcoded options
-          setCurrentOptions([
-            {
-              option_order: 1,
-              option_text: 'Ja, godkänn den bokförda skatten.',
-              option_value: 'approve_tax',
-              next_step: 501,
-              action_type: 'navigate',
-              action_data: null
-            },
-            {
-              option_order: 2,
-              option_text: 'Låt mig se över justeringarna!',
-              option_value: 'review_adjustments',
-              next_step: 201,
-              action_type: 'navigate',
-              action_data: null
-            }
-          ]);
+          // REMOVED: Fallback hardcoded options - now uses SQL database exclusively
+          // Use empty options if database call fails
+          setCurrentOptions([]);
         }
         
         // Show the tax module (yellow section) when user wants to review adjustments
