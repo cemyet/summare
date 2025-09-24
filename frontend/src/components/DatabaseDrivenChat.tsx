@@ -489,14 +489,12 @@ interface ChatFlowResponse {
       }
 
       // Handle special cases first
-      // Handle custom tax options to bypass API call
-      // REMOVED: approve_tax hardcoded override - now uses SQL database routing
-      // if (option.option_value === 'approve_tax') {
-      //   // Hide tax preview and go directly to dividends
-      //   onDataUpdate({ showTaxPreview: false });
-      //   setTimeout(() => loadChatStep(501), 1000);
-      //   return;
-      // }
+      // Handle custom tax options that need special UI updates
+      if (option.option_value === 'approve_tax') {
+        // Hide tax preview (important UI state change)
+        onDataUpdate({ showTaxPreview: false });
+        // Then continue with normal SQL-based flow (don't return early)
+      }
       
       // Handle approve_calculated - trigger tax update logic
       if (option.option_value === 'approve_calculated') {
