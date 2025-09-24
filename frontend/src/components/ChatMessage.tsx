@@ -12,11 +12,24 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message, isBot = false, emoji, className }: ChatMessageProps) {
-  // Process message to add tooltips for info icons
+  // Process message to add tooltips for info icons and format keywords
   const processMessageWithTooltips = (text: string) => {
     // Replace info icons with hover tooltips
     let processedText = text.replace(/(\[i1\])/g, '<span class="info-hover" data-gif="ink2_fortryckt_outnyttjat_underskott.gif">ⓘ</span>');
     processedText = processedText.replace(/(\[i2\])/g, '<span class="info-hover" data-gif="ink2_inlamnad_outnyttjat_underskott.gif">ⓘ</span>');
+    
+    // Keywords to make semibold (add more as needed)
+    const keywords = [
+      'Årets resultat',
+      'Skatt på årets resultat', 
+      'Särskild löneskatt',
+      'Personalkostnader',
+      'Skatteberäkning',
+      'INK2',
+      'Resultaträkning',
+      'Balansräkning',
+      'kr'
+    ];
     
     // Split by info icons to create JSX elements
     const parts = text.split(/(\[i1\]|\[i2\])/);
@@ -57,7 +70,26 @@ export function ChatMessage({ message, isBot = false, emoji, className }: ChatMe
           </TooltipProvider>
         );
       } else {
-        return <span key={index}>{part}</span>;
+        // Format keywords as semibold
+        const formatKeywords = (text: string) => {
+          let formattedText = text;
+          keywords.forEach(keyword => {
+            const regex = new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+            formattedText = formattedText.replace(regex, `**${keyword}**`);
+          });
+          
+          // Convert **text** to JSX elements
+          const textParts = formattedText.split(/(\*\*[^*]+\*\*)/);
+          return textParts.map((textPart, textIndex) => {
+            if (textPart.startsWith('**') && textPart.endsWith('**')) {
+              const boldText = textPart.slice(2, -2);
+              return <span key={textIndex} className="font-semibold">{boldText}</span>;
+            }
+            return <span key={textIndex}>{textPart}</span>;
+          });
+        };
+        
+        return <span key={index}>{formatKeywords(part)}</span>;
       }
     });
   };
