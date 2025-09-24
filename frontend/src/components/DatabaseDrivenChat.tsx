@@ -489,7 +489,14 @@ interface ChatFlowResponse {
       }
 
       // Handle special cases first
-      // (approve_tax UI handling moved to action processing section)
+      // Handle custom tax options to bypass API call
+      if (option.option_value === 'approve_tax') {
+        // Hide tax preview and go to next step based on SQL or fallback
+        onDataUpdate({ showTaxPreview: false });
+        const nextStep = option.next_step || 420; // Use SQL next_step or fallback to 420
+        setTimeout(() => loadChatStep(nextStep), 1000);
+        return;
+      }
       
       // Handle approve_calculated - trigger tax update logic
       if (option.option_value === 'approve_calculated') {
@@ -621,12 +628,7 @@ interface ChatFlowResponse {
         // Process the action
         console.log('🔍 Processing action:', action_type, 'with data:', action_data);
         
-        // Handle special option values that need UI state changes
-        if (option.option_value === 'approve_tax') {
-          // Hide tax preview when user approves booked tax
-          onDataUpdate({ showTaxPreview: false });
-          console.log('🔧 UI state: Hidden tax preview for approve_tax');
-        }
+        // Special option handling moved to earlier section
         
         switch (action_type) {
           case 'set_variable':
