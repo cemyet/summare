@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 // 🔧 TOGGLE: Switch between emoji and customer agent image
-const USE_CUSTOMER_AGENT_IMAGE = false; // Set to true to use customer_agent_small.png
+const USE_CUSTOMER_AGENT_IMAGE = true; // Set to true to use customer_agent_small.png
 
 interface ChatMessageProps {
   message: string;
@@ -72,8 +72,7 @@ export function ChatMessage({ message, isBot = false, emoji, className }: ChatMe
               <img 
                 src="/customer_agent_small.png" 
                 alt="Customer Service Agent"
-                className="w-4 h-4 mt-1 flex-shrink-0 rounded-full object-cover"
-                style={{ width: '60%', height: 'auto' }}
+                className="w-3 h-3 mt-1 flex-shrink-0 rounded-full object-cover"
               />
             ) : (
               <span className="text-base mt-1 flex-shrink-0">{emoji}</span>
