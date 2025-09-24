@@ -72,7 +72,7 @@ export function ChatMessage({ message, isBot = false, emoji, className }: ChatMe
               <img 
                 src="/customer_agent_small.png" 
                 alt="Customer Service Agent"
-                className="w-6 h-6 mt-1 flex-shrink-0 rounded-full object-cover"
+                className="w-10 h-10 mt-1 flex-shrink-0 rounded-full object-cover"
               />
             ) : (
               <span className="text-base mt-1 flex-shrink-0">{emoji}</span>
