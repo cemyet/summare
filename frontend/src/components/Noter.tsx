@@ -5112,7 +5112,7 @@ const SakerhetNote: React.FC<{
       {/* Header with both toggles */}
       <div className="flex items-center justify-between border-b pb-1">
         <div className="flex items-center">
-          <h3 className={`font-semibold text-lg ${blockToggles['sakerhet-visibility'] === false ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
+          <h3 className={`font-semibold text-lg ${blockToggles['sakerhet-visibility'] !== true ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
             {heading}
           </h3>
           <button
@@ -5127,9 +5127,9 @@ const SakerhetNote: React.FC<{
                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
             </svg>
           </button>
-          <div className={`ml-2 flex items-center ${blockToggles['sakerhet-visibility'] === false ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
+          <div className={`ml-2 flex items-center ${blockToggles['sakerhet-visibility'] !== true ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
             <Switch
-              checked={blockToggles['sakerhet-visibility'] !== false} // Default to true like EVENTUAL
+              checked={blockToggles['sakerhet-visibility'] === true} // Default to false (hidden)
               onCheckedChange={(checked) => 
                 setBlockToggles(prev => ({ ...prev, ['sakerhet-visibility']: checked }))
               }
@@ -5150,7 +5150,7 @@ const SakerhetNote: React.FC<{
       </div>
 
       {/* Only show content if visibility toggle is on */}
-      {blockToggles['sakerhet-visibility'] !== false && (
+      {blockToggles['sakerhet-visibility'] === true && (
         <>
           {/* Column headers */}
           <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
@@ -5998,13 +5998,13 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               
               if (block === 'EVENTUAL') {
                 const eventualToggleKey = `eventual-visibility`;
-                const isEventualVisible = blockToggles[eventualToggleKey] !== false;
+                const isEventualVisible = blockToggles[eventualToggleKey] === true;
                 if (!isEventualVisible) shouldGetNumber = false;
               }
               
               if (block === 'SAKERHET') {
                 const sakerhetToggleKey = `sakerhet-visibility`;
-                const isSakerhetVisible = blockToggles[sakerhetToggleKey] !== false;
+                const isSakerhetVisible = blockToggles[sakerhetToggleKey] === true;
                 if (!isSakerhetVisible) shouldGetNumber = false;
               }
               
@@ -6220,7 +6220,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             // Special handling for EVENTUAL block - custom visibility toggle
             if (block === 'EVENTUAL') {
               const eventualToggleKey = `eventual-visibility`;
-              const isEventualVisible = blockToggles[eventualToggleKey] !== false; // Default to true
+                const isEventualVisible = blockToggles[eventualToggleKey] === true; // Default to false (hidden)
               
               return (
                 <div key={block} className="space-y-2 pt-4">
