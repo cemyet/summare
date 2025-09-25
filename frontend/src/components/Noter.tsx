@@ -6224,19 +6224,33 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               
               return (
                 <div key={block} className="space-y-2 pt-4">
-                  {/* EVENTUAL heading with custom visibility toggle */}
-                  <div className="border-b pb-1 flex items-center">
-                    <h3 className={`font-semibold text-lg ${!isEventualVisible ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
-                      {blockHeading}
-                    </h3>
-                    <div className={`ml-2 flex items-center ${!isEventualVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
+                  {/* EVENTUAL heading with custom visibility toggle - mirror SAKERHET structure */}
+                  <div className="flex items-center justify-between border-b pb-1">
+                    <div className="flex items-center">
+                      <h3 className={`font-semibold text-lg ${!isEventualVisible ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
+                        {blockHeading}
+                      </h3>
+                      <div className={`ml-2 flex items-center ${!isEventualVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
+                        <Switch
+                          checked={isEventualVisible}
+                          onCheckedChange={(checked) => 
+                            setBlockToggles(prev => ({ ...prev, [eventualToggleKey]: checked }))
+                          }
+                        />
+                        <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
+                      </div>
+                    </div>
+                    <div className={`flex items-center space-x-2 ${!isEventualVisible ? 'opacity-35' : ''}`}>
+                      <label htmlFor="toggle-eventual-rows" className="text-sm font-medium cursor-pointer">
+                        Visa alla rader
+                      </label>
                       <Switch
-                        checked={isEventualVisible}
-                        onCheckedChange={(checked) => 
-                          setBlockToggles(prev => ({ ...prev, [eventualToggleKey]: checked }))
+                        id="toggle-eventual-rows"
+                        checked={blockToggles[block] || false}
+                        onCheckedChange={(checked) =>
+                          setBlockToggles(prev => ({ ...prev, [block]: checked }))
                         }
                       />
-                      <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
                     </div>
                   </div>
                   
