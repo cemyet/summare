@@ -6461,9 +6461,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               };
               
               const undoEditNOT2 = () => {
-                // Reset to original baseline and stay in edit mode (like other notes)
-                setEditedCurrentValue(0);
-                setCommittedCurrentValue(originalBaselineNOT2.current);
+                // Reset to the value we started editing with (like other notes)
+                setEditedCurrentValue(displayValue);
                 // IMPORTANT: do NOT setIsEditingNOT2(false); stay in edit mode
               };
               
