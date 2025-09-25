@@ -686,12 +686,16 @@ interface ChatFlowResponse {
         
         try {
           const step202Response = await apiService.getChatFlowStep(202) as ChatFlowResponse;
-          addMessage(step202Response.question_text, true, step202Response.question_icon);
+          addMessage(step202Response.question_text, true, step202Response.question_icon, () => {
+            // Wait for message animation to complete before loading next step
+            setTimeout(() => loadChatStep(301), 500);
+          });
         } catch (error) {
           console.error('❌ Error fetching step 202:', error);
-          addMessage('Perfekt, nu är den särskilda löneskatten justerad som du kan se i skatteuträkningen till höger.', true, '✅');
+          addMessage('Perfekt, nu är den särskilda löneskatten justerad som du kan se i skatteuträkningen till höger.', true, '✅', () => {
+            setTimeout(() => loadChatStep(301), 500);
+          });
         }
-        setTimeout(() => loadChatStep(301), 1000);
         return;
       }
       
@@ -1346,14 +1350,20 @@ const selectiveMergeInk2 = (
           
           try {
             const step202Response = await apiService.getChatFlowStep(202) as ChatFlowResponse;
-            addMessage(step202Response.question_text, true, step202Response.question_icon);
+            addMessage(step202Response.question_text, true, step202Response.question_icon, () => {
+              // Wait for message animation to complete before loading next step
+              setShowInput(false);
+              setInputValue('');
+              setTimeout(() => loadChatStep(202), 500);
+            });
           } catch (error) {
             console.error('❌ Error fetching step 202:', error);
-            addMessage('Perfekt, nu är den särskilda löneskatten justerad som du kan se i skatteuträkningen till höger.', true, '✅');
+            addMessage('Perfekt, nu är den särskilda löneskatten justerad som du kan se i skatteuträkningen till höger.', true, '✅', () => {
+              setShowInput(false);
+              setInputValue('');
+              setTimeout(() => loadChatStep(202), 500);
+            });
           }
-          setShowInput(false);
-          setInputValue('');
-          setTimeout(() => loadChatStep(202), 1000);
           return;
         }
       }
@@ -1574,7 +1584,10 @@ const selectiveMergeInk2 = (
           SumAretsResultat: sumAretsResultat ? new Intl.NumberFormat('sv-SE').format(sumAretsResultat) : '0'
         }
       );
-      addMessage(resultText, true, step103Response.question_icon);
+      addMessage(resultText, true, step103Response.question_icon, () => {
+        // Wait for step 103 message to complete before starting tax flow
+        continueTaxFlow();
+      });
     } catch (error) {
       console.error('❌ Error fetching step 103:', error);
       const resultText = substituteVariables(
@@ -1583,15 +1596,15 @@ const selectiveMergeInk2 = (
           SumAretsResultat: sumAretsResultat ? new Intl.NumberFormat('sv-SE').format(sumAretsResultat) : '0'
         }
       );
-      addMessage(resultText, true, '💰');
+      addMessage(resultText, true, '💰', () => {
+        continueTaxFlow();
+      });
     }
-        
-        // Add debugging for tax amount
-        console.log('🏛️ Tax amount for step 104:', skattAretsResultat);
-        console.log('📊 Annual result for step 103:', sumAretsResultat);
     
-    // Navigate to next step after file upload
-    setTimeout(async () => {
+    const continueTaxFlow = async () => {
+      // Add debugging for tax amount
+      console.log('🏛️ Tax amount for step 104:', skattAretsResultat);
+      console.log('📊 Annual result for step 103:', sumAretsResultat);
       // Show tax question if we have tax data (including 0)
       if (skattAretsResultat !== null) {
         try {
@@ -1603,27 +1616,24 @@ const selectiveMergeInk2 = (
               SkattAretsResultat: taxAmount
             }
           );
-          addMessage(taxText, true, step104Response.question_icon);
-          
-          // Use options from database
-          setCurrentOptions(step104Response.options);
+          addMessage(taxText, true, step104Response.question_icon, () => {
+            // Set options after tax message completes
+            setCurrentOptions(step104Response.options);
+            onDataUpdate({ showTaxPreview: true });
+          });
         } catch (error) {
           console.error('❌ Error fetching step 104:', error);
           const taxAmount = new Intl.NumberFormat('sv-SE').format(skattAretsResultat);
-          addMessage(`Den bokförda skatten är ${taxAmount} kr. Vill du godkänna den eller vill du se över de skattemässiga justeringarna?`, true, '🏛️');
-          
-          // REMOVED: Fallback hardcoded options - now uses SQL database exclusively
-          // Use empty options if database call fails
-          setCurrentOptions([]);
+          addMessage(`Den bokförda skatten är ${taxAmount} kr. Vill du godkänna den eller vill du se över de skattemässiga justeringarna?`, true, '🏛️', () => {
+            setCurrentOptions([]);
+            onDataUpdate({ showTaxPreview: true });
+          });
         }
-        
-        // Show the tax module (yellow section) when user wants to review adjustments
-        onDataUpdate({ showTaxPreview: true });
       } else {
         // No tax data found, go directly to dividends
         loadChatStep(501);
       }
-    }, 1000);
+    };
   };
 
 
