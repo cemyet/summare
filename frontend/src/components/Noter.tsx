@@ -5216,48 +5216,40 @@ const EventualNote: React.FC<{
                   
                   {/* Current year amount */}
                   <span className="text-right font-medium">
-                    {isHeadingRow ? '' : (editable ? (
-                      <NotAmountInput
-                        value={curVal}
-                        onChange={(v) => setEditedValues(prev => ({ ...prev, [it.variable_name!]: v }))}
-                        onCommit={(v) => setEditedValues(prev => ({ ...prev, [it.variable_name!]: v }))}
-                        variableName={it.variable_name!}
-                        order={ordCur}
-                        onFocus={(dir) => {
-                          const inp = document.querySelector<HTMLInputElement>(`input[data-ord="${ordCur}"]`);
-                          if (inp) focusByOrd(inp, dir);
-                        }}
-                        expectedSign={expectedSignFor(it.variable_name)}
-                        onSignForced={pushSignNotice}
+                    {isHeadingRow ? '' : (
+                      <AmountCell
+                        year="cur"
+                        varName={it.variable_name!}
+                        baseVar={it.variable_name!}
                         label={it.row_title}
-                        year="current"
+                        editable={editable}
+                        value={curVal}
+                        ord={ordCur}
+                        onCommit={(n) => setEditedValues(p => ({ ...p, [it.variable_name!]: n }))}
+                        onTabNavigate={(el, dir) => focusByOrd(el, dir)}
+                        onSignForced={(e) => pushSignNotice(e)}
+                        expectedSignFor={expectedSignFor}
                       />
-                    ) : (
-                      formatAmountDisplay(curVal)
-                    ))}
+                    )}
                   </span>
                   
                   {/* Previous year amount */}
                   <span className="text-right font-medium">
-                    {isHeadingRow ? '' : (editable ? (
-                      <NotAmountInput
-                        value={prevVal}
-                        onChange={(v) => setEditedPrevValues(prev => ({ ...prev, [it.variable_name!]: v }))}
-                        onCommit={(v) => setEditedPrevValues(prev => ({ ...prev, [it.variable_name!]: v }))}
-                        variableName={it.variable_name!}
-                        order={ordPrev}
-                        onFocus={(dir) => {
-                          const inp = document.querySelector<HTMLInputElement>(`input[data-ord="${ordPrev}"]`);
-                          if (inp) focusByOrd(inp, dir);
-                        }}
-                        expectedSign={expectedSignFor(it.variable_name)}
-                        onSignForced={pushSignNotice}
+                    {isHeadingRow ? '' : (
+                      <AmountCell
+                        year="prev"
+                        varName={`${it.variable_name!}_prev`}
+                        baseVar={it.variable_name!}
                         label={it.row_title}
-                        year="previous"
+                        editable={editable}
+                        value={prevVal}
+                        ord={ordPrev}
+                        onCommit={(n) => setEditedPrevValues(p => ({ ...p, [it.variable_name!]: n }))}
+                        onTabNavigate={(el, dir) => focusByOrd(el, dir)}
+                        onSignForced={(e) => pushSignNotice(e)}
+                        expectedSignFor={expectedSignFor}
                       />
-                    ) : (
-                      formatAmountDisplay(prevVal)
-                    ))}
+                    )}
                   </span>
                 </div>
               );
