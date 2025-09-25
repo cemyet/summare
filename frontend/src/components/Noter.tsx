@@ -5106,6 +5106,16 @@ const EventualNote: React.FC<{
     console.log(`Sign forced for ${e.label} (${e.year}): ${e.typed} → ${e.adjusted}`);
   };
 
+  const formatAmountDisplay = (amount: number) => {
+    if (amount === 0) return '0 kr';
+    const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    });
+    const sign = amount < 0 ? '-' : '';
+    return `${sign}${formatted} kr`;
+  };
+
   return (
     <div ref={containerRef} className="space-y-2 pt-4">
       {/* Header with both toggles */}
