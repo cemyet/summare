@@ -618,11 +618,75 @@ export function Forvaltningsberattelse({
         const currentArets = row13?.arets_resultat || 0;
         const currentTotal = currentBalanserat + currentArets;
         // Use chat-entered dividend amount if available, otherwise fall back to calculated amount
-        const utdelning = arets_utdelning !== undefined ? arets_utdelning : (fbVariables.fb_arets_utdelning || 0);
+        const originalUtdelning = arets_utdelning !== undefined ? arets_utdelning : (fbVariables.fb_arets_utdelning || 0);
+        
+        // Local edit state for Resultatdisposition - EXACT same pattern as NOT1/NOT2
+        const [isEditingDisposition, setIsEditingDisposition] = useState(false);
+        const [editedValues, setEditedValues] = useState<Record<string, number>>({});
+        const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
+        
+        // Track original baseline for proper undo (like other notes)
+        const originalBaselineDisposition = React.useRef<Record<string, number>>({});
+        React.useEffect(() => {
+          originalBaselineDisposition.current = { 'arets_utdelning': originalUtdelning };
+        }, [originalUtdelning]);
+        
+        // getVal function - EXACT same as NOT1/NOT2
+        const getVal = (vn: string) => {
+          if (editedValues[vn] !== undefined) return editedValues[vn];
+          if (committedValues[vn] !== undefined) return committedValues[vn];
+          return originalUtdelning; // fallback to original
+        };
+        
+        const startEditDisposition = () => {
+          setIsEditingDisposition(true);
+        };
+        
+        const cancelEditDisposition = () => {
+          setIsEditingDisposition(false);
+          setEditedValues({});
+        };
+        
+        const undoEditDisposition = () => {
+          // EXACT same as NOT1/NOT2 - clear edits and reset committed to baseline
+          setEditedValues({});
+          setCommittedValues({ ...originalBaselineDisposition.current });
+          // IMPORTANT: do NOT setIsEditingDisposition(false); stay in edit mode
+        };
+        
+        const approveEditDisposition = () => {
+          // EXACT same as NOT1/NOT2 - commit edits and close
+          const newUtdelning = editedValues['arets_utdelning'];
+          if (newUtdelning !== undefined && onDataUpdate) {
+            onDataUpdate({ arets_utdelning: newUtdelning });
+          }
+          setCommittedValues(prev => ({ ...prev, ...editedValues }));
+          setEditedValues({});
+          setIsEditingDisposition(false);
+        };
+        
+        // Get current display value
+        const utdelning = getVal('arets_utdelning');
         
         return (
           <div className="mt-8">
-            <h2 className="text-xl font-semibold text-muted-foreground mb-4 pt-1">Resultatdisposition</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-semibold text-muted-foreground pt-1">Resultatdisposition</h2>
+                <button
+                  onClick={() => isEditingDisposition ? cancelEditDisposition() : startEditDisposition()}
+                  className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                    isEditingDisposition ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                  }`}
+                  title={isEditingDisposition ? 'Avsluta redigering' : 'Redigera värden'}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
             
             <p className="mb-4 text-sm">Styrelsen och VD föreslår att till förfogande stående medel</p>
             
@@ -658,7 +722,22 @@ export function Forvaltningsberattelse({
                 <TableRow>
                   <TableCell className="py-1">Utdelas till aktieägare</TableCell>
                   <TableCell className="py-1 text-right">
-                    {formatAmountForDisplay(utdelning)}
+                    {isEditingDisposition ? (
+                      <Input
+                        type="number"
+                        value={utdelning}
+                        onChange={(e) => setEditedValues(prev => ({ ...prev, 'arets_utdelning': parseFloat(e.target.value) || 0 }))}
+                        className="w-24 text-right text-sm h-6"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Tab') {
+                            e.preventDefault();
+                            // Focus stays here since it's the only editable field
+                          }
+                        }}
+                      />
+                    ) : (
+                      formatAmountForDisplay(utdelning)
+                    )}
                   </TableCell>
                 </TableRow>
                 <TableRow>
@@ -681,6 +760,32 @@ export function Forvaltningsberattelse({
               <p className="mt-4 text-sm">
                 Styrelsen anser att förslaget är förenligt med försiktighetsregeln i 17 kap. 3 § aktiebolagslagen enligt följande redogörelse. Styrelsens uppfattning är att vinstutdelningen är försvarlig med hänsyn till de krav verksamhetens art, omfattning och risk ställer på storleken på det egna kapitalet, bolagets konsolideringsbehov, likviditet och ställning i övrigt.
               </p>
+            )}
+
+            {/* Action buttons - only show when editing */}
+            {isEditingDisposition && (
+              <div className="flex justify-between pt-4 border-t border-gray-200">
+                <Button 
+                  onClick={undoEditDisposition}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                  </svg>
+                  Ångra ändringar
+                </Button>
+                
+                <Button 
+                  onClick={approveEditDisposition}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+                >
+                  Godkänn ändringar
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                  </svg>
+                </Button>
+              </div>
             )}
           </div>
         );
