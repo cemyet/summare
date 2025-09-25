@@ -6434,16 +6434,51 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               );
             }
             
-            // Special handling for Note 2 (Medelantalet anställda) - no toggle, use scraped data
+            // Special handling for Note 2 (Medelantalet anställda) - with edit functionality
             if (block === 'NOT2') {
-              // Get employee count from scraped data (first value from "Antal anställda")
-              const scrapedEmployeeCount = (companyData as any)?.scraped_company_data?.nyckeltal?.["Antal anställda"]?.[0] || 0;
+              // Get the ant_anstallda item for edit functionality
+              const antAnstallndaItem = blockItems.find(item => item.variable_name === 'ant_anstallda');
+              const currentValue = antAnstallndaItem?.current_amount || 0;
+              const previousValue = antAnstallndaItem?.previous_amount || 0;
+              
+              // Local edit state for NOT2
+              const [isEditingNOT2, setIsEditingNOT2] = useState(false);
+              const [editedCurrentValue, setEditedCurrentValue] = useState(currentValue);
+              
+              const startEditNOT2 = () => {
+                setIsEditingNOT2(true);
+                setEditedCurrentValue(currentValue);
+              };
+              
+              const cancelEditNOT2 = () => {
+                setIsEditingNOT2(false);
+                setEditedCurrentValue(currentValue);
+              };
+              
+              const approveEditNOT2 = () => {
+                // Here you would save the edited value - for now just commit locally
+                setIsEditingNOT2(false);
+              };
               
               return (
                 <div key={block} className="space-y-2 pt-4">
-                  {/* Note 2 heading without toggle */}
-                  <div className="border-b pb-1">
-                    <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
+                  {/* Note 2 heading with edit button */}
+                  <div className="flex items-center justify-between border-b pb-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
+                      <button
+                        onClick={() => isEditingNOT2 ? cancelEditNOT2() : startEditNOT2()}
+                        className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                          isEditingNOT2 ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                        }`}
+                        title={isEditingNOT2 ? 'Avsluta redigering' : 'Redigera värden'}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   
                   {/* Column Headers - same as BR/RR */}
@@ -6456,9 +6491,45 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   {/* Employee count row */}
                   <div className="grid gap-4" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
                     <span className="text-sm">Medelantalet anställda under året</span>
-                    <span className="text-right text-sm">{scrapedEmployeeCount}</span>
-                    <span className="text-right text-sm">{scrapedEmployeeCount}</span>
+                    {/* Current year - editable when in edit mode */}
+                    <span className="text-right text-sm">
+                      {isEditingNOT2 ? (
+                        <AmountCell
+                          year="cur"
+                          varName="ant_anstallda"
+                          baseVar="ant_anstallda"
+                          label="Medelantalet anställda under året"
+                          editable={true}
+                          value={editedCurrentValue}
+                          ord={1}
+                          onCommit={(n) => setEditedCurrentValue(n)}
+                          expectedSignFor={() => null}
+                        />
+                      ) : (
+                        editedCurrentValue
+                      )}
+                    </span>
+                    {/* Previous year - always read-only */}
+                    <span className="text-right text-sm">{previousValue}</span>
                   </div>
+
+                  {/* Action buttons - only show when editing */}
+                  {isEditingNOT2 && (
+                    <div className="flex justify-between pt-4 border-t border-gray-200">
+                      <button
+                        onClick={cancelEditNOT2}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                      >
+                        Ångra
+                      </button>
+                      <button
+                        onClick={approveEditNOT2}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+                      >
+                        Godkänn ändringar
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             }
