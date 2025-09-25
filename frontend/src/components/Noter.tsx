@@ -6436,40 +6436,44 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               const currentValue = antAnstallndaItem?.current_amount || scrapedEmployeeCount;
               const previousValue = antAnstallndaItem?.previous_amount || scrapedEmployeeCount;
               
-              // Local edit state for NOT2 - following same pattern as other notes
+              // Local edit state for NOT2 - EXACT same pattern as other notes
               const [isEditingNOT2, setIsEditingNOT2] = useState(false);
-              const [editedCurrentValue, setEditedCurrentValue] = useState(0);
-              const [committedCurrentValue, setCommittedCurrentValue] = useState(currentValue);
+              const [editedValues, setEditedValues] = useState<Record<string, number>>({});
+              const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
               
               // Track original baseline for proper undo (like other notes)
-              const originalBaselineNOT2 = React.useRef(currentValue);
+              const originalBaselineNOT2 = React.useRef<Record<string, number>>({});
               React.useEffect(() => {
-                originalBaselineNOT2.current = currentValue;
+                originalBaselineNOT2.current = { 'ant_anstallda': currentValue };
               }, [currentValue]);
               
-              // Get current display value (committed value takes priority over original)
-              const displayValue = committedCurrentValue !== undefined ? committedCurrentValue : currentValue;
+              // getVal function - EXACT same as SakerhetNote
+              const getVal = (vn: string) => {
+                if (editedValues[vn] !== undefined) return editedValues[vn];
+                if (committedValues[vn] !== undefined) return committedValues[vn];
+                return currentValue; // fallback to original
+              };
               
               const startEditNOT2 = () => {
                 setIsEditingNOT2(true);
-                setEditedCurrentValue(displayValue); // Start editing from committed value
               };
               
               const cancelEditNOT2 = () => {
                 setIsEditingNOT2(false);
-                setEditedCurrentValue(displayValue); // Reset to committed value
+                setEditedValues({});
               };
               
               const undoEditNOT2 = () => {
-                // Reset to the value we started editing with (like other notes)
-                setEditedCurrentValue(displayValue);
+                // EXACT same as SakerhetNote - clear edits and reset committed to baseline
+                setEditedValues({});
+                setCommittedValues({ ...originalBaselineNOT2.current });
                 // IMPORTANT: do NOT setIsEditingNOT2(false); stay in edit mode
               };
               
               const approveEditNOT2 = () => {
-                // Save the edited value to committed state (like other notes)
-                setCommittedCurrentValue(editedCurrentValue);
-                setEditedCurrentValue(0);
+                // EXACT same as SakerhetNote - commit edits and close
+                setCommittedValues(prev => ({ ...prev, ...editedValues }));
+                setEditedValues({});
                 setIsEditingNOT2(false);
               };
               
@@ -6513,13 +6517,13 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                           baseVar="ant_anstallda"
                           label="Medelantalet anställda under året"
                           editable={true}
-                          value={editedCurrentValue}
+                          value={getVal('ant_anstallda')}
                           ord={1}
-                          onCommit={(n) => setEditedCurrentValue(n)}
+                          onCommit={(n) => setEditedValues(prev => ({ ...prev, 'ant_anstallda': n }))}
                           expectedSignFor={() => null}
                         />
                       ) : (
-                        displayValue
+                        getVal('ant_anstallda')
                       )}
                     </span>
                     {/* Previous year - always read-only */}
