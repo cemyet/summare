@@ -44,6 +44,10 @@ interface CompanyData {
   unusedTaxLossAmount?: number | null;
   // Dividend variables
   arets_utdelning?: number | null;
+  
+  // Tax button tracking
+  taxButtonClickedBefore?: boolean; // Track if tax approve button has been clicked before
+  triggerChatStep?: number | null; // Trigger navigation to a specific chat step
 }
 
 export function AnnualReportChat() {
@@ -60,7 +64,9 @@ export function AnnualReportChat() {
       { name: "Anna Andersson", personalNumber: "851201-1234" }
     ],
     taxApproved: false,
-    skattAretsResultat: null
+    skattAretsResultat: null,
+    taxButtonClickedBefore: false, // Track if tax approve button has been clicked before
+    triggerChatStep: null // Initially no chat step to trigger
   });
 
   return (

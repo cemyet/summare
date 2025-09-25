@@ -303,6 +303,10 @@ interface CompanyData {
   acceptedInk2Manuals?: Record<string, number>;
   inkBeraknadSkatt?: number;
   arets_utdelning?: number;
+  
+  // Tax button tracking
+  taxButtonClickedBefore?: boolean; // Track if tax approve button has been clicked before
+  triggerChatStep?: number | null; // Trigger navigation to a specific chat step
 }
 
 interface AnnualReportPreviewProps {
@@ -993,12 +997,25 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Canonical Approve
   const handleApproveChanges = async () => {
+    // Check if this is the first time the button is clicked
+    const isFirstTimeClick = !companyData.taxButtonClickedBefore;
+    
     // If Undo was used this session, drop previously accepted edits
     const nextAccepted = clearAcceptedOnNextApproveRef.current
       ? { ...manualEdits }                      // approve only current session edits
       : { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
 
-    onDataUpdate({ acceptedInk2Manuals: nextAccepted });
+    // Update accepted edits and mark the button as clicked
+    onDataUpdate({ 
+      acceptedInk2Manuals: nextAccepted,
+      taxButtonClickedBefore: true
+    });
+
+    // If this is the first time clicking the button, trigger navigation to step 405
+    if (isFirstTimeClick && onDataUpdate) {
+      console.log('🎯 First time clicking tax approve button - triggering step 405');
+      onDataUpdate({ triggerChatStep: 405 });
+    }
 
     // Check if we need to update RR/BR data based on tax differences
     await handleTaxUpdateLogic(nextAccepted);

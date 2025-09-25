@@ -1106,6 +1106,7 @@ const selectiveMergeInk2 = (
       rr_data: originalRrData,
       br_data: originalBrData,
       manual_amounts: chatManuals, // CHAT ONLY with SLP included
+      // @ts-ignore - Backend safely ignores unknown properties
       is_chat_injection: true, // Flag to preserve SLP in calculation
       // @ts-ignore - Optional optimization hint; safe if backend ignores it
       recalc_only_vars: [
@@ -1642,6 +1643,16 @@ const selectiveMergeInk2 = (
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Watch for triggerChatStep requests from components
+  useEffect(() => {
+    if (companyData.triggerChatStep && companyData.triggerChatStep > 0) {
+      console.log('🎯 Triggering navigation to step:', companyData.triggerChatStep);
+      loadChatStep(companyData.triggerChatStep);
+      // Clear the trigger to prevent repeated navigation
+      onDataUpdate({ triggerChatStep: null });
+    }
+  }, [companyData.triggerChatStep]);
 
   return (
     <div className="flex flex-col h-full">
