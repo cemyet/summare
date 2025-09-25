@@ -621,6 +621,13 @@ export function Forvaltningsberattelse({
         // Use chat-entered dividend amount if available, otherwise fall back to calculated amount
         const utdelning = arets_utdelning !== undefined ? arets_utdelning : (fbVariables.fb_arets_utdelning || 0);
         
+        console.log('💰 Dividend calculation in Förvaltningsberättelse:', {
+          arets_utdelning_prop: arets_utdelning,
+          fb_arets_utdelning: fbVariables.fb_arets_utdelning,
+          final_utdelning: utdelning,
+          currentTotal: currentTotal
+        });
+        
         return (
           <div className="mt-8">
             <h2 className="text-xl font-semibold text-muted-foreground mb-4 pt-1">Resultatdisposition</h2>
