@@ -619,7 +619,7 @@ export function Forvaltningsberattelse({
         const currentArets = row13?.arets_resultat || 0;
         const currentTotal = currentBalanserat + currentArets;
         // Use chat-entered dividend amount if available, otherwise fall back to calculated amount
-        const utdelning = arets_utdelning || fbVariables.fb_arets_utdelning || 0;
+        const utdelning = arets_utdelning !== undefined ? arets_utdelning : (fbVariables.fb_arets_utdelning || 0);
         
         return (
           <div className="mt-8">
