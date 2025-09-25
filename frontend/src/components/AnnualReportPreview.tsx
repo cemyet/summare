@@ -1308,6 +1308,12 @@ const handleTaxCalculationClick = () => {
       return item.note_number.toString();
     }
     
+    // Direct mapping for RR rows that should have note numbers
+    // Personalkostnader (id=252) should always show note 2
+    if (item.id === "252" || item.label === "Personalkostnader") {
+      return "2";
+    }
+    
     return '';
   };
 
@@ -1391,8 +1397,8 @@ const handleTaxCalculationClick = () => {
             <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 0.5fr 1fr 1fr'}}>
               <span></span>
               <span className="text-right">Not</span>
-              <span className="text-right">{getCurrentPeriodEndDate()}</span>
-              <span className="text-right">{getPreviousPeriodEndDate()}</span>
+              <span className="text-right">{headerData.fiscal_year}</span>
+              <span className="text-right">{headerData.fiscal_year - 1}</span>
             </div>
 
             {/* Income Statement Rows */}
