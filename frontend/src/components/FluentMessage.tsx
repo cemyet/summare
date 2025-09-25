@@ -85,17 +85,17 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
 
       setVisibleWords(wordIndex + 1);
 
-      // Variable speed for more natural rhythm
+      // Variable speed for more natural rhythm (faster and more fluent)
       const currentWord = words[wordIndex];
-      let nextDelay = 100; // base speed for words
+      let nextDelay = 50; // much faster base speed for words
       
-      // Pause after punctuation for natural rhythm
+      // Pause after punctuation for natural rhythm (shorter pauses)
       if (currentWord && (currentWord.includes('.') || currentWord.includes('!') || currentWord.includes('?'))) {
-        nextDelay = 500; // longer pause after sentences
+        nextDelay = 250; // shorter pause after sentences
       } else if (currentWord && (currentWord.includes(',') || currentWord.includes(';'))) {
-        nextDelay = 250; // medium pause after clauses
+        nextDelay = 120; // shorter pause after clauses
       } else if (currentWord && currentWord.trim() === '') {
-        nextDelay = 40; // faster through spaces
+        nextDelay = 20; // much faster through spaces
       }
       
       // Schedule next word
