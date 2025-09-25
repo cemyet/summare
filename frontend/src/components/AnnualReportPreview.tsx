@@ -479,13 +479,6 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
 
         {/* H2 Förändringar i eget kapital — existing, working table, embedded */}
         <section id="eget-kapital" className="mt-8 pt-5">
-          {(() => {
-            console.log('🔍 Passing to Förvaltningsberättelse:', {
-              arets_utdelning: companyData.arets_utdelning,
-              companyData_keys: Object.keys(companyData)
-            });
-            return null;
-          })()}
           <Forvaltningsberattelse
             embedded
             fbTable={companyData.fbTable || []}

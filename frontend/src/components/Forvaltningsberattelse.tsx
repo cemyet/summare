@@ -141,8 +141,7 @@ export function Forvaltningsberattelse({
 
   // Helper function to format amounts without decimals and with thousand separator
   const formatAmountForDisplay = (amount: number): string => {
-    if (amount === 0) return '';
-    return Math.round(amount).toLocaleString('sv-SE');
+    return Math.round(amount).toLocaleString('sv-SE') + ' kr';
   };
 
   // Use recalculated table in edit mode, committed baseline otherwise
@@ -620,13 +619,6 @@ export function Forvaltningsberattelse({
         const currentTotal = currentBalanserat + currentArets;
         // Use chat-entered dividend amount if available, otherwise fall back to calculated amount
         const utdelning = arets_utdelning !== undefined ? arets_utdelning : (fbVariables.fb_arets_utdelning || 0);
-        
-        console.log('💰 Dividend calculation in Förvaltningsberättelse:', {
-          arets_utdelning_prop: arets_utdelning,
-          fb_arets_utdelning: fbVariables.fb_arets_utdelning,
-          final_utdelning: utdelning,
-          currentTotal: currentTotal
-        });
         
         return (
           <div className="mt-8">
