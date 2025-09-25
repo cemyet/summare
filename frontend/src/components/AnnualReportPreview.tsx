@@ -1367,6 +1367,12 @@ const handleTaxCalculationClick = () => {
               (() => {
                 const liveSig = computeCombinedFinancialSig(rrData, brData);
                 const useRR = (rrDataWithNotes.length > 0 && liveSig === lastSigRef.current) ? rrDataWithNotes : rrData;
+                
+                // DEBUG: Log RR data structure to check for row_id 276
+                console.log('🔍 DEBUG: RR Data structure:', useRR.slice(0, 5)); // Log first 5 items
+                const skatteRow = useRR.find(item => item.row_id === 276 || item.label?.includes('Skatter'));
+                console.log('🔍 DEBUG: Found Skatter row:', skatteRow);
+                
                 return useRR.map((item, index) => {
                 if (!shouldShowRow(item, showAllRR, rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData)) {
                   return null;
@@ -1383,7 +1389,18 @@ const handleTaxCalculationClick = () => {
                     <span className="text-muted-foreground flex items-center justify-between">
                       <span>{item.label}</span>
                       {/* Add SKATTEBERÄKNING button for row_id 276 (Skatter) */}
-                      {item.row_id === 276 && (
+                      {(() => {
+                        // DEBUG: Log each item to check row_id and label
+                        if (item.label?.includes('Skatter') || item.row_id === 276) {
+                          console.log('🔍 DEBUG: Potential Skatter row:', {
+                            label: item.label,
+                            row_id: item.row_id,
+                            id: item.id,
+                            allProps: Object.keys(item)
+                          });
+                        }
+                        return item.row_id === 276;
+                      })() && (
                         <button
                           onClick={handleTaxCalculationClick}
                           className="ml-2 bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded flex items-center gap-1 transition-colors"
