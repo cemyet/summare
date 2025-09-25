@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from "@/components/ui/table";
 import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@/utils/seFileCalculations';
@@ -416,70 +417,330 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {/* H2 Verksamheten */}
+        {/* H2 Verksamheten - with edit functionality */}
         <section id="verksamheten" className="mt-6">
-          <h2 className="text-xl font-semibold mb-2">Verksamheten</h2>
+          {(() => {
+            // Original values for baseline
+            const originalVerksamhetContent = verksamhetContent || '';
+            const originalVasentligaHandelser = 'Inga väsentliga händelser under året.';
+            
+            // Local edit state for Verksamheten - EXACT same pattern as NOT1
+            const [isEditingVerksamheten, setIsEditingVerksamheten] = useState(false);
+            const [editedValues, setEditedValues] = useState<Record<string, string>>({});
+            const [committedValues, setCommittedValues] = useState<Record<string, string>>({});
+            
+            // Track original baseline for proper undo 
+            const originalBaselineVerksamheten = React.useRef<Record<string, string>>({});
+            React.useEffect(() => {
+              originalBaselineVerksamheten.current = { 
+                'allmant_om_verksamheten': originalVerksamhetContent,
+                'vasentliga_handelser': originalVasentligaHandelser
+              };
+            }, [originalVerksamhetContent]);
+            
+            // getVal function - EXACT same as NOT1
+            const getVal = (vn: string) => {
+              if (editedValues[vn] !== undefined) return editedValues[vn];
+              if (committedValues[vn] !== undefined) return committedValues[vn];
+              if (vn === 'allmant_om_verksamheten') return originalVerksamhetContent;
+              if (vn === 'vasentliga_handelser') return originalVasentligaHandelser;
+              return '';
+            };
+            
+            const startEditVerksamheten = () => {
+              setIsEditingVerksamheten(true);
+            };
+            
+            const cancelEditVerksamheten = () => {
+              setIsEditingVerksamheten(false);
+              setEditedValues({});
+            };
+            
+            const undoEditVerksamheten = () => {
+              // EXACT same as NOT1 - clear edits and reset committed to baseline
+              setEditedValues({});
+              setCommittedValues({ ...originalBaselineVerksamheten.current });
+              // IMPORTANT: do NOT setIsEditingVerksamheten(false); stay in edit mode
+            };
+            
+            const approveEditVerksamheten = () => {
+              // EXACT same as NOT1 - commit edits and close
+              setCommittedValues(prev => ({ ...prev, ...editedValues }));
+              setEditedValues({});
+              setIsEditingVerksamheten(false);
+            };
+            
+            // Tab navigation function (like NOT1)
+            const focusByOrd = (fromEl: HTMLInputElement, dir: 1 | -1) => {
+              const curOrd = Number(fromEl.dataset.ord || '0');
+              const nextOrd = curOrd + dir;
+              const next = document.querySelector<HTMLInputElement>(
+                `input[data-editable-cell="1"][data-ord="${nextOrd}"], textarea[data-editable-cell="1"][data-ord="${nextOrd}"]`
+              );
+              if (next) { next.focus(); (next as any).select?.(); }
+            };
+            
+            return (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-semibold">Verksamheten</h2>
+                    <button
+                      onClick={() => isEditingVerksamheten ? cancelEditVerksamheten() : startEditVerksamheten()}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                        isEditingVerksamheten ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                      }`}
+                      title={isEditingVerksamheten ? 'Avsluta redigering' : 'Redigera värden'}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
 
-          <h3 className="text-base font-semibold mb-1 pt-1">Allmänt om verksamheten</h3>
-          <p className="text-sm">{verksamhetContent}</p>
+                <h3 className="text-base font-semibold mb-1 pt-1">Allmänt om verksamheten</h3>
+                {isEditingVerksamheten ? (
+                  <textarea
+                    value={getVal('allmant_om_verksamheten')}
+                    onChange={(e) => setEditedValues(prev => ({ ...prev, 'allmant_om_verksamheten': e.target.value }))}
+                    className="w-full p-2 border border-gray-300 rounded-md resize-none text-sm"
+                    rows={3}
+                    placeholder="Beskriv verksamheten..."
+                    data-editable-cell="1"
+                    data-ord={1}
+                  />
+                ) : (
+                  <p className="text-sm">{getVal('allmant_om_verksamheten')}</p>
+                )}
 
-          <h3 className="text-base font-semibold mt-4 pt-3">Väsentliga händelser under räkenskapsåret</h3>
-          <p className="text-sm font-normal not-italic">Inga väsentliga händelser under året.</p>
+                <h3 className="text-base font-semibold mt-4 pt-3">Väsentliga händelser under räkenskapsåret</h3>
+                {isEditingVerksamheten ? (
+                  <textarea
+                    value={getVal('vasentliga_handelser')}
+                    onChange={(e) => setEditedValues(prev => ({ ...prev, 'vasentliga_handelser': e.target.value }))}
+                    className="w-full p-2 border border-gray-300 rounded-md resize-none text-sm"
+                    rows={2}
+                    placeholder="Beskriv väsentliga händelser..."
+                    data-editable-cell="1"
+                    data-ord={2}
+                  />
+                ) : (
+                  <p className="text-sm font-normal not-italic">{getVal('vasentliga_handelser')}</p>
+                )}
+
+                {/* Action buttons - only show when editing */}
+                {isEditingVerksamheten && (
+                  <div className="flex justify-between pt-4">
+                    <Button 
+                      onClick={undoEditVerksamheten}
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                      </svg>
+                      Ångra ändringar
+                    </Button>
+                    
+                    <Button 
+                      onClick={approveEditVerksamheten}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+                    >
+                      Godkänn ändringar
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                      </svg>
+                    </Button>
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </section>
 
-        {/* H2 Flerårsöversikt */}
+        {/* H2 Flerårsöversikt - with edit functionality */}
         <section id="flerars" className="mt-8 pt-5">
-          <h2 className="text-xl font-semibold">Flerårsöversikt</h2>
-          <p className="text-sm font-normal not-italic">Belopp i tkr</p>
-          <Table className="w-full table-fixed">
-            <TableHeader className="leading-none">
-              <TableRow className="h-8">
-                <TableHead className="p-0 w-[36%] text-left font-normal"></TableHead>
-                {scrapedIncludesFiscalYear ? (
-                  // Scraped data includes fiscal year: show scraped years only (or fallback years)
-                  (scrapedYears.length > 0 ? scrapedYears : [2024, 2023, 2022]).map((year, i) => (
-                    <TableHead key={i} className="p-0 text-right">{year}</TableHead>
-                  ))
-                ) : (
-                  // Scraped data starts with fy-1: show calculated fiscal year + scraped years
-                  [fy, fy-1, fy-2, fy-3].map((year, i) => (
-                    <TableHead key={i} className="p-0 text-right">{year}</TableHead>
-                  ))
+          {(() => {
+            // Original values for baseline
+            const originalValues = {
+              'oms1': oms1, 'oms2': oms2, 'oms3': oms3, 'nettoOmsFY_tkr': nettoOmsFY_tkr,
+              'ref1': ref1, 'ref2': ref2, 'ref3': ref3, 'refpFY_tkr': refpFY_tkr,
+              'bal1': bal1, 'bal2': bal2, 'bal3': bal3, 'tillgFY_tkr': tillgFY_tkr,
+              'sol1': sol1, 'sol2': sol2, 'sol3': sol3, 'soliditetFY': soliditetFY
+            };
+            
+            // Local edit state for Flerårsöversikt - EXACT same pattern as NOT1
+            const [isEditingFlerars, setIsEditingFlerars] = useState(false);
+            const [editedValues, setEditedValues] = useState<Record<string, number>>({});
+            const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
+            
+            // Track original baseline for proper undo 
+            const originalBaselineFlerars = React.useRef<Record<string, number>>({});
+            React.useEffect(() => {
+              originalBaselineFlerars.current = { ...originalValues };
+            }, []);
+            
+            // getVal function - EXACT same as NOT1
+            const getVal = (vn: string) => {
+              if (editedValues[vn] !== undefined) return editedValues[vn];
+              if (committedValues[vn] !== undefined) return committedValues[vn];
+              return originalValues[vn as keyof typeof originalValues] || 0;
+            };
+            
+            const startEditFlerars = () => {
+              setIsEditingFlerars(true);
+            };
+            
+            const cancelEditFlerars = () => {
+              setIsEditingFlerars(false);
+              setEditedValues({});
+            };
+            
+            const undoEditFlerars = () => {
+              // EXACT same as NOT1 - clear edits and reset committed to baseline
+              setEditedValues({});
+              setCommittedValues({ ...originalBaselineFlerars.current });
+              // IMPORTANT: do NOT setIsEditingFlerars(false); stay in edit mode
+            };
+            
+            const approveEditFlerars = () => {
+              // EXACT same as NOT1 - commit edits and close
+              setCommittedValues(prev => ({ ...prev, ...editedValues }));
+              setEditedValues({});
+              setIsEditingFlerars(false);
+            };
+            
+            // Tab navigation function (like NOT1)
+            const focusByOrd = (fromEl: HTMLInputElement, dir: 1 | -1) => {
+              const curOrd = Number(fromEl.dataset.ord || '0');
+              const nextOrd = curOrd + dir;
+              const next = document.querySelector<HTMLInputElement>(
+                `input[data-editable-cell="1"][data-ord="${nextOrd}"]`
+              );
+              if (next) { next.focus(); next.select?.(); }
+            };
+            
+            return (
+              <>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-xl font-semibold">Flerårsöversikt</h2>
+                    <button
+                      onClick={() => isEditingFlerars ? cancelEditFlerars() : startEditFlerars()}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                        isEditingFlerars ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                      }`}
+                      title={isEditingFlerars ? 'Avsluta redigering' : 'Redigera värden'}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <p className="text-sm font-normal not-italic">Belopp i tkr</p>
+                <Table className="w-full table-fixed">
+                  <TableHeader className="leading-none">
+                    <TableRow className="h-8">
+                      <TableHead className="p-0 w-[36%] text-left font-normal"></TableHead>
+                      {scrapedIncludesFiscalYear ? (
+                        // Scraped data includes fiscal year: show scraped years only (or fallback years)
+                        (scrapedYears.length > 0 ? scrapedYears : [2024, 2023, 2022]).map((year, i) => (
+                          <TableHead key={i} className="p-0 text-right">{year}</TableHead>
+                        ))
+                      ) : (
+                        // Scraped data starts with fy-1: show calculated fiscal year + scraped years
+                        [fy, fy-1, fy-2, fy-3].map((year, i) => (
+                          <TableHead key={i} className="p-0 text-right">{year}</TableHead>
+                        ))
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="leading-none">
+                    {(scrapedIncludesFiscalYear ? (
+                      // Use only scraped data (3 years)
+                      [
+                        { label: "Omsättning", vars: ['oms1', 'oms2', 'oms3'], values: [getVal('oms1'), getVal('oms2'), getVal('oms3')] },
+                        { label: "Resultat efter finansiella poster", vars: ['ref1', 'ref2', 'ref3'], values: [getVal('ref1'), getVal('ref2'), getVal('ref3')] },
+                        { label: "Balansomslutning", vars: ['bal1', 'bal2', 'bal3'], values: [getVal('bal1'), getVal('bal2'), getVal('bal3')] },
+                        { label: "Soliditet", vars: ['sol1', 'sol2', 'sol3'], values: [getVal('sol1'), getVal('sol2'), getVal('sol3')] },
+                      ]
+                    ) : (
+                      // Use calculated fiscal year + scraped data (4 years)
+                      [
+                        { label: "Omsättning", vars: ['nettoOmsFY_tkr', 'oms1', 'oms2', 'oms3'], values: [getVal('nettoOmsFY_tkr'), getVal('oms1'), getVal('oms2'), getVal('oms3')] },
+                        { label: "Resultat efter finansiella poster", vars: ['refpFY_tkr', 'ref1', 'ref2', 'ref3'], values: [getVal('refpFY_tkr'), getVal('ref1'), getVal('ref2'), getVal('ref3')] },
+                        { label: "Balansomslutning", vars: ['tillgFY_tkr', 'bal1', 'bal2', 'bal3'], values: [getVal('tillgFY_tkr'), getVal('bal1'), getVal('bal2'), getVal('bal3')] },
+                        { label: "Soliditet", vars: ['soliditetFY', 'sol1', 'sol2', 'sol3'], values: [getVal('soliditetFY'), getVal('sol1'), getVal('sol2'), getVal('sol3')] },
+                      ]
+                    )).map((row, i) => {
+                      let ordCounter = i * 10; // Offset each row's inputs
+                      return (
+                        <TableRow key={i} className="h-8">
+                          <TableCell className="p-0 text-left font-normal">{row.label}</TableCell>
+                          {row.values.map((v, j) => (
+                            <TableCell key={j} className="p-0 text-right">
+                              {isEditingFlerars ? (
+                                <Input
+                                  type="number"
+                                  value={v || 0}
+                                  onChange={(e) => setEditedValues(prev => ({ ...prev, [row.vars[j]]: parseFloat(e.target.value) || 0 }))}
+                                  className="w-16 text-right text-xs h-5 px-1"
+                                  data-editable-cell="1"
+                                  data-ord={ordCounter + j + 10}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Tab') {
+                                      e.preventDefault();
+                                      const dir = e.shiftKey ? -1 : 1;
+                                      focusByOrd(e.currentTarget, dir);
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                row.label === "Soliditet" ? 
+                                  `${Math.round(v ?? 0).toLocaleString('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%` : 
+                                  formatAmount(v ?? 0)
+                              )}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+
+                {/* Action buttons - only show when editing */}
+                {isEditingFlerars && (
+                  <div className="flex justify-between pt-4">
+                    <Button 
+                      onClick={undoEditFlerars}
+                      variant="outline"
+                      className="flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                      </svg>
+                      Ångra ändringar
+                    </Button>
+                    
+                    <Button 
+                      onClick={approveEditFlerars}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+                    >
+                      Godkänn ändringar
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                      </svg>
+                    </Button>
+                  </div>
                 )}
-              </TableRow>
-            </TableHeader>
-            <TableBody className="leading-none">
-              {(scrapedIncludesFiscalYear ? (
-                // Use only scraped data (3 years)
-                [
-                  { label: "Omsättning",                        values: [oms1, oms2, oms3] },
-                  { label: "Resultat efter finansiella poster", values: [ref1, ref2, ref3] },
-                  { label: "Balansomslutning",                  values: [bal1, bal2, bal3] },
-                  { label: "Soliditet",                         values: [sol1, sol2, sol3] },
-                ]
-              ) : (
-                // Use calculated fiscal year + scraped data (4 years)
-                [
-                  { label: "Omsättning",                        values: [nettoOmsFY_tkr, oms1, oms2, oms3] },
-                  { label: "Resultat efter finansiella poster", values: [refpFY_tkr, ref1, ref2, ref3] },
-                  { label: "Balansomslutning",                  values: [tillgFY_tkr, bal1, bal2, bal3] },
-                  { label: "Soliditet",                         values: [soliditetFY, sol1, sol2, sol3] },
-                ]
-              )).map((row, i) => (
-                <TableRow key={i} className="h-8">
-                  <TableCell className="p-0 text-left font-normal">{row.label}</TableCell>
-                  {row.values.map((v, j) => (
-                    <TableCell key={j} className="p-0 text-right">
-                      {row.label === "Soliditet" ? 
-                        `${Math.round(v ?? 0).toLocaleString('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}%` : 
-                        formatAmount(v ?? 0)
-                      }
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </>
+            );
+          })()}
         </section>
 
         {/* H2 Förändringar i eget kapital — existing, working table, embedded */}
