@@ -1370,7 +1370,7 @@ const handleTaxCalculationClick = () => {
                 
                 // DEBUG: Log RR data structure to check for row_id 276
                 console.log('🔍 DEBUG: RR Data structure:', JSON.parse(JSON.stringify(useRR.slice(0, 5)))); // Log first 5 items with full properties
-                const skatteRow = useRR.find(item => item.row_id === 276 || item.label?.includes('Skatter'));
+                const skatteRow = useRR.find(item => item.id === "276" || item.id === 276 || item.label?.includes('Skatter'));
                 console.log('🔍 DEBUG: Found Skatter row:', JSON.parse(JSON.stringify(skatteRow)));
                 
                 return useRR.map((item, index) => {
@@ -1391,17 +1391,17 @@ const handleTaxCalculationClick = () => {
                       {/* Add SKATTEBERÄKNING button for row_id 276 (Skatter) */}
                       {(() => {
                         // DEBUG: Log each item to check row_id and label
-                        if (item.label?.includes('Skatter') || item.row_id === 276) {
+                        if (item.label?.includes('Skatter') || item.id === "276" || item.id === 276) {
                           console.log('🔍 DEBUG: Potential Skatter row FULL:', JSON.parse(JSON.stringify(item)));
                           console.log('🔍 DEBUG: Condition check:', {
-                            'item.row_id': item.row_id,
-                            'typeof row_id': typeof item.row_id,
-                            'item.row_id === 276': item.row_id === 276,
-                            'item.row_id == 276': item.row_id == 276,
-                            'String(item.row_id) === "276"': String(item.row_id) === "276"
+                            'item.id': item.id,
+                            'typeof id': typeof item.id,
+                            'item.id === "276"': item.id === "276",
+                            'item.id === 276': item.id === 276,
+                            'BUTTON SHOULD SHOW': item.id === "276" || item.id === 276
                           });
                         }
-                        return item.row_id === 276;
+                        return item.id === "276" || item.id === 276;
                       })() && (
                         <button
                           onClick={handleTaxCalculationClick}
