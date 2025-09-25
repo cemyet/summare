@@ -44,6 +44,7 @@ interface CompanyData {
   unusedTaxLossAmount?: number | null;
   // Dividend variables
   arets_utdelning?: number | null;
+  arets_balanseras_nyrakning?: number | null;
 }
 
 export function AnnualReportChat() {

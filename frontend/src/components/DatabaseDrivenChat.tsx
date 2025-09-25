@@ -375,7 +375,8 @@ interface ChatFlowResponse {
           inkBeraknadSkatt: mostRecentInkBeraknadSkatt ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(mostRecentInkBeraknadSkatt) : '0',
           inkBokfordSkatt: companyData.inkBokfordSkatt ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.inkBokfordSkatt) : '0',
           unusedTaxLossAmount: companyData.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.unusedTaxLossAmount) : '0',
-          SumFrittEgetKapital: companyData.sumFrittEgetKapital ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.sumFrittEgetKapital) : '0'
+          SumFrittEgetKapital: companyData.sumFrittEgetKapital ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.sumFrittEgetKapital) : '0',
+          arets_balanseras_nyrakning: companyData.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.arets_balanseras_nyrakning) : '0'
         };
         const questionText = substituteVariables(response.question_text, substitutionVars);
         
@@ -1086,15 +1087,37 @@ const selectiveMergeInk2 = (
     addMessage(String(displayValue), false);
 
     if (submitOption) {
-      // Store the input value based on action data
-      if (submitOption.action_data?.variable) {
-        
-        console.log('💾 Storing input value:', {
-          variable: submitOption.action_data.variable,
-          value: value,
-          inputValue: inputValue,
-          parsedValue: inputType === 'amount' ? Math.abs(parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0) : inputValue.trim()
-        });
+        // Store the input value based on action data
+        if (submitOption.action_data?.variable) {
+          
+          console.log('💾 Storing input value:', {
+            variable: submitOption.action_data.variable,
+            value: value,
+            inputValue: inputValue,
+            parsedValue: inputType === 'amount' ? Math.abs(parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0) : inputValue.trim()
+          });
+
+          // Calculate and store derived values for dividend input
+          if (submitOption.action_data.variable === 'arets_utdelning' && inputType === 'amount') {
+            const dividendAmount = value as number;
+            const maxDividend = companyData.sumFrittEgetKapital || 0;
+            const balancerasAmount = maxDividend - dividendAmount;
+            
+            console.log('💰 Calculating balanseras i ny räkning:', {
+              sumFrittEgetKapital: maxDividend,
+              arets_utdelning: dividendAmount,
+              arets_balanseras_nyrakning: balancerasAmount
+            });
+            
+            // Store both dividend and remaining balance
+            onDataUpdate({ 
+              arets_utdelning: dividendAmount,
+              arets_balanseras_nyrakning: balancerasAmount
+            });
+          } else {
+            // For other variables, store normally
+            onDataUpdate({ [submitOption.action_data.variable]: value });
+          }
 
         // Handle chat override variables (driven by SQL action_data.variable)
         const opt = submitOption; // from SQL
@@ -1126,8 +1149,6 @@ const selectiveMergeInk2 = (
           setTimeout(() => loadChatStep(next, updatedData?.ink2Data || globalInk2Data), 300);
           return; // ← Important: we handled it, don't continue to legacy paths
         }
-
-        onDataUpdate({ [submitOption.action_data.variable]: value });
 
         // Note: Unused tax loss recalculation happens in step 303 via api_call, not here
         
