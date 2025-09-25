@@ -685,11 +685,12 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
                           {row.values.map((v, j) => (
                             <TableCell key={j} className="p-0 text-right">
                               {isEditingFlerars ? (
-                                <Input
-                                  type="number"
+                                <input
+                                  type="text"
+                                  inputMode="numeric"
+                                  className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
                                   value={v || 0}
                                   onChange={(e) => setEditedValues(prev => ({ ...prev, [row.vars[j]]: parseFloat(e.target.value) || 0 }))}
-                                  className="w-16 text-right text-xs h-5 px-1"
                                   data-editable-cell="1"
                                   data-ord={ordCounter + j + 10}
                                   onKeyDown={(e) => {
@@ -698,7 +699,11 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
                                       const dir = e.shiftKey ? -1 : 1;
                                       focusByOrd(e.currentTarget, dir);
                                     }
+                                    if (e.key === 'Enter') {
+                                      e.currentTarget.blur();
+                                    }
                                   }}
+                                  placeholder="0"
                                 />
                               ) : (
                                 row.label === "Soliditet" ? 
