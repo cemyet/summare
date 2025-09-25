@@ -466,6 +466,40 @@ interface ChatFlowResponse {
             }
           }, 500);
         }
+        // Auto-scroll to Resultatdisposition section for step 501
+        else if (stepNumber === 501) {
+          console.log('🔥 STEP 501 TRIGGERED - Auto-scrolling to Resultatdisposition');
+          setTimeout(() => {
+            const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]');
+            const scrollContainer = document.querySelector('.overflow-auto');
+            console.log('🔍 Resultatdisposition scroll elements found:', {
+              fbModule: !!fbModule,
+              scrollContainer: !!scrollContainer
+            });
+            
+            if (fbModule && scrollContainer) {
+              // Scroll to bottom of förvaltningsberättelse to show Resultatdisposition
+              const containerRect = scrollContainer.getBoundingClientRect();
+              const fbRect = fbModule.getBoundingClientRect();
+              const fbHeight = fbModule.scrollHeight || fbRect.height;
+              const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top + fbHeight - containerRect.height + 50;
+              
+              console.log('📍 Resultatdisposition scroll calculation:', {
+                currentScrollTop: scrollContainer.scrollTop,
+                targetScrollTop: scrollTop,
+                fbHeight: fbHeight,
+                containerHeight: containerRect.height
+              });
+              
+              scrollContainer.scrollTo({
+                top: Math.max(0, scrollTop), // Ensure non-negative scroll position
+                behavior: 'smooth'
+              });
+            } else {
+              console.log('❌ Resultatdisposition auto-scroll failed: Missing elements');
+            }
+          }, 500);
+        }
         
         if (stepNumber !== 402) {
           // Store all options (unfiltered) for submit logic
