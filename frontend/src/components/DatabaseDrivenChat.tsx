@@ -1132,7 +1132,7 @@ const selectiveMergeInk2 = (
       const maxDividend = companyData.sumFrittEgetKapital || 0;
       
       if (dividendAmount < 0) {
-        addMessage('Utdelningsbeloppet kan inte vara negativt. Försök igen.', true, '🤖');
+        addMessage('Utdelningen kan inte vara negativ. Vänligen försök igen.', true, '🤖');
         setInputValue(''); // Clear the input field
         setShowInput(true); // Keep input visible
         return;
@@ -1140,7 +1140,7 @@ const selectiveMergeInk2 = (
       
       if (dividendAmount > maxDividend) {
         const maxFormatted = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(maxDividend);
-        addMessage(`Utdelningsbeloppet kan inte överstiga summa fritt eget kapital (${maxFormatted} kr). Försök igen.`, true, '🤖');
+        addMessage(`Utdelningen kan inte överstiga fritt eget kapital ${maxFormatted} kr. Vänligen försök igen.`, true, '🤖');
         setInputValue(''); // Clear the input field
         setShowInput(true); // Keep input visible
         return;
