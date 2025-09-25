@@ -1098,7 +1098,7 @@ const selectiveMergeInk2 = (
     if (!inputValue.trim()) return;
 
     const value = inputType === 'amount' 
-      ? Math.abs(parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0)
+      ? parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0
       : inputValue.trim();
     
     console.log('📤 Input submit - Current step:', currentStep, 'Options:', currentOptions);
@@ -1144,12 +1144,13 @@ const selectiveMergeInk2 = (
             variable: submitOption.action_data.variable,
             value: value,
             inputValue: inputValue,
-            parsedValue: inputType === 'amount' ? Math.abs(parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0) : inputValue.trim()
+            parsedValue: inputType === 'amount' ? parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0 : inputValue.trim()
           });
 
           // Store dividend input and calculate balanseras for substitution
           if (submitOption.action_data.variable === 'arets_utdelning' && inputType === 'amount') {
-            const dividendAmount = value as number;
+            // Use absolute value only after validation passes
+            const dividendAmount = Math.abs(value as number);
             const maxDividend = companyData.sumFrittEgetKapital || 0;
             const balancerasAmount = maxDividend - dividendAmount;
             
@@ -1159,7 +1160,7 @@ const selectiveMergeInk2 = (
               balanseras_amount: balancerasAmount
             });
             
-            // Store only dividend amount
+            // Store only dividend amount (positive)
             onDataUpdate({ arets_utdelning: dividendAmount });
             
             // Special handling for dividend: pass temp data for immediate substitution
