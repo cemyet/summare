@@ -6428,8 +6428,13 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
             if (block === 'NOT2') {
               // Get the ant_anstallda item for edit functionality
               const antAnstallndaItem = blockItems.find(item => item.variable_name === 'ant_anstallda');
-              const currentValue = antAnstallndaItem?.current_amount || 0;
-              const previousValue = antAnstallndaItem?.previous_amount || 0;
+              
+              // Get employee count from scraped data (first value from "Antal anställda") - RESTORE ORIGINAL LOGIC
+              const scrapedEmployeeCount = (companyData as any)?.scraped_company_data?.nyckeltal?.["Antal anställda"]?.[0] || 0;
+              
+              // Use database values if available, otherwise fallback to scraped data
+              const currentValue = antAnstallndaItem?.current_amount || scrapedEmployeeCount;
+              const previousValue = antAnstallndaItem?.previous_amount || scrapedEmployeeCount;
               
               // Local edit state for NOT2 - following same pattern as other notes
               const [isEditingNOT2, setIsEditingNOT2] = useState(false);
