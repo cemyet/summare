@@ -56,6 +56,9 @@ class DatabaseParser:
             noter_response = supabase.table('variable_mapping_noter').select('*').execute()
             self.noter_mappings = noter_response.data
             
+            # Apply rr_not migration if needed
+            self._apply_rr_not_migration()
+            
             # Load global variables (normalize values to floats; treat % values as decimals)
             global_vars_response = supabase.table('global_variables').select('*').execute()
             self.global_variables = {}
@@ -101,6 +104,38 @@ class DatabaseParser:
             self.global_variables = {}
             self.accounts_lookup = {}
     
+    def _apply_rr_not_migration(self):
+        """Apply the rr_not column migration if it hasn't been applied yet"""
+        try:
+            print("DEBUG: Applying rr_not migration...")
+            
+            # Check if NOT2 block already has rr_not set
+            not2_mapping = None
+            for mapping in self.noter_mappings or []:
+                if mapping.get('block') == 'NOT2':
+                    not2_mapping = mapping
+                    break
+            
+            if not2_mapping and not not2_mapping.get('rr_not'):
+                # Update the NOT2 block with rr_not = 252 (Personalkostnader)
+                response = supabase.table('variable_mapping_noter').update({
+                    'rr_not': 252
+                }).eq('block', 'NOT2').execute()
+                
+                print(f"DEBUG: ✅ Updated NOT2 block with rr_not=252")
+                
+                # Reload noter mappings to get the updated data
+                noter_response = supabase.table('variable_mapping_noter').select('*').execute()
+                self.noter_mappings = noter_response.data
+                
+            elif not2_mapping and not2_mapping.get('rr_not'):
+                print(f"DEBUG: ✅ NOT2 block already has rr_not={not2_mapping.get('rr_not')}")
+            else:
+                print("DEBUG: ❌ NOT2 block not found in noter mappings")
+                
+        except Exception as e:
+            print(f"DEBUG: Error applying rr_not migration: {e}")
+
     def parse_account_balances(self, se_content: str) -> tuple[Dict[str, float], Dict[str, float], Dict[str, float], Dict[str, float]]:
         """Parse account balances from SE file content using the correct format"""
         current_accounts = {}
