@@ -6441,6 +6441,12 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               const [editedCurrentValue, setEditedCurrentValue] = useState(0);
               const [committedCurrentValue, setCommittedCurrentValue] = useState(currentValue);
               
+              // Track original baseline for proper undo (like other notes)
+              const originalBaselineNOT2 = React.useRef(currentValue);
+              React.useEffect(() => {
+                originalBaselineNOT2.current = currentValue;
+              }, [currentValue]);
+              
               // Get current display value (committed value takes priority over original)
               const displayValue = committedCurrentValue !== undefined ? committedCurrentValue : currentValue;
               
@@ -6452,6 +6458,13 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               const cancelEditNOT2 = () => {
                 setIsEditingNOT2(false);
                 setEditedCurrentValue(displayValue); // Reset to committed value
+              };
+              
+              const undoEditNOT2 = () => {
+                // Reset to original baseline and stay in edit mode (like other notes)
+                setEditedCurrentValue(0);
+                setCommittedCurrentValue(originalBaselineNOT2.current);
+                // IMPORTANT: do NOT setIsEditingNOT2(false); stay in edit mode
               };
               
               const approveEditNOT2 = () => {
@@ -6517,18 +6530,26 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   {/* Action buttons - only show when editing */}
                   {isEditingNOT2 && (
                     <div className="flex justify-between pt-4 border-t border-gray-200">
-                      <button
-                        onClick={cancelEditNOT2}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                      <Button 
+                        onClick={undoEditNOT2}
+                        variant="outline"
+                        className="flex items-center gap-2"
                       >
-                        Ångra
-                      </button>
-                      <button
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                        </svg>
+                        Ångra ändringar
+                      </Button>
+                      
+                      <Button 
                         onClick={approveEditNOT2}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
                       >
                         Godkänn ändringar
-                      </button>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                        </svg>
+                      </Button>
                     </div>
                   )}
                 </div>
