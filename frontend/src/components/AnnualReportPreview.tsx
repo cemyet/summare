@@ -575,6 +575,8 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
             const [isEditingFlerars, setIsEditingFlerars] = useState(false);
             const [editedValues, setEditedValues] = useState<Record<string, number>>({});
             const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
+            const [focusedCell, setFocusedCell] = useState<string | null>(null);
+            const [rawInputs, setRawInputs] = useState<Record<string, string>>({});
             
             // Track original baseline for proper undo 
             const originalBaselineFlerars = React.useRef<Record<string, number>>({});
@@ -699,27 +701,53 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
                               {isEditingFlerars ? (
                                 <input
                                   type="text"
-                                  inputMode={row.label === "Soliditet" ? "decimal" : "numeric"}
+                                  inputMode="numeric"
                                   className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
-                                  value={v || 0}
+                                  value={(() => {
+                                    const cellKey = `${row.vars[j]}`;
+                                    // Show raw input when focused, formatted value when not focused
+                                    if (focusedCell === cellKey) {
+                                      return rawInputs[cellKey] !== undefined ? rawInputs[cellKey] : String(v || 0);
+                                    }
+                                    // Show rounded soliditet, normal values for others
+                                    return row.label === "Soliditet" ? Math.round(v || 0) : (v || 0);
+                                  })()}
+                                  onFocus={() => {
+                                    const cellKey = `${row.vars[j]}`;
+                                    setFocusedCell(cellKey);
+                                    setRawInputs(prev => ({ ...prev, [cellKey]: String(v || 0) }));
+                                  }}
+                                  onBlur={() => {
+                                    const cellKey = `${row.vars[j]}`;
+                                    setFocusedCell(null);
+                                    // Commit the raw input to actual value
+                                    const rawVal = rawInputs[cellKey] || '0';
+                                    let numVal = 0;
+                                    
+                                    if (row.label === "Resultat efter finansiella poster") {
+                                      // Allow negative values
+                                      numVal = parseFloat(rawVal) || 0;
+                                    } else {
+                                      // Other rows - positive only
+                                      numVal = Math.abs(parseFloat(rawVal)) || 0;
+                                    }
+                                    
+                                    setEditedValues(prev => ({ ...prev, [row.vars[j]]: numVal }));
+                                  }}
                                   onChange={(e) => {
+                                    const cellKey = `${row.vars[j]}`;
                                     let val = e.target.value;
                                     
-                                    // Allow negative values for "Resultat efter finansiella poster" row
+                                    // Filter input based on row type
                                     if (row.label === "Resultat efter finansiella poster") {
+                                      // Allow negative values - digits, minus, dot
                                       val = val.replace(/[^\d.-]/g, '');
-                                    }
-                                    // Allow decimals for "Soliditet" row  
-                                    else if (row.label === "Soliditet") {
-                                      val = val.replace(/[^\d.,]/g, '').replace(',', '.');
-                                    }
-                                    // Other rows - positive numbers only
-                                    else {
+                                    } else {
+                                      // Positive only - digits only
                                       val = val.replace(/[^\d]/g, '');
                                     }
                                     
-                                    const numVal = parseFloat(val) || 0;
-                                    setEditedValues(prev => ({ ...prev, [row.vars[j]]: numVal }));
+                                    setRawInputs(prev => ({ ...prev, [cellKey]: val }));
                                   }}
                                   data-editable-cell="1"
                                   data-ord={ordCounter + j + 10}
