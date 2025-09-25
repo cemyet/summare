@@ -1368,9 +1368,9 @@ const handleTaxCalculationClick = () => {
                 const liveSig = computeCombinedFinancialSig(rrData, brData);
                 const useRR = (rrDataWithNotes.length > 0 && liveSig === lastSigRef.current) ? rrDataWithNotes : rrData;
                 
-                // DEBUG: Log RR data structure to check for row_id 276
+                // DEBUG: Log RR data structure to check for row_id 277
                 console.log('🔍 DEBUG: RR Data structure:', JSON.parse(JSON.stringify(useRR.slice(0, 5)))); // Log first 5 items with full properties
-                const skatteRow = useRR.find(item => item.id === "276" || item.id === 276 || item.label?.includes('Skatter'));
+                const skatteRow = useRR.find(item => item.id === "277" || item.id === 277 || item.label?.includes('Skatt på årets resultat'));
                 console.log('🔍 DEBUG: Found Skatter row:', JSON.parse(JSON.stringify(skatteRow)));
                 
                 return useRR.map((item, index) => {
@@ -1388,28 +1388,31 @@ const handleTaxCalculationClick = () => {
                   >
                     <span className="text-muted-foreground flex items-center justify-between">
                       <span>{item.label}</span>
-                      {/* Add SKATTEBERÄKNING button for row_id 276 (Skatter) */}
+                      {/* Add SKATTEBERÄKNING button for row_id 277 (Skatt på årets resultat) */}
                       {(() => {
                         // DEBUG: Log each item to check row_id and label
-                        if (item.label?.includes('Skatter') || item.id === "276" || item.id === 276) {
+                        if (item.label?.includes('Skatt på årets resultat') || item.id === "277" || item.id === 277) {
                           console.log('🔍 DEBUG: Potential Skatter row FULL:', JSON.parse(JSON.stringify(item)));
                           console.log('🔍 DEBUG: Condition check:', {
                             'item.id': item.id,
                             'typeof id': typeof item.id,
-                            'item.id === "276"': item.id === "276",
-                            'item.id === 276': item.id === 276,
-                            'BUTTON SHOULD SHOW': item.id === "276" || item.id === 276
+                            'item.id === "277"': item.id === "277",
+                            'item.id === 277': item.id === 277,
+                            'BUTTON SHOULD SHOW': item.id === "277" || item.id === 277
                           });
                         }
-                        return item.id === "276" || item.id === 276;
+                        return item.id === "277" || item.id === 277;
                       })() && (
-                        <button
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="ml-2 h-4 px-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700" 
+                          style={{fontSize: '0.75rem'}}
                           onClick={handleTaxCalculationClick}
-                          className="ml-2 bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded flex items-center gap-1 transition-colors"
                           title="Visa skatteberäkning"
                         >
                           SKATTEBERÄKNING
-                        </button>
+                        </Button>
                       )}
                     </span>
                     <span className="text-right font-medium">
