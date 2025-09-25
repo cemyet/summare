@@ -5112,7 +5112,7 @@ const SakerhetNote: React.FC<{
       {/* Header with both toggles */}
       <div className="flex items-center justify-between border-b pb-1">
         <div className="flex items-center">
-          <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>
+          <h3 className={`font-semibold text-lg ${blockToggles['sakerhet-visibility'] === false ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
             {heading}
           </h3>
           <button
@@ -5127,7 +5127,7 @@ const SakerhetNote: React.FC<{
                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
             </svg>
           </button>
-          <div className="ml-2 flex items-center" style={{transform: 'scale(0.75)', marginTop: '5px'}}>
+          <div className={`ml-2 flex items-center ${blockToggles['sakerhet-visibility'] === false ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
             <Switch
               checked={blockToggles['sakerhet-visibility'] !== false} // Default to true like EVENTUAL
               onCheckedChange={(checked) => 
