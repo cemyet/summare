@@ -884,20 +884,9 @@ export function Forvaltningsberattelse({
               </p>
             )}
 
-            {/* Action buttons - only show when editing */}
+            {/* Action button - only show when editing */}
             {isEditingDisposition && (
-              <div className="flex justify-between pt-4 border-t border-gray-200">
-                <Button 
-                  onClick={undoEditDisposition}
-                  variant="outline"
-                  className="flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                  </svg>
-                  Ångra ändringar
-                </Button>
-                
+              <div className="flex justify-end pt-4">
                 <Button 
                   onClick={approveEditDisposition}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
