@@ -732,16 +732,26 @@ export function Forvaltningsberattelse({
         // Use chat-entered dividend amount if available, otherwise fall back to calculated amount
         const originalUtdelning = arets_utdelning !== undefined ? arets_utdelning : (fbVariables.fb_arets_utdelning || 0);
         
+        // Get the baseline value for undo (chat injected value or 0)
+        const getBaselineValue = () => {
+          // If chat injected a value (arets_utdelning prop), use that
+          if (arets_utdelning !== undefined && arets_utdelning !== null) {
+            return arets_utdelning;
+          }
+          // Otherwise reset to 0 (no dividend)
+          return 0;
+        };
+        
         // Local edit state for Resultatdisposition - EXACT same pattern as NOT1/NOT2
         const [isEditingDisposition, setIsEditingDisposition] = useState(false);
         const [editedValues, setEditedValues] = useState<Record<string, number>>({});
         const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
         
-        // Track original baseline for proper undo (like other notes)
-        const originalBaselineDisposition = React.useRef<Record<string, number>>({});
+        // Track original baseline for proper undo (the chat-injected value or 0)
+        const originalBaselineDisposition = React.useRef<number>(getBaselineValue());
         React.useEffect(() => {
-          originalBaselineDisposition.current = { 'arets_utdelning': originalUtdelning };
-        }, [originalUtdelning]);
+          originalBaselineDisposition.current = getBaselineValue();
+        }, [arets_utdelning]); // Only update when chat value changes, not when user edits
         
         // getVal function - EXACT same as NOT1/NOT2
         const getVal = (vn: string) => {
@@ -760,9 +770,10 @@ export function Forvaltningsberattelse({
         };
         
         const undoEditDisposition = () => {
-          // Reset to original value (0 or chat injected value) and stay in edit mode
-          setEditedValues({});
-          setCommittedValues({ 'arets_utdelning': originalUtdelning });
+          // ALWAYS reset to original chat baseline (not last committed value) and stay in edit mode
+          const chatBaselineValue = originalBaselineDisposition.current;
+          setEditedValues({}); // Clear any current edits
+          setCommittedValues({ 'arets_utdelning': chatBaselineValue }); // Reset committed to original chat baseline
           // IMPORTANT: do NOT setIsEditingDisposition(false); stay in edit mode
         };
         
