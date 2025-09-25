@@ -6417,6 +6417,16 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                 setEditedValues({});
                 setIsEditingNOT1(false);
               };
+
+              // Tab navigation function (like other notes)
+              const focusByOrd = (fromEl: HTMLInputElement, dir: 1 | -1) => {
+                const curOrd = Number(fromEl.dataset.ord || '0');
+                const nextOrd = curOrd + dir;
+                const next = document.querySelector<HTMLInputElement>(
+                  `input[data-editable-cell="1"][data-ord="${nextOrd}"]`
+                );
+                if (next) { next.focus(); next.select?.(); }
+              };
               
               return (
                 <div key={block} className="space-y-4 pt-4">
@@ -6477,6 +6487,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                                 value={getVal('avskrtid_bygg') as number}
                                 ord={1}
                                 onCommit={(n) => setEditedValues(prev => ({ ...prev, 'avskrtid_bygg': n }))}
+                                onTabNavigate={(el, dir) => focusByOrd(el, dir)}
                                 expectedSignFor={() => null}
                               />
                             ) : (
@@ -6497,6 +6508,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                                 value={getVal('avskrtid_mask') as number}
                                 ord={2}
                                 onCommit={(n) => setEditedValues(prev => ({ ...prev, 'avskrtid_mask': n }))}
+                                onTabNavigate={(el, dir) => focusByOrd(el, dir)}
                                 expectedSignFor={() => null}
                               />
                             ) : (
@@ -6517,6 +6529,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                                 value={getVal('avskrtid_inv') as number}
                                 ord={3}
                                 onCommit={(n) => setEditedValues(prev => ({ ...prev, 'avskrtid_inv': n }))}
+                                onTabNavigate={(el, dir) => focusByOrd(el, dir)}
                                 expectedSignFor={() => null}
                               />
                             ) : (
@@ -6537,6 +6550,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                                 value={getVal('avskrtid_ovriga') as number}
                                 ord={4}
                                 onCommit={(n) => setEditedValues(prev => ({ ...prev, 'avskrtid_ovriga': n }))}
+                                onTabNavigate={(el, dir) => focusByOrd(el, dir)}
                                 expectedSignFor={() => null}
                               />
                             ) : (
