@@ -406,32 +406,13 @@ interface ChatFlowResponse {
           console.log('🔥 STEP 420 TRIGGERED - Auto-scrolling to Noter');
           setTimeout(() => {
             const noterModule = document.querySelector('[data-section="noter"]');
-            const scrollContainer = document.querySelector('.overflow-auto');
-            console.log('🔍 Scroll elements found:', {
-              noterModule: !!noterModule,
-              scrollContainer: !!scrollContainer,
-              noterModuleRect: noterModule?.getBoundingClientRect(),
-              scrollContainerRect: scrollContainer?.getBoundingClientRect()
-            });
+            console.log('🔍 Noter element found:', !!noterModule);
             
-            if (noterModule && scrollContainer) {
-              const containerRect = scrollContainer.getBoundingClientRect();
-              const noterRect = noterModule.getBoundingClientRect();
-              const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
-              
-              console.log('📍 Scroll calculation:', {
-                currentScrollTop: scrollContainer.scrollTop,
-                targetScrollTop: scrollTop,
-                noterTop: noterRect.top,
-                containerTop: containerRect.top
-              });
-              
-              scrollContainer.scrollTo({
-                top: scrollTop,
-                behavior: 'smooth'
-              });
+            if (noterModule) {
+              console.log('📍 Scrolling to Noter using scrollIntoView');
+              noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
             } else {
-              console.log('❌ Auto-scroll failed: Missing elements');
+              console.log('❌ Auto-scroll failed: Noter section not found');
             }
           }, 500);
         }
@@ -698,6 +679,20 @@ interface ChatFlowResponse {
                 
                 // Store both values for message substitution
                 updateData.arets_balanseras_nyrakning = balancerasAmount;
+                
+                // Special navigation for dividend with temp data
+                if (next_step) {
+                  onDataUpdate(updateData);
+                  console.log('🚀 Dividend option navigating to step:', next_step);
+                  // Pass temporary data with calculated values for immediate substitution
+                  const tempData = {
+                    ...companyData,
+                    arets_utdelning: dividendAmount,
+                    arets_balanseras_nyrakning: balancerasAmount
+                  };
+                  setTimeout(() => loadChatStep(next_step, updatedInk2Data, tempData), 500);
+                  return; // Skip normal navigation
+                }
               }
               
               onDataUpdate(updateData);
@@ -804,28 +799,13 @@ interface ChatFlowResponse {
             console.log('🔥 NAVIGATION TO STEP 420 - Auto-scrolling to Noter');
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
-              const scrollContainer = document.querySelector('.overflow-auto');
-              console.log('🔍 Navigation scroll elements found:', {
-                noterModule: !!noterModule,
-                scrollContainer: !!scrollContainer
-              });
+              console.log('🔍 Navigation Noter element found:', !!noterModule);
               
-              if (noterModule && scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const noterRect = noterModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 5-7pt padding from top
-                
-                console.log('📍 Navigation scroll calculation:', {
-                  currentScrollTop: scrollContainer.scrollTop,
-                  targetScrollTop: scrollTop
-                });
-                
-                scrollContainer.scrollTo({
-                  top: scrollTop,
-                  behavior: 'smooth'
-                });
+              if (noterModule) {
+                console.log('📍 Navigation scrolling to Noter using scrollIntoView');
+                noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
               } else {
-                console.log('❌ Navigation auto-scroll failed: Missing elements');
+                console.log('❌ Navigation auto-scroll failed: Noter section not found');
               }
             }, 500);
           }
