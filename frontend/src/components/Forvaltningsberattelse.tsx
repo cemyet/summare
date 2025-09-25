@@ -1,13 +1,125 @@
 'use client';
 
 // Trigger Vercel deployment
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatAmount } from '@/utils/seFileCalculations';
+
+// Import AmountCell for consistent editable styling (same as in Noter.tsx)
+const AmountCell = React.memo(function AmountCell({
+  year,
+  varName,
+  baseVar,
+  label,
+  editable,
+  value,
+  ord,
+  onCommit,
+  onTabNavigate,
+  onSignForced,
+  expectedSignFor,
+}: {
+  year: 'cur' | 'prev';
+  varName: string;
+  baseVar: string;
+  label?: string;
+  editable: boolean;
+  value: number;
+  ord?: number;
+  onCommit: (n: number) => void;
+  onTabNavigate?: (el: HTMLInputElement, dir: 1 | -1) => void;
+  onSignForced?: (e: {
+    baseVar: string;
+    label?: string;
+    year: 'cur' | 'prev';
+    expected: '+' | '-';
+    typed: number;
+    adjusted: number;
+  }) => void;
+  expectedSignFor: (vn?: string) => '+' | '-' | null;
+}) {
+  const [focused, setFocused] = React.useState(false);
+  const [local, setLocal] = React.useState<string>("");
+  const [forcedFlash, setForcedFlash] = React.useState<null | ('+' | '-')>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const signRule = expectedSignFor(baseVar);
+
+  React.useEffect(() => {
+    if (!focused) setLocal(value ? String(Math.round(value)) : "");
+  }, [value, focused]);
+
+  if (!editable) {
+    const fmt0 = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
+    return <span className="text-right font-medium">{fmt0.format(value)} kr</span>;
+  }
+
+  const fmt0 = new Intl.NumberFormat('sv-SE', { maximumFractionDigits: 0 });
+  const shown = focused
+    ? local
+    : (local ? fmt0.format(parseInt(local.replace(/[^\d-]/g, "") || "0", 10)) : "");
+
+  const commit = () => {
+    const raw = (local || "0").replace(/[^\d-]/g, "");
+    let num = Math.abs(parseFloat(raw) || 0);
+    
+    // Apply sign enforcement if needed
+    if (signRule && onSignForced) {
+      const expected = signRule;
+      const signed = expected === '-' ? -num : num;
+      if ((expected === '+' && num < 0) || (expected === '-' && num > 0)) {
+        const adjusted = expected === '+' ? Math.abs(num) : -Math.abs(num);
+        onSignForced({
+          baseVar,
+          label,
+          year,
+          expected,
+          typed: num,
+          adjusted
+        });
+        num = Math.abs(adjusted);
+      } else {
+        num = expected === '-' ? -num : num;
+      }
+    }
+    
+    onCommit(num);
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      className="w-24 px-1 py-0.5 text-sm border border-gray-400 rounded text-right font-medium h-5 bg-white focus:border-gray-500 focus:outline-none"
+      value={shown}
+      data-editable-cell="1"
+      data-ord={ord}
+      onFocus={() => { setFocused(true); setLocal(value ? String(Math.round(value)) : ""); }}
+      onChange={(e) => {
+        let raw = e.target.value.replace(/[^\d-]/g, "");
+        setLocal(raw);
+      }}
+      onBlur={() => { setFocused(false); commit(); }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.currentTarget.blur();
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          setFocused(false);
+          commit();
+          if (onTabNavigate) {
+            onTabNavigate(e.currentTarget, e.shiftKey ? -1 : 1);
+          }
+        }
+      }}
+      placeholder="0"
+    />
+  );
+});
 
 interface FBTableRow {
   id: number;
@@ -648,9 +760,9 @@ export function Forvaltningsberattelse({
         };
         
         const undoEditDisposition = () => {
-          // EXACT same as NOT1/NOT2 - clear edits and reset committed to baseline
+          // Reset to original value (0 or chat injected value) and stay in edit mode
           setEditedValues({});
-          setCommittedValues({ ...originalBaselineDisposition.current });
+          setCommittedValues({ 'arets_utdelning': originalUtdelning });
           // IMPORTANT: do NOT setIsEditingDisposition(false); stay in edit mode
         };
         
@@ -723,17 +835,16 @@ export function Forvaltningsberattelse({
                   <TableCell className="py-1">Utdelas till aktieägare</TableCell>
                   <TableCell className="py-1 text-right">
                     {isEditingDisposition ? (
-                      <Input
-                        type="number"
+                      <AmountCell
+                        year="cur"
+                        varName="arets_utdelning"
+                        baseVar="arets_utdelning"
+                        label="Utdelas till aktieägare"
+                        editable={true}
                         value={utdelning}
-                        onChange={(e) => setEditedValues(prev => ({ ...prev, 'arets_utdelning': parseFloat(e.target.value) || 0 }))}
-                        className="w-24 text-right text-sm h-6"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Tab') {
-                            e.preventDefault();
-                            // Focus stays here since it's the only editable field
-                          }
-                        }}
+                        ord={1}
+                        onCommit={(n) => setEditedValues(prev => ({ ...prev, 'arets_utdelning': n }))}
+                        expectedSignFor={() => null}
                       />
                     ) : (
                       formatAmountForDisplay(utdelning)
