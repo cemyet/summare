@@ -348,6 +348,37 @@ interface ChatFlowResponse {
             addMessage(questionText, true, response.question_icon);
           }
           
+          // Special handling for step 420: auto-scroll before no_option execution
+          if (stepNumber === 420) {
+            console.log('🔥 STEP 420 NO_OPTION - Auto-scrolling to Noter before continuing');
+            setTimeout(() => {
+              const noterModule = document.querySelector('[data-section="noter"]');
+              const scrollContainer = document.querySelector('.overflow-auto');
+              console.log('🔍 No-option scroll elements found:', {
+                noterModule: !!noterModule,
+                scrollContainer: !!scrollContainer
+              });
+              
+              if (noterModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const noterRect = noterModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
+                
+                console.log('📍 No-option scroll calculation:', {
+                  currentScrollTop: scrollContainer.scrollTop,
+                  targetScrollTop: scrollTop
+                });
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+              } else {
+                console.log('❌ No-option auto-scroll failed: Missing elements');
+              }
+            }, 200); // Shorter delay since we're about to navigate away
+          }
+          
           // Execute no_option with the correct step number and updated data
           await handleOptionSelect(noOption, stepNumber, updatedInk2Data);
           return; // Don't continue with normal flow since no_option handles navigation
