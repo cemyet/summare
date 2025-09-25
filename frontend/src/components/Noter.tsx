@@ -6352,38 +6352,109 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                 blockHeading = `Not ${visibility.noteNumber} ${firstRowTitle}`;
               }
             
-            // Special handling for Note 1 (Redovisningsprinciper)
+            // Special handling for Note 1 (Redovisningsprinciper) - with edit functionality
             if (block === 'NOT1') {
               // Find the heading item (row_id 2) and text item (row_id 3)
               const headingItem = blockItems.find(item => item.row_id === 2);
               const textItem = blockItems.find(item => item.row_id === 3);
               
-              // Find depreciation period values from noterData
-              const getDepreciationValue = (variableName: string) => {
-                const item = noterData.find(item => item.variable_name === variableName);
-                return item ? item.current_amount : null;
+              // Get editable values
+              const originalText = textItem?.variable_text || '';
+              const originalAvskrtidBygg = noterData.find(item => item.variable_name === 'avskrtid_bygg')?.current_amount || 0;
+              const originalAvskrtidMask = noterData.find(item => item.variable_name === 'avskrtid_mask')?.current_amount || 0;
+              const originalAvskrtidInv = noterData.find(item => item.variable_name === 'avskrtid_inv')?.current_amount || 0;
+              const originalAvskrtidOvriga = noterData.find(item => item.variable_name === 'avskrtid_ovriga')?.current_amount || 0;
+              
+              // Local edit state for NOT1 - EXACT same pattern as NOT2
+              const [isEditingNOT1, setIsEditingNOT1] = useState(false);
+              const [editedValues, setEditedValues] = useState<Record<string, number | string>>({});
+              const [committedValues, setCommittedValues] = useState<Record<string, number | string>>({});
+              
+              // Track original baseline for proper undo (like other notes)
+              const originalBaselineNOT1 = React.useRef<Record<string, number | string>>({});
+              React.useEffect(() => {
+                originalBaselineNOT1.current = { 
+                  'redovisning_principer': originalText,
+                  'avskrtid_bygg': originalAvskrtidBygg,
+                  'avskrtid_mask': originalAvskrtidMask,
+                  'avskrtid_inv': originalAvskrtidInv,
+                  'avskrtid_ovriga': originalAvskrtidOvriga
+                };
+              }, [originalText, originalAvskrtidBygg, originalAvskrtidMask, originalAvskrtidInv, originalAvskrtidOvriga]);
+              
+              // getVal function - EXACT same as NOT2
+              const getVal = (vn: string) => {
+                if (editedValues[vn] !== undefined) return editedValues[vn];
+                if (committedValues[vn] !== undefined) return committedValues[vn];
+                // Fallback to original values
+                if (vn === 'redovisning_principer') return originalText;
+                if (vn === 'avskrtid_bygg') return originalAvskrtidBygg;
+                if (vn === 'avskrtid_mask') return originalAvskrtidMask;
+                if (vn === 'avskrtid_inv') return originalAvskrtidInv;
+                if (vn === 'avskrtid_ovriga') return originalAvskrtidOvriga;
+                return 0;
               };
               
-              const avskrtidBygg = getDepreciationValue('avskrtid_bygg');
-              const avskrtidMask = getDepreciationValue('avskrtid_mask');
-              const avskrtidInv = getDepreciationValue('avskrtid_inv');
-              const avskrtidOvriga = getDepreciationValue('avskrtid_ovriga');
+              const startEditNOT1 = () => {
+                setIsEditingNOT1(true);
+              };
+              
+              const cancelEditNOT1 = () => {
+                setIsEditingNOT1(false);
+                setEditedValues({});
+              };
+              
+              const undoEditNOT1 = () => {
+                // EXACT same as NOT2 - clear edits and reset committed to baseline
+                setEditedValues({});
+                setCommittedValues({ ...originalBaselineNOT1.current });
+                // IMPORTANT: do NOT setIsEditingNOT1(false); stay in edit mode
+              };
+              
+              const approveEditNOT1 = () => {
+                // EXACT same as NOT2 - commit edits and close
+                setCommittedValues(prev => ({ ...prev, ...editedValues }));
+                setEditedValues({});
+                setIsEditingNOT1(false);
+              };
               
               return (
                 <div key={block} className="space-y-4 pt-4">
-                  {/* Note 1 heading without toggle */}
-                  <div className="border-b pb-1">
-                    <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
+                  {/* Note 1 heading with edit button */}
+                  <div className="flex items-center justify-between border-b pb-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
+                      <button
+                        onClick={() => isEditingNOT1 ? cancelEditNOT1() : startEditNOT1()}
+                        className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                          isEditingNOT1 ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                        }`}
+                        title={isEditingNOT1 ? 'Avsluta redigering' : 'Redigera värden'}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   
-                  {/* Insert text from row_id 3 after heading */}
-                  {textItem?.variable_text && (
-                    <div className="text-sm leading-relaxed">
-                      {textItem.variable_text}
-                    </div>
-                  )}
+                  {/* Editable text */}
+                  <div className="text-sm leading-relaxed">
+                    {isEditingNOT1 ? (
+                      <textarea
+                        value={getVal('redovisning_principer') as string}
+                        onChange={(e) => setEditedValues(prev => ({ ...prev, 'redovisning_principer': e.target.value }))}
+                        className="w-full p-2 border border-gray-300 rounded-md resize-none"
+                        rows={3}
+                        placeholder="Skriv redovisningsprinciper..."
+                      />
+                    ) : (
+                      getVal('redovisning_principer') as string || 'Inga redovisningsprinciper angivna'
+                    )}
+                  </div>
                   
-                  {/* Depreciation table with only two columns */}
+                  {/* Editable depreciation table */}
                   <div className="space-y-2">
                     <Table>
                       <TableHeader>
@@ -6396,30 +6467,112 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                         <TableRow>
                           <TableCell className="py-1">Byggnader & mark</TableCell>
                           <TableCell className="text-right py-1">
-                            {avskrtidBygg !== null ? avskrtidBygg : '-'}
+                            {isEditingNOT1 ? (
+                              <AmountCell
+                                year="cur"
+                                varName="avskrtid_bygg"
+                                baseVar="avskrtid_bygg"
+                                label="Byggnader & mark"
+                                editable={true}
+                                value={getVal('avskrtid_bygg') as number}
+                                ord={1}
+                                onCommit={(n) => setEditedValues(prev => ({ ...prev, 'avskrtid_bygg': n }))}
+                                expectedSignFor={() => null}
+                              />
+                            ) : (
+                              getVal('avskrtid_bygg') !== null ? getVal('avskrtid_bygg') : '-'
+                            )}
                           </TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell className="py-1">Maskiner och andra tekniska anläggningar</TableCell>
                           <TableCell className="text-right py-1">
-                            {avskrtidMask !== null ? avskrtidMask : '-'}
+                            {isEditingNOT1 ? (
+                              <AmountCell
+                                year="cur"
+                                varName="avskrtid_mask"
+                                baseVar="avskrtid_mask"
+                                label="Maskiner och andra tekniska anläggningar"
+                                editable={true}
+                                value={getVal('avskrtid_mask') as number}
+                                ord={2}
+                                onCommit={(n) => setEditedValues(prev => ({ ...prev, 'avskrtid_mask': n }))}
+                                expectedSignFor={() => null}
+                              />
+                            ) : (
+                              getVal('avskrtid_mask') !== null ? getVal('avskrtid_mask') : '-'
+                            )}
                           </TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell className="py-1">Inventarier, verktyg och installationer</TableCell>
                           <TableCell className="text-right py-1">
-                            {avskrtidInv !== null ? avskrtidInv : '-'}
+                            {isEditingNOT1 ? (
+                              <AmountCell
+                                year="cur"
+                                varName="avskrtid_inv"
+                                baseVar="avskrtid_inv"
+                                label="Inventarier, verktyg och installationer"
+                                editable={true}
+                                value={getVal('avskrtid_inv') as number}
+                                ord={3}
+                                onCommit={(n) => setEditedValues(prev => ({ ...prev, 'avskrtid_inv': n }))}
+                                expectedSignFor={() => null}
+                              />
+                            ) : (
+                              getVal('avskrtid_inv') !== null ? getVal('avskrtid_inv') : '-'
+                            )}
                           </TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell className="py-1">Övriga materiella anläggningstillgångar</TableCell>
                           <TableCell className="text-right py-1">
-                            {avskrtidOvriga !== null ? avskrtidOvriga : '-'}
+                            {isEditingNOT1 ? (
+                              <AmountCell
+                                year="cur"
+                                varName="avskrtid_ovriga"
+                                baseVar="avskrtid_ovriga"
+                                label="Övriga materiella anläggningstillgångar"
+                                editable={true}
+                                value={getVal('avskrtid_ovriga') as number}
+                                ord={4}
+                                onCommit={(n) => setEditedValues(prev => ({ ...prev, 'avskrtid_ovriga': n }))}
+                                expectedSignFor={() => null}
+                              />
+                            ) : (
+                              getVal('avskrtid_ovriga') !== null ? getVal('avskrtid_ovriga') : '-'
+                            )}
                           </TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
                   </div>
+
+                  {/* Action buttons - only show when editing */}
+                  {isEditingNOT1 && (
+                    <div className="flex justify-between pt-4 border-t border-gray-200">
+                      <Button 
+                        onClick={undoEditNOT1}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                        </svg>
+                        Ångra ändringar
+                      </Button>
+                      
+                      <Button 
+                        onClick={approveEditNOT1}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+                      >
+                        Godkänn ändringar
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                        </svg>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               );
             }
