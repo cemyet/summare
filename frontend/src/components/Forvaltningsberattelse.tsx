@@ -142,10 +142,11 @@ interface ForvaltningsberattelseProps {
   fiscalYear?: number;
   onDataUpdate?: (updates: Partial<any>) => void;
   arets_utdelning?: number;
+  sumFrittEgetKapital?: number; // Add for dividend validation
 }
 
 export function Forvaltningsberattelse({
-  fbTable, fbVariables, fiscalYear, onDataUpdate, embedded = false, arets_utdelning
+  fbTable, fbVariables, fiscalYear, onDataUpdate, embedded = false, arets_utdelning, sumFrittEgetKapital
 }: ForvaltningsberattelseProps & { embedded?: boolean }) {
   const [showAllRows, setShowAllRows] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -778,11 +779,23 @@ export function Forvaltningsberattelse({
         };
         
         const approveEditDisposition = () => {
-          // EXACT same as NOT1/NOT2 - commit edits and close
+          // Validation: check if dividend exceeds available distributable capital
           const newUtdelning = editedValues['arets_utdelning'];
-          if (newUtdelning !== undefined && onDataUpdate) {
-            onDataUpdate({ arets_utdelning: newUtdelning });
+          if (newUtdelning !== undefined) {
+            // Get available distributable capital (passed as prop)
+            const availableCapital = sumFrittEgetKapital || 0;
+            
+            if (newUtdelning > availableCapital) {
+              alert(`Utdelningen (${newUtdelning.toLocaleString('sv-SE')} kr) kan inte överstiga fritt eget kapital (${availableCapital.toLocaleString('sv-SE')} kr).`);
+              return; // Don't approve if validation fails
+            }
+            
+            if (onDataUpdate) {
+              onDataUpdate({ arets_utdelning: newUtdelning });
+            }
           }
+          
+          // EXACT same as NOT1/NOT2 - commit edits and close
           setCommittedValues(prev => ({ ...prev, ...editedValues }));
           setEditedValues({});
           setIsEditingDisposition(false);

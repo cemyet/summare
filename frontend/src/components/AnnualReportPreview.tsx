@@ -752,6 +752,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
             fiscalYear={fy}
             onDataUpdate={onDataUpdate}
             arets_utdelning={companyData.arets_utdelning}
+            sumFrittEgetKapital={companyData.sumFrittEgetKapital}
           />
         </section>
 
