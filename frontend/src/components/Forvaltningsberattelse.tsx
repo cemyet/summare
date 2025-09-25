@@ -747,6 +747,7 @@ export function Forvaltningsberattelse({
         const [isEditingDisposition, setIsEditingDisposition] = useState(false);
         const [editedValues, setEditedValues] = useState<Record<string, number>>({});
         const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
+        const [showDividendValidationMessage, setShowDividendValidationMessage] = useState(false);
         
         // Track original baseline for proper undo (the chat-injected value or 0)
         const originalBaselineDisposition = React.useRef<number>(getBaselineValue());
@@ -786,7 +787,7 @@ export function Forvaltningsberattelse({
             const availableCapital = sumFrittEgetKapital || 0;
             
             if (newUtdelning > availableCapital) {
-              alert(`Utdelningen (${newUtdelning.toLocaleString('sv-SE')} kr) kan inte överstiga fritt eget kapital (${availableCapital.toLocaleString('sv-SE')} kr).`);
+              setShowDividendValidationMessage(true);
               return; // Don't approve if validation fails
             }
             
@@ -909,6 +910,35 @@ export function Forvaltningsberattelse({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
                   </svg>
                 </Button>
+              </div>
+            )}
+
+            {/* Dividend Validation Toast - only show when dividend exceeds available capital */}
+            {showDividendValidationMessage && (
+              <div className="fixed bottom-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium text-gray-900">
+                      Utdelning för hög
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Utdelningen kan inte överstiga fritt eget kapital {(sumFrittEgetKapital || 0).toLocaleString('sv-SE')} kr.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowDividendValidationMessage(false)}
+                    className="ml-4 flex-shrink-0 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
             )}
           </div>
