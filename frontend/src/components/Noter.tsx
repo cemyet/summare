@@ -4951,6 +4951,332 @@ const FordringarOvrigaNote: React.FC<{
   );
 };
 
+// Eventualförpliktelser editor component
+const EventualNote: React.FC<{
+  items: NoterItem[];
+  heading: string;
+  fiscalYear?: number;
+  previousYear?: number;
+  companyData?: any;
+  toggleOn: boolean;
+  setToggle: (checked: boolean) => void;
+  blockToggles: Record<string, boolean>;
+  setBlockToggles: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, blockToggles, setBlockToggles }) => {
+  const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
+
+  const isFlowVar = (vn?: string) => {
+    if (!vn) return false;
+    // For EVENTUAL, all variables with names are editable
+    return true;
+  };
+
+  const byVar = useMemo(() => {
+    const m = new Map<string, NoterItem>();
+    items.forEach((it) => it.variable_name && m.set(it.variable_name, it));
+    return m;
+  }, [items]);
+
+  // No BR book value for EVENTUAL - it's not a balance sheet asset calculation
+  const brBookValueUBCur = 0;
+  const brBookValueUBPrev = 0;
+
+  // Baseline management
+  const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
+  React.useEffect(() => {
+    const cur: Record<string, number> = {};
+    const prev: Record<string, number> = {};
+    items.forEach(it => {
+      const vn = it.variable_name;
+      if (!vn) return;
+      cur[vn] = it.current_amount ?? 0;
+      prev[vn] = it.previous_amount ?? 0;
+    });
+    originalBaselineRef.current = { cur, prev };
+  }, [items]);
+
+  // Local edit state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedValues, setEditedValues] = useState<Record<string, number>>({});
+  const [editedPrevValues, setEditedPrevValues] = useState<Record<string, number>>({});
+  const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
+  const [committedPrevValues, setCommittedPrevValues] = useState<Record<string, number>>({});
+  const [showValidationMessage, setShowValidationMessage] = useState(false);
+
+  // Sign enforcement - all flexible for EVENTUAL
+  const expectedSignFor = (vn?: string): '+' | '-' | null => {
+    return null;
+  };
+
+  const getVal = React.useCallback((vn: string, year: 'cur' | 'prev') => {
+    if (year === 'cur') {
+      if (editedValues[vn] !== undefined) return editedValues[vn];
+      if (committedValues[vn] !== undefined) return committedValues[vn];
+      return byVar.get(vn)?.current_amount ?? 0;
+    } else {
+      if (editedPrevValues[vn] !== undefined) return editedPrevValues[vn];
+      if (committedPrevValues[vn] !== undefined) return committedPrevValues[vn];
+      return byVar.get(vn)?.previous_amount ?? 0;
+    }
+  }, [editedValues, committedValues, editedPrevValues, committedPrevValues, byVar]);
+
+  const readCur = (it: NoterItem) => getVal(it.variable_name!, 'cur');
+  const readPrev = (it: NoterItem) => getVal(it.variable_name!, 'prev');
+
+  const visible = useMemo(() => {
+    return buildVisibleWithHeadings({
+      items,
+      toggleOn,
+      readCur: (it) => readCur(it),
+      readPrev: (it) => readPrev(it),
+    });
+  }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
+
+  const startEdit = () => {
+    setIsEditing(true);
+    setToggle?.(true);
+  };
+
+  const cancelEdit = () => {
+    setIsEditing(false);
+    setEditedValues({});
+    setEditedPrevValues({});
+    setShowValidationMessage(false);
+    setToggle?.(false);
+  };
+
+  const undoEdit = () => {
+    blurAllEditableInputs();
+    setEditedValues({});
+    setEditedPrevValues({});
+    setCommittedValues({ ...originalBaselineRef.current.cur });
+    setCommittedPrevValues({ ...originalBaselineRef.current.prev });
+    setShowValidationMessage(false);
+  };
+
+  const approveEdit = () => {
+    // No balance validation for EVENTUAL - just commit the values
+    setCommittedValues(prev => ({ ...prev, ...editedValues }));
+    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    setEditedValues({});
+    setEditedPrevValues({});
+    setIsEditing(false);
+    setToggle?.(false);
+  };
+
+  // Helper functions
+  const isSumRow = (it: NoterItem) => it.style === 'S2';
+  const isHeading = (it: NoterItem) => isHeadingStyle(it.style);
+
+  const sumGroupAbove = React.useCallback(
+    (list: NoterItem[], index: number, year: 'cur' | 'prev') => {
+      let sum = 0;
+      for (let i = index - 1; i >= 0; i--) {
+        const r = list[i];
+        if (!r) break;
+        if (isHeading(r) || r.style === 'S2') break;
+        if (r.variable_name) sum += getVal(r.variable_name, year);
+      }
+      return sum;
+    },
+    [getVal]
+  );
+
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  const focusByOrd = (fromEl: HTMLInputElement, dir: 1 | -1) => {
+    const root = containerRef.current;
+    if (!root) return;
+    const curOrd = Number(fromEl.dataset.ord || '0');
+    const nextOrd = curOrd + dir;
+    const next = root.querySelector<HTMLInputElement>(
+      `input[data-editable-cell="1"][data-ord="${nextOrd}"]`
+    );
+    if (next) { next.focus(); next.select?.(); }
+  };
+
+  const blurAllEditableInputs = () => {
+    const root = containerRef.current;
+    if (!root) return;
+    const inputs = root.querySelectorAll<HTMLInputElement>('input[data-editable-cell="1"]');
+    inputs.forEach(inp => inp.blur());
+  };
+
+  const pushSignNotice = (e: { label: string; year: string; typed: string; adjusted: string }) => {
+    console.log(`Sign forced for ${e.label} (${e.year}): ${e.typed} → ${e.adjusted}`);
+  };
+
+  return (
+    <div ref={containerRef} className="space-y-2 pt-4">
+      {/* Header with both toggles */}
+      <div className="flex items-center justify-between border-b pb-1">
+        <div className="flex items-center">
+          <h3 className={`font-semibold text-lg ${blockToggles['eventual-visibility'] !== true ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
+            {heading}
+          </h3>
+          <button
+            onClick={() => isEditing ? cancelEdit() : startEdit()}
+            className={`ml-3 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+              isEditing ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+            } ${blockToggles['eventual-visibility'] !== true ? 'opacity-35' : ''}`}
+            title={isEditing ? 'Avsluta redigering' : 'Redigera värden'}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
+          <div className={`ml-2 flex items-center ${blockToggles['eventual-visibility'] !== true ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
+            <Switch
+              checked={blockToggles['eventual-visibility'] === true} // Default to false (hidden)
+              onCheckedChange={(checked) => 
+                setBlockToggles(prev => ({ ...prev, ['eventual-visibility']: checked }))
+              }
+            />
+            <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
+          </div>
+        </div>
+        <div className={`flex items-center space-x-2 ${blockToggles['eventual-visibility'] !== true ? 'opacity-35' : ''}`}>
+          <label htmlFor="toggle-eventual-rows" className="text-sm font-medium cursor-pointer">
+            Visa alla rader
+          </label>
+          <Switch
+            id="toggle-eventual-rows"
+            checked={toggleOn}
+            onCheckedChange={setToggle}
+          />
+        </div>
+      </div>
+
+      {/* Only show content if visibility toggle is on */}
+      {blockToggles['eventual-visibility'] === true && (
+        <>
+          {/* Column headers */}
+          <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
+            <span></span>
+            <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+            <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
+          </div>
+
+          {/* Rows */}
+          {(() => {
+            let ordCounter = 0;
+            return visible.map((it, idx) => {
+              const getStyleClasses = (style?: string) => {
+                const baseClasses = 'grid gap-4';
+                let additionalClasses = '';
+                const s = style || 'NORMAL';
+                
+                const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
+                if (boldStyles.includes(s)) {
+                  additionalClasses += ' font-semibold';
+                }
+                
+                const lineStyles = ['S2','S3','TS2','TS3'];
+                if (lineStyles.includes(s)) {
+                  additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+                }
+                
+                return {
+                  className: `${baseClasses}${additionalClasses}`,
+                  style: { gridTemplateColumns: '4fr 1fr 1fr' }
+                };
+              };
+
+              const currentStyle = it.style || 'NORMAL';
+              const isHeadingRow = isHeadingStyle(currentStyle);
+              const isS2 = isSumRow(it);
+              const editable = isEditing && isFlowVar(it.variable_name);
+              
+              const ordCur  = editable ? ++ordCounter : undefined;
+              const ordPrev = editable ? ++ordCounter : undefined;
+              
+              const curVal = isS2 ? sumGroupAbove(visible, idx, 'cur') : getVal(it.variable_name ?? '', 'cur');
+              const prevVal = isS2 ? sumGroupAbove(visible, idx, 'prev') : getVal(it.variable_name ?? '', 'prev');
+              
+              const gc = getStyleClasses(currentStyle);
+              
+              return (
+                <div 
+                  key={`${it.row_id}-${idx}`}
+                  className={gc.className}
+                  style={gc.style}
+                >
+                  <span className="text-muted-foreground">{it.row_title}</span>
+                  
+                  {/* Current year amount */}
+                  <span className="text-right font-medium">
+                    {isHeadingRow ? '' : (editable ? (
+                      <NotAmountInput
+                        value={curVal}
+                        onChange={(v) => setEditedValues(prev => ({ ...prev, [it.variable_name!]: v }))}
+                        onCommit={(v) => setEditedValues(prev => ({ ...prev, [it.variable_name!]: v }))}
+                        variableName={it.variable_name!}
+                        order={ordCur}
+                        onFocus={(dir) => {
+                          const inp = document.querySelector<HTMLInputElement>(`input[data-ord="${ordCur}"]`);
+                          if (inp) focusByOrd(inp, dir);
+                        }}
+                        expectedSign={expectedSignFor(it.variable_name)}
+                        onSignForced={pushSignNotice}
+                        label={it.row_title}
+                        year="current"
+                      />
+                    ) : (
+                      formatAmountDisplay(curVal)
+                    ))}
+                  </span>
+                  
+                  {/* Previous year amount */}
+                  <span className="text-right font-medium">
+                    {isHeadingRow ? '' : (editable ? (
+                      <NotAmountInput
+                        value={prevVal}
+                        onChange={(v) => setEditedPrevValues(prev => ({ ...prev, [it.variable_name!]: v }))}
+                        onCommit={(v) => setEditedPrevValues(prev => ({ ...prev, [it.variable_name!]: v }))}
+                        variableName={it.variable_name!}
+                        order={ordPrev}
+                        onFocus={(dir) => {
+                          const inp = document.querySelector<HTMLInputElement>(`input[data-ord="${ordPrev}"]`);
+                          if (inp) focusByOrd(inp, dir);
+                        }}
+                        expectedSign={expectedSignFor(it.variable_name)}
+                        onSignForced={pushSignNotice}
+                        label={it.row_title}
+                        year="previous"
+                      />
+                    ) : (
+                      formatAmountDisplay(prevVal)
+                    ))}
+                  </span>
+                </div>
+              );
+            });
+          })()}
+
+          {/* Action buttons - only show when editing */}
+          {isEditing && (
+            <div className="flex justify-between pt-4 border-t border-gray-200">
+              <button
+                onClick={undoEdit}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              >
+                Ångra
+              </button>
+              <button
+                onClick={approveEdit}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700"
+              >
+                Godkänn ändringar
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
 // Ställda säkerheter editor component
 const SakerhetNote: React.FC<{
   items: NoterItem[];
@@ -6217,116 +6543,23 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               );
             }
             
-            // Special handling for EVENTUAL block - custom visibility toggle
+            // Special handling for EVENTUAL block - use EventualNote component with edit functionality
             if (block === 'EVENTUAL') {
-              const eventualToggleKey = `eventual-visibility`;
-                const isEventualVisible = blockToggles[eventualToggleKey] === true; // Default to false (hidden)
-              
               return (
-                <div key={block} className="space-y-2 pt-4">
-                  {/* EVENTUAL heading with custom visibility toggle - mirror SAKERHET structure */}
-                  <div className="flex items-center justify-between border-b pb-1">
-                    <div className="flex items-center">
-                      <h3 className={`font-semibold text-lg ${!isEventualVisible ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
-                        {blockHeading}
-                      </h3>
-                      <div className={`ml-2 flex items-center ${!isEventualVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
-                        <Switch
-                          checked={isEventualVisible}
-                          onCheckedChange={(checked) => 
-                            setBlockToggles(prev => ({ ...prev, [eventualToggleKey]: checked }))
-                          }
-                        />
-                        <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
-                      </div>
-                    </div>
-                    <div className={`flex items-center space-x-2 ${!isEventualVisible ? 'opacity-35' : ''}`}>
-                      <label htmlFor="toggle-eventual-rows" className="text-sm font-medium cursor-pointer">
-                        Visa alla rader
-                      </label>
-                      <Switch
-                        id="toggle-eventual-rows"
-                        checked={blockToggles[block] || false}
-                        onCheckedChange={(checked) =>
-                          setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                        }
-                      />
-                    </div>
-                  </div>
-                  
-                  {/* Only show content if toggle is on */}
-                  {isEventualVisible && (
-                    <>
-                      {/* Column Headers - same as BR/RR */}
-                      <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
-                        <span></span>
-                        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear || new Date().getFullYear()}-12-31`}</span>
-                        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
-                      </div>
-
-                      {/* Noter Rows - same grid system as BR/RR */}
-                      {visibleItems.map((item, index) => {
-                        // Use same style system as BR/RR
-                        const getStyleClasses = (style?: string) => {
-                          const baseClasses = 'grid gap-4';
-                          let additionalClasses = '';
-                          const s = style || 'NORMAL';
-                          
-                          // Bold styles
-                          const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
-                          if (boldStyles.includes(s)) {
-                            additionalClasses += ' font-semibold';
-                          }
-                          
-                          // Line styles
-                          const lineStyles = ['S2','S3','TS2','TS3'];
-                          if (lineStyles.includes(s)) {
-                            additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
-                          }
-                          
-                          return {
-                            className: `${baseClasses}${additionalClasses}`,
-                            style: { gridTemplateColumns: '4fr 1fr 1fr' }
-                          };
-                        };
-
-                        const formatAmountDisplay = (amount: number) => {
-                          if (amount === 0) return '0 kr';
-                          const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0
-                          });
-                          const sign = amount < 0 ? '-' : '';
-                          return `${sign}${formatted} kr`;
-                        };
-
-                        const currentStyle = item.style || 'NORMAL';
-                        const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(currentStyle);
-                        
-                        return (
-                          <div 
-                            key={index} 
-                            className={getStyleClasses(currentStyle).className}
-                            style={getStyleClasses(currentStyle).style}
-                          >
-                            <span className="text-muted-foreground">
-                              {item.row_title}
-                              {item.show_tag && (
-                                <AccountDetailsDialog item={item} />
-                              )}
-                            </span>
-                            <span className="text-right font-medium">
-                              {isHeading ? '' : formatAmountDisplay(item.current_amount)}
-                            </span>
-                            <span className="text-right font-medium">
-                              {isHeading ? '' : formatAmountDisplay(item.previous_amount)}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </>
-                  )}
-                </div>
+                <EventualNote
+                  key={block}
+                  items={blockItems}
+                  heading={blockHeading}
+                  fiscalYear={fiscalYear}
+                  previousYear={previousYear}
+                  companyData={companyData}
+                  toggleOn={blockToggles[block] || false}
+                  setToggle={(checked: boolean) =>
+                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
+                  }
+                  blockToggles={blockToggles}
+                  setBlockToggles={setBlockToggles}
+                />
               );
             }
             
