@@ -5119,7 +5119,7 @@ const SakerhetNote: React.FC<{
             onClick={() => isEditing ? cancelEdit() : startEdit()}
             className={`ml-3 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
               isEditing ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-            }`}
+            } ${blockToggles['sakerhet-visibility'] !== true ? 'opacity-35' : ''}`}
             title={isEditing ? 'Avsluta redigering' : 'Redigera värden'}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -5137,7 +5137,7 @@ const SakerhetNote: React.FC<{
             <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className={`flex items-center space-x-2 ${blockToggles['sakerhet-visibility'] !== true ? 'opacity-35' : ''}`}>
           <label htmlFor="toggle-sakerhet-rows" className="text-sm font-medium cursor-pointer">
             Visa alla rader
           </label>
