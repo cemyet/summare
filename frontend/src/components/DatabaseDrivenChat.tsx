@@ -407,15 +407,31 @@ interface ChatFlowResponse {
           setTimeout(() => {
             const noterModule = document.querySelector('[data-section="noter"]');
             const scrollContainer = document.querySelector('.overflow-auto');
+            console.log('🔍 Scroll elements found:', {
+              noterModule: !!noterModule,
+              scrollContainer: !!scrollContainer,
+              noterModuleRect: noterModule?.getBoundingClientRect(),
+              scrollContainerRect: scrollContainer?.getBoundingClientRect()
+            });
+            
             if (noterModule && scrollContainer) {
               const containerRect = scrollContainer.getBoundingClientRect();
               const noterRect = noterModule.getBoundingClientRect();
               const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
               
+              console.log('📍 Scroll calculation:', {
+                currentScrollTop: scrollContainer.scrollTop,
+                targetScrollTop: scrollTop,
+                noterTop: noterRect.top,
+                containerTop: containerRect.top
+              });
+              
               scrollContainer.scrollTo({
                 top: scrollTop,
                 behavior: 'smooth'
               });
+            } else {
+              console.log('❌ Auto-scroll failed: Missing elements');
             }
           }, 500);
         }
@@ -768,18 +784,31 @@ interface ChatFlowResponse {
           
           // Auto-scroll to noter section for step 420
           if (next_step === 420) {
+            console.log('🔥 NAVIGATION TO STEP 420 - Auto-scrolling to Noter');
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
               const scrollContainer = document.querySelector('.overflow-auto');
+              console.log('🔍 Navigation scroll elements found:', {
+                noterModule: !!noterModule,
+                scrollContainer: !!scrollContainer
+              });
+              
               if (noterModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
                 const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 5-7pt padding from top
                 
+                console.log('📍 Navigation scroll calculation:', {
+                  currentScrollTop: scrollContainer.scrollTop,
+                  targetScrollTop: scrollTop
+                });
+                
                 scrollContainer.scrollTo({
                   top: scrollTop,
                   behavior: 'smooth'
                 });
+              } else {
+                console.log('❌ Navigation auto-scroll failed: Missing elements');
               }
             }, 500);
           }
