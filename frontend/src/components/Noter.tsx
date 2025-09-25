@@ -5118,7 +5118,7 @@ const EventualNote: React.FC<{
 
   return (
     <div ref={containerRef} className="space-y-2 pt-4">
-      {/* Header with both toggles */}
+      {/* Header with edit button and visibility toggle only */}
       <div className="flex items-center justify-between border-b pb-1">
         <div className="flex items-center">
           <h3 className={`font-semibold text-lg ${blockToggles['eventual-visibility'] !== true ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
@@ -5145,16 +5145,6 @@ const EventualNote: React.FC<{
             />
             <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
           </div>
-        </div>
-        <div className={`flex items-center space-x-2 ${blockToggles['eventual-visibility'] !== true ? 'opacity-35' : ''}`}>
-          <label htmlFor="toggle-eventual-rows" className="text-sm font-medium cursor-pointer">
-            Visa alla rader
-          </label>
-          <Switch
-            id="toggle-eventual-rows"
-            checked={toggleOn}
-            onCheckedChange={setToggle}
-          />
         </div>
       </div>
 
