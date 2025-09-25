@@ -1054,6 +1054,28 @@ const selectiveMergeInk2 = (
     
     console.log('📤 Input submit - Current step:', currentStep, 'Options:', currentOptions);
     
+    // Find the submit option to check if this is dividend input
+    const submitOption = lastLoadedOptions?.find(opt => opt.option_value === 'submit');
+    
+    // Validate dividend amount (step 424: arets_utdelning)
+    if (submitOption?.action_data?.variable === 'arets_utdelning' && inputType === 'amount') {
+      const dividendAmount = value as number;
+      const maxDividend = companyData.sumFrittEgetKapital || 0;
+      
+      if (dividendAmount < 0) {
+        addMessage('Utdelningsbeloppet kan inte vara negativt. Försök igen.', true);
+        setShowInput(true); // Keep input visible
+        return;
+      }
+      
+      if (dividendAmount > maxDividend) {
+        const maxFormatted = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(maxDividend);
+        addMessage(`Utdelningsbeloppet kan inte överstiga summa fritt eget kapital (${maxFormatted} kr). Försök igen.`, true);
+        setShowInput(true); // Keep input visible
+        return;
+      }
+    }
+    
     // Hide input immediately to prevent UI flash
     setShowInput(false);
 
@@ -1062,9 +1084,6 @@ const selectiveMergeInk2 = (
       ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value as number) + ' kr'
       : value;
     addMessage(String(displayValue), false);
-
-    // Find the submit option for this step from the last loaded response (not filtered options)
-    const submitOption = lastLoadedOptions?.find(opt => opt.option_value === 'submit');
 
     if (submitOption) {
       // Store the input value based on action data
