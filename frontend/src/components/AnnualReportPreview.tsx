@@ -219,6 +219,7 @@ interface CompanyData {
     }>;
     rr_data?: Array<{
       id: string;
+      row_id: number;
       label: string;
       current_amount: number | null;
       previous_amount: number | null;
@@ -1382,7 +1383,7 @@ const handleTaxCalculationClick = () => {
                     <span className="text-muted-foreground flex items-center justify-between">
                       <span>{item.label}</span>
                       {/* Add SKATTEBERÄKNING button for row_id 276 (Skatter) */}
-                      {item.id === '276' && (
+                      {item.row_id === 276 && (
                         <button
                           onClick={handleTaxCalculationClick}
                           className="ml-2 bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded flex items-center gap-1 transition-colors"
