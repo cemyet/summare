@@ -6431,22 +6431,28 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               const currentValue = antAnstallndaItem?.current_amount || 0;
               const previousValue = antAnstallndaItem?.previous_amount || 0;
               
-              // Local edit state for NOT2
+              // Local edit state for NOT2 - following same pattern as other notes
               const [isEditingNOT2, setIsEditingNOT2] = useState(false);
-              const [editedCurrentValue, setEditedCurrentValue] = useState(currentValue);
+              const [editedCurrentValue, setEditedCurrentValue] = useState(0);
+              const [committedCurrentValue, setCommittedCurrentValue] = useState(currentValue);
+              
+              // Get current display value (committed value takes priority over original)
+              const displayValue = committedCurrentValue !== undefined ? committedCurrentValue : currentValue;
               
               const startEditNOT2 = () => {
                 setIsEditingNOT2(true);
-                setEditedCurrentValue(currentValue);
+                setEditedCurrentValue(displayValue); // Start editing from committed value
               };
               
               const cancelEditNOT2 = () => {
                 setIsEditingNOT2(false);
-                setEditedCurrentValue(currentValue);
+                setEditedCurrentValue(displayValue); // Reset to committed value
               };
               
               const approveEditNOT2 = () => {
-                // Here you would save the edited value - for now just commit locally
+                // Save the edited value to committed state (like other notes)
+                setCommittedCurrentValue(editedCurrentValue);
+                setEditedCurrentValue(0);
                 setIsEditingNOT2(false);
               };
               
@@ -6496,7 +6502,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                           expectedSignFor={() => null}
                         />
                       ) : (
-                        editedCurrentValue
+                        displayValue
                       )}
                     </span>
                     {/* Previous year - always read-only */}
