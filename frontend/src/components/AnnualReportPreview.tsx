@@ -612,13 +612,25 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               setIsEditingFlerars(false);
             };
             
-            // Tab navigation function (like NOT1)
+            // Tab navigation function with row wrapping
             const focusByOrd = (fromEl: HTMLInputElement, dir: 1 | -1) => {
               const curOrd = Number(fromEl.dataset.ord || '0');
               const nextOrd = curOrd + dir;
-              const next = document.querySelector<HTMLInputElement>(
+              let next = document.querySelector<HTMLInputElement>(
                 `input[data-editable-cell="1"][data-ord="${nextOrd}"]`
               );
+              
+              // If no next cell found and going forward, try to wrap to next row
+              if (!next && dir === 1) {
+                // Look for the next available cell in sequence
+                for (let i = nextOrd + 1; i <= 50; i++) {
+                  next = document.querySelector<HTMLInputElement>(
+                    `input[data-editable-cell="1"][data-ord="${i}"]`
+                  );
+                  if (next) break;
+                }
+              }
+              
               if (next) { next.focus(); next.select?.(); }
             };
             
@@ -687,10 +699,28 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
                               {isEditingFlerars ? (
                                 <input
                                   type="text"
-                                  inputMode="numeric"
+                                  inputMode={row.label === "Soliditet" ? "decimal" : "numeric"}
                                   className="w-full max-w-[108px] px-1 py-0.5 text-sm border border-gray-300 rounded text-right font-normal h-6 bg-white focus:border-gray-400 focus:outline-none"
                                   value={v || 0}
-                                  onChange={(e) => setEditedValues(prev => ({ ...prev, [row.vars[j]]: parseFloat(e.target.value) || 0 }))}
+                                  onChange={(e) => {
+                                    let val = e.target.value;
+                                    
+                                    // Allow negative values for "Resultat efter finansiella poster" row
+                                    if (row.label === "Resultat efter finansiella poster") {
+                                      val = val.replace(/[^\d.-]/g, '');
+                                    }
+                                    // Allow decimals for "Soliditet" row  
+                                    else if (row.label === "Soliditet") {
+                                      val = val.replace(/[^\d.,]/g, '').replace(',', '.');
+                                    }
+                                    // Other rows - positive numbers only
+                                    else {
+                                      val = val.replace(/[^\d]/g, '');
+                                    }
+                                    
+                                    const numVal = parseFloat(val) || 0;
+                                    setEditedValues(prev => ({ ...prev, [row.vars[j]]: numVal }));
+                                  }}
                                   data-editable-cell="1"
                                   data-ord={ordCounter + j + 10}
                                   onKeyDown={(e) => {
