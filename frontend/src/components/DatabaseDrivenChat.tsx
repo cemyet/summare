@@ -406,13 +406,32 @@ interface ChatFlowResponse {
           console.log('🔥 STEP 420 TRIGGERED - Auto-scrolling to Noter');
           setTimeout(() => {
             const noterModule = document.querySelector('[data-section="noter"]');
-            console.log('🔍 Noter element found:', !!noterModule);
+            const scrollContainer = document.querySelector('.overflow-auto');
+            console.log('🔍 Scroll elements found:', {
+              noterModule: !!noterModule,
+              scrollContainer: !!scrollContainer,
+              noterModuleRect: noterModule?.getBoundingClientRect(),
+              scrollContainerRect: scrollContainer?.getBoundingClientRect()
+            });
             
-            if (noterModule) {
-              console.log('📍 Scrolling to Noter using scrollIntoView');
-              noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (noterModule && scrollContainer) {
+              const containerRect = scrollContainer.getBoundingClientRect();
+              const noterRect = noterModule.getBoundingClientRect();
+              const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
+              
+              console.log('📍 Scroll calculation:', {
+                currentScrollTop: scrollContainer.scrollTop,
+                targetScrollTop: scrollTop,
+                noterTop: noterRect.top,
+                containerTop: containerRect.top
+              });
+              
+              scrollContainer.scrollTo({
+                top: scrollTop,
+                behavior: 'smooth'
+              });
             } else {
-              console.log('❌ Auto-scroll failed: Noter section not found');
+              console.log('❌ Auto-scroll failed: Missing elements');
             }
           }, 500);
         }
@@ -513,9 +532,14 @@ interface ChatFlowResponse {
       // Handle custom tax options to bypass API call
       if (option.option_value === 'approve_tax') {
         // Hide tax preview and go to next step based on SQL or fallback
+        console.log('🏛️ APPROVE_TAX clicked - hiding tax preview and navigating to step 420');
         onDataUpdate({ showTaxPreview: false });
         const nextStep = option.next_step || 420; // Use SQL next_step or fallback to 420
-        setTimeout(() => loadChatStep(nextStep), 1000);
+        console.log('🚀 APPROVE_TAX will navigate to step:', nextStep);
+        setTimeout(() => {
+          console.log('🚀 APPROVE_TAX calling loadChatStep with step:', nextStep);
+          loadChatStep(nextStep);
+        }, 1000);
         return;
       }
       
@@ -799,13 +823,28 @@ interface ChatFlowResponse {
             console.log('🔥 NAVIGATION TO STEP 420 - Auto-scrolling to Noter');
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
-              console.log('🔍 Navigation Noter element found:', !!noterModule);
+              const scrollContainer = document.querySelector('.overflow-auto');
+              console.log('🔍 Navigation scroll elements found:', {
+                noterModule: !!noterModule,
+                scrollContainer: !!scrollContainer
+              });
               
-              if (noterModule) {
-                console.log('📍 Navigation scrolling to Noter using scrollIntoView');
-                noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              if (noterModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const noterRect = noterModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
+                
+                console.log('📍 Navigation scroll calculation:', {
+                  currentScrollTop: scrollContainer.scrollTop,
+                  targetScrollTop: scrollTop
+                });
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
               } else {
-                console.log('❌ Navigation auto-scroll failed: Noter section not found');
+                console.log('❌ Navigation auto-scroll failed: Missing elements');
               }
             }, 500);
           }
