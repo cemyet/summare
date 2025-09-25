@@ -1650,25 +1650,23 @@ class DatabaseParser:
         
         # Create mapping from br_not row_id to note number (for BR)
         br_note_mapping = {}
-        # Create mapping for RR - NOT2 goes to Personalkostnader (row_id 252)
+        # Create mapping from rr_not row_id to note number (for RR) - mirror BR approach exactly
         rr_note_mapping = {}
         
         for noter_mapping in self.noter_mappings:
             br_not = noter_mapping.get('br_not')
+            rr_not = noter_mapping.get('rr_not')
             block = noter_mapping.get('block')
             
-            # Handle BR mappings (blocks with br_not values)
+            # Handle BR mappings (blocks with br_not values) - existing approach that works
             if br_not and block and block in block_note_numbers:
                 br_note_mapping[br_not] = block_note_numbers[block]
                 print(f"DEBUG: Mapping br_not {br_not} (block {block}) to note number {block_note_numbers[block]}")
-        
-        # Handle RR mappings - NOT2 goes to Personalkostnader (row_id=252, which appears as id="252" in frontend)
-        if 'NOT2' in block_note_numbers:
-            rr_note_mapping["252"] = block_note_numbers['NOT2']  # Personalkostnader
-            print(f"DEBUG: Mapping RR id 252 (Personalkostnader) to note number {block_note_numbers['NOT2']}")
-            print(f"DEBUG: NOT2 found in block_note_numbers: {block_note_numbers.get('NOT2')}")
-        else:
-            print(f"DEBUG: NOT2 not found in block_note_numbers: {list(block_note_numbers.keys())}")
+            
+            # Handle RR mappings (blocks with rr_not values) - mirror BR approach exactly
+            if rr_not and block and block in block_note_numbers:
+                rr_note_mapping[str(rr_not)] = block_note_numbers[block]  # Convert to string to match frontend id format
+                print(f"DEBUG: Mapping rr_not {rr_not} (block {block}) to note number {block_note_numbers[block]}")
         
         print(f"DEBUG: Created br_note_mapping: {br_note_mapping}")
         print(f"DEBUG: Created rr_note_mapping: {rr_note_mapping}")
