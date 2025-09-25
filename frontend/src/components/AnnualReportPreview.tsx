@@ -1035,9 +1035,29 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       }
     }, 100);
 
-    // DON'T recalculate INK2 after approval - keep the approved manual edits stable
-    // The INK2 data should remain exactly as the user approved it
-  };
+  // DON'T recalculate INK2 after approval - keep the approved manual edits stable
+  // The INK2 data should remain exactly as the user approved it
+};
+
+// Handle click on SKATTEBERÄKNING button in RR row 276
+const handleTaxCalculationClick = () => {
+  console.log('🎯 SKATTEBERÄKNING button clicked - showing tax module');
+  
+  // Show tax module if hidden
+  if (onDataUpdate) {
+    onDataUpdate({ showTaxPreview: true });
+  }
+  
+  // Auto-scroll to tax module after a brief delay to ensure it's rendered
+  setTimeout(() => {
+    const taxModule = document.querySelector('[data-section="tax-calculation"]');
+    if (taxModule) {
+      taxModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      console.log('⚠️ Tax module not found for scrolling');
+    }
+  }, 200);
+};
 
   // Handle tax update logic when approving changes
   const handleTaxUpdateLogic = async (acceptedManuals: any) => {
@@ -1359,7 +1379,19 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
                     }`}
                     style={getStyleClasses(item.style).style}
                   >
-                    <span className="text-muted-foreground">{item.label}</span>
+                    <span className="text-muted-foreground flex items-center justify-between">
+                      <span>{item.label}</span>
+                      {/* Add SKATTEBERÄKNING button for row_id 276 (Skatter) */}
+                      {item.id === '276' && (
+                        <button
+                          onClick={handleTaxCalculationClick}
+                          className="ml-2 bg-blue-600 hover:bg-blue-700 text-white text-xs px-2 py-1 rounded flex items-center gap-1 transition-colors"
+                          title="Visa skatteberäkning"
+                        >
+                          SKATTEBERÄKNING
+                        </button>
+                      )}
+                    </span>
                     <span className="text-right font-medium">
                       {getNoteValue(item.label)}
                     </span>
