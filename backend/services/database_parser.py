@@ -1662,10 +1662,10 @@ class DatabaseParser:
                 br_note_mapping[br_not] = block_note_numbers[block]
                 print(f"DEBUG: Mapping br_not {br_not} (block {block}) to note number {block_note_numbers[block]}")
         
-        # Handle RR mappings - NOT2 goes to Personalkostnader (id=13)
+        # Handle RR mappings - NOT2 goes to Personalkostnader (row_id=252, which appears as id="252" in frontend)
         if 'NOT2' in block_note_numbers:
-            rr_note_mapping[13] = block_note_numbers['NOT2']  # Personalkostnader
-            print(f"DEBUG: Mapping RR id 13 (Personalkostnader) to note number {block_note_numbers['NOT2']}")
+            rr_note_mapping["252"] = block_note_numbers['NOT2']  # Personalkostnader
+            print(f"DEBUG: Mapping RR id 252 (Personalkostnader) to note number {block_note_numbers['NOT2']}")
             print(f"DEBUG: NOT2 found in block_note_numbers: {block_note_numbers.get('NOT2')}")
         else:
             print(f"DEBUG: NOT2 not found in block_note_numbers: {list(block_note_numbers.keys())}")

@@ -661,6 +661,39 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const ink2Data = cd.ink2Data || seFileData?.ink2_data || [];
   const companyInfo = seFileData?.company_info || {};
 
+  // Helper function to format date from YYYYMMDD to YYYY-MM-DD
+  const formatPeriodDate = (dateStr: string): string => {
+    if (!dateStr || dateStr.length !== 8) return '';
+    const year = dateStr.substring(0, 4);
+    const month = dateStr.substring(4, 6);
+    const day = dateStr.substring(6, 8);
+    return `${year}-${month}-${day}`;
+  };
+
+  // Get formatted period end dates
+  const getCurrentPeriodEndDate = (): string => {
+    const endDate = (companyInfo as any)?.end_date; // e.g. "20241231" - from backend parsing
+    if (endDate) {
+      return formatPeriodDate(endDate);
+    }
+    // Fallback: use fiscal year + 12-31
+    const fiscalYear = companyInfo.fiscal_year || cd.fiscalYear || new Date().getFullYear();
+    return `${fiscalYear}-12-31`;
+  };
+
+  const getPreviousPeriodEndDate = (): string => {
+    const endDate = (companyInfo as any)?.end_date; // e.g. "20241231" - from backend parsing
+    if (endDate && endDate.length === 8) {
+      const year = parseInt(endDate.substring(0, 4), 10) - 1;
+      const monthDay = endDate.substring(4, 8); // "1231"
+      const previousYearEndDate = `${year}${monthDay}`; // "20231231"
+      return formatPeriodDate(previousYearEndDate);
+    }
+    // Fallback: use previous fiscal year + 12-31
+    const fiscalYear = companyInfo.fiscal_year || cd.fiscalYear || new Date().getFullYear();
+    return `${fiscalYear - 1}-12-31`;
+  };
+
   // Capture original baseline when data first loads (like Noter)
   useEffect(() => {
     if (ink2Data && ink2Data.length > 0 && originalInk2BaselineRef.current.length === 0) {
@@ -1358,8 +1391,8 @@ const handleTaxCalculationClick = () => {
             <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 0.5fr 1fr 1fr'}}>
               <span></span>
               <span className="text-right">Not</span>
-              <span className="text-right">{headerData.fiscal_year}</span>
-              <span className="text-right">{headerData.fiscal_year - 1}</span>
+              <span className="text-right">{getCurrentPeriodEndDate()}</span>
+              <span className="text-right">{getPreviousPeriodEndDate()}</span>
             </div>
 
             {/* Income Statement Rows */}
@@ -1368,10 +1401,6 @@ const handleTaxCalculationClick = () => {
                 const liveSig = computeCombinedFinancialSig(rrData, brData);
                 const useRR = (rrDataWithNotes.length > 0 && liveSig === lastSigRef.current) ? rrDataWithNotes : rrData;
                 
-                // DEBUG: Log RR data structure to check for row_id 277
-                console.log('🔍 DEBUG: RR Data structure:', JSON.parse(JSON.stringify(useRR.slice(0, 5)))); // Log first 5 items with full properties
-                const skatteRow = useRR.find(item => item.id === "277" || item.id === 277 || item.label?.includes('Skatt på årets resultat'));
-                console.log('🔍 DEBUG: Found Skatter row:', JSON.parse(JSON.stringify(skatteRow)));
                 
                 return useRR.map((item, index) => {
                 if (!shouldShowRow(item, showAllRR, rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData)) {
@@ -1390,17 +1419,6 @@ const handleTaxCalculationClick = () => {
                       <span>{item.label}</span>
                       {/* Add SKATTEBERÄKNING button for row_id 277 (Skatt på årets resultat) */}
                       {(() => {
-                        // DEBUG: Log each item to check row_id and label
-                        if (item.label?.includes('Skatt på årets resultat') || item.id === "277" || item.id === 277) {
-                          console.log('🔍 DEBUG: Potential Skatter row FULL:', JSON.parse(JSON.stringify(item)));
-                          console.log('🔍 DEBUG: Condition check:', {
-                            'item.id': item.id,
-                            'typeof id': typeof item.id,
-                            'item.id === "277"': item.id === "277",
-                            'item.id === 277': item.id === 277,
-                            'BUTTON SHOULD SHOW': item.id === "277" || item.id === 277
-                          });
-                        }
                         return item.id === "277" || item.id === 277;
                       })() && (
                         <Button 
@@ -1456,8 +1474,8 @@ const handleTaxCalculationClick = () => {
             <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 0.5fr 1fr 1fr'}}>
               <span></span>
               <span className="text-right">Not</span>
-              <span className="text-right">{headerData.fiscal_year}</span>
-              <span className="text-right">{headerData.fiscal_year - 1}</span>
+              <span className="text-right">{getCurrentPeriodEndDate()}</span>
+              <span className="text-right">{getPreviousPeriodEndDate()}</span>
             </div>
 
             {/* Balance Sheet Rows */}
@@ -1976,7 +1994,11 @@ const handleTaxCalculationClick = () => {
               noterData={companyData.noterData}
               fiscalYear={companyData.fiscalYear}
               previousYear={companyData.fiscalYear ? companyData.fiscalYear - 1 : undefined}
-              companyData={companyData}
+              companyData={{
+                ...companyData,
+                currentPeriodEndDate: getCurrentPeriodEndDate(),
+                previousPeriodEndDate: getPreviousPeriodEndDate()
+              }}
             />
           </div>
         )}

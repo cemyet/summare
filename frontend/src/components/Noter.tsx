@@ -623,8 +623,8 @@ const MaskinerNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -1168,8 +1168,8 @@ const ByggnaderNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -1682,8 +1682,8 @@ const OvrigaMateriellaNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -2196,8 +2196,8 @@ const KoncernNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -2710,8 +2710,8 @@ const IntresseforetagNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -3219,8 +3219,8 @@ const LangfristigaVardepapperNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -3732,8 +3732,8 @@ const FordringarKoncernNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -4245,8 +4245,8 @@ const FordringarIntresseNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -4736,8 +4736,8 @@ const FordringarOvrigaNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -5155,8 +5155,8 @@ const SakerhetNote: React.FC<{
           {/* Column headers */}
           <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
             <span></span>
-            <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-            <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+            <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+            <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
           </div>
 
           {/* Rows */}
@@ -5647,8 +5647,8 @@ const InventarierNote: React.FC<{
       {/* Column headers */}
       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={gridCols}>
         <span></span>
-        <span className="text-right">{fiscalYear ?? new Date().getFullYear()}</span>
-        <span className="text-right">{previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear ?? new Date().getFullYear()}-12-31`}</span>
+        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear ?? (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
       </div>
 
       {/* Rows */}
@@ -6121,8 +6121,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   {/* Column Headers - same as BR/RR */}
                   <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
                     <span></span>
-                    <span className="text-right">{fiscalYear || new Date().getFullYear()}</span>
-                    <span className="text-right">{previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+                    <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear || new Date().getFullYear()}-12-31`}</span>
+                    <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
                   </div>
 
                   {/* Employee count row */}
@@ -6246,8 +6246,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                       {/* Column Headers - same as BR/RR */}
                       <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
                         <span></span>
-                        <span className="text-right">{fiscalYear || new Date().getFullYear()}</span>
-                        <span className="text-right">{previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+                        <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear || new Date().getFullYear()}-12-31`}</span>
+                        <span className="text-right">{companyData?.previousPeriodEndDate || `${(previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1))}-12-31`}</span>
                       </div>
 
                       {/* Noter Rows - same grid system as BR/RR */}
@@ -6541,8 +6541,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                 {/* Column Headers - same as BR/RR */}
                 <div className="grid gap-4 text-sm text-muted-foreground border-b pb-1 font-semibold" style={{gridTemplateColumns: '4fr 1fr 1fr'}}>
                   <span></span>
-                  <span className="text-right">{fiscalYear || new Date().getFullYear()}</span>
-                  <span className="text-right">{previousYear || (fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}</span>
+                  <span className="text-right">{companyData?.currentPeriodEndDate || `${fiscalYear || new Date().getFullYear()}-12-31`}</span>
+                  <span className="text-right">{companyData?.previousPeriodEndDate || `${(fiscalYear ? fiscalYear - 1 : new Date().getFullYear() - 1)}-12-31`}</span>
                 </div>
 
                 {/* Noter Rows - same grid system as BR/RR */}
