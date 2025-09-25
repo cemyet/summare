@@ -683,6 +683,23 @@ interface ChatFlowResponse {
               if (globalInk2Data && globalInk2Data.length > 0) {
                 updateData.ink2Data = globalInk2Data;
               }
+              
+              // Special handling for dividend: calculate balanseras amount for message substitution
+              if (action_data.variable === 'arets_utdelning') {
+                const dividendAmount = Number(action_data.value) || 0;
+                const maxDividend = companyData.sumFrittEgetKapital || 0;
+                const balancerasAmount = maxDividend - dividendAmount;
+                
+                console.log('💰 Dividend set via option:', {
+                  arets_utdelning: dividendAmount,
+                  sumFrittEgetKapital: maxDividend,
+                  arets_balanseras_nyrakning: balancerasAmount
+                });
+                
+                // Store both values for message substitution
+                updateData.arets_balanseras_nyrakning = balancerasAmount;
+              }
+              
               onDataUpdate(updateData);
             }
             break;
