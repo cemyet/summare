@@ -530,7 +530,7 @@ export function Forvaltningsberattelse({
               </TableHead>
             )}
             {hasNonZeroValues.total && (
-              <TableHead className="font-semibold text-right py-1 min-w-[120px] bg-gray-50">Totalt</TableHead>
+              <TableHead className="font-semibold text-right py-1 min-w-[120px]">Totalt</TableHead>
             )}
           </TableRow>
         </TableHeader>
@@ -543,7 +543,7 @@ export function Forvaltningsberattelse({
             return (
               <TableRow 
                 key={row.id} 
-                className={`${isHeaderRow ? 'bg-gray-50 font-semibold' : ''} ${isSubtotalRow ? 'border-t border-gray-300' : ''} ${isRedovisatVarde ? 'bg-amber-50/10' : ''}`}
+                className={`${isHeaderRow ? 'font-semibold' : ''} ${isSubtotalRow ? 'border-t border-gray-300' : ''} ${isRedovisatVarde ? 'bg-amber-50/10' : ''}`}
               >
                 <TableCell className="py-1 text-left pl-0">{row.label}</TableCell>
                 {hasNonZeroValues.aktiekapital && (
@@ -572,7 +572,7 @@ export function Forvaltningsberattelse({
                   </TableCell>
                 )}
                 {hasNonZeroValues.total && (
-                  <TableCell className="py-1 text-right font-semibold bg-gray-50">
+                  <TableCell className="py-1 text-right font-semibold">
                     {row.total !== 0 ? formatAmountForDisplay(row.total) : ''}
                   </TableCell>
                 )}
