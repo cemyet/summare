@@ -70,19 +70,42 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
   };
 
   useEffect(() => {
-    let i = 0;
-    const words = text.split(/(\s+)/); // keep spaces intact
+    const chars = text.split(''); // character-by-character for ultra-smooth flow
+    let timeoutId: NodeJS.Timeout;
 
-    const interval = setInterval(() => {
-      i++;
-      setVisibleText(words.slice(0, i).join(""));
-      if (i >= words.length) {
-        clearInterval(interval);
+    const typeNextChar = (index: number) => {
+      if (index >= chars.length) {
         if (onDone) onDone();
+        return;
       }
-    }, 40); // speed: 30–50ms feels smooth
 
-    return () => clearInterval(interval);
+      setVisibleText(chars.slice(0, index + 1).join(''));
+
+      // Variable speed for more natural rhythm
+      const currentChar = chars[index];
+      let nextDelay = 20; // base speed (ultra-smooth)
+      
+      // Pause after punctuation for natural rhythm
+      if (currentChar === '.' || currentChar === '!' || currentChar === '?') {
+        nextDelay = 300; // longer pause after sentences
+      } else if (currentChar === ',' || currentChar === ';') {
+        nextDelay = 150; // medium pause after clauses
+      } else if (currentChar === ' ') {
+        nextDelay = 10; // faster through spaces
+      } else if (currentChar === '\n') {
+        nextDelay = 200; // pause at line breaks
+      }
+      
+      // Schedule next character with variable timing
+      timeoutId = setTimeout(() => typeNextChar(index + 1), nextDelay);
+    };
+
+    // Start typing
+    typeNextChar(0);
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [text, onDone]);
 
   // Process the visible text with tooltips and formatting
