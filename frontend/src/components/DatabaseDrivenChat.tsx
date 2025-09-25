@@ -291,7 +291,7 @@ interface ChatFlowResponse {
   };
 
   // Load a chat step
-  const loadChatStep = async (stepNumber: number, updatedInk2Data?: any[]) => {
+  const loadChatStep = async (stepNumber: number, updatedInk2Data?: any[], tempCompanyData?: any) => {
     try {
       console.log(`🔄 Loading step ${stepNumber}...`);
       
@@ -365,18 +365,20 @@ interface ChatFlowResponse {
           }
         }
         
-        // Substitute variables in question text
+        // Substitute variables in question text (use temp data if available)
+        const dataToUse = tempCompanyData || companyData;
         const substitutionVars = {
-          SumAretsResultat: companyData.sumAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.sumAretsResultat) : '0',
-          SkattAretsResultat: companyData.skattAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.skattAretsResultat) : '0',
-          pension_premier: companyData.pensionPremier ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.pensionPremier) : '0',
-          sarskild_loneskatt_pension_calculated: companyData.sarskildLoneskattPensionCalculated ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.sarskildLoneskattPensionCalculated) : '0',
-          sarskild_loneskatt_pension: companyData.sarskildLoneskattPension ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.sarskildLoneskattPension) : '0',
+          SumAretsResultat: dataToUse.sumAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sumAretsResultat) : '0',
+          SkattAretsResultat: dataToUse.skattAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.skattAretsResultat) : '0',
+          pension_premier: dataToUse.pensionPremier ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.pensionPremier) : '0',
+          sarskild_loneskatt_pension_calculated: dataToUse.sarskildLoneskattPensionCalculated ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sarskildLoneskattPensionCalculated) : '0',
+          sarskild_loneskatt_pension: dataToUse.sarskildLoneskattPension ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sarskildLoneskattPension) : '0',
           inkBeraknadSkatt: mostRecentInkBeraknadSkatt ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(mostRecentInkBeraknadSkatt) : '0',
-          inkBokfordSkatt: companyData.inkBokfordSkatt ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.inkBokfordSkatt) : '0',
-          unusedTaxLossAmount: companyData.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.unusedTaxLossAmount) : '0',
-          SumFrittEgetKapital: companyData.sumFrittEgetKapital ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.sumFrittEgetKapital) : '0',
-          arets_balanseras_nyrakning: companyData.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(companyData.arets_balanseras_nyrakning) : '0'
+          inkBokfordSkatt: dataToUse.inkBokfordSkatt ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.inkBokfordSkatt) : '0',
+          unusedTaxLossAmount: dataToUse.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.unusedTaxLossAmount) : '0',
+          SumFrittEgetKapital: dataToUse.sumFrittEgetKapital ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sumFrittEgetKapital) : '0',
+          arets_utdelning: dataToUse.arets_utdelning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.arets_utdelning) : '0',
+          arets_balanseras_nyrakning: dataToUse.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.arets_balanseras_nyrakning) : '0'
         };
         const questionText = substituteVariables(response.question_text, substitutionVars);
         
@@ -398,7 +400,27 @@ interface ChatFlowResponse {
               taxModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
           }, 200);
-        } else {
+        } 
+        // Auto-scroll to Noter section for step 420
+        else if (stepNumber === 420) {
+          console.log('🔥 STEP 420 TRIGGERED - Auto-scrolling to Noter');
+          setTimeout(() => {
+            const noterModule = document.querySelector('[data-section="noter"]');
+            const scrollContainer = document.querySelector('.overflow-auto');
+            if (noterModule && scrollContainer) {
+              const containerRect = scrollContainer.getBoundingClientRect();
+              const noterRect = noterModule.getBoundingClientRect();
+              const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
+              
+              scrollContainer.scrollTo({
+                top: scrollTop,
+                behavior: 'smooth'
+              });
+            }
+          }, 500);
+        }
+        
+        if (stepNumber !== 402) {
           // Store all options (unfiltered) for submit logic
           setLastLoadedOptions(response.options);
           
@@ -1064,14 +1086,16 @@ const selectiveMergeInk2 = (
       const maxDividend = companyData.sumFrittEgetKapital || 0;
       
       if (dividendAmount < 0) {
-        addMessage('Utdelningsbeloppet kan inte vara negativt. Försök igen.', true);
+        addMessage('Utdelningsbeloppet kan inte vara negativt. Försök igen.', true, '🤖');
+        setInputValue(''); // Clear the input field
         setShowInput(true); // Keep input visible
         return;
       }
       
       if (dividendAmount > maxDividend) {
         const maxFormatted = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(maxDividend);
-        addMessage(`Utdelningsbeloppet kan inte överstiga summa fritt eget kapital (${maxFormatted} kr). Försök igen.`, true);
+        addMessage(`Utdelningsbeloppet kan inte överstiga summa fritt eget kapital (${maxFormatted} kr). Försök igen.`, true, '🤖');
+        setInputValue(''); // Clear the input field
         setShowInput(true); // Keep input visible
         return;
       }
@@ -1097,23 +1121,35 @@ const selectiveMergeInk2 = (
             parsedValue: inputType === 'amount' ? Math.abs(parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0) : inputValue.trim()
           });
 
-          // Calculate and store derived values for dividend input
+          // Store dividend input and calculate balanseras for substitution
           if (submitOption.action_data.variable === 'arets_utdelning' && inputType === 'amount') {
             const dividendAmount = value as number;
             const maxDividend = companyData.sumFrittEgetKapital || 0;
             const balancerasAmount = maxDividend - dividendAmount;
             
-            console.log('💰 Calculating balanseras i ny räkning:', {
+            console.log('💰 Dividend calculation:', {
               sumFrittEgetKapital: maxDividend,
               arets_utdelning: dividendAmount,
-              arets_balanseras_nyrakning: balancerasAmount
+              balanseras_amount: balancerasAmount
             });
             
-            // Store both dividend and remaining balance
-            onDataUpdate({ 
-              arets_utdelning: dividendAmount,
-              arets_balanseras_nyrakning: balancerasAmount
-            });
+            // Store only dividend amount
+            onDataUpdate({ arets_utdelning: dividendAmount });
+            
+            // Special handling for dividend: pass temp data for immediate substitution
+            if (submitOption.next_step) {
+              console.log('🚀 Navigating to dividend next step:', submitOption.next_step);
+              setShowInput(false);
+              setInputValue('');
+              // Pass temporary data with calculated balanseras amount for substitution
+              const tempData = {
+                ...companyData,
+                arets_utdelning: dividendAmount,
+                arets_balanseras_nyrakning: balancerasAmount // Only for message substitution
+              };
+              setTimeout(() => loadChatStep(submitOption.next_step!, undefined, tempData), 500);
+              return; // Don't continue to normal navigation
+            }
           } else {
             // For other variables, store normally
             onDataUpdate({ [submitOption.action_data.variable]: value });
