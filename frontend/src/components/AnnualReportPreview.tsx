@@ -1411,12 +1411,12 @@ const handleTaxCalculationClick = () => {
                           onClick={handleTaxCalculationClick}
                           title="Visa skatteberäkning"
                         >
-                          SKATTEBERÄKNING
+                          VISA
                         </Button>
                       )}
                     </span>
                     <span className="text-right font-medium">
-                      {getNoteValue(item.label)}
+                      {getNoteValue(item)}
                     </span>
                     <span className="text-right font-medium">
                       {formatAmountDisplay(item.current_amount)}
