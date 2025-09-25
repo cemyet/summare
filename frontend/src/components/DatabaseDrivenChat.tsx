@@ -214,6 +214,7 @@ interface ChatFlowResponse {
   const [currentOptions, setCurrentOptions] = useState<ChatOption[]>([]);
   const [lastLoadedOptions, setLastLoadedOptions] = useState<ChatOption[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const messageCallbacks = useRef<Record<string, () => void>>({});
   const [showInput, setShowInput] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [inputType, setInputType] = useState('text');
@@ -271,7 +272,7 @@ interface ChatFlowResponse {
   };
 
   // Add message to chat
-  const addMessage = (text: string, isBot: boolean = true, icon?: string) => {
+  const addMessage = (text: string, isBot: boolean = true, icon?: string, onDone?: () => void) => {
     // Prevent adding empty messages
     if (!text || text.trim() === '') {
       console.log('🚫 Skipping empty message');
@@ -288,6 +289,10 @@ interface ChatFlowResponse {
     
     setMessages(prev => [...prev, message]);
     scrollToBottom();
+
+    if (onDone) {
+      messageCallbacks.current[message.id] = onDone;
+    }
   };
 
   // Load a chat step
@@ -344,8 +349,12 @@ interface ChatFlowResponse {
               unusedTaxLossAmount: companyData.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE').format(companyData.unusedTaxLossAmount) : '0'
             });
             
-            // Add the message first
-            addMessage(questionText, true, response.question_icon);
+            // Add the message with onDone callback to wait for animation completion
+            addMessage(questionText, true, response.question_icon, async () => {
+              // After message is fully revealed, continue with no_option
+              await handleOptionSelect(noOption, stepNumber, updatedInk2Data);
+            });
+            return; // Stop here, handled in callback
           }
           
           // Special handling for step 420: auto-scroll before no_option execution
@@ -379,9 +388,11 @@ interface ChatFlowResponse {
             }, 200); // Shorter delay since we're about to navigate away
           }
           
-          // Execute no_option with the correct step number and updated data
-          await handleOptionSelect(noOption, stepNumber, updatedInk2Data);
-          return; // Don't continue with normal flow since no_option handles navigation
+          // For non-message steps, execute no_option immediately (no animation to wait for)
+          if (response.question_type !== 'message') {
+            await handleOptionSelect(noOption, stepNumber, updatedInk2Data);
+            return; // Don't continue with normal flow since no_option handles navigation
+          }
         }
         
         // Get the most recent inkBeraknadSkatt value from global data first, then INK2 data
@@ -1668,6 +1679,7 @@ const selectiveMergeInk2 = (
             message={message.text}
             isBot={message.isBot}
             emoji={message.icon}
+            onDone={messageCallbacks.current[message.id]}
           />
         ))}
         

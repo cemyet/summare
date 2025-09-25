@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { FluentMessage } from "./FluentMessage";
 
 // 🔧 TOGGLE: Switch between emoji and customer agent image
 const USE_CUSTOMER_AGENT_IMAGE = true; // Set to true to use customer_agent_small.png
@@ -9,9 +10,10 @@ interface ChatMessageProps {
   isBot?: boolean;
   emoji?: string;
   className?: string;
+  onDone?: () => void;
 }
 
-export function ChatMessage({ message, isBot = false, emoji, className }: ChatMessageProps) {
+export function ChatMessage({ message, isBot = false, emoji, className, onDone }: ChatMessageProps) {
   // Process message to add tooltips for info icons and format keywords
   const processMessageWithTooltips = (text: string) => {
     // Replace info icons with hover tooltips
@@ -94,7 +96,7 @@ export function ChatMessage({ message, isBot = false, emoji, className }: ChatMe
             )
           )}
           <div className="text-sm text-foreground leading-relaxed font-light font-inter chat-message">
-            {processMessageWithTooltips(message)}
+            <FluentMessage text={message} onDone={onDone} />
           </div>
         </div>
       </div>
