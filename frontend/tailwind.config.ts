@@ -75,7 +75,14 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				// Summare Brand Colors
+				'summare-navy': 'hsl(var(--summare-navy))',
+				'summare-navy-light': 'hsl(var(--summare-navy-light))',
+				'summare-magenta': 'hsl(var(--summare-magenta))',
+				'summare-magenta-light': 'hsl(var(--summare-magenta-light))',
+				'summare-gray': 'hsl(var(--summare-gray))',
+				'summare-gray-light': 'hsl(var(--summare-gray-light))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
