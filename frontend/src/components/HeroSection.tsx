@@ -20,14 +20,15 @@ const HeroSection = () => {
       <div className="relative z-10 text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8" style={{ transform: 'translateY(-16px)' }}>
         {/* Logo/Brand */}
         <div className="mb-8">
-          <h1 className="text-5xl md:text-6xl font-bold text-summare-navy mb-4">
+          <h1 className="text-6xl md:text-7xl font-bold text-summare-navy mb-4">
             Summare
           </h1>
         </div>
 
         {/* Main Heading */}
         <h2 className="text-hero mb-8 animate-fade-in">
-          Digitala årsredovisningar för egenföretagare
+          Digitala årsredovisningar<br />
+          för egenföretagare
         </h2>
 
         {/* Subtitle */}
