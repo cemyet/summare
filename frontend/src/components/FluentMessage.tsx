@@ -58,11 +58,21 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
         // Process formatting tags from SQL messages
         const formatText = (text: string) => {
           // Process <b>text</b> tags for semibold formatting
-          const boldParts = text.split(/(<b>.*?<\/b>)/);
+          // Handle incomplete tags during typing by hiding them
+          const boldParts = text.split(/(<b>.*?<\/b>|<b>.*?$|.*?<\/b>)/);
           return boldParts.map((textPart, textIndex) => {
             if (textPart.startsWith('<b>') && textPart.endsWith('</b>')) {
+              // Complete bold tag
               const boldText = textPart.slice(3, -4); // Remove <b> and </b>
               return <span key={textIndex} className="font-semibold">{boldText}</span>;
+            } else if (textPart.startsWith('<b>') && !textPart.endsWith('</b>')) {
+              // Incomplete opening tag - hide the tag, show the text
+              const boldText = textPart.slice(3); // Remove <b>
+              return <span key={textIndex} className="font-semibold">{boldText}</span>;
+            } else if (textPart.endsWith('</b>') && !textPart.startsWith('<b>')) {
+              // Incomplete closing tag - hide the tag, show the text
+              const boldText = textPart.slice(0, -4); // Remove </b>
+              return <span key={textIndex}>{boldText}</span>;
             }
             return <span key={textIndex}>{textPart}</span>;
           });
@@ -87,27 +97,9 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
       // Get current character before incrementing
       const currentChar = characters[currentIndex];
       
-      // Check if we're starting a bold tag (more robust detection)
-      if (currentChar === '<' && 
-          currentIndex + 2 < characters.length && 
-          characters[currentIndex + 1] === 'b' && 
-          characters[currentIndex + 2] === '>') {
-        // Add the entire opening bold tag at once
-        setVisibleText(prev => prev + '<b>');
-        currentIndex += 3; // Skip past '<b>'
-      } else if (currentChar === '<' && 
-                 currentIndex + 3 < characters.length &&
-                 characters[currentIndex + 1] === '/' && 
-                 characters[currentIndex + 2] === 'b' && 
-                 characters[currentIndex + 3] === '>') {
-        // Add the entire closing bold tag at once
-        setVisibleText(prev => prev + '</b>');
-        currentIndex += 4; // Skip past '</b>'
-      } else {
-        // Add character to visible text (preserves special characters like åäö)
-        setVisibleText(prev => prev + currentChar);
-        currentIndex++;
-      }
+      // Add character to visible text (preserves special characters like åäö)
+      setVisibleText(prev => prev + currentChar);
+      currentIndex++;
 
       // 6x speed: Base delay of 8ms (was 12ms, originally 50ms for words)
       let delay = 8;
