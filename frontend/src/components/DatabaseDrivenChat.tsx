@@ -222,6 +222,7 @@ interface ChatFlowResponse {
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isWaitingForUser, setIsWaitingForUser] = useState(false);
+  const showSpinner = false; // 🚫 Disable blue waiting circle
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -1702,7 +1703,7 @@ const selectiveMergeInk2 = (
         ))}
         
         {/* Loading indicator - only show when genuinely waiting for user input */}
-        {isWaitingForUser && (
+        {isWaitingForUser && showSpinner && (
           <div className="flex justify-center py-4">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
           </div>
