@@ -88,17 +88,17 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
       setVisibleText(prev => prev + characters[currentIndex]);
       currentIndex++;
 
-      // 2x speed: Base delay of 25ms (was 50ms for words)
-      let delay = 25;
+      // 4x speed: Base delay of 12ms (was 25ms, originally 50ms for words)
+      let delay = 12;
       
       // Pause after punctuation for natural rhythm
       const currentChar = characters[currentIndex - 1];
       if (currentChar === '.' || currentChar === '!' || currentChar === '?') {
-        delay = 150; // Pause after sentences
+        delay = 80; // Pause after sentences
       } else if (currentChar === ',' || currentChar === ';') {
-        delay = 80; // Pause after clauses
+        delay = 40; // Pause after clauses
       } else if (currentChar === '\n') {
-        delay = 40; // Pause after line breaks
+        delay = 20; // Pause after line breaks
       }
       
       timeoutId = setTimeout(typeNextCharacter, delay);
