@@ -1,4 +1,4 @@
-// src/components/FluentMessage.tsx - Updated for smooth chat experience
+// src/components/FluentMessage.tsx - Stable version - Updated for smooth chat experience
 import { useEffect, useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
