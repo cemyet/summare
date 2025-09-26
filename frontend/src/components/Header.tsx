@@ -13,10 +13,7 @@ const Header = () => {
           {/* Navigation */}
           <nav className="hidden md:flex space-x-8">
             <a href="#" className="text-summare-gray hover:text-summare-navy transition-colors">
-              Egenföretagare
-            </a>
-            <a href="#" className="text-summare-gray hover:text-summare-navy transition-colors">
-              Aktiebolag
+              AI verktyg
             </a>
             <a href="#" className="text-summare-gray hover:text-summare-navy transition-colors">
               Priser
