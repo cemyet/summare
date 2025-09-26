@@ -17,7 +17,7 @@ const HeroSection = () => {
         background: 'radial-gradient(circle at center, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.1) 100%)'
       }}></div>
       
-      <div className="relative z-10 text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8" style={{ transform: 'translateY(-16px)' }}>
         {/* Logo/Brand */}
         <div className="mb-8">
           <h1 className="text-5xl md:text-6xl font-bold text-summare-navy mb-4">
@@ -26,13 +26,14 @@ const HeroSection = () => {
         </div>
 
         {/* Main Heading */}
-        <h2 className="text-hero mb-6 animate-fade-in">
+        <h2 className="text-hero mb-8 animate-fade-in" style={{ fontSize: '70%' }}>
           Digitala årsredovisningar för egenföretagare
         </h2>
 
         {/* Subtitle */}
         <p className="text-subtitle mb-8 max-w-2xl mx-auto animate-fade-in">
-          Enkelt. Snabbt. Pålitligt. Skapa professionella årsredovisningar på minuter, inte dagar.
+          Enkelt. Snabbt. Pålitligt. Skapa professionella<br />
+          årsredovisningar med hjälp av vårt AI verktyg.
         </p>
 
         {/* CTA Button */}
@@ -44,7 +45,7 @@ const HeroSection = () => {
 
         {/* Trust indicators */}
         <div className="mt-12 text-sm text-summare-gray">
-          <p>Betrodd av över 10,000+ egenföretagare i Sverige</p>
+          <p>Betrodd av 5,000+ företag i Sverige</p>
         </div>
       </div>
     </section>
