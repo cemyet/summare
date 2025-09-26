@@ -3,6 +3,7 @@ import { apiService } from '@/services/api';
 import { ChatMessage } from './ChatMessage';
 import { OptionButton } from './OptionButton';
 import { FileUpload } from './FileUpload';
+// Force Vercel deployment
 
 interface ChatStep {
   step_number: number;
