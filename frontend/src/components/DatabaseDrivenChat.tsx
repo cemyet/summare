@@ -51,7 +51,7 @@ interface ChatFlowResponse {
 }
 
   const DatabaseDrivenChat: React.FC<ChatFlowProps> = ({ companyData, onDataUpdate }) => {
-    // Helper: accepted SLP difference (positive) from ink2Data/companyData - Vercel deploy
+    // Helper: accepted SLP difference (positive) from ink2Data/companyData - Vercel force push
     const getAcceptedSLP = (ink2Data: any[], cd: any) => {
       const by = (n: string) => ink2Data?.find((x: any) => x.variable_name === n);
       const manualPos = Number(by('justering_sarskild_loneskatt')?.amount) || Number(cd?.justeringSarskildLoneskatt) || 0;
