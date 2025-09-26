@@ -239,6 +239,10 @@ interface ChatFlowResponse {
   const NEAR_BOTTOM_PX   = 160;   // only auto-nudge if we are this close to the bottom
   const THROTTLE_MS      = 80;    // nudge at most every 80ms
 
+  // --- While-typing autoscroll (container-level, works for any typing impl) ---
+  const NEAR_BOTTOM_PX_DOM = 160;   // consider auto-follow if this close to bottom
+  const BOTTOM_SAFETY_PX_DOM = 24;  // keep at least this many pixels visible under the bubble
+
   // Compute message's offsetTop within the scroll container
   const getOffsetTopWithin = (el: HTMLElement, container: HTMLElement) => {
     let y = 0; let n: HTMLElement | null = el;
@@ -1791,6 +1795,68 @@ const selectiveMergeInk2 = (
       onDataUpdate({ triggerChatStep: null });
     }
   }, [companyData.triggerChatStep]);
+
+  // While-typing autoscroll (container-level, works for any typing impl)
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    let rafId: number | null = null;
+    let lastScrollHeight = container.scrollHeight;
+
+    const nearBottom = () => {
+      const remaining = container.scrollHeight - (container.scrollTop + container.clientHeight);
+      return remaining <= NEAR_BOTTOM_PX_DOM;
+    };
+
+    const clampToBottom = () => {
+      // keep a tiny safety margin so the last line isn't flush with the edge
+      const target = Math.max(
+        0,
+        container.scrollHeight - container.clientHeight - BOTTOM_SAFETY_PX_DOM
+      );
+      if (container.scrollTop < target) {
+        container.scrollTo({ top: target, behavior: 'auto' });
+      }
+    };
+
+    const schedule = () => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        // only auto-follow if user is already near the bottom (avoid hijacking manual scroll)
+        if (!nearBottom()) return;
+
+        // scroll only when content actually grew
+        if (container.scrollHeight !== lastScrollHeight) {
+          lastScrollHeight = container.scrollHeight;
+          clampToBottom();
+        }
+      });
+    };
+
+    // Observe text growth while typing (characterData) + added nodes
+    const mo = new MutationObserver(() => schedule());
+    mo.observe(container, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+
+    // In case fonts/images shift heights slightly after mount
+    const ro = new ResizeObserver(() => schedule());
+    ro.observe(container);
+
+    // Initial "snap to bottom" if we start near the bottom
+    lastScrollHeight = container.scrollHeight;
+    if (nearBottom()) clampToBottom();
+
+    return () => {
+      mo.disconnect();
+      ro.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, []);
 
   return (
     <div className="flex flex-col h-full">
