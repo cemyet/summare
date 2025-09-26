@@ -11,8 +11,8 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
   const [visibleText, setVisibleText] = useState("");
   const [isComplete, setIsComplete] = useState(false);
 
-  // Convert text to characters for character-by-character animation
-  const characters = text.split('');
+  // Convert text to characters for character-by-character animation (Unicode-safe)
+  const characters = Array.from(text);
 
   // Process message to add tooltips for info icons and format keywords
   const processMessageWithTooltips = (text: string) => {
