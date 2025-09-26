@@ -304,6 +304,9 @@ interface ChatFlowResponse {
       setIsLoading(true);
       setIsWaitingForUser(false);
       
+      // Clear old options immediately when starting new step
+      setCurrentOptions([]);
+      
       // Use updated ink2Data if provided, otherwise use global data, otherwise use companyData.ink2Data
       const ink2DataToUse = updatedInk2Data || globalInk2Data || companyData.ink2Data;
       if (ink2DataToUse && ink2DataToUse.length > 0) {
@@ -428,9 +431,18 @@ interface ChatFlowResponse {
         };
         const questionText = substituteVariables(response.question_text, substitutionVars);
         
-        // Add the question message and show waiting indicator after it completes
+        // Add the question message and show options only after it completes
         addMessage(questionText, true, response.question_icon, () => {
-          // After message animation completes, show we're waiting for user input
+          // After message animation completes, show the filtered and substituted options
+          if (response.options && response.options.length > 0) {
+            const substitutedOptions = response.options
+              .filter(opt => opt.option_order > 0 && opt.option_value !== 'submit') // Exclude no_option and submit options
+              .map(option => ({
+                ...option,
+                option_text: option.option_text ? substituteVariables(option.option_text, substitutionVars) : option.option_text
+              }));
+            setCurrentOptions(substitutedOptions);
+          }
           setIsLoading(false);
           setIsWaitingForUser(true);
         });
@@ -531,7 +543,7 @@ interface ChatFlowResponse {
               ...option,
               option_text: option.option_text ? substituteVariables(option.option_text, substitutionVars) : option.option_text
             }));
-          setCurrentOptions(substitutedOptions);
+          // setCurrentOptions(substitutedOptions); // 🚫 DISABLED - Options now set after message completes
         }
         
         // Check if we should show input instead of options
