@@ -110,14 +110,12 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
     };
   }, [text, onDone, words.length]);
 
-  // Render invisible full text for layout, then visible portion with opacity
+  const full = processMessageWithTooltips(text);
+  const partial = processMessageWithTooltips(words.slice(0, visibleWords).join(''));
+
   return (
-    <>
-      {/* Invisible full text to establish proper layout */}
-      <span className="invisible absolute">{processMessageWithTooltips(text)}</span>
-      
-      {/* Visible progressive text */}
-      <span className={isComplete ? "" : ""}>{processMessageWithTooltips(words.slice(0, visibleWords).join(''))}</span>
-    </>
+    <span style={{ display: "inline-block", whiteSpace: "pre-wrap" }}>
+      {isComplete ? full : partial}
+    </span>
   );
 };
