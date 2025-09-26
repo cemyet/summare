@@ -290,10 +290,23 @@ interface ChatFlowResponse {
     };
     
     setMessages(prev => [...prev, message]);
-    scrollToBottom();
+    
+    // Only scroll immediately for user messages (they don't animate)
+    if (!isBot) {
+      scrollToBottom();
+    }
 
     if (onDone) {
-      messageCallbacks.current[message.id] = onDone;
+      messageCallbacks.current[message.id] = () => {
+        // Scroll after message animation completes
+        scrollToBottom();
+        onDone();
+      };
+    } else if (isBot) {
+      // For bot messages without onDone, still scroll after animation
+      messageCallbacks.current[message.id] = () => {
+        scrollToBottom();
+      };
     }
   };
 
@@ -1681,9 +1694,13 @@ const selectiveMergeInk2 = (
     initializeChat();
   }, []);
 
-  // Auto-scroll when new messages arrive
+  // Auto-scroll when new messages arrive (only for user messages)
   useEffect(() => {
-    scrollToBottom();
+    // Only auto-scroll for user messages or when no FluentMessage is active
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || !lastMessage.isBot) {
+      scrollToBottom();
+    }
   }, [messages]);
 
   // Watch for triggerChatStep requests from components
