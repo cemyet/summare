@@ -13,7 +13,7 @@ const HeroSection = () => {
     >
       
       {/* Overlay for better text readability */}
-      <div className="absolute inset-0 bg-white/80"></div>
+      <div className="absolute inset-0 bg-white/40"></div>
       
       <div className="relative z-10 text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Logo/Brand */}
