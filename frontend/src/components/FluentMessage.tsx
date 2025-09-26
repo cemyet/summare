@@ -87,9 +87,20 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
       // Get current character before incrementing
       const currentChar = characters[currentIndex];
       
-      // Add character to visible text (preserves special characters like åäö)
-      setVisibleText(prev => prev + currentChar);
-      currentIndex++;
+      // Check if we're starting a bold tag
+      if (currentChar === '<' && characters[currentIndex + 1] === 'b' && characters[currentIndex + 2] === '>') {
+        // Add the entire opening bold tag at once
+        setVisibleText(prev => prev + '<b>');
+        currentIndex += 3; // Skip past '<b>'
+      } else if (currentChar === '<' && characters[currentIndex + 1] === '/' && characters[currentIndex + 2] === 'b' && characters[currentIndex + 3] === '>') {
+        // Add the entire closing bold tag at once
+        setVisibleText(prev => prev + '</b>');
+        currentIndex += 4; // Skip past '</b>'
+      } else {
+        // Add character to visible text (preserves special characters like åäö)
+        setVisibleText(prev => prev + currentChar);
+        currentIndex++;
+      }
 
       // 4x speed: Base delay of 12ms (was 25ms, originally 50ms for words)
       let delay = 12;
