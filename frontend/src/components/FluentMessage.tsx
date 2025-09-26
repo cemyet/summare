@@ -84,15 +84,17 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
         return;
       }
 
+      // Get current character before incrementing
+      const currentChar = characters[currentIndex];
+      
       // Add character to visible text (preserves special characters like åäö)
-      setVisibleText(prev => prev + characters[currentIndex]);
+      setVisibleText(prev => prev + currentChar);
       currentIndex++;
 
       // 4x speed: Base delay of 12ms (was 25ms, originally 50ms for words)
       let delay = 12;
       
       // Pause after punctuation for natural rhythm
-      const currentChar = characters[currentIndex - 1];
       if (currentChar === '.' || currentChar === '!' || currentChar === '?') {
         delay = 80; // Pause after sentences
       } else if (currentChar === ',' || currentChar === ';') {
