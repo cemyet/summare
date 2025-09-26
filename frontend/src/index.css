@@ -113,7 +113,7 @@ All colors MUST be HSL.
   }
 
   .text-hero {
-    @apply text-4xl md:text-5xl lg:text-6xl font-bold text-summare-navy leading-tight;
+    @apply text-3xl md:text-4xl lg:text-5xl font-bold text-summare-navy leading-tight;
   }
 
   .text-subtitle {

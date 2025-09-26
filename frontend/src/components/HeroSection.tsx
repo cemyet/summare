@@ -26,7 +26,7 @@ const HeroSection = () => {
         </div>
 
         {/* Main Heading */}
-        <h2 className="text-hero mb-8 animate-fade-in" style={{ fontSize: '70%' }}>
+        <h2 className="text-hero mb-8 animate-fade-in">
           Digitala årsredovisningar för egenföretagare
         </h2>
 
