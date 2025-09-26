@@ -240,7 +240,7 @@ interface ChatFlowResponse {
   const THROTTLE_MS      = 80;    // nudge at most every 80ms
 
   // --- While-typing autoscroll (container-level, works for any typing impl) ---
-  const NEAR_BOTTOM_PX_DOM = 160;   // consider auto-follow if this close to bottom
+  const NEAR_BOTTOM_PX_DOM = 320;   // consider auto-follow if this close to bottom (doubled)
   const BOTTOM_SAFETY_PX_DOM = 72;  // keep at least this many pixels visible under the bubble (3x margin)
 
   // Compute message's offsetTop within the scroll container
