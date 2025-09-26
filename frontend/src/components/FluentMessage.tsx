@@ -87,12 +87,19 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
       // Get current character before incrementing
       const currentChar = characters[currentIndex];
       
-      // Check if we're starting a bold tag
-      if (currentChar === '<' && characters[currentIndex + 1] === 'b' && characters[currentIndex + 2] === '>') {
+      // Check if we're starting a bold tag (more robust detection)
+      if (currentChar === '<' && 
+          currentIndex + 2 < characters.length && 
+          characters[currentIndex + 1] === 'b' && 
+          characters[currentIndex + 2] === '>') {
         // Add the entire opening bold tag at once
         setVisibleText(prev => prev + '<b>');
         currentIndex += 3; // Skip past '<b>'
-      } else if (currentChar === '<' && characters[currentIndex + 1] === '/' && characters[currentIndex + 2] === 'b' && characters[currentIndex + 3] === '>') {
+      } else if (currentChar === '<' && 
+                 currentIndex + 3 < characters.length &&
+                 characters[currentIndex + 1] === '/' && 
+                 characters[currentIndex + 2] === 'b' && 
+                 characters[currentIndex + 3] === '>') {
         // Add the entire closing bold tag at once
         setVisibleText(prev => prev + '</b>');
         currentIndex += 4; // Skip past '</b>'
@@ -102,16 +109,16 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
         currentIndex++;
       }
 
-      // 4x speed: Base delay of 12ms (was 25ms, originally 50ms for words)
-      let delay = 12;
+      // 6x speed: Base delay of 8ms (was 12ms, originally 50ms for words)
+      let delay = 8;
       
       // Pause after punctuation for natural rhythm
       if (currentChar === '.' || currentChar === '!' || currentChar === '?') {
-        delay = 80; // Pause after sentences
+        delay = 50; // Pause after sentences
       } else if (currentChar === ',' || currentChar === ';') {
-        delay = 40; // Pause after clauses
+        delay = 25; // Pause after clauses
       } else if (currentChar === '\n') {
-        delay = 20; // Pause after line breaks
+        delay = 15; // Pause after line breaks
       }
       
       timeoutId = setTimeout(typeNextCharacter, delay);
