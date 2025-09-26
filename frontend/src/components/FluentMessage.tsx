@@ -58,21 +58,11 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
         // Process formatting tags from SQL messages
         const formatText = (text: string) => {
           // Process <b>text</b> tags for semibold formatting
-          // Handle incomplete tags during typing by hiding them
-          const boldParts = text.split(/(<b>.*?<\/b>|<b>.*?$|.*?<\/b>)/);
+          const boldParts = text.split(/(<b>.*?<\/b>)/);
           return boldParts.map((textPart, textIndex) => {
             if (textPart.startsWith('<b>') && textPart.endsWith('</b>')) {
-              // Complete bold tag
               const boldText = textPart.slice(3, -4); // Remove <b> and </b>
               return <span key={textIndex} className="font-semibold">{boldText}</span>;
-            } else if (textPart.startsWith('<b>') && !textPart.endsWith('</b>')) {
-              // Incomplete opening tag - hide the tag, show the text
-              const boldText = textPart.slice(3); // Remove <b>
-              return <span key={textIndex} className="font-semibold">{boldText}</span>;
-            } else if (textPart.endsWith('</b>') && !textPart.startsWith('<b>')) {
-              // Incomplete closing tag - hide the tag, show the text
-              const boldText = textPart.slice(0, -4); // Remove </b>
-              return <span key={textIndex}>{boldText}</span>;
             }
             return <span key={textIndex}>{textPart}</span>;
           });
