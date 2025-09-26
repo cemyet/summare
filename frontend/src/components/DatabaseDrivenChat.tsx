@@ -227,6 +227,77 @@ interface ChatFlowResponse {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const msgContainersRef = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // --- Keep-while-typing autoscroll state ---
+  const typingMsgIdRef = useRef<string | null>(null);
+  const typingObserverRef = useRef<ResizeObserver | null>(null);
+  const lastNudgeTsRef = useRef<number>(0);
+
+  // tuneables
+  const BOTTOM_SAFETY_PX = 32;    // how much space under the bubble to keep
+  const NEAR_BOTTOM_PX   = 160;   // only auto-nudge if we are this close to the bottom
+  const THROTTLE_MS      = 80;    // nudge at most every 80ms
+
+  // Compute message's offsetTop within the scroll container
+  const getOffsetTopWithin = (el: HTMLElement, container: HTMLElement) => {
+    let y = 0; let n: HTMLElement | null = el;
+    while (n && n !== container) { y += n.offsetTop; n = n.offsetParent as HTMLElement | null; }
+    return y;
+  };
+
+  // Are we already near the bottom of the container?
+  const isNearBottom = (container: HTMLElement) => {
+    const remaining = container.scrollHeight - (container.scrollTop + container.clientHeight);
+    return remaining <= NEAR_BOTTOM_PX;
+  };
+
+  // Make sure given element's bottom is visible with padding, but don't over-scroll
+  const nudgeToReveal = (el: HTMLElement) => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    // throttle
+    const now = performance.now();
+    if (now - lastNudgeTsRef.current < THROTTLE_MS) return;
+    lastNudgeTsRef.current = now;
+
+    // only nudge when user is already reading near the bottom
+    if (!isNearBottom(container)) return;
+
+    const elTop = getOffsetTopWithin(el, container);
+    const elBottom = elTop + el.offsetHeight;
+    const desiredScrollTop = Math.max(0, elBottom - container.clientHeight + BOTTOM_SAFETY_PX);
+
+    if (container.scrollTop < desiredScrollTop) {
+      container.scrollTo({ top: desiredScrollTop, behavior: 'auto' });
+    }
+  };
+
+  // Observe a message node while it grows (typing)
+  const observeTyping = (messageId: string | null) => {
+    // cleanup any previous observer
+    typingObserverRef.current?.disconnect();
+    typingObserverRef.current = null;
+    typingMsgIdRef.current = messageId;
+
+    if (!messageId) return;
+
+    // attach when the DOM node is available
+    const node = msgContainersRef.current[messageId];
+    const container = chatContainerRef.current;
+    if (!node || !container) return;
+
+    const ro = new ResizeObserver(() => {
+      // on every growth, nudge to keep visible
+      nudgeToReveal(node);
+    });
+    ro.observe(node);
+    typingObserverRef.current = ro;
+
+    // do an initial nudge right away (useful if first line is already below bottom)
+    nudgeToReveal(node);
+  };
 
 
   // Auto-scroll to bottom
@@ -292,6 +363,9 @@ interface ChatFlowResponse {
     
     setMessages(prev => [...prev, message]);
     
+    // 👇 NEW: if this is a bot bubble that will type, observe it while it grows
+    if (isBot) observeTyping(message.id);
+    
     // Only scroll immediately for user messages (they don't animate)
     if (!isBot) {
       scrollToBottom();
@@ -299,13 +373,17 @@ interface ChatFlowResponse {
 
     if (onDone) {
       messageCallbacks.current[message.id] = () => {
-        // Scroll after message animation completes
+        // 👇 NEW: stop observing when typing is done
+        observeTyping(null);
+        // your existing behavior:
         scrollToBottom();
         onDone();
       };
     } else if (isBot) {
-      // For bot messages without onDone, still scroll after animation
       messageCallbacks.current[message.id] = () => {
+        // 👇 NEW: stop observing when typing is done
+        observeTyping(null);
+        // your existing behavior:
         scrollToBottom();
       };
     }
@@ -1723,13 +1801,17 @@ const selectiveMergeInk2 = (
         style={{ fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif' }}
       >
         {messages.map((message) => (
-          <ChatMessage
+          <div
             key={message.id}
-            message={message.text}
-            isBot={message.isBot}
-            emoji={message.icon}
-            onDone={messageCallbacks.current[message.id]}
-          />
+            ref={el => { msgContainersRef.current[message.id] = el; }}
+          >
+            <ChatMessage
+              message={message.text}
+              isBot={message.isBot}
+              emoji={message.icon}
+              onDone={messageCallbacks.current[message.id]}
+            />
+          </div>
         ))}
         
         {/* Loading indicator - only show when genuinely waiting for user input */}
