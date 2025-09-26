@@ -33,9 +33,9 @@ const HeroSection = () => {
 
         {/* Subtitle */}
         <p className="text-subtitle mb-8 max-w-2xl mx-auto animate-fade-in">
-          Enkelt. Snabbt. Pålitligt. Skapa professionell<br />
+          Enkelt. Snabbt. Pålitligt. Skapa en professionell<br />
           årsredovisning och skattedeklaration med hjälp<br />
-          av vårt AI verktyg på ett par minuter
+          av vårt AI verktyg på bara ett par minuter
         </p>
 
         {/* CTA Button */}
@@ -46,7 +46,7 @@ const HeroSection = () => {
         </div>
 
         {/* Trust indicators */}
-        <div className="mt-12 text-sm text-summare-gray">
+        <div className="mt-12 text-base text-summare-gray">
           <p>Betrodd av 5,000+ företag i Sverige</p>
         </div>
       </div>
