@@ -12,8 +12,10 @@ const HeroSection = () => {
       }}
     >
       
-      {/* Overlay for better text readability */}
-      <div className="absolute inset-0 bg-white/40"></div>
+      {/* Radial gradient overlay for better text readability */}
+      <div className="absolute inset-0" style={{
+        background: 'radial-gradient(circle at center, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0.1) 100%)'
+      }}></div>
       
       <div className="relative z-10 text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Logo/Brand */}
