@@ -8,11 +8,11 @@ interface FluentMessageProps {
 }
 
 export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) => {
-  const [visibleWords, setVisibleWords] = useState(0);
+  const [visibleText, setVisibleText] = useState("");
   const [isComplete, setIsComplete] = useState(false);
 
-  // Split text into words while preserving formatting
-  const words = text.split(/(\s+)/); // keep spaces intact
+  // Convert text to characters for character-by-character animation
+  const characters = text.split('');
 
   // Process message to add tooltips for info icons and format keywords
   const processMessageWithTooltips = (text: string) => {
@@ -75,43 +75,45 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
+    let currentIndex = 0;
 
-    const typeNextWord = (wordIndex: number) => {
-      if (wordIndex >= words.length) {
+    const typeNextCharacter = () => {
+      if (currentIndex >= characters.length) {
         setIsComplete(true);
         if (onDone) onDone();
         return;
       }
 
-      setVisibleWords(wordIndex + 1);
+      // Add character to visible text (preserves special characters like åäö)
+      setVisibleText(prev => prev + characters[currentIndex]);
+      currentIndex++;
 
-      // Variable speed for more natural rhythm (faster and more fluent)
-      const currentWord = words[wordIndex];
-      let nextDelay = 50; // much faster base speed for words
+      // 2x speed: Base delay of 25ms (was 50ms for words)
+      let delay = 25;
       
-      // Pause after punctuation for natural rhythm (shorter pauses)
-      if (currentWord && (currentWord.includes('.') || currentWord.includes('!') || currentWord.includes('?'))) {
-        nextDelay = 250; // shorter pause after sentences
-      } else if (currentWord && (currentWord.includes(',') || currentWord.includes(';'))) {
-        nextDelay = 120; // shorter pause after clauses
-      } else if (currentWord && currentWord.trim() === '') {
-        nextDelay = 20; // much faster through spaces
+      // Pause after punctuation for natural rhythm
+      const currentChar = characters[currentIndex - 1];
+      if (currentChar === '.' || currentChar === '!' || currentChar === '?') {
+        delay = 150; // Pause after sentences
+      } else if (currentChar === ',' || currentChar === ';') {
+        delay = 80; // Pause after clauses
+      } else if (currentChar === '\n') {
+        delay = 40; // Pause after line breaks
       }
       
-      // Schedule next word
-      timeoutId = setTimeout(() => typeNextWord(wordIndex + 1), nextDelay);
+      timeoutId = setTimeout(typeNextCharacter, delay);
     };
 
     // Start typing
-    typeNextWord(0);
+    typeNextCharacter();
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [text, onDone, words.length]);
+  }, [text, onDone, characters.length]);
 
   const full = processMessageWithTooltips(text);
-  const partial = processMessageWithTooltips(words.slice(0, visibleWords).join(''));
+  const partial = processMessageWithTooltips(visibleText);
 
   return (
     <span style={{ display: "inline-block", whiteSpace: "pre-wrap" }}>
