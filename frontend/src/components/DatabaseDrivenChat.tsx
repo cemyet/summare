@@ -220,7 +220,8 @@ interface ChatFlowResponse {
   const [inputType, setInputType] = useState('text');
   const [inputPlaceholder, setInputPlaceholder] = useState('');
   const [showFileUpload, setShowFileUpload] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isWaitingForUser, setIsWaitingForUser] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -299,6 +300,8 @@ interface ChatFlowResponse {
   const loadChatStep = async (stepNumber: number, updatedInk2Data?: any[], tempCompanyData?: any) => {
     try {
       console.log(`🔄 Loading step ${stepNumber}...`);
+      setIsLoading(true);
+      setIsWaitingForUser(false);
       
       // Use updated ink2Data if provided, otherwise use global data, otherwise use companyData.ink2Data
       const ink2DataToUse = updatedInk2Data || globalInk2Data || companyData.ink2Data;
@@ -424,8 +427,12 @@ interface ChatFlowResponse {
         };
         const questionText = substituteVariables(response.question_text, substitutionVars);
         
-        // Add the question message
-        addMessage(questionText, true, response.question_icon);
+        // Add the question message and show waiting indicator after it completes
+        addMessage(questionText, true, response.question_icon, () => {
+          // After message animation completes, show we're waiting for user input
+          setIsLoading(false);
+          setIsWaitingForUser(true);
+        });
 
         // Special handling for manual editing step (402):
         // - Ensure editing is enabled in the preview
@@ -597,6 +604,7 @@ interface ChatFlowResponse {
   const handleOptionSelect = async (option: ChatOption, explicitStepNumber?: number, updatedInk2Data?: any[]) => {
     try {
       console.log('🚀 handleOptionSelect called with option:', option.option_value);
+      setIsWaitingForUser(false); // User took action, stop waiting
       
       // Add user message only if there's actual text
       const optionText = option.option_text || '';
@@ -1693,8 +1701,8 @@ const selectiveMergeInk2 = (
           />
         ))}
         
-        {/* Loading indicator */}
-        {isLoading && (
+        {/* Loading indicator - only show when genuinely waiting for user input */}
+        {isWaitingForUser && (
           <div className="flex justify-center py-4">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
           </div>
