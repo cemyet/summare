@@ -107,7 +107,7 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
     };
 
     // Start typing with initial delay to ensure image loads first
-    timeoutId = setTimeout(typeNextCharacter, 200);
+    timeoutId = setTimeout(typeNextCharacter, 500);
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
