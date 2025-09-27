@@ -16,8 +16,10 @@ STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY  # keeps legacy helpers working
     stripe_client = StripeClient(STRIPE_SECRET_KEY)  # Prefer the typed client
+    print(f"✅ Stripe client initialized with key: {STRIPE_SECRET_KEY[:8]}...")
 else:
     stripe_client = None
+    print("⚠️ STRIPE_SECRET_KEY not found - Stripe integration disabled")
 
 SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
 CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled")
@@ -28,25 +30,28 @@ def create_checkout_session(amount_ore: int, email: str | None = None, metadata:
     amount_ore = belopp i öre (e.g. 9900 == 99 kr)
     """
     if not stripe_client:
-        raise Exception("Stripe client not configured")
+        raise Exception("Stripe client not configured - STRIPE_SECRET_KEY environment variable not set")
     
-    session = stripe_client.checkout.sessions.create(
-        mode="payment",
-        line_items=[{
-            "price_data": {
-                "currency": "sek",
-                "product_data": {"name": "Årsredovisning – Summare"},
-                "unit_amount": int(amount_ore),
-            },
-            "quantity": 1,
-        }],
-        success_url=SUCCESS_URL,
-        cancel_url=CANCEL_URL,
-        customer_email=email,
-        metadata=metadata or {},
-        allow_promotion_codes=True,
-    )
-    return session.url
+    try:
+        session = stripe_client.checkout.sessions.create(
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": "sek",
+                    "product_data": {"name": "Årsredovisning – Summare"},
+                    "unit_amount": int(amount_ore),
+                },
+                "quantity": 1,
+            }],
+            success_url=SUCCESS_URL,
+            cancel_url=CANCEL_URL,
+            customer_email=email,
+            metadata=metadata or {},
+            allow_promotion_codes=True,
+        )
+        return session.url
+    except Exception as e:
+        raise Exception(f"Failed to create Stripe checkout session: {str(e)}")
 
 # Importera våra moduler
 # from services.report_generator import ReportGenerator  # Disabled - using DatabaseParser instead
