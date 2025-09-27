@@ -80,8 +80,8 @@ async def create_stripe_session():
         if not stripe.api_key:
             raise HTTPException(status_code=500, detail="Stripe API key not configured")
         
-        # Create checkout session
-        checkout_session = stripe.checkout.Session.create(
+        # Create checkout session (using lowercase 'sessions' for Stripe 7.x)
+        checkout_session = stripe.checkout.sessions.create(
             payment_method_types=['card'],
             line_items=[{
                 'price_data': {
@@ -95,7 +95,7 @@ async def create_stripe_session():
                 'quantity': 1,
             }],
             mode='payment',
-            success_url=os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success"),
+            success_url=os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}",
             cancel_url=os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled"),
         )
         
@@ -1104,8 +1104,8 @@ async def process_chat_choice(request: dict):
                 if not stripe.api_key:
                     raise HTTPException(status_code=500, detail="Stripe API key not configured")
                 
-                # Create checkout session
-                checkout_session = stripe.checkout.Session.create(
+                # Create checkout session (using lowercase 'sessions' for Stripe 7.x)
+                checkout_session = stripe.checkout.sessions.create(
                     payment_method_types=['card'],
                     line_items=[{
                         'price_data': {
@@ -1119,7 +1119,7 @@ async def process_chat_choice(request: dict):
                         'quantity': 1,
                     }],
                     mode='payment',
-                    success_url=os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success"),
+                    success_url=os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}",
                     cancel_url=os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled"),
                 )
                 
