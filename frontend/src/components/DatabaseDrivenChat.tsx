@@ -742,9 +742,23 @@ interface ChatFlowResponse {
             });
             
             if (noterModule && scrollContainer) {
-              noterModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            } else if (noterModule) {
-              noterModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              const containerRect = scrollContainer.getBoundingClientRect();
+              const noterRect = noterModule.getBoundingClientRect();
+              const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 10pt padding from top
+              
+              console.log('📍 APPROVE_TAX scroll calculation:', {
+                currentScrollTop: scrollContainer.scrollTop,
+                targetScrollTop: scrollTop,
+                noterTop: noterRect.top,
+                containerTop: containerRect.top
+              });
+              
+              scrollContainer.scrollTo({
+                top: scrollTop,
+                behavior: 'smooth'
+              });
+            } else {
+              console.log('❌ APPROVE_TAX auto-scroll failed: Missing elements');
             }
           }, 200);
         }
