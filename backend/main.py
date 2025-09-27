@@ -1092,6 +1092,10 @@ async def process_chat_choice(request: dict):
                 import stripe
                 print(f"🔍 Stripe module imported: {stripe}")
                 print(f"🔍 Stripe module type: {type(stripe)}")
+                print(f"🔍 Stripe checkout module: {stripe.checkout}")
+                print(f"🔍 Stripe checkout type: {type(stripe.checkout)}")
+                print(f"🔍 Stripe checkout.Session: {stripe.checkout.Session}")
+                print(f"🔍 Stripe checkout.Session type: {type(stripe.checkout.Session)}")
                 
                 # Create Stripe checkout session
                 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")

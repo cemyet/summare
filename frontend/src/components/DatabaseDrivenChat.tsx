@@ -444,6 +444,9 @@ interface ChatFlowResponse {
             
             // Substitute variables in question text (use temp data if available)
             const dataToUseForMessage = tempCompanyData || companyData;
+            console.log('🔍 Message step dataToUseForMessage:', dataToUseForMessage);
+            console.log('🔍 Message step tempCompanyData:', tempCompanyData);
+            console.log('🔍 Message step companyData:', companyData);
             const questionText = substituteVariables(response.question_text, {
               SumAretsResultat: dataToUseForMessage.sumAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.sumAretsResultat) : '0',
               SkattAretsResultat: dataToUseForMessage.skattAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.skattAretsResultat) : '0',
