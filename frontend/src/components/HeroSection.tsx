@@ -33,7 +33,7 @@ const HeroSection = () => {
 
         {/* Subtitle */}
         <p className="text-subtitle mb-8 max-w-2xl mx-auto animate-fade-in">
-          Enkelt. Snabbt. Pålitligt. Skapa en professionell<br />
+          Enkelt. Pålitligt. Prisvärt. Skapa en professionell<br />
           årsredovisning och skattedeklaration med<br />
           vårt AI verktyg på bara ett par minuter
         </p>
