@@ -7,11 +7,7 @@ const Header = () => {
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex items-center">
-            <img 
-              src="/Summare logo.png" 
-              alt="Summare" 
-              className="h-8 w-auto"
-            />
+            <h1 className="text-2xl font-bold text-summare-navy">Summare</h1>
           </div>
 
           {/* Navigation */}
