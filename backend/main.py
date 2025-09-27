@@ -9,39 +9,85 @@ import shutil
 from datetime import datetime
 import json
 import stripe
-from stripe import StripeClient
+
+# Try to import StripeClient, fallback if not available
+try:
+    from stripe import StripeClient
+    print("✅ StripeClient imported successfully")
+    STRIPE_CLIENT_AVAILABLE = True
+except ImportError as e:
+    print(f"❌ StripeClient import failed: {e}")
+    StripeClient = None
+    STRIPE_CLIENT_AVAILABLE = False
 
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
 if not STRIPE_SECRET_KEY:
     raise RuntimeError("Missing STRIPE_SECRET_KEY")
 
 stripe.api_key = STRIPE_SECRET_KEY            # keeps legacy helpers happy
-stripe_client = StripeClient(STRIPE_SECRET_KEY)
+
+# Initialize StripeClient only if available
+if STRIPE_CLIENT_AVAILABLE:
+    try:
+        stripe_client = StripeClient(STRIPE_SECRET_KEY)
+        print("✅ StripeClient initialized successfully")
+    except Exception as e:
+        print(f"❌ StripeClient initialization failed: {e}")
+        stripe_client = None
+        STRIPE_CLIENT_AVAILABLE = False
+else:
+    stripe_client = None
 
 print("Stripe version:", stripe.__version__)           # expect 7.x
-print("Client OK:", isinstance(stripe_client, StripeClient))
+print("StripeClient available:", STRIPE_CLIENT_AVAILABLE)
+print("stripe_client:", stripe_client is not None)
 
 SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
 CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled")
 
 def create_checkout_session_url(amount_ore: int, email: str | None = None, metadata: dict | None = None) -> str:
-    s = stripe_client.checkout.sessions.create(
-        mode="payment",
-        line_items=[{
-            "price_data": {
-                "currency": "sek",
-                "product_data": {"name": "Årsredovisning – Summare"},
-                "unit_amount": int(amount_ore),
-            },
-            "quantity": 1,
-        }],
-        success_url=SUCCESS_URL,
-        cancel_url=CANCEL_URL,
-        customer_email=email,
-        metadata=metadata or {},
-        allow_promotion_codes=True,
-    )
-    return s.url
+    if stripe_client and STRIPE_CLIENT_AVAILABLE:
+        # Use StripeClient if available
+        s = stripe_client.checkout.sessions.create(
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": "sek",
+                    "product_data": {"name": "Årsredovisning – Summare"},
+                    "unit_amount": int(amount_ore),
+                },
+                "quantity": 1,
+            }],
+            success_url=SUCCESS_URL,
+            cancel_url=CANCEL_URL,
+            customer_email=email,
+            metadata=metadata or {},
+            allow_promotion_codes=True,
+        )
+        return s.url
+    else:
+        # Fallback to direct stripe API (this might still fail if stripe.checkout is None)
+        print("⚠️ Using fallback stripe API (StripeClient not available)")
+        try:
+            s = stripe.checkout.sessions.create(
+                mode="payment",
+                line_items=[{
+                    "price_data": {
+                        "currency": "sek",
+                        "product_data": {"name": "Årsredovisning – Summare"},
+                        "unit_amount": int(amount_ore),
+                    },
+                    "quantity": 1,
+                }],
+                success_url=SUCCESS_URL,
+                cancel_url=CANCEL_URL,
+                customer_email=email,
+                metadata=metadata or {},
+                allow_promotion_codes=True,
+            )
+            return s.url
+        except Exception as e:
+            raise Exception(f"Both StripeClient and fallback API failed: {str(e)}")
 
 # Importera våra moduler
 # from services.report_generator import ReportGenerator  # Disabled - using DatabaseParser instead
