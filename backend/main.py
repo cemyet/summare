@@ -9,14 +9,27 @@ import shutil
 from datetime import datetime
 import json
 import stripe
-from stripe import StripeClient
+try:
+    from stripe import StripeClient
+    print("✅ StripeClient imported successfully")
+except ImportError as e:
+    print(f"❌ Failed to import StripeClient: {e}")
+    StripeClient = None
 
 # Stripe configuration
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-if STRIPE_SECRET_KEY:
+if STRIPE_SECRET_KEY and StripeClient:
     stripe.api_key = STRIPE_SECRET_KEY  # keeps legacy helpers working
-    stripe_client = StripeClient(STRIPE_SECRET_KEY)  # Prefer the typed client
-    print(f"✅ Stripe client initialized with key: {STRIPE_SECRET_KEY[:8]}...")
+    try:
+        stripe_client = StripeClient(STRIPE_SECRET_KEY)  # Prefer the typed client
+        print(f"✅ Stripe client initialized with key: {STRIPE_SECRET_KEY[:8]}...")
+    except Exception as e:
+        print(f"❌ Failed to initialize StripeClient: {e}")
+        stripe_client = None
+elif STRIPE_SECRET_KEY and not StripeClient:
+    stripe.api_key = STRIPE_SECRET_KEY
+    stripe_client = None
+    print("⚠️ STRIPE_SECRET_KEY found but StripeClient not available - using legacy API")
 else:
     stripe_client = None
     print("⚠️ STRIPE_SECRET_KEY not found - Stripe integration disabled")
@@ -26,29 +39,49 @@ CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=canc
 
 def create_checkout_session(amount_ore: int, email: str | None = None, metadata: dict | None = None) -> str:
     """
-    Create a Stripe checkout session using the v7 client API
+    Create a Stripe checkout session using the v7 client API or legacy API
     amount_ore = belopp i öre (e.g. 9900 == 99 kr)
     """
-    if not stripe_client:
-        raise Exception("Stripe client not configured - STRIPE_SECRET_KEY environment variable not set")
+    if not STRIPE_SECRET_KEY:
+        raise Exception("Stripe not configured - STRIPE_SECRET_KEY environment variable not set")
     
     try:
-        session = stripe_client.checkout.sessions.create(
-            mode="payment",
-            line_items=[{
-                "price_data": {
-                    "currency": "sek",
-                    "product_data": {"name": "Årsredovisning – Summare"},
-                    "unit_amount": int(amount_ore),
-                },
-                "quantity": 1,
-            }],
-            success_url=SUCCESS_URL,
-            cancel_url=CANCEL_URL,
-            customer_email=email,
-            metadata=metadata or {},
-            allow_promotion_codes=True,
-        )
+        if stripe_client:
+            # Use the new StripeClient API
+            session = stripe_client.checkout.sessions.create(
+                mode="payment",
+                line_items=[{
+                    "price_data": {
+                        "currency": "sek",
+                        "product_data": {"name": "Årsredovisning – Summare"},
+                        "unit_amount": int(amount_ore),
+                    },
+                    "quantity": 1,
+                }],
+                success_url=SUCCESS_URL,
+                cancel_url=CANCEL_URL,
+                customer_email=email,
+                metadata=metadata or {},
+                allow_promotion_codes=True,
+            )
+        else:
+            # Fallback to legacy API
+            session = stripe.checkout.sessions.create(
+                mode="payment",
+                line_items=[{
+                    "price_data": {
+                        "currency": "sek",
+                        "product_data": {"name": "Årsredovisning – Summare"},
+                        "unit_amount": int(amount_ore),
+                    },
+                    "quantity": 1,
+                }],
+                success_url=SUCCESS_URL,
+                cancel_url=CANCEL_URL,
+                customer_email=email,
+                metadata=metadata or {},
+                allow_promotion_codes=True,
+            )
         return session.url
     except Exception as e:
         raise Exception(f"Failed to create Stripe checkout session: {str(e)}")
