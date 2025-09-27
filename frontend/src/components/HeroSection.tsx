@@ -14,7 +14,7 @@ const HeroSection = () => {
       
       {/* Radial gradient overlay for better text readability */}
       <div className="absolute inset-0" style={{
-        background: 'radial-gradient(circle at center, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0.1) 100%)'
+        background: 'radial-gradient(circle at center, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.05) 100%)'
       }}></div>
       
       <div className="relative z-10 text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8" style={{ transform: 'translateY(-16px)' }}>
