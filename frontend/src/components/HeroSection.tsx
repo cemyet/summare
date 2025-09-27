@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 
 // Flag to control visibility of center Summare logo
-const SHOW_CENTER_LOGO = false;
+const SHOW_CENTER_LOGO = true;
 
 const HeroSection = () => {
   return (
