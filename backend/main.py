@@ -8,6 +8,7 @@ import tempfile
 import shutil
 from datetime import datetime
 import json
+import stripe
 
 # Importera våra moduler
 # from services.report_generator import ReportGenerator  # Disabled - using DatabaseParser instead
@@ -66,6 +67,43 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+@app.post("/create-stripe-session")
+async def create_stripe_session():
+    """Create a Stripe checkout session for annual report payment"""
+    try:
+        # Set your Stripe secret key (you'll need to add this to your environment variables)
+        stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+        
+        if not stripe.api_key:
+            raise HTTPException(status_code=500, detail="Stripe API key not configured")
+        
+        # Create checkout session
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'sek',
+                    'product_data': {
+                        'name': 'Årsredovisning - Summare',
+                        'description': 'Digital årsredovisning med AI-assistans',
+                    },
+                    'unit_amount': 29900,  # 299 SEK in öre
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success"),
+            cancel_url=os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled"),
+        )
+        
+        return {
+            "checkout_url": checkout_session.url,
+            "session_id": checkout_session.id
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create Stripe session: {str(e)}")
 
 @app.post("/upload-se-file", response_model=dict)
 async def upload_se_file(file: UploadFile = File(...)):
