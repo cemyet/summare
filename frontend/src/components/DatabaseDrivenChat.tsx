@@ -729,6 +729,26 @@ interface ChatFlowResponse {
         onDataUpdate({ showTaxPreview: false });
         const nextStep = option.next_step || 420; // Use SQL next_step or fallback to 420
         console.log('🚀 APPROVE_TAX will navigate to step:', nextStep);
+        
+        // Auto-scroll to Noter section when going to step 420
+        if (nextStep === 420) {
+          console.log('🔥 APPROVE_TAX - Auto-scrolling to Noter section');
+          setTimeout(() => {
+            const noterModule = document.querySelector('[data-section="noter"]');
+            const scrollContainer = document.querySelector('.overflow-auto');
+            console.log('🔍 APPROVE_TAX scroll elements found:', {
+              noterModule: !!noterModule,
+              scrollContainer: !!scrollContainer
+            });
+            
+            if (noterModule && scrollContainer) {
+              noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else if (noterModule) {
+              noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 200);
+        }
+        
         setTimeout(() => {
           console.log('🚀 APPROVE_TAX calling loadChatStep with step:', nextStep);
           loadChatStep(nextStep);
