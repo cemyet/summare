@@ -10,8 +10,8 @@ const Header = () => {
             <h1 className="text-2xl font-bold text-summare-navy">Summare</h1>
           </div>
 
-          {/* Navigation */}
-          <nav className="hidden md:flex space-x-8">
+          {/* Navigation - Centered */}
+          <nav className="hidden md:flex space-x-8 absolute left-1/2 transform -translate-x-1/2">
             <a href="#" className="text-summare-gray hover:text-summare-navy transition-colors">
               Priser
             </a>
