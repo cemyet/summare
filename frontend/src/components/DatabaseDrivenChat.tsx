@@ -995,6 +995,15 @@ interface ChatFlowResponse {
             }
             break;
             
+          case 'external_redirect':
+            // Handle external redirects (like Stripe payment)
+            if (action_data?.url) {
+              console.log('🔗 Redirecting to external URL:', action_data.url);
+              const target = action_data.target || '_blank';
+              window.open(action_data.url, target);
+            }
+            break;
+            
           case 'process_input':
             // Handle input processing
             if (action_data?.variable) {
