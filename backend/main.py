@@ -8,7 +8,7 @@ import tempfile
 import shutil
 from datetime import datetime
 import json
-import stripe
+# import stripe  # Moved to function level to avoid import errors
 
 # Importera våra moduler
 # from services.report_generator import ReportGenerator  # Disabled - using DatabaseParser instead
@@ -72,6 +72,7 @@ async def health_check():
 async def create_stripe_session():
     """Create a Stripe checkout session for annual report payment"""
     try:
+        import stripe
         # Set your Stripe secret key (you'll need to add this to your environment variables)
         stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
         
@@ -1065,6 +1066,7 @@ async def process_chat_choice(request: dict):
         if step_number == 505 and option_value == "stripe_payment":
             print("💳 Processing Stripe payment for step 505")
             try:
+                import stripe
                 # Create Stripe checkout session
                 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
                 
