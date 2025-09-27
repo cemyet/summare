@@ -57,7 +57,8 @@ bolagsverket_service = BolagsverketService()
 def get_supabase_client():
     """Get Supabase client from the service"""
     if not supabase_service.client:
-        raise HTTPException(status_code=500, detail="Supabase client not available")
+        print("Warning: Supabase client not available - using mock mode")
+        return None
     return supabase_service.client
 
 @app.get("/")
@@ -949,6 +950,28 @@ async def get_chat_flow_step(step_number: int):
     try:
         supabase = get_supabase_client()
         
+        if not supabase:
+            # Return mock data for step 505 if Supabase is not available
+            if step_number == 505:
+                return {
+                    "success": True,
+                    "step_number": 505,
+                    "block": "PAYMENT",
+                    "question_text": "Genom att klicka på Betala kan du påbörja betalningen, så att vi därefter kan slutföra årsredovisingen för signering och digital inlämning till Bolagsverket.",
+                    "question_icon": "👤",
+                    "question_type": "options",
+                    "options": [{
+                        "option_order": 1,
+                        "option_text": "Betala",
+                        "option_value": "stripe_payment",
+                        "next_step": 505,
+                        "action_type": "external_redirect",
+                        "action_data": {"url": "DYNAMIC_STRIPE_URL", "target": "_blank"}
+                    }]
+                }
+            else:
+                raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
         # Query the chat_flow table with new structure
         result = supabase.table('chat_flow').select('*').eq('step_number', step_number).execute()
         
@@ -1040,7 +1063,7 @@ async def process_chat_choice(request: dict):
         # Get the current step to find the selected option
         step_data = await get_chat_flow_step(step_number)
         print(f"🔍 Step data for {step_number}: {step_data}")
-        if not step_data["success"]:
+        if not step_data or not step_data.get("success"):
             raise HTTPException(status_code=404, detail="Step not found")
         
         # Find the selected option
