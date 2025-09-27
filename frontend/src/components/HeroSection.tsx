@@ -14,7 +14,7 @@ const HeroSection = () => {
       
       {/* Radial gradient overlay for better text readability */}
       <div className="absolute inset-0" style={{
-        background: 'radial-gradient(circle at center, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.05) 100%)'
+        background: 'radial-gradient(circle at center, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0) 100%)'
       }}></div>
       
       <div className="relative z-10 text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8" style={{ transform: 'translateY(-16px)' }}>
@@ -34,14 +34,14 @@ const HeroSection = () => {
         {/* Subtitle */}
         <p className="text-subtitle mb-8 max-w-2xl mx-auto animate-fade-in">
           Enkelt. Snabbt. Pålitligt. Skapa en professionell<br />
-          årsredovisning och skattedeklaration med hjälp<br />
-          av vårt AI verktyg på bara ett par minuter
+          årsredovisning och skattedeklaration med<br />
+          vårt AI verktyg på bara ett par minuter
         </p>
 
         {/* CTA Button */}
         <div className="animate-fade-in">
           <Button className="btn-hero text-lg" asChild>
-            <a href="/app">Skapa årsredovisning nu</a>
+            <a href="/app">Prova gratis nu</a>
           </Button>
         </div>
 
