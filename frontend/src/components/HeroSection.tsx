@@ -1,5 +1,8 @@
 import { Button } from "@/components/ui/button";
 
+// Flag to control visibility of center Summare logo
+const SHOW_CENTER_LOGO = false;
+
 const HeroSection = () => {
   return (
     <section 
@@ -18,12 +21,14 @@ const HeroSection = () => {
       }}></div>
       
       <div className="relative z-10 text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8" style={{ transform: 'translateY(-16px)' }}>
-        {/* Logo/Brand */}
-        <div className="mb-8">
-          <h1 className="text-6xl md:text-7xl font-bold text-summare-navy mb-4">
-            Summare
-          </h1>
-        </div>
+        {/* Logo/Brand - Controlled by SHOW_CENTER_LOGO flag */}
+        {SHOW_CENTER_LOGO && (
+          <div className="mb-8">
+            <h1 className="text-6xl md:text-7xl font-bold text-summare-navy mb-4">
+              Summare
+            </h1>
+          </div>
+        )}
 
         {/* Main Heading */}
         <h2 className="text-hero mb-8 animate-fade-in">
