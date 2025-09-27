@@ -1150,9 +1150,12 @@ async def process_chat_choice(request: dict):
         # Special handling for Stripe payment (step 505)
         if step_number == 505 and option_value == "stripe_payment":
             print("💳 Processing Stripe payment for step 505")
+            print(f"🔍 Stripe client status: {stripe_client}")
+            print(f"🔍 STRIPE_SECRET_KEY status: {bool(STRIPE_SECRET_KEY)}")
+            print(f"🔍 StripeClient class status: {StripeClient}")
             try:
-                if not stripe_client:
-                    raise Exception("Stripe client not configured")
+                if not STRIPE_SECRET_KEY:
+                    raise Exception("Stripe not configured - STRIPE_SECRET_KEY not set")
                 
                 # Decide price (env or constant)
                 amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "299"))  # choose your price
@@ -1164,6 +1167,7 @@ async def process_chat_choice(request: dict):
                     "amount_sek": str(amount_sek),
                 }
                 
+                # Try to create session using our helper function
                 session_url = create_checkout_session(
                     amount_ore=amount_ore,
                     metadata=metadata
