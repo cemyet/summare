@@ -105,6 +105,75 @@ async def create_stripe_session():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create Stripe session: {str(e)}")
 
+@app.post("/stripe-webhook")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events for payment confirmation"""
+    try:
+        import stripe
+        
+        # Get the raw body and signature
+        body = await request.body()
+        sig_header = request.headers.get('stripe-signature')
+        webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+        
+        if not webhook_secret:
+            print("⚠️ STRIPE_WEBHOOK_SECRET not configured - skipping signature verification")
+            # Parse JSON directly for development
+            import json
+            event = json.loads(body.decode('utf-8'))
+        else:
+            # Verify webhook signature
+            try:
+                event = stripe.Webhook.construct_event(
+                    body, sig_header, webhook_secret
+                )
+            except ValueError as e:
+                print(f"❌ Invalid payload: {e}")
+                raise HTTPException(status_code=400, detail="Invalid payload")
+            except stripe.error.SignatureVerificationError as e:
+                print(f"❌ Invalid signature: {e}")
+                raise HTTPException(status_code=400, detail="Invalid signature")
+        
+        event_type = event.get('type')
+        event_data = event.get('data', {}).get('object', {})
+        
+        print(f"🔔 Stripe webhook received: {event_type}")
+        
+        if event_type == 'checkout.session.completed':
+            # Payment was successful
+            session_id = event_data.get('id')
+            customer_email = event_data.get('customer_details', {}).get('email')
+            amount_total = event_data.get('amount_total', 0)
+            customer_name = event_data.get('customer_details', {}).get('name', 'Unknown')
+            
+            print(f"✅ Payment successful: {session_id}, email: {customer_email}, name: {customer_name}, amount: {amount_total}")
+            
+            # Here you could:
+            # 1. Update database to mark payment as completed
+            # 2. Send confirmation email
+            # 3. Trigger next steps in the annual report process
+            # 4. Generate and send the final report
+            
+            # TODO: Add your business logic here
+            # Example: Store payment in database, send email, etc.
+            
+            return {"status": "success", "message": "Payment processed successfully"}
+            
+        elif event_type == 'checkout.session.expired':
+            # Payment session expired
+            session_id = event_data.get('id')
+            print(f"⏰ Payment session expired: {session_id}")
+            
+            return {"status": "expired", "message": "Payment session expired"}
+            
+        else:
+            print(f"ℹ️ Unhandled webhook event: {event_type}")
+            return {"status": "ignored", "message": f"Event {event_type} ignored"}
+            
+    except Exception as e:
+        print(f"❌ Error processing Stripe webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")
+
 @app.post("/upload-se-file", response_model=dict)
 async def upload_se_file(file: UploadFile = File(...)):
     """
@@ -991,6 +1060,55 @@ async def process_chat_choice(request: dict):
             "action_data": selected_option["action_data"],
             "next_step": selected_option["next_step"]
         }
+        
+        # Special handling for Stripe payment (step 505)
+        if step_number == 505 and option_value == "stripe_payment":
+            print("💳 Processing Stripe payment for step 505")
+            try:
+                # Create Stripe checkout session
+                stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+                
+                if not stripe.api_key:
+                    raise HTTPException(status_code=500, detail="Stripe API key not configured")
+                
+                # Create checkout session
+                checkout_session = stripe.checkout.Session.create(
+                    payment_method_types=['card'],
+                    line_items=[{
+                        'price_data': {
+                            'currency': 'sek',
+                            'product_data': {
+                                'name': 'Årsredovisning - Summare',
+                                'description': 'Digital årsredovisning med AI-assistans',
+                            },
+                            'unit_amount': 29900,  # 299 SEK in öre
+                        },
+                        'quantity': 1,
+                    }],
+                    mode='payment',
+                    success_url=os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success"),
+                    cancel_url=os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled"),
+                )
+                
+                # Update the action_data with the dynamic checkout URL
+                result["action_data"] = {
+                    "url": checkout_session.url,
+                    "target": "_blank"
+                }
+                
+                print(f"💳 Created Stripe checkout session: {checkout_session.url}")
+                
+            except Exception as stripe_error:
+                print(f"❌ Error creating Stripe session: {str(stripe_error)}")
+                # Fallback to error message
+                result["action_type"] = "navigate"
+                result["action_data"] = None
+                result["next_step"] = step_number  # Stay on same step
+                return {
+                    "success": True, 
+                    "result": result,
+                    "error": f"Payment system temporarily unavailable: {str(stripe_error)}"
+                }
         
         # Apply variable substitution if context is provided
         if context:
