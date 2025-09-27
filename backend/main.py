@@ -8,41 +8,44 @@ import tempfile
 import shutil
 from datetime import datetime
 import json
-# --- Stripe init (safe for v7 and won't crash at import) ---
-import stripe
-import logging
+# --- STRIPE INIT (robust) ---
+import os, logging, stripe, requests
 logger = logging.getLogger("uvicorn")
 
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-stripe.api_key = STRIPE_SECRET_KEY  # keeps module helpers working even without typed client
+if not STRIPE_SECRET_KEY:
+    # Don't crash app; just log. The step-505 handler will raise a friendly error if needed.
+    logger.warning("STRIPE_SECRET_KEY not set at startup")
 
-try:
-    # Try the typed client (v7+). Do NOT instantiate at import if it might be missing.
-    from stripe import StripeClient as StripeClientClass  # may fail in some builds
-except Exception as e:
-    StripeClientClass = None
-    logger.warning("StripeClient import failed: %s", e)
+# Keep legacy helpers working
+stripe.api_key = STRIPE_SECRET_KEY
 
-def _get_stripe_client():
-    key = os.getenv("STRIPE_SECRET_KEY")
-    if not key:
-        raise RuntimeError("Missing STRIPE_SECRET_KEY")
-    # Only instantiate if the class exists and is callable
-    if StripeClientClass and callable(StripeClientClass):
-        return StripeClientClass(key)
-    # Fallback: use module helper (stripe.checkout.sessions.create)
-    stripe.api_key = key
-    return None
+# IMPORTANT: never shadow these names elsewhere in your code
+StripeClientClass = getattr(stripe, "StripeClient", None)  # may be None on odd installs
+_has_checkout_sessions = bool(getattr(getattr(stripe, "checkout", None), "sessions", None))
+
+logger.info("Stripe version: %s", getattr(stripe, "__version__", "?"))
+logger.info("Stripe module file: %s", getattr(stripe, "__file__", "?"))
+logger.info("Has StripeClient: %s", callable(StripeClientClass))
+logger.info("Has checkout.sessions: %s", _has_checkout_sessions)
 
 SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
 CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled")
 
-def create_checkout_session_url(amount_ore: int, email: str | None = None, metadata: dict | None = None) -> str:
-    success = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
-    cancel  = os.getenv("STRIPE_CANCEL_URL",  "https://summare.se/app?payment=cancelled")
+def create_checkout_session_url(amount_ore: int,
+                                email: str | None = None,
+                                metadata: dict | None = None) -> str:
+    key = os.getenv("STRIPE_SECRET_KEY")
+    if not key:
+        raise RuntimeError("Stripe not configured (STRIPE_SECRET_KEY missing)")
 
-    client = _get_stripe_client()
-    if client:
+    success_url = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
+    cancel_url  = os.getenv("STRIPE_CANCEL_URL",  "https://summare.se/app?payment=cancelled")
+
+    # 1) Typed client (Stripe v7+)
+    StripeClientClass = getattr(stripe, "StripeClient", None)
+    if callable(StripeClientClass):
+        client = StripeClientClass(key)
         s = client.checkout.sessions.create(
             mode="payment",
             line_items=[{
@@ -53,15 +56,19 @@ def create_checkout_session_url(amount_ore: int, email: str | None = None, metad
                 },
                 "quantity": 1,
             }],
-            success_url=success,
-            cancel_url=cancel,
+            success_url=success_url,
+            cancel_url=cancel_url,
             customer_email=email,
             metadata=metadata or {},
             allow_promotion_codes=True,
         )
-    else:
-        # v7 module helper (note: checkout.sessions)
-        s = stripe.checkout.sessions.create(
+        return s.url
+
+    # 2) Module helper (only if actually present)
+    checkout = getattr(stripe, "checkout", None)
+    sessions = getattr(checkout, "sessions", None) if checkout else None
+    if callable(getattr(sessions, "create", None)):
+        s = sessions.create(
             mode="payment",
             line_items=[{
                 "price_data": {
@@ -71,13 +78,40 @@ def create_checkout_session_url(amount_ore: int, email: str | None = None, metad
                 },
                 "quantity": 1,
             }],
-            success_url=success,
-            cancel_url=cancel,
+            success_url=success_url,
+            cancel_url=cancel_url,
             customer_email=email,
             metadata=metadata or {},
             allow_promotion_codes=True,
         )
-    return s.url
+        return s.url
+
+    # 3) Raw HTTPS fallback (cannot be shadowed)
+    form = {
+        "mode": "payment",
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "allow_promotion_codes": "true",
+        "line_items[0][quantity]": "1",
+        "line_items[0][price_data][currency]": "sek",
+        "line_items[0][price_data][product_data][name]": "Årsredovisning – Summare",
+        "line_items[0][price_data][unit_amount]": str(int(amount_ore)),
+    }
+    if email:
+        form["customer_email"] = email
+    if metadata:
+        for k, v in metadata.items():
+            form[f"metadata[{k}]"] = str(v)
+
+    r = requests.post(
+        "https://api.stripe.com/v1/checkout/sessions",
+        data=form,
+        auth=(key, ""),  # Basic auth with secret key
+        timeout=20,
+    )
+    if r.status_code >= 400:
+        raise RuntimeError(f"Stripe REST error {r.status_code}: {r.text}")
+    return r.json()["url"]
 
 # Importera våra moduler
 # from services.report_generator import ReportGenerator  # Disabled - using DatabaseParser instead
@@ -1143,14 +1177,23 @@ async def process_chat_choice(request: dict):
                     email=context.get("customer_email"),
                     metadata={"flow_step": "505", "amount_sek": str(amount_sek)},
                 )
-                return {"success": True, "result": {
-                    "action_type": "external_redirect",
-                    "action_data": {"url": url, "target": "_blank"},
-                    "next_step": 505
-                }}
+                print(f"💳 Created Stripe Checkout: {url}")
+                return {
+                    "success": True,
+                    "result": {
+                        "action_type": "external_redirect",
+                        "action_data": {"url": url, "target": "_blank"},
+                        "next_step": 505,
+                    },
+                }
             except Exception as e:
-                logger.exception("❌ Error creating Stripe Checkout session")
-                return {"success": True, "result": {"action_type": "navigate", "next_step": 505}, "error": str(e)}
+                print("ERROR:    ❌ Error creating Stripe Checkout session")
+                import traceback; traceback.print_exc()
+                return {
+                    "success": True,
+                    "result": {"action_type": "navigate", "action_data": None, "next_step": 505},
+                    "error": str(e),
+                }
         
         # Apply variable substitution if context is provided
         if context:
