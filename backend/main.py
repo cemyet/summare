@@ -1090,8 +1090,12 @@ async def process_chat_choice(request: dict):
             print("💳 Processing Stripe payment for step 505")
             try:
                 import stripe
+                print(f"🔍 Stripe module imported: {stripe}")
+                print(f"🔍 Stripe module type: {type(stripe)}")
+                
                 # Create Stripe checkout session
                 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+                print(f"🔍 Stripe API key set: {bool(stripe.api_key)}")
                 
                 if not stripe.api_key:
                     raise HTTPException(status_code=500, detail="Stripe API key not configured")

@@ -442,16 +442,19 @@ interface ChatFlowResponse {
               }
             }
             
-            // Substitute variables in question text
+            // Substitute variables in question text (use temp data if available)
+            const dataToUseForMessage = tempCompanyData || companyData;
             const questionText = substituteVariables(response.question_text, {
-              SumAretsResultat: companyData.sumAretsResultat ? new Intl.NumberFormat('sv-SE').format(companyData.sumAretsResultat) : '0',
-              SkattAretsResultat: companyData.skattAretsResultat ? new Intl.NumberFormat('sv-SE').format(companyData.skattAretsResultat) : '0',
-              pension_premier: companyData.pensionPremier ? new Intl.NumberFormat('sv-SE').format(companyData.pensionPremier) : '0',
-              sarskild_loneskatt_pension_calculated: companyData.sarskildLoneskattPensionCalculated ? new Intl.NumberFormat('sv-SE').format(companyData.sarskildLoneskattPensionCalculated) : '0',
-              sarskild_loneskatt_pension: companyData.sarskildLoneskattPension ? new Intl.NumberFormat('sv-SE').format(companyData.sarskildLoneskattPension) : '0',
+              SumAretsResultat: dataToUseForMessage.sumAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.sumAretsResultat) : '0',
+              SkattAretsResultat: dataToUseForMessage.skattAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.skattAretsResultat) : '0',
+              pension_premier: dataToUseForMessage.pensionPremier ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.pensionPremier) : '0',
+              sarskild_loneskatt_pension_calculated: dataToUseForMessage.sarskildLoneskattPensionCalculated ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.sarskildLoneskattPensionCalculated) : '0',
+              sarskild_loneskatt_pension: dataToUseForMessage.sarskildLoneskattPension ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.sarskildLoneskattPension) : '0',
               inkBeraknadSkatt: mostRecentInkBeraknadSkatt ? new Intl.NumberFormat('sv-SE').format(mostRecentInkBeraknadSkatt) : '0',
-              inkBokfordSkatt: companyData.inkBokfordSkatt ? new Intl.NumberFormat('sv-SE').format(companyData.inkBokfordSkatt) : '0',
-              unusedTaxLossAmount: companyData.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE').format(companyData.unusedTaxLossAmount) : '0'
+              inkBokfordSkatt: dataToUseForMessage.inkBokfordSkatt ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.inkBokfordSkatt) : '0',
+              unusedTaxLossAmount: dataToUseForMessage.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.unusedTaxLossAmount) : '0',
+              arets_utdelning: dataToUseForMessage.arets_utdelning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_utdelning) : '0',
+              arets_balanseras_nyrakning: dataToUseForMessage.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_balanseras_nyrakning) : '0'
             });
             
             // Add the message with onDone callback to wait for animation completion
