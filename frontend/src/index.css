@@ -123,30 +123,6 @@ All colors MUST be HSL.
   .section-padding {
     @apply py-20 px-4 md:px-8;
   }
-
-  /* Background GIF speed animation - creates faster visual effect */
-  @keyframes backgroundSpeed {
-    0% {
-      transform: scale(1) rotate(0deg);
-      filter: brightness(1);
-    }
-    25% {
-      transform: scale(1.01) rotate(0.1deg);
-      filter: brightness(1.02);
-    }
-    50% {
-      transform: scale(1.02) rotate(0deg);
-      filter: brightness(1.05);
-    }
-    75% {
-      transform: scale(1.01) rotate(-0.1deg);
-      filter: brightness(1.02);
-    }
-    100% {
-      transform: scale(1) rotate(0deg);
-      filter: brightness(1);
-    }
-  }
 }
 
 /* Svenska Årsredovisning Design System - Inspirerat av svenska färger och modern fintech design */
