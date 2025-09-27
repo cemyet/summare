@@ -79,11 +79,7 @@ export function AnnualReportChat() {
             <div className="sticky top-0 z-10 px-6 py-4 border-b border-border bg-background">
               <div className="flex items-center justify-between h-8">
                 <div className="flex items-center">
-                  <img 
-                    src="/logo.png"
-                    alt="Summare" 
-                    className="h-8 w-auto"
-                  />
+                  <h1 className="text-2xl font-bold text-summare-navy">Summare</h1>
                 </div>
               </div>
             </div>
