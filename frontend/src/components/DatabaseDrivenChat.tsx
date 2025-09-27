@@ -742,9 +742,9 @@ interface ChatFlowResponse {
             });
             
             if (noterModule && scrollContainer) {
-              noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              noterModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } else if (noterModule) {
-              noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              noterModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }
           }, 200);
         }

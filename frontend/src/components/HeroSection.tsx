@@ -8,7 +8,8 @@ const HeroSection = () => {
         backgroundImage: `url('/lovable-uploads/bakgrund.gif')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
+        backgroundRepeat: 'no-repeat',
+        animation: 'backgroundSpeed 0.8s ease-in-out infinite'
       }}
     >
       
