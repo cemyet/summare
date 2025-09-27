@@ -46,7 +46,8 @@ const TestimonialsSection = () => {
             Vad våra kunder säger
           </h2>
           <p className="text-subtitle max-w-2xl mx-auto">
-            Tusentals nöjda egenföretagare har redan förenklar sin administration med Summare
+            Tusentals nöjda egenföretagare har redan<br />
+            förenklat sin administration med Summare
           </p>
           
           {/* Star Rating Display */}
