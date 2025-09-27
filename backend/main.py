@@ -38,53 +38,32 @@ SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=su
 CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled")
 
 def create_checkout_session(amount_ore: int, email: str | None = None, metadata: dict | None = None) -> str:
-    """
-    Create a Stripe checkout session using the v7 client API or legacy API
-    amount_ore = belopp i öre (e.g. 9900 == 99 kr)
-    """
-    if not STRIPE_SECRET_KEY:
-        raise Exception("Stripe not configured - STRIPE_SECRET_KEY environment variable not set")
-    
-    try:
-        if stripe_client:
-            # Use the new StripeClient API
-            session = stripe_client.checkout.sessions.create(
-                mode="payment",
-                line_items=[{
-                    "price_data": {
-                        "currency": "sek",
-                        "product_data": {"name": "Årsredovisning – Summare"},
-                        "unit_amount": int(amount_ore),
-                    },
-                    "quantity": 1,
-                }],
-                success_url=SUCCESS_URL,
-                cancel_url=CANCEL_URL,
-                customer_email=email,
-                metadata=metadata or {},
-                allow_promotion_codes=True,
-            )
-        else:
-            # Fallback to legacy API
-            session = stripe.checkout.sessions.create(
-                mode="payment",
-                line_items=[{
-                    "price_data": {
-                        "currency": "sek",
-                        "product_data": {"name": "Årsredovisning – Summare"},
-                        "unit_amount": int(amount_ore),
-                    },
-                    "quantity": 1,
-                }],
-                success_url=SUCCESS_URL,
-                cancel_url=CANCEL_URL,
-                customer_email=email,
-                metadata=metadata or {},
-                allow_promotion_codes=True,
-            )
-        return session.url
-    except Exception as e:
-        raise Exception(f"Failed to create Stripe checkout session: {str(e)}")
+    import stripe
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+    if not stripe.api_key:
+        raise Exception("Stripe client not configured")
+
+    success = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
+    cancel  = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled")
+
+    # Stripe v7 helper (note: checkout.sessions)
+    session = stripe.checkout.sessions.create(
+        mode="payment",
+        line_items=[{
+            "price_data": {
+                "currency": "sek",
+                "product_data": {"name": "Årsredovisning – Summare"},
+                "unit_amount": int(amount_ore),
+            },
+            "quantity": 1,
+        }],
+        success_url=success,
+        cancel_url=cancel,
+        customer_email=email,
+        metadata=metadata or {},
+        allow_promotion_codes=True,
+    )
+    return session.url
 
 # Importera våra moduler
 # from services.report_generator import ReportGenerator  # Disabled - using DatabaseParser instead
@@ -149,21 +128,29 @@ async def health_check():
 async def create_stripe_session():
     """Create a Stripe checkout session for annual report payment"""
     try:
-        if not stripe_client:
-            raise HTTPException(status_code=500, detail="Stripe not configured")
+        print("Stripe version:", stripe.__version__)                     # should be 7.x
+        print("Has checkout.sessions:", hasattr(stripe.checkout, "sessions"))
         
-        # Use configurable amount or default to 299 SEK
-        amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "299"))
-        amount_ore = amount_sek * 100
-        
-        session_url = create_checkout_session(
-            amount_ore=amount_ore,
-            metadata={"source": "api_endpoint"}
+        checkout_session = stripe.checkout.sessions.create(
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": "sek",
+                    "product_data": {
+                        "name": "Årsredovisning - Summare",
+                        "description": "Digital årsredovisning med AI-assistans",
+                    },
+                    "unit_amount": 29900,  # 299 SEK in öre
+                },
+                "quantity": 1,
+            }],
+            success_url=os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url=os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled"),
         )
         
         return {
-            "checkout_url": session_url,
-            "amount_sek": amount_sek
+            "checkout_url": checkout_session.url,
+            "session_id": checkout_session.id
         }
         
     except Exception as e:
@@ -1150,50 +1137,33 @@ async def process_chat_choice(request: dict):
         # Special handling for Stripe payment (step 505)
         if step_number == 505 and option_value == "stripe_payment":
             print("💳 Processing Stripe payment for step 505")
-            print(f"🔍 Stripe client status: {stripe_client}")
-            print(f"🔍 STRIPE_SECRET_KEY status: {bool(STRIPE_SECRET_KEY)}")
-            print(f"🔍 StripeClient class status: {StripeClient}")
+            print(f"🔍 STRIPE_SECRET_KEY status: {bool(os.getenv('STRIPE_SECRET_KEY'))}")
             try:
-                if not STRIPE_SECRET_KEY:
-                    raise Exception("Stripe not configured - STRIPE_SECRET_KEY not set")
-                
                 # Decide price (env or constant)
-                amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "299"))  # choose your price
+                amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "299"))
                 amount_ore = amount_sek * 100
-                
-                # Optional: include context as metadata
-                metadata = {
-                    "flow_step": "505",
-                    "amount_sek": str(amount_sek),
-                }
-                
-                # Try to create session using our helper function
+
+                metadata = {"flow_step": "505", "amount_sek": str(amount_sek)}
+
                 session_url = create_checkout_session(
                     amount_ore=amount_ore,
                     metadata=metadata
                 )
-                
                 print(f"💳 Created Stripe checkout session: {session_url}")
-                
-                # 🔁 IMPORTANT: override the placeholder and return the real URL
+
                 result = {
                     "action_type": "external_redirect",
                     "action_data": {"url": session_url, "target": "_blank"},
                     "next_step": 505
                 }
                 return {"success": True, "result": result}
-                
+
             except Exception as stripe_error:
-                print(f"❌ Error creating Stripe session: {str(stripe_error)}")
-                # Surface a friendly message to the client instead of opening the placeholder URL
+                print(f"❌ Error creating Stripe session: {stripe_error}")
                 return {
                     "success": True,
-                    "result": {
-                        "action_type": "navigate",
-                        "action_data": None,
-                        "next_step": 505
-                    },
-                    "error": f"Payment system temporarily unavailable: {str(stripe_error)}"
+                    "result": {"action_type": "navigate", "action_data": None, "next_step": 505},
+                    "error": f"Payment system temporarily unavailable: {stripe_error}"
                 }
         
         # Apply variable substitution if context is provided
