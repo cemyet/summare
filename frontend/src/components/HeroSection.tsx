@@ -15,33 +15,29 @@ const HeroSection = () => {
       }}
     >
       
+      {/* Radial gradient overlay for better text readability */}
+      <div className="absolute inset-0" style={{
+        background: 'radial-gradient(circle at center, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.25) 50%, rgba(255,255,255,0) 100%)'
+      }}></div>
+      
       <div className="relative z-10 text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8" style={{ transform: 'translateY(-16px)' }}>
         {/* Logo/Brand - Controlled by SHOW_CENTER_LOGO flag */}
         {SHOW_CENTER_LOGO && (
           <div className="mb-8">
-            <h1 
-              className="text-6xl md:text-7xl font-bold text-summare-navy mb-4 inline-block px-6 py-2 rounded-lg"
-              style={{ backgroundColor: 'rgba(255, 255, 255, 0.7)' }}
-            >
+            <h1 className="text-6xl md:text-7xl font-bold text-summare-navy mb-4">
               Summare
             </h1>
           </div>
         )}
 
         {/* Main Heading */}
-        <h2 
-          className="text-hero mb-8 animate-fade-in inline-block px-6 py-3 rounded-lg"
-          style={{ backgroundColor: 'rgba(255, 255, 255, 0.7)' }}
-        >
+        <h2 className="text-hero mb-8 animate-fade-in">
           Digitala årsredovisningar<br />
           för egenföretagare
         </h2>
 
         {/* Subtitle */}
-        <p 
-          className="text-subtitle mb-8 max-w-2xl mx-auto animate-fade-in inline-block px-6 py-3 rounded-lg"
-          style={{ backgroundColor: 'rgba(255, 255, 255, 0.7)' }}
-        >
+        <p className="text-subtitle mb-8 max-w-2xl mx-auto animate-fade-in">
           Enkelt. Pålitligt. Prisvärt. Skapa en professionell<br />
           årsredovisning och skattedeklaration med<br />
           vårt AI verktyg på bara ett par minuter
