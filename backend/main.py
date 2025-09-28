@@ -123,7 +123,10 @@ def create_embedded_checkout(payload: dict = Body(None)):
     """
     Returns a client_secret for Embedded Checkout.
     """
+    print("🔧 Embedded checkout endpoint called")
+    print(f"🔧 Payload: {payload}")
     amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
+    print(f"🔧 Amount SEK: {amount_sek}")
     session = stripe.checkout.sessions.create(
         ui_mode="embedded",                         # 👈 key bit
         mode="payment",
@@ -148,8 +151,11 @@ def verify_stripe_session(session_id: str):
     """
     Used by the UI to confirm the session is paid after onComplete().
     """
+    print(f"🔧 Verify endpoint called with session_id: {session_id}")
     s = stripe.checkout.sessions.retrieve(session_id, expand=["payment_intent"])
-    return {"paid": s.payment_status == "paid", "id": s.id}
+    result = {"paid": s.payment_status == "paid", "id": s.id}
+    print(f"🔧 Verify result: {result}")
+    return result
 
 # Importera våra moduler
 # from services.report_generator import ReportGenerator  # Disabled - using DatabaseParser instead
