@@ -1215,32 +1215,9 @@ async def process_chat_choice(request: dict):
             "next_step": selected_option["next_step"]
         }
         
-        # Special handling for Stripe payment (step 505)
-        if step_number == 505 and option_value == "stripe_payment":
-            try:
-                amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "299"))
-                url = create_checkout_session_url(
-                    amount_ore=amount_sek * 100,
-                    email=context.get("customer_email"),
-                    metadata={"flow_step": "505", "amount_sek": str(amount_sek)},
-                )
-                print(f"💳 Created Stripe Checkout: {url}")
-                return {
-                    "success": True,
-                    "result": {
-                        "action_type": "external_redirect",
-                        "action_data": {"url": url, "target": "_blank"},
-                        "next_step": 505,
-                    },
-                }
-            except Exception as e:
-                print("ERROR:    ❌ Error creating Stripe Checkout session")
-                import traceback; traceback.print_exc()
-                return {
-                    "success": True,
-                    "result": {"action_type": "navigate", "action_data": None, "next_step": 505},
-                    "error": str(e),
-                }
+        # Special handling for Stripe payment (step 505) - REMOVED
+        # The frontend now handles embedded checkout via the /api/payments/create-embedded-checkout endpoint
+        # This allows the frontend to choose between embedded and redirect modes
         
         # Apply variable substitution if context is provided
         if context:
