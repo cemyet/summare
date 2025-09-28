@@ -174,12 +174,18 @@ async def health_check():
 
 # --- Stripe Embedded Checkout endpoint (safe version) ---
 
-# SAFE import: never touch stripe.checkout attribute
+# Modern Stripe import (no deprecation warning)
 try:
-    from stripe.api_resources.checkout.session import Session as StripeCheckoutSession
+    from stripe.checkout import Session as StripeCheckoutSession
 except Exception as e:
     print("⚠️ Failed to import StripeCheckoutSession:", e)
-    raise
+    # Fallback to deprecated import if needed
+    try:
+        from stripe.api_resources.checkout.session import Session as StripeCheckoutSession
+        print("⚠️ Using deprecated import path as fallback")
+    except Exception as e2:
+        print("⚠️ All import attempts failed:", e2)
+        raise
 
 @app.post("/api/payments/create-embedded-checkout")
 def create_embedded_checkout(payload: dict = Body(None)):
