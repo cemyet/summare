@@ -173,16 +173,16 @@ async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
 # --- Embedded Checkout endpoint (final) ---
-import os
+import os, traceback
 import stripe
 from fastapi import Body, HTTPException
-from stripe.checkout import Session as StripeCheckoutSession  # modern import, no deprecation
+from stripe.checkout import Session as StripeCheckoutSession  # ✅ modern import
 
 stripe.api_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
 
 @app.post("/api/payments/create-embedded-checkout")
 def create_embedded_checkout(payload: dict = Body(None)):
-    print("🔧 Embedded checkout endpoint called - VERSION 2025-09-28-13:08")
+    print("🔧 Embedded checkout endpoint called")
     print("🔧 STRIPE_SECRET_KEY present:", bool(stripe.api_key))
     try:
         amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
@@ -200,15 +200,16 @@ def create_embedded_checkout(payload: dict = Body(None)):
                 },
                 "quantity": 1,
             }],
-            return_url=(os.getenv("STRIPE_SUCCESS_URL", "https://www.summare.se/app")
-                        + "?payment=success&session_id={CHECKOUT_SESSION_ID}"),
+            return_url=(
+                os.getenv("STRIPE_SUCCESS_URL", "https://www.summare.se/app")
+                + "?payment=success&session_id={CHECKOUT_SESSION_ID}"
+            ),
             customer_email=(payload or {}).get("email"),
             metadata=(payload or {}).get("metadata") or {},
             allow_promotion_codes=True,
         )
 
-        # ✅ The correct attribute is client_secret (lowercase, underscore)
-        client_secret = getattr(session, "client_secret", None)
+        client_secret = getattr(session, "client_secret", None)  # ✅ correct attribute
         print("🔧 got session.id:", session.id, "client_secret present:", bool(client_secret))
 
         if not isinstance(client_secret, str) or not client_secret.startswith("cs_"):
@@ -220,8 +221,8 @@ def create_embedded_checkout(payload: dict = Body(None)):
         raise
     except Exception as e:
         print("❌ create_embedded_checkout error:", repr(e))
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/api/stripe/verify")
 def verify_stripe_session(session_id: str):
