@@ -1,16 +1,13 @@
-export const readBool = (v: any) =>
-  ["1","true","yes","on"].includes(String(v).toLowerCase());
+const toBool = (v: any) => ["1","true","yes","on"].includes(String(v).toLowerCase());
 
-// support both Next and Vite
-const vite = (typeof import.meta !== "undefined" && (import.meta as any).env) || {};
 const next = (typeof process !== "undefined" && process.env) || {};
-
-export const USE_EMBED =
-  readBool(vite.VITE_USE_EMBEDDED_CHECKOUT) ||
-  readBool(next.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
+const vite = (typeof import.meta !== "undefined" && (import.meta as any).env) || {};
 
 export const API_BASE =
-  vite.VITE_API_URL || next.NEXT_PUBLIC_API_URL || "";
+  (next.NEXT_PUBLIC_API_URL || vite.VITE_API_URL || "").trim();
 
 export const STRIPE_PUBLISHABLE_KEY =
-  vite.VITE_STRIPE_PUBLISHABLE_KEY || next.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "";
+  (next.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || vite.VITE_STRIPE_PUBLISHABLE_KEY || "").trim();
+
+export const USE_EMBED =
+  toBool(next.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT) || toBool(vite.VITE_USE_EMBEDDED_CHECKOUT);
