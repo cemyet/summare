@@ -182,7 +182,7 @@ stripe.api_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
 
 @app.post("/api/payments/create-embedded-checkout")
 def create_embedded_checkout(payload: dict = Body(None)):
-    print("🔧 Embedded checkout endpoint called")
+    print("🔧 Embedded checkout endpoint called - VERSION 2025-09-28-13:08")
     print("🔧 STRIPE_SECRET_KEY present:", bool(stripe.api_key))
     try:
         amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
