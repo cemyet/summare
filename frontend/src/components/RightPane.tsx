@@ -22,13 +22,9 @@ export default function RightPane({ companyData, currentStep, editableAmounts = 
   useEffect(() => {
     const onShow = () => {
       console.log('🔧 RightPane received summare:showPayment event');
-      console.log('🔧 USE_EMBED in onShow:', USE_EMBED);
-      if (USE_EMBED) {
-        console.log('🔧 Setting showPayment to true');
-        setShowPayment(true);
-      } else {
-        console.log('🔧 USE_EMBED is false, not showing embedded checkout');
-      }
+      // 🚨 Hot-fix: ignore USE_EMBED, just show it
+      console.log('🔧 HOTFIX: Forcing showPayment to true regardless of USE_EMBED flag');
+      setShowPayment(true);
     };
     const onHide = () => {
       console.log('🔧 RightPane received summare:hidePayment event');
@@ -45,10 +41,10 @@ export default function RightPane({ companyData, currentStep, editableAmounts = 
     };
   }, []);
 
-  console.log('🔧 RightPane render check:', { USE_EMBED, showPayment, shouldShowEmbedded: USE_EMBED && showPayment });
+  console.log('🔧 RightPane render check:', { USE_EMBED, showPayment, shouldShowEmbedded: showPayment });
 
-  if (USE_EMBED && showPayment) {
-    console.log('🔧 RightPane rendering StripeEmbeddedCheckout');
+  if (showPayment) {
+    console.log('🔧 RightPane rendering StripeEmbeddedCheckout (HOTFIX: ignoring USE_EMBED)');
     return (
       <StripeEmbeddedCheckout
         onComplete={() => {
