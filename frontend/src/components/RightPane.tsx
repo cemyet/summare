@@ -57,7 +57,7 @@ export default function RightPane({ companyData, currentStep, editableAmounts = 
         <>
           {console.log('🔧 Portaling StripeEmbeddedCheckout into payment-section-anchor')}
           {createPortal(
-            <div className="mt-4">
+            <div className="mt-4 max-w-[980px]">
               <StripeEmbeddedCheckout
                 onComplete={() => {
                   console.log('🔧 StripeEmbeddedCheckout onComplete called');

@@ -60,5 +60,20 @@ export default function StripeEmbeddedCheckout({ onComplete, height = 720 }: { o
   }, [onComplete]);
 
   // stay within your preview card frames (rounded border, hidden overflow)
-  return <div ref={ref} style={{ height }} />;
+  return (
+    <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-neutral-200">
+        <h3 className="text-sm font-medium text-neutral-700">Betalning</h3>
+      </div>
+
+      {/* Outer padding creates spacing between the card edge and the iframe */}
+      <div className="p-4 sm:p-6">
+        <div
+          ref={ref}
+          className="w-full"
+          style={{ minHeight: height }}
+        />
+      </div>
+    </div>
+  );
 }
