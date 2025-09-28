@@ -923,6 +923,11 @@ interface ChatFlowResponse {
         console.log('🔍 API Response:', { action_type, action_data, next_step });
         console.log('🔍 Full response.result:', response.result);
 
+        // Embedded checkout interception logic
+        const USE_EMBED = String(process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT).toLowerCase() === "true";
+        const isPaymentChoice = option?.option_value === "stripe_payment";
+        let interceptedExternalRedirect = false;
+
         // Process the action
         console.log('🔍 Processing action:', action_type, 'with data:', action_data);
         console.log('🔍 About to enter switch statement with action_type:', action_type);
@@ -1018,19 +1023,17 @@ interface ChatFlowResponse {
             }
             break;
             
-          case 'external_redirect':
-            // 👇 If embedding and we're on the payment step, render in the right pane instead of opening a new tab
-            if (USE_EMBED && currentStep === 505) {
-              console.log('💳 Using embedded checkout for step 505');
+          case "external_redirect":
+            if (USE_EMBED && (isPaymentChoice || currentStep === 505)) {
+              console.log("💳 Using embedded checkout (intercepted external_redirect)");
+              interceptedExternalRedirect = true;
               addMessage("Öppnar betalning i förhandsvisningen …", true, "💳");
               window.dispatchEvent(new Event("summare:showPayment"));
-              break; // ← important: do NOT open the URL
+              break; // DO NOT open the URL
             }
-
-            // Default behavior (new tab)
             if (action_data?.url) {
-              console.log('🔗 Redirecting to external URL:', action_data.url);
-              const target = action_data.target || '_blank';
+              console.log("🔗 Redirecting to external URL:", action_data.url);
+              const target = action_data.target || "_blank";
               window.open(action_data.url, target);
             }
             break;
@@ -1086,7 +1089,7 @@ interface ChatFlowResponse {
 
         // Navigate to next step
         console.log('🔍 General navigation check:', { next_step, action_type });
-        if (next_step) {
+        if (next_step && !interceptedExternalRedirect) {
           console.log('🚀 Navigating to step:', next_step);
           
           // Auto-scroll to noter section for step 420
@@ -1139,6 +1142,8 @@ interface ChatFlowResponse {
           }
           
           setTimeout(() => loadChatStep(next_step, updatedInk2Data), 1000);
+        } else if (interceptedExternalRedirect) {
+          console.log('🧭 Skipping navigation because embedded checkout is shown');
         } else {
           console.log('❌ No next_step specified');
         }
