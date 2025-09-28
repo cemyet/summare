@@ -5,7 +5,7 @@ import { OptionButton } from './OptionButton';
 import { FileUpload } from './FileUpload';
 // Force Vercel deployment - trigger
 
-const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true";
+const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true" || true; // TEMPORARY: Force true for testing
 
 // Debug logging
 console.log('🔧 USE_EMBED:', USE_EMBED);
