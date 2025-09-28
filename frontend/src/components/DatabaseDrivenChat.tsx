@@ -3,18 +3,17 @@ import { apiService } from '@/services/api';
 import { ChatMessage } from './ChatMessage';
 import { OptionButton } from './OptionButton';
 import { FileUpload } from './FileUpload';
+import { USE_EMBED } from '@/utils/flags';
 // Force Vercel deployment - trigger
-
-const USE_EMBED = String(process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT).toLowerCase() === "true";
 
 // Debug logging
 console.log('🔧 USE_EMBED:', USE_EMBED);
 console.log('🔧 NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT:', process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
-console.log('🔧 All NEXT_PUBLIC env vars:', Object.keys(process.env).filter(key => key.startsWith('NEXT_PUBLIC')));
+console.log('🔧 VITE_USE_EMBEDDED_CHECKOUT:', (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_USE_EMBEDDED_CHECKOUT));
+console.log('🔧 All NEXT_PUBLIC env vars:', Object.keys(process.env || {}).filter(key => key.startsWith('NEXT_PUBLIC')));
 console.log('🔧 Environment check:', {
   'process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT': process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT,
-  'typeof': typeof process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT,
-  '=== "true"': process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true",
+  'import.meta.env.VITE_USE_EMBEDDED_CHECKOUT': (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_USE_EMBEDDED_CHECKOUT),
   'USE_EMBED result': USE_EMBED
 });
 
@@ -924,7 +923,6 @@ interface ChatFlowResponse {
         console.log('🔍 Full response.result:', response.result);
 
         // Embedded checkout interception logic
-        const USE_EMBED = String(process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT).toLowerCase() === "true";
         const isPaymentChoice = option?.option_value === "stripe_payment";
         let interceptedExternalRedirect = false;
 

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { AnnualReportPreview } from "@/components/AnnualReportPreview"; // your existing component
 import StripeEmbeddedCheckout from "@/components/StripeEmbeddedCheckout";
-
-const USE_EMBED = String(process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT).toLowerCase() === "true";
+import { USE_EMBED } from "@/utils/flags";
 
 // Debug logging
 console.log('🔧 RightPane USE_EMBED:', USE_EMBED);
 console.log('🔧 RightPane NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT:', process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
-console.log('🔧 RightPane All NEXT_PUBLIC env vars:', Object.keys(process.env).filter(key => key.startsWith('NEXT_PUBLIC')));
+console.log('🔧 RightPane VITE_USE_EMBEDDED_CHECKOUT:', (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_USE_EMBEDDED_CHECKOUT));
+console.log('🔧 RightPane All NEXT_PUBLIC env vars:', Object.keys(process.env || {}).filter(key => key.startsWith('NEXT_PUBLIC')));
 
 interface RightPaneProps {
   companyData: any;

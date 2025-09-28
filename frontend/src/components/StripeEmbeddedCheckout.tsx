@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { loadStripe } from "@stripe/stripe-js";
+import { API_BASE } from "@/utils/flags";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -20,7 +21,9 @@ export default function StripeEmbeddedCheckout({
     (async () => {
       try {
         console.log('🔧 Fetching embedded checkout session...');
-        const res = await fetch("/api/payments/create-embedded-checkout", { method: "POST" });
+        console.log('🔧 API_BASE:', API_BASE);
+        const res = await fetch(`${API_BASE}/api/payments/create-embedded-checkout`, { method: "POST" });
+        console.log('🔧 Fetch response status:', res.status);
         const { client_secret, session_id } = await res.json();
         console.log('🔧 Got session:', { client_secret: client_secret ? 'present' : 'missing', session_id });
 
@@ -41,7 +44,7 @@ export default function StripeEmbeddedCheckout({
           async onComplete() {
             console.log('🔧 Stripe checkout completed');
             try {
-              const r = await fetch(`/api/stripe/verify?session_id=${session_id}`);
+              const r = await fetch(`${API_BASE}/api/stripe/verify?session_id=${session_id}`);
               const j = await r.json();
               if (j.paid) onComplete?.(session_id);
             } catch {
