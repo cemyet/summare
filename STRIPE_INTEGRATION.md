@@ -1,10 +1,14 @@
-# Stripe Integration for Step 505
+# Stripe Integration for Step 505 - Embedded Checkout
 
-This document describes the Stripe payment integration implemented for step 505 of the chat flow, which triggers going to Stripe checkout for annual report payment.
+This document describes the Stripe payment integration implemented for step 505 of the chat flow, which supports both traditional redirect checkout and embedded checkout within the application.
 
 ## Overview
 
-The integration allows users to proceed from step 505 (payment step) to a dynamic Stripe checkout session instead of using a hardcoded URL. This provides better security, session management, and payment tracking.
+The integration supports two payment modes:
+1. **Traditional Redirect**: Opens Stripe checkout in a new tab (default)
+2. **Embedded Checkout**: Renders Stripe checkout within the application's preview pane
+
+Both modes use dynamic Stripe checkout sessions for better security, session management, and payment tracking.
 
 ## Implementation Details
 
@@ -34,12 +38,21 @@ The frontend (`DatabaseDrivenChat.tsx`) already handles the `external_redirect` 
 
 Add these environment variables to your deployment:
 
+**Backend:**
 ```bash
 # Stripe Configuration
 STRIPE_SECRET_KEY=sk_test_...  # Your Stripe secret key (from Dashboard > API keys)
 STRIPE_WEBHOOK_SECRET=whsec_...  # Your webhook signing secret (from Dashboard > Webhooks)
+STRIPE_AMOUNT_SEK=699  # Payment amount in SEK
 STRIPE_SUCCESS_URL=https://summare.se/app?payment=success
 STRIPE_CANCEL_URL=https://summare.se/app?payment=cancelled
+```
+
+**Frontend:**
+```bash
+# Stripe Configuration
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...  # Your Stripe publishable key
+NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT=true  # Set to true for embedded checkout, false for redirect
 ```
 
 **How to get these values:**

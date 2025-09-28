@@ -113,6 +113,44 @@ def create_checkout_session_url(amount_ore: int,
         raise RuntimeError(f"Stripe REST error {r.status_code}: {r.text}")
     return r.json()["url"]
 
+# --- Stripe Embedded Checkout endpoints ---
+from fastapi import APIRouter, Body
+
+router = APIRouter()
+
+@router.post("/api/payments/create-embedded-checkout")
+def create_embedded_checkout(payload: dict = Body(None)):
+    """
+    Returns a client_secret for Embedded Checkout.
+    """
+    amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
+    session = stripe.checkout.sessions.create(
+        ui_mode="embedded",                         # 👈 key bit
+        mode="payment",
+        line_items=[{
+            "price_data": {
+                "currency": "sek",
+                "product_data": {"name": "Årsredovisning – Summare"},
+                "unit_amount": amount_sek * 100,
+            },
+            "quantity": 1,
+        }],
+        # Stripe will redirect the EMBEDDED iframe here (we also verify client-side)
+        return_url=os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app") + "?payment=success&session_id={CHECKOUT_SESSION_ID}",
+        customer_email=(payload or {}).get("email"),
+        metadata=(payload or {}).get("metadata") or {},
+        allow_promotion_codes=True,
+    )
+    return {"client_secret": session.client_secret, "session_id": session.id}
+
+@router.get("/api/stripe/verify")
+def verify_stripe_session(session_id: str):
+    """
+    Used by the UI to confirm the session is paid after onComplete().
+    """
+    s = stripe.checkout.sessions.retrieve(session_id, expand=["payment_intent"])
+    return {"paid": s.payment_status == "paid", "id": s.id}
+
 # Importera våra moduler
 # from services.report_generator import ReportGenerator  # Disabled - using DatabaseParser instead
 from services.supabase_service import SupabaseService
@@ -132,6 +170,9 @@ app = FastAPI(
     description="API för att generera årsredovisningar enligt K2",
     version="1.0.0"
 )
+
+# Include the Stripe embedded checkout router
+app.include_router(router)
 
 # CORS middleware för React frontend
 app.add_middleware(

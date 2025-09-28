@@ -11,6 +11,12 @@ const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true";
 console.log('🔧 USE_EMBED:', USE_EMBED);
 console.log('🔧 NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT:', process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
 console.log('🔧 All NEXT_PUBLIC env vars:', Object.keys(process.env).filter(key => key.startsWith('NEXT_PUBLIC')));
+console.log('🔧 Environment check:', {
+  'process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT': process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT,
+  'typeof': typeof process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT,
+  '=== "true"': process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true",
+  'USE_EMBED result': USE_EMBED
+});
 
 interface ChatStep {
   step_number: number;
@@ -1020,6 +1026,12 @@ interface ChatFlowResponse {
                 optionValue: option.option_value,
                 USE_EMBED,
                 shouldEmbed: currentStep === 505 && option.option_value === "stripe_payment" && USE_EMBED
+              });
+              console.log('🔍 Individual checks:', {
+                'currentStep === 505': currentStep === 505,
+                'option.option_value === "stripe_payment"': option.option_value === "stripe_payment",
+                'USE_EMBED': USE_EMBED,
+                'All conditions met': currentStep === 505 && option.option_value === "stripe_payment" && USE_EMBED
               });
               
               // Check if this is step 505 (payment) and we should use embedded checkout
