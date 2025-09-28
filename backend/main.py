@@ -172,20 +172,13 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-# --- Stripe Embedded Checkout endpoint (safe version) ---
+# --- Embedded Checkout endpoint (final) ---
+import os
+import stripe
+from fastapi import Body, HTTPException
+from stripe.checkout import Session as StripeCheckoutSession  # modern import, no deprecation
 
-# Modern Stripe import (no deprecation warning)
-try:
-    from stripe.checkout import Session as StripeCheckoutSession
-except Exception as e:
-    print("⚠️ Failed to import StripeCheckoutSession:", e)
-    # Fallback to deprecated import if needed
-    try:
-        from stripe.api_resources.checkout.session import Session as StripeCheckoutSession
-        print("⚠️ Using deprecated import path as fallback")
-    except Exception as e2:
-        print("⚠️ All import attempts failed:", e2)
-        raise
+stripe.api_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
 
 @app.post("/api/payments/create-embedded-checkout")
 def create_embedded_checkout(payload: dict = Body(None)):
@@ -195,9 +188,7 @@ def create_embedded_checkout(payload: dict = Body(None)):
         amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
         print("🔧 Payload:", payload)
         print("🔧 Amount SEK:", amount_sek)
-        print("🔧 stripe.version:", getattr(stripe, "__version__", "unknown"))
 
-        # Create session via the explicitly imported class (no 'stripe.checkout' access)
         session = StripeCheckoutSession.create(
             ui_mode="embedded",
             mode="payment",
@@ -209,26 +200,31 @@ def create_embedded_checkout(payload: dict = Body(None)):
                 },
                 "quantity": 1,
             }],
-            return_url=(
-                os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app")
-                + "?payment=success&session_id={CHECKOUT_SESSION_ID}"
-            ),
+            return_url=(os.getenv("STRIPE_SUCCESS_URL", "https://www.summare.se/app")
+                        + "?payment=success&session_id={CHECKOUT_SESSION_ID}"),
             customer_email=(payload or {}).get("email"),
             metadata=(payload or {}).get("metadata") or {},
             allow_promotion_codes=True,
         )
-        print("✅ Created session:", session.id)
-        return {"client_secret": session.client_secret, "session_id": session.id}
 
+        # ✅ The correct attribute is client_secret (lowercase, underscore)
+        client_secret = getattr(session, "client_secret", None)
+        print("🔧 got session.id:", session.id, "client_secret present:", bool(client_secret))
+
+        if not isinstance(client_secret, str) or not client_secret.startswith("cs_"):
+            raise HTTPException(status_code=500, detail="Missing client_secret for embedded checkout")
+
+        return {"client_secret": client_secret, "session_id": session.id}
+
+    except HTTPException:
+        raise
     except Exception as e:
-        # surface a readable error to the browser and logs
         print("❌ create_embedded_checkout error:", repr(e))
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/stripe/verify")
 def verify_stripe_session(session_id: str):
-    # Same safe import usage
     s = StripeCheckoutSession.retrieve(session_id, expand=["payment_intent"])
     return {"paid": s.payment_status == "paid", "id": s.id}
 
