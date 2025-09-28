@@ -172,62 +172,78 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-# --- Embedded Checkout endpoint (final) ---
-import os, traceback
-import stripe
-from fastapi import Body, HTTPException
-from stripe.checkout import Session as StripeCheckoutSession  # ✅ modern import
+# --- Embedded Checkout endpoint (pure HTTP, no SDK issues) ---
+import os
+import requests
+from fastapi import Request, HTTPException
 
-stripe.api_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")  # sk_test_xxx
+if not STRIPE_SECRET_KEY:
+    print("⚠️  STRIPE_SECRET_KEY missing at startup")
+
+# Optional: dynamic price; we'll just send an amount
+AMOUNT_SEK = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
+
+def _stripe_post(path: str, form: dict):
+    """Internal helper to call Stripe REST with form-encoded body."""
+    url = f"https://api.stripe.com{path}"
+    r = requests.post(url, data=form, auth=(STRIPE_SECRET_KEY, ""))
+    if r.status_code >= 400:
+        raise HTTPException(status_code=500, detail=r.text)
+    return r.json()
 
 @app.post("/api/payments/create-embedded-checkout")
-def create_embedded_checkout(payload: dict = Body(None)):
-    print("🔧 Embedded checkout endpoint called")
-    print("🔧 STRIPE_SECRET_KEY present:", bool(stripe.api_key))
+async def create_embedded_checkout(request: Request):
+    """
+    Creates an *embedded* Checkout session and returns {client_secret, session_id}.
+    Frontend will call stripe.initEmbeddedCheckout({ clientSecret }).
+    """
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Stripe not configured")
+
+    # you can read payload if you wish:
     try:
-        amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
-        print("🔧 Payload:", payload)
-        print("🔧 Amount SEK:", amount_sek)
+        _ = await request.json()
+    except Exception:
+        _ = None
 
-        session = StripeCheckoutSession.create(
-            ui_mode="embedded",
-            mode="payment",
-            line_items=[{
-                "price_data": {
-                    "currency": "sek",
-                    "product_data": {"name": "Årsredovisning – Summare"},
-                    "unit_amount": amount_sek * 100,
-                },
-                "quantity": 1,
-            }],
-            return_url=(
-                os.getenv("STRIPE_SUCCESS_URL", "https://www.summare.se/app")
-                + "?payment=success&session_id={CHECKOUT_SESSION_ID}"
-            ),
-            customer_email=(payload or {}).get("email"),
-            metadata=(payload or {}).get("metadata") or {},
-            allow_promotion_codes=True,
-        )
+    # Build Stripe form for an embedded checkout session
+    form = {
+        "mode": "payment",
+        "ui_mode": "embedded",
+        # Use inline price_data so you don't need a Price in the dashboard
+        "line_items[0][price_data][currency]": "sek",
+        "line_items[0][price_data][product_data][name]": "Årsredovisning",
+        "line_items[0][price_data][unit_amount]": str(AMOUNT_SEK * 100),  # öre
+        "line_items[0][quantity]": "1",
+        # Embedded requires a return_url with {CHECKOUT_SESSION_ID}
+        "return_url": "https://www.summare.se/?session_id={CHECKOUT_SESSION_ID}",
+        "automatic_tax[enabled]": "true",
+    }
 
-        client_secret = getattr(session, "client_secret", None)  # ✅ correct attribute
-        print("🔧 got session.id:", session.id, "client_secret present:", bool(client_secret))
-
-        if not isinstance(client_secret, str) or not client_secret.startswith("cs_"):
-            raise HTTPException(status_code=500, detail="Missing client_secret for embedded checkout")
-
-        return {"client_secret": client_secret, "session_id": session.id}
-
+    try:
+        session = _stripe_post("/v1/checkout/sessions", form)
+        # Respond with exactly what the frontend needs
+        return {
+            "client_secret": session["client_secret"],
+            "session_id": session["id"],
+        }
     except HTTPException:
         raise
     except Exception as e:
-        print("❌ create_embedded_checkout error:", repr(e))
-        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/stripe/verify")
-def verify_stripe_session(session_id: str):
-    s = StripeCheckoutSession.retrieve(session_id, expand=["payment_intent"])
-    return {"paid": s.payment_status == "paid", "id": s.id}
+async def verify_stripe_session(session_id: str):
+    """Verify payment status using direct HTTP call."""
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Stripe not configured")
+    
+    try:
+        session = _stripe_post(f"/v1/checkout/sessions/{session_id}", {})
+        return {"paid": session["payment_status"] == "paid", "id": session["id"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/create-stripe-session")
 async def create_stripe_session():
