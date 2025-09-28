@@ -5,7 +5,7 @@ import { OptionButton } from './OptionButton';
 import { FileUpload } from './FileUpload';
 // Force Vercel deployment - trigger
 
-const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true" || true; // TEMPORARY: Force true to test embedded checkout
+const USE_EMBED = String(process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT).toLowerCase() === "true";
 
 // Debug logging
 console.log('🔧 USE_EMBED:', USE_EMBED);
@@ -1019,34 +1019,19 @@ interface ChatFlowResponse {
             break;
             
           case 'external_redirect':
-            // Handle external redirects (like Stripe payment)
+            // 👇 If embedding and we're on the payment step, render in the right pane instead of opening a new tab
+            if (USE_EMBED && currentStep === 505) {
+              console.log('💳 Using embedded checkout for step 505');
+              addMessage("Öppnar betalning i förhandsvisningen …", true, "💳");
+              window.dispatchEvent(new Event("summare:showPayment"));
+              break; // ← important: do NOT open the URL
+            }
+
+            // Default behavior (new tab)
             if (action_data?.url) {
-              console.log('🔍 External redirect check:', {
-                currentStep,
-                optionValue: option.option_value,
-                USE_EMBED,
-                shouldEmbed: currentStep === 505 && option.option_value === "stripe_payment" && USE_EMBED
-              });
-              console.log('🔍 Individual checks:', {
-                'currentStep === 505': currentStep === 505,
-                'option.option_value === "stripe_payment"': option.option_value === "stripe_payment",
-                'USE_EMBED': USE_EMBED,
-                'All conditions met': currentStep === 505 && option.option_value === "stripe_payment" && USE_EMBED
-              });
-              
-              // Check if this is step 505 (payment) and we should use embedded checkout
-              if (currentStep === 505 && option.option_value === "stripe_payment" && USE_EMBED) {
-                console.log('💳 Using embedded checkout for step 505');
-                addMessage("Öppnar betalning i förhandsvisningen …", true, "💳");
-                console.log('🔧 Dispatching summare:showPayment event');
-                window.dispatchEvent(new Event("summare:showPayment"));
-                console.log('🔧 Event dispatched, returning early');
-                return; // do not follow external_redirect from backend
-              } else {
-                console.log('🔗 Redirecting to external URL:', action_data.url);
-                const target = action_data.target || '_blank';
-                window.open(action_data.url, target);
-              }
+              console.log('🔗 Redirecting to external URL:', action_data.url);
+              const target = action_data.target || '_blank';
+              window.open(action_data.url, target);
             }
             break;
             

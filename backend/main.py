@@ -113,22 +113,21 @@ def create_checkout_session_url(amount_ore: int,
         raise RuntimeError(f"Stripe REST error {r.status_code}: {r.text}")
     return r.json()["url"]
 
-# --- Stripe Embedded Checkout endpoints ---
-from fastapi import APIRouter, Body
+# --- Embedded Checkout endpoints ---
+from fastapi import Body
 
-router = APIRouter()
-
-@router.post("/api/payments/create-embedded-checkout")
+@app.post("/api/payments/create-embedded-checkout")
 def create_embedded_checkout(payload: dict = Body(None)):
     """
-    Returns a client_secret for Embedded Checkout.
+    Create a Checkout Session for Embedded Checkout and return its client_secret.
+    POST is required by Stripe; a GET here would cause 405.
     """
     print("🔧 Embedded checkout endpoint called")
     print(f"🔧 Payload: {payload}")
     amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
     print(f"🔧 Amount SEK: {amount_sek}")
     session = stripe.checkout.sessions.create(
-        ui_mode="embedded",                         # 👈 key bit
+        ui_mode="embedded",    # 👈 key
         mode="payment",
         line_items=[{
             "price_data": {
@@ -138,18 +137,19 @@ def create_embedded_checkout(payload: dict = Body(None)):
             },
             "quantity": 1,
         }],
-        # Stripe will redirect the EMBEDDED iframe here (we also verify client-side)
-        return_url=os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app") + "?payment=success&session_id={CHECKOUT_SESSION_ID}",
+        # Stripe will redirect the embedded frame to this URL on success
+        return_url=(os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app")
+                    + "?payment=success&session_id={CHECKOUT_SESSION_ID}"),
         customer_email=(payload or {}).get("email"),
         metadata=(payload or {}).get("metadata") or {},
         allow_promotion_codes=True,
     )
     return {"client_secret": session.client_secret, "session_id": session.id}
 
-@router.get("/api/stripe/verify")
+@app.get("/api/stripe/verify")
 def verify_stripe_session(session_id: str):
     """
-    Used by the UI to confirm the session is paid after onComplete().
+    Verify a Checkout Session from the client on onComplete().
     """
     print(f"🔧 Verify endpoint called with session_id: {session_id}")
     s = stripe.checkout.sessions.retrieve(session_id, expand=["payment_intent"])
@@ -177,8 +177,7 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Include the Stripe embedded checkout router
-app.include_router(router)
+# Embedded checkout endpoints are now defined directly on the app above
 
 # CORS middleware för React frontend
 app.add_middleware(
