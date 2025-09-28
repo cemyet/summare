@@ -1,19 +1,10 @@
-// utils/flags.ts
-const NEXT_API   = process.env.NEXT_PUBLIC_API_URL;
-const NEXT_PK    = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-const NEXT_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT;
+// utils/flags.ts  (temporary hardcoded TEST config)
 
-const VITE = (typeof import.meta !== "undefined" && (import.meta as any).env) || {};
+export const API_BASE = "https://api.summare.se";
+export const STRIPE_PUBLISHABLE_KEY = "pk_test_51RuGItRd07xh2DS6MZ6VgEO8ZywkLww4YPb4E23Edv7JPRpmBto5mBe0VfZqSPYcM8Zcgj7YVMM1DWSfuzsWnub000qtW9IR0z";
+export const USE_EMBED = true;
 
-export const API_BASE =
-  (NEXT_API ?? VITE.VITE_API_URL ?? "").trim();
-
-export const STRIPE_PUBLISHABLE_KEY =
-  (NEXT_PK ?? VITE.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
-
-export const USE_EMBED =
-  String(NEXT_EMBED ?? VITE.VITE_USE_EMBEDDED_CHECKOUT ?? "false").toLowerCase() === "true";
-
+// helpful one-time debug in the browser
 if (typeof window !== "undefined") {
   console.log("[flags] API_BASE:", API_BASE);
   console.log("[flags] STRIPE key present:", !!STRIPE_PUBLISHABLE_KEY);
