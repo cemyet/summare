@@ -123,7 +123,17 @@ export function AnnualReportChat() {
               </div>
             </div>
             <div className="p-6 h-full overflow-auto pt-5">
-              <RightPane />
+              <RightPane 
+                companyData={companyData}
+                currentStep={0}
+                editableAmounts={false}
+                onDataUpdate={(updates) => {
+                  setCompanyData(prev => {
+                    const newData = { ...prev, ...updates };
+                    return newData;
+                  });
+                }}
+              />
             </div>
           </div>
         </ResizablePanel>

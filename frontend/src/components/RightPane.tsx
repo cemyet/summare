@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
-import AnnualReportPreview from "@/components/AnnualReportPreview"; // your existing component
+import { AnnualReportPreview } from "@/components/AnnualReportPreview"; // your existing component
 import StripeEmbeddedCheckout from "@/components/StripeEmbeddedCheckout";
 
 const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true";
 
-export default function RightPane() {
+interface RightPaneProps {
+  companyData: any;
+  currentStep: number;
+  editableAmounts?: boolean;
+  onDataUpdate?: (updates: Partial<any>) => void;
+}
+
+export default function RightPane({ companyData, currentStep, editableAmounts = false, onDataUpdate }: RightPaneProps) {
   const [showPayment, setShowPayment] = useState(false);
 
   useEffect(() => {
@@ -30,5 +37,10 @@ export default function RightPane() {
     );
   }
 
-  return <AnnualReportPreview />; // your existing preview
+  return <AnnualReportPreview 
+    companyData={companyData}
+    currentStep={currentStep}
+    editableAmounts={editableAmounts}
+    onDataUpdate={onDataUpdate}
+  />; // your existing preview
 }
