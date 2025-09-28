@@ -3,11 +3,12 @@
 export const readBool = (v: any) =>
   ["1", "true", "yes", "on"].includes(String(v).toLowerCase());
 
+const vite = (typeof import.meta !== "undefined" && (import.meta as any).env) || {};
+const next = (typeof process !== "undefined" && process.env) || {};
+
 export const USE_EMBED =
-  readBool((typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_USE_EMBEDDED_CHECKOUT)) ||
-  readBool((typeof process !== "undefined" && process.env?.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT));
+  readBool(vite.VITE_USE_EMBEDDED_CHECKOUT) ||
+  readBool(next.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
 
 export const API_BASE =
-  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_API_URL) ||
-  (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_API_URL) ||
-  "";
+  vite.VITE_API_URL || next.NEXT_PUBLIC_API_URL || "";

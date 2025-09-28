@@ -1021,20 +1021,23 @@ interface ChatFlowResponse {
             }
             break;
             
-          case "external_redirect":
-            if (USE_EMBED && (isPaymentChoice || currentStep === 505)) {
-              console.log("💳 Using embedded checkout (intercepted external_redirect)");
-              interceptedExternalRedirect = true;
+          case "external_redirect": {
+            const forceEmbed = (explicitStepNumber || currentStep) === 505 && isPaymentChoice;
+
+            if (forceEmbed) {
+              console.log("💳 FORCE embedded checkout (step 505) — ignoring external_redirect");
               addMessage("Öppnar betalning i förhandsvisningen …", true, "💳");
               window.dispatchEvent(new Event("summare:showPayment"));
-              break; // DO NOT open the URL
+              // IMPORTANT: return here so we don't fall through to general navigation
+              return;
             }
+
             if (action_data?.url) {
               console.log("🔗 Redirecting to external URL:", action_data.url);
-              const target = action_data.target || "_blank";
-              window.open(action_data.url, target);
+              window.open(action_data.url, action_data.target || "_blank");
             }
             break;
+          }
             
           case 'process_input':
             // Handle input processing
