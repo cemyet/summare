@@ -134,26 +134,23 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Embedded checkout endpoints are now defined directly on the app above
+# Configure CORS for embedded checkout
+ALLOWED_ORIGINS = [
+    "https://www.summare.se",
+    "https://summare.se",
+    "http://localhost:5173",   # vite dev, if needed
+    "http://localhost:3000",   # next dev, if needed
+]
 
-# CORS middleware för React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", 
-        "http://localhost:8080",
-        "https://raketrapport.se",
-        "https://www.raketrapport.se",
-        "https://raket-arsredovisning.vercel.app",
-        "https://raketrapport-production.up.railway.app",  # Railway backend URL
-        "https://summare.se",
-        "https://www.summare.se",
-        "https://summare.vercel.app"
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],   # includes POST/GET/OPTIONS
+    allow_headers=["*"],   # include Authorization, Content-Type, etc.
 )
+
+# Note: CORS middleware configured above with comprehensive origins list
 
 # Initiera services
 # report_generator = ReportGenerator()  # Disabled - using DatabaseParser instead
@@ -184,28 +181,33 @@ def create_embedded_checkout(payload: dict = Body(None)):
     POST is required by Stripe; a GET here would cause 405.
     """
     print("🔧 Embedded checkout endpoint called")
-    print(f"🔧 Payload: {payload}")
-    amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
-    print(f"🔧 Amount SEK: {amount_sek}")
-    session = stripe.checkout.sessions.create(
-        ui_mode="embedded",    # 👈 key
-        mode="payment",
-        line_items=[{
-            "price_data": {
-                "currency": "sek",
-                "product_data": {"name": "Årsredovisning – Summare"},
-                "unit_amount": amount_sek * 100,
-            },
-            "quantity": 1,
-        }],
-        # Stripe will redirect the embedded frame to this URL on success
-        return_url=(os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app")
-                    + "?payment=success&session_id={CHECKOUT_SESSION_ID}"),
-        customer_email=(payload or {}).get("email"),
-        metadata=(payload or {}).get("metadata") or {},
-        allow_promotion_codes=True,
-    )
-    return {"client_secret": session.client_secret, "session_id": session.id}
+    try:
+        amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
+        print("🔧 Payload:", payload)
+        print("🔧 Amount SEK:", amount_sek)
+
+        # ✅ Use Session.create (capital S) - correct for Stripe 7.x
+        session = stripe.checkout.Session.create(
+            ui_mode="embedded",
+            mode="payment",
+            line_items=[{
+                "price_data": {
+                    "currency": "sek",
+                    "product_data": {"name": "Årsredovisning – Summare"},
+                    "unit_amount": amount_sek * 100,
+                },
+                "quantity": 1,
+            }],
+            return_url=(os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app")
+                        + "?payment=success&session_id={CHECKOUT_SESSION_ID}"),
+            customer_email=(payload or {}).get("email"),
+            metadata=(payload or {}).get("metadata") or {},
+            allow_promotion_codes=True,
+        )
+        return {"client_secret": session.client_secret, "session_id": session.id}
+    except Exception as e:
+        print("❌ create_embedded_checkout error:", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/stripe/verify")
 def verify_stripe_session(session_id: str):
@@ -213,7 +215,8 @@ def verify_stripe_session(session_id: str):
     Verify a Checkout Session from the client on onComplete().
     """
     print(f"🔧 Verify endpoint called with session_id: {session_id}")
-    s = stripe.checkout.sessions.retrieve(session_id, expand=["payment_intent"])
+    # ✅ Use Session.retrieve (capital S) - correct for Stripe 7.x
+    s = stripe.checkout.Session.retrieve(session_id, expand=["payment_intent"])
     result = {"paid": s.payment_status == "paid", "id": s.id}
     print(f"🔧 Verify result: {result}")
     return result
