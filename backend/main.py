@@ -113,49 +113,6 @@ def create_checkout_session_url(amount_ore: int,
         raise RuntimeError(f"Stripe REST error {r.status_code}: {r.text}")
     return r.json()["url"]
 
-# --- Embedded Checkout endpoints ---
-from fastapi import Body
-
-@app.post("/api/payments/create-embedded-checkout")
-def create_embedded_checkout(payload: dict = Body(None)):
-    """
-    Create a Checkout Session for Embedded Checkout and return its client_secret.
-    POST is required by Stripe; a GET here would cause 405.
-    """
-    print("🔧 Embedded checkout endpoint called")
-    print(f"🔧 Payload: {payload}")
-    amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
-    print(f"🔧 Amount SEK: {amount_sek}")
-    session = stripe.checkout.sessions.create(
-        ui_mode="embedded",    # 👈 key
-        mode="payment",
-        line_items=[{
-            "price_data": {
-                "currency": "sek",
-                "product_data": {"name": "Årsredovisning – Summare"},
-                "unit_amount": amount_sek * 100,
-            },
-            "quantity": 1,
-        }],
-        # Stripe will redirect the embedded frame to this URL on success
-        return_url=(os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app")
-                    + "?payment=success&session_id={CHECKOUT_SESSION_ID}"),
-        customer_email=(payload or {}).get("email"),
-        metadata=(payload or {}).get("metadata") or {},
-        allow_promotion_codes=True,
-    )
-    return {"client_secret": session.client_secret, "session_id": session.id}
-
-@app.get("/api/stripe/verify")
-def verify_stripe_session(session_id: str):
-    """
-    Verify a Checkout Session from the client on onComplete().
-    """
-    print(f"🔧 Verify endpoint called with session_id: {session_id}")
-    s = stripe.checkout.sessions.retrieve(session_id, expand=["payment_intent"])
-    result = {"paid": s.payment_status == "paid", "id": s.id}
-    print(f"🔧 Verify result: {result}")
-    return result
 
 # Importera våra moduler
 # from services.report_generator import ReportGenerator  # Disabled - using DatabaseParser instead
@@ -217,6 +174,50 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+# --- Embedded Checkout endpoints ---
+from fastapi import Body
+
+@app.post("/api/payments/create-embedded-checkout")
+def create_embedded_checkout(payload: dict = Body(None)):
+    """
+    Create a Checkout Session for Embedded Checkout and return its client_secret.
+    POST is required by Stripe; a GET here would cause 405.
+    """
+    print("🔧 Embedded checkout endpoint called")
+    print(f"🔧 Payload: {payload}")
+    amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
+    print(f"🔧 Amount SEK: {amount_sek}")
+    session = stripe.checkout.sessions.create(
+        ui_mode="embedded",    # 👈 key
+        mode="payment",
+        line_items=[{
+            "price_data": {
+                "currency": "sek",
+                "product_data": {"name": "Årsredovisning – Summare"},
+                "unit_amount": amount_sek * 100,
+            },
+            "quantity": 1,
+        }],
+        # Stripe will redirect the embedded frame to this URL on success
+        return_url=(os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app")
+                    + "?payment=success&session_id={CHECKOUT_SESSION_ID}"),
+        customer_email=(payload or {}).get("email"),
+        metadata=(payload or {}).get("metadata") or {},
+        allow_promotion_codes=True,
+    )
+    return {"client_secret": session.client_secret, "session_id": session.id}
+
+@app.get("/api/stripe/verify")
+def verify_stripe_session(session_id: str):
+    """
+    Verify a Checkout Session from the client on onComplete().
+    """
+    print(f"🔧 Verify endpoint called with session_id: {session_id}")
+    s = stripe.checkout.sessions.retrieve(session_id, expand=["payment_intent"])
+    result = {"paid": s.payment_status == "paid", "id": s.id}
+    print(f"🔧 Verify result: {result}")
+    return result
 
 @app.post("/create-stripe-session")
 async def create_stripe_session():
