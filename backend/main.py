@@ -172,22 +172,27 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-# --- Embedded Checkout endpoints ---
+# --- Stripe Embedded Checkout endpoint (safe version) ---
+
+# SAFE import: never touch stripe.checkout attribute
+try:
+    from stripe.api_resources.checkout.session import Session as StripeCheckoutSession
+except Exception as e:
+    print("⚠️ Failed to import StripeCheckoutSession:", e)
+    raise
 
 @app.post("/api/payments/create-embedded-checkout")
 def create_embedded_checkout(payload: dict = Body(None)):
-    """
-    Create a Checkout Session for Embedded Checkout and return its client_secret.
-    POST is required by Stripe; a GET here would cause 405.
-    """
     print("🔧 Embedded checkout endpoint called")
+    print("🔧 STRIPE_SECRET_KEY present:", bool(stripe.api_key))
     try:
         amount_sek = int(os.getenv("STRIPE_AMOUNT_SEK", "699"))
         print("🔧 Payload:", payload)
         print("🔧 Amount SEK:", amount_sek)
+        print("🔧 stripe.version:", getattr(stripe, "__version__", "unknown"))
 
-        # ✅ Use Session.create (capital S) - correct for Stripe 7.x
-        session = stripe.checkout.Session.create(
+        # Create session via the explicitly imported class (no 'stripe.checkout' access)
+        session = StripeCheckoutSession.create(
             ui_mode="embedded",
             mode="payment",
             line_items=[{
@@ -198,28 +203,28 @@ def create_embedded_checkout(payload: dict = Body(None)):
                 },
                 "quantity": 1,
             }],
-            return_url=(os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app")
-                        + "?payment=success&session_id={CHECKOUT_SESSION_ID}"),
+            return_url=(
+                os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app")
+                + "?payment=success&session_id={CHECKOUT_SESSION_ID}"
+            ),
             customer_email=(payload or {}).get("email"),
             metadata=(payload or {}).get("metadata") or {},
             allow_promotion_codes=True,
         )
+        print("✅ Created session:", session.id)
         return {"client_secret": session.client_secret, "session_id": session.id}
+
     except Exception as e:
-        print("❌ create_embedded_checkout error:", e)
+        # surface a readable error to the browser and logs
+        print("❌ create_embedded_checkout error:", repr(e))
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/stripe/verify")
 def verify_stripe_session(session_id: str):
-    """
-    Verify a Checkout Session from the client on onComplete().
-    """
-    print(f"🔧 Verify endpoint called with session_id: {session_id}")
-    # ✅ Use Session.retrieve (capital S) - correct for Stripe 7.x
-    s = stripe.checkout.Session.retrieve(session_id, expand=["payment_intent"])
-    result = {"paid": s.payment_status == "paid", "id": s.id}
-    print(f"🔧 Verify result: {result}")
-    return result
+    # Same safe import usage
+    s = StripeCheckoutSession.retrieve(session_id, expand=["payment_intent"])
+    return {"paid": s.payment_status == "paid", "id": s.id}
 
 @app.post("/create-stripe-session")
 async def create_stripe_session():

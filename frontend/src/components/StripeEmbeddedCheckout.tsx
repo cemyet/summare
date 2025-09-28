@@ -24,7 +24,29 @@ export default function StripeEmbeddedCheckout({
         console.log('🔧 API_BASE:', API_BASE);
         const res = await fetch(`${API_BASE}/api/payments/create-embedded-checkout`, { method: "POST" });
         console.log('🔧 Fetch response status:', res.status);
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          console.error("❌ Backend returned error creating embedded checkout:", res.status, text);
+          // show a friendly message in the preview instead of mounting
+          if (ref.current) {
+            ref.current.innerHTML = `<div style="padding:12px;font:14px system-ui;">
+              <b>Betalning otillgänglig</b><br/>Serverfel (${res.status}). Försök igen eller öppna i ny flik.
+            </div>`;
+          }
+          return; // 🔴 do NOT continue to parse JSON or init Stripe
+        }
+
         const { client_secret, session_id } = await res.json();
+        if (!client_secret) {
+          console.error("❌ No client_secret in response");
+          if (ref.current) {
+            ref.current.innerHTML = `<div style="padding:12px;font:14px system-ui;">
+              <b>Betalning otillgänglig</b><br/>Saknar client_secret.
+            </div>`;
+          }
+          return;
+        }
         console.log('🔧 Got session:', { client_secret: client_secret ? 'present' : 'missing', session_id });
 
         const stripe = await stripePromise;
