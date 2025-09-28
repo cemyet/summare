@@ -7,6 +7,10 @@ import { FileUpload } from './FileUpload';
 
 const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true";
 
+// Debug logging
+console.log('🔧 USE_EMBED:', USE_EMBED);
+console.log('🔧 NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT:', process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
+
 interface ChatStep {
   step_number: number;
   block?: string;
@@ -1008,6 +1012,13 @@ interface ChatFlowResponse {
           case 'external_redirect':
             // Handle external redirects (like Stripe payment)
             if (action_data?.url) {
+              console.log('🔍 External redirect check:', {
+                currentStep,
+                optionValue: option.option_value,
+                USE_EMBED,
+                shouldEmbed: currentStep === 505 && option.option_value === "stripe_payment" && USE_EMBED
+              });
+              
               // Check if this is step 505 (payment) and we should use embedded checkout
               if (currentStep === 505 && option.option_value === "stripe_payment" && USE_EMBED) {
                 console.log('💳 Using embedded checkout for step 505');

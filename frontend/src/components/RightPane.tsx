@@ -4,6 +4,10 @@ import StripeEmbeddedCheckout from "@/components/StripeEmbeddedCheckout";
 
 const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true";
 
+// Debug logging
+console.log('🔧 RightPane USE_EMBED:', USE_EMBED);
+console.log('🔧 RightPane NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT:', process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
+
 interface RightPaneProps {
   companyData: any;
   currentStep: number;
