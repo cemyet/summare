@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AnnualReportPreview } from "@/components/AnnualReportPreview"; // your existing component
 import StripeEmbeddedCheckout from "@/components/StripeEmbeddedCheckout";
 
-const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true";
+const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true" || true; // TEMPORARY: Force true to test embedded checkout
 
 // Debug logging
 console.log('🔧 RightPane USE_EMBED:', USE_EMBED);
