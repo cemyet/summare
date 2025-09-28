@@ -10,7 +10,7 @@ export default function StripeEmbeddedCheckout({
 }: { onComplete?: (sessionId?: string) => void; height?: number }) {
   const ref = useRef<HTMLDivElement | null>(null);
 
-  console.log('🔧 StripeEmbeddedCheckout component rendered');
+  console.log('🔧 StripeEmbeddedCheckout component rendered - v2024.01.28');
 
   useEffect(() => {
     let checkout: any;
