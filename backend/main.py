@@ -172,7 +172,7 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
-# --- Embedded Checkout endpoint (pure HTTP, no SDK issues) ---
+# --- Embedded Checkout endpoint (pure HTTP, no SDK issues) - v2 ---
 import os
 import requests
 from fastapi import Request, HTTPException

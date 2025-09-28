@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { API_BASE, STRIPE_PUBLISHABLE_KEY } from "@/utils/flags";
+// Force deployment v2
 
 export default function StripeEmbeddedCheckout({ onComplete, height = 720 }: { onComplete?: () => void; height?: number }) {
   const ref = useRef<HTMLDivElement>(null);
