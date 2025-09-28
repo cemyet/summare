@@ -915,9 +915,11 @@ interface ChatFlowResponse {
         const { action_type, action_data, next_step } = response.result;
         
         console.log('🔍 API Response:', { action_type, action_data, next_step });
+        console.log('🔍 Full response.result:', response.result);
 
         // Process the action
         console.log('🔍 Processing action:', action_type, 'with data:', action_data);
+        console.log('🔍 About to enter switch statement with action_type:', action_type);
         
         // Special option handling moved to earlier section
         
