@@ -10,6 +10,7 @@ const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true";
 // Debug logging
 console.log('🔧 USE_EMBED:', USE_EMBED);
 console.log('🔧 NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT:', process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
+console.log('🔧 All NEXT_PUBLIC env vars:', Object.keys(process.env).filter(key => key.startsWith('NEXT_PUBLIC')));
 
 interface ChatStep {
   step_number: number;
@@ -1023,7 +1024,9 @@ interface ChatFlowResponse {
               if (currentStep === 505 && option.option_value === "stripe_payment" && USE_EMBED) {
                 console.log('💳 Using embedded checkout for step 505');
                 addMessage("Öppnar betalning i förhandsvisningen …", true, "💳");
+                console.log('🔧 Dispatching summare:showPayment event');
                 window.dispatchEvent(new Event("summare:showPayment"));
+                console.log('🔧 Event dispatched, returning early');
                 return; // do not follow external_redirect from backend
               } else {
                 console.log('🔗 Redirecting to external URL:', action_data.url);
