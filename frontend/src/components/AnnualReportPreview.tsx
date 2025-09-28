@@ -2342,6 +2342,11 @@ const handleTaxCalculationClick = () => {
           />
         </div>
 
+        {/* Payment Section Anchor - Stripe embedded checkout will be portaled here */}
+        <section id="payment-section-anchor" className="mt-8">
+          {/* Stripe embedded checkout will be portaled here */}
+        </section>
+
         {/* Significant Events Section */}
         {currentStep >= 2 && (
           <div className="space-y-4">

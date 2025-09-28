@@ -11,4 +11,4 @@ export const USE_EMBED =
   readBool(next.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
 
 export const API_BASE =
-  vite.VITE_API_URL || next.NEXT_PUBLIC_API_URL || "";
+  vite.VITE_API_URL || next.NEXT_PUBLIC_API_URL || "https://api.summare.se";
