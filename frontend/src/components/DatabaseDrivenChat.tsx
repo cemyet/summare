@@ -5,6 +5,8 @@ import { OptionButton } from './OptionButton';
 import { FileUpload } from './FileUpload';
 // Force Vercel deployment - trigger
 
+const USE_EMBED = process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT === "true";
+
 interface ChatStep {
   step_number: number;
   block?: string;
@@ -1006,9 +1008,17 @@ interface ChatFlowResponse {
           case 'external_redirect':
             // Handle external redirects (like Stripe payment)
             if (action_data?.url) {
-              console.log('🔗 Redirecting to external URL:', action_data.url);
-              const target = action_data.target || '_blank';
-              window.open(action_data.url, target);
+              // Check if this is step 505 (payment) and we should use embedded checkout
+              if (currentStep === 505 && option.option_value === "stripe_payment" && USE_EMBED) {
+                console.log('💳 Using embedded checkout for step 505');
+                addMessage("Öppnar betalning i förhandsvisningen …", true, "💳");
+                window.dispatchEvent(new Event("summare:showPayment"));
+                return; // do not follow external_redirect from backend
+              } else {
+                console.log('🔗 Redirecting to external URL:', action_data.url);
+                const target = action_data.target || '_blank';
+                window.open(action_data.url, target);
+              }
             }
             break;
             
@@ -1846,6 +1856,16 @@ const selectiveMergeInk2 = (
       onDataUpdate({ triggerChatStep: null });
     }
   }, [companyData.triggerChatStep]);
+
+  // Listen for payment success and continue to step 506
+  useEffect(() => {
+    const onPaid = () => {
+      addMessage("Tack för betalningen! Här är den färdiga årsredovisningen. 🎉", true, "🎉");
+      loadChatStep(506); // post-payment step
+    };
+    window.addEventListener("summare:paymentSuccess", onPaid);
+    return () => window.removeEventListener("summare:paymentSuccess", onPaid);
+  }, []);
 
   // While-typing autoscroll (container-level, works for any typing impl)
   useEffect(() => {

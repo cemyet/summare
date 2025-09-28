@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { AnnualReportPreview } from "./AnnualReportPreview";
 import DatabaseDrivenChat from "./DatabaseDrivenChat";
+import RightPane from "./RightPane";
 
 interface CompanyData {
   result: number | null;
@@ -122,17 +123,7 @@ export function AnnualReportChat() {
               </div>
             </div>
             <div className="p-6 h-full overflow-auto pt-5">
-              <AnnualReportPreview 
-                companyData={companyData}
-                currentStep={0} 
-                editableAmounts={false}
-                onDataUpdate={(updates) => {
-                  setCompanyData(prev => {
-                    const newData = { ...prev, ...updates };
-                    return newData;
-                  });
-                }}
-              />
+              <RightPane />
             </div>
           </div>
         </ResizablePanel>
