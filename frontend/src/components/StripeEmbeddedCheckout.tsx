@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { loadStripe } from "@stripe/stripe-js";
-import { API_BASE } from "@/utils/flags";
+import { API_BASE, STRIPE_PUBLISHABLE_KEY } from "@/utils/flags";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+const stripePromise = loadStripe(STRIPE_PUBLISHABLE_KEY);
 
 export default function StripeEmbeddedCheckout({
   onComplete,
@@ -16,70 +16,97 @@ export default function StripeEmbeddedCheckout({
     let checkout: any;
     let alive = true;
 
-    console.log('🔧 StripeEmbeddedCheckout useEffect started');
-
     (async () => {
+      console.log("🔧 API_BASE:", API_BASE);
+      console.log("🔧 STRIPE_PUBLISHABLE_KEY present:", !!STRIPE_PUBLISHABLE_KEY);
+      
+      if (!STRIPE_PUBLISHABLE_KEY) {
+        console.error("❌ Missing publishable key");
+        if (ref.current) {
+          ref.current.innerHTML = "<div style='padding:12px'>Stripe-nyckel saknas.</div>";
+        }
+        return;
+      }
+
       try {
-        console.log('🔧 Fetching embedded checkout session...');
-        console.log('🔧 API_BASE:', API_BASE);
         const res = await fetch(`${API_BASE}/api/payments/create-embedded-checkout`, { method: "POST" });
-        console.log('🔧 Fetch response status:', res.status);
+        console.log("🔧 Fetch response status:", res.status);
+        const raw = await res.text().catch(() => "");
+        let data: any = {};
+        try { 
+          data = raw ? JSON.parse(raw) : {}; 
+        } catch (parseError) {
+          console.error("❌ JSON parse error:", parseError);
+        }
+        console.log("🔧 Raw session payload:", raw);
 
         if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          console.error("❌ Backend returned error creating embedded checkout:", res.status, text);
-          // show a friendly message in the preview instead of mounting
+          console.error("❌ Backend returned error creating embedded checkout:", res.status, raw);
           if (ref.current) {
             ref.current.innerHTML = `<div style="padding:12px;font:14px system-ui;">
               <b>Betalning otillgänglig</b><br/>Serverfel (${res.status}). Försök igen eller öppna i ny flik.
             </div>`;
           }
-          return; // 🔴 do NOT continue to parse JSON or init Stripe
+          return;
         }
 
-        const { client_secret, session_id } = await res.json();
-        if (!client_secret) {
-          console.error("❌ No client_secret in response");
+        const clientSecret = data?.client_secret;
+        const sessionId = data?.session_id;
+        
+        if (typeof clientSecret !== "string" || !clientSecret.startsWith("cs_")) {
+          console.error("❌ Missing/invalid client_secret:", data);
           if (ref.current) {
-            ref.current.innerHTML = `<div style="padding:12px;font:14px system-ui;">
-              <b>Betalning otillgänglig</b><br/>Saknar client_secret.
-            </div>`;
+            ref.current.innerHTML = "<div style='padding:12px'>Saknar client_secret.</div>";
           }
           return;
         }
-        console.log('🔧 Got session:', { client_secret: client_secret ? 'present' : 'missing', session_id });
 
         const stripe = await stripePromise;
-        console.log('🔧 Stripe loaded:', !!stripe);
-        console.log('🔧 Ref current:', !!ref.current);
-        console.log('🔧 Alive:', alive);
-        
-        if (!stripe || !client_secret || !ref.current || !alive) {
-          console.log('🔧 Early return - missing requirements');
+        if (!stripe) {
+          console.error("❌ Stripe failed to load");
+          if (ref.current) {
+            ref.current.innerHTML = "<div style='padding:12px'>Stripe init misslyckades.</div>";
+          }
           return;
         }
 
-        console.log('🔧 Initializing embedded checkout...');
-        // @ts-ignore — initEmbeddedCheckout is available on Stripe.js when using ui_mode: 'embedded'
+        if (!ref.current || !alive) {
+          console.log("🔧 Component unmounted before Stripe init");
+          return;
+        }
+
+        console.log("🔧 Initializing embedded checkout with client_secret:", clientSecret.substring(0, 20) + "...");
+        
+        // @ts-ignore
         checkout = await (stripe as any).initEmbeddedCheckout({
-          clientSecret: client_secret,
-          async onComplete() {
-            console.log('🔧 Stripe checkout completed');
+          clientSecret,
+          onComplete: async () => {
+            console.log("🔧 Stripe checkout completed");
             try {
-              const r = await fetch(`${API_BASE}/api/stripe/verify?session_id=${session_id}`);
+              const r = await fetch(`${API_BASE}/api/stripe/verify?session_id=${sessionId}`);
               const j = await r.json();
-              if (j.paid) onComplete?.(session_id);
-            } catch {
-              onComplete?.(session_id);
+              console.log("🔧 Payment verification result:", j);
+              if (j.paid) {
+                onComplete?.(sessionId);
+              }
+            } catch (verifyError) {
+              console.error("❌ Payment verification failed:", verifyError);
+              onComplete?.(sessionId); // Still call onComplete as fallback
             }
-          },
+          }
         });
 
-        console.log('🔧 Mounting checkout to ref...');
+        console.log("🔧 Mounting checkout to ref...");
         checkout.mount(ref.current);
-        console.log('🔧 Checkout mounted successfully');
+        console.log("🔧 Checkout mounted successfully");
+        
       } catch (error) {
-        console.error('🔧 Error in StripeEmbeddedCheckout:', error);
+        console.error("🔧 Error in StripeEmbeddedCheckout:", error);
+        if (ref.current) {
+          ref.current.innerHTML = `<div style="padding:12px;font:14px system-ui;">
+            <b>Fel vid laddning</b><br/>${error instanceof Error ? error.message : 'Okänt fel'}
+          </div>`;
+        }
       }
     })();
 
