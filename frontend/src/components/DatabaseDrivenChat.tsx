@@ -1897,6 +1897,40 @@ const selectiveMergeInk2 = (
     };
   }, []);
 
+  // Handle payment completion URLs (in case of redirect)
+  useEffect(() => {
+    const handlePaymentCompletionURL = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get('session_id');
+      const paymentParam = urlParams.get('payment');
+      
+      if (sessionId && paymentParam === 'embedded_complete') {
+        console.log("🔍 Detected payment completion URL, verifying payment status...");
+        
+        try {
+          const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/stripe/verify?session_id=${sessionId}`);
+          const result = await response.json();
+          
+          if (result?.paid) {
+            console.log("💚 Payment verified as successful from URL, loading step 510");
+            loadChatStep(510);
+          } else {
+            console.log("❌ Payment not successful from URL, loading step 508");
+            loadChatStep(508);
+          }
+          
+          // Clean up URL without reloading
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (error) {
+          console.error("🔥 Error verifying payment from URL:", error);
+          loadChatStep(508); // Default to failure step
+        }
+      }
+    };
+    
+    handlePaymentCompletionURL();
+  }, []);
+
   // While-typing autoscroll (container-level, works for any typing impl)
   useEffect(() => {
     const container = chatContainerRef.current;

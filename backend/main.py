@@ -216,9 +216,8 @@ async def create_embedded_checkout(request: Request):
         "line_items[0][price_data][product_data][name]": "Årsredovisning",
         "line_items[0][price_data][unit_amount]": str(AMOUNT_SEK * 100),  # öre
         "line_items[0][quantity]": "1",
-        # Return URL required by Stripe API, but JavaScript onComplete will handle completion
-        # This URL should not normally be reached due to onComplete handling
-        "return_url": "https://www.summare.se/app?payment=embedded_complete&session_id={CHECKOUT_SESSION_ID}",
+        # No return_url for embedded checkout - completion handled by JavaScript onComplete
+        # This prevents unwanted redirects that would reload the app and lose chat state
         "automatic_tax[enabled]": "true",
     }
 
