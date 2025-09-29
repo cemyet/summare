@@ -216,8 +216,8 @@ async def create_embedded_checkout(request: Request):
         "line_items[0][price_data][product_data][name]": "Årsredovisning",
         "line_items[0][price_data][unit_amount]": str(AMOUNT_SEK * 100),  # öre
         "line_items[0][quantity]": "1",
-        # No return_url for embedded checkout - completion handled by JavaScript onComplete
-        # This prevents unwanted redirects that would reload the app and lose chat state
+        # Disable redirects completely - completion handled by JavaScript onComplete only
+        "redirect_on_completion": "never",
         "automatic_tax[enabled]": "true",
     }
 
