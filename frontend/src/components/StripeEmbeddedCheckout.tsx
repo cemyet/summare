@@ -47,8 +47,23 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
           try {
             const r = await fetch(`${API_BASE}/api/stripe/verify?session_id=${sessionId}`);
             const j = await r.json();
-            if (j?.paid) onComplete?.();
-          } catch { onComplete?.(); }
+            if (j?.paid) {
+              // Payment successful - trigger chat step 510
+              console.log("💚 Payment successful, triggering chat step 510");
+              window.dispatchEvent(new CustomEvent("summare:paymentSuccess"));
+              onComplete?.();
+            } else {
+              // Payment failed - trigger chat step 508
+              console.log("❌ Payment failed, triggering chat step 508");
+              window.dispatchEvent(new CustomEvent("summare:paymentFailure"));
+              onFailure?.();
+            }
+          } catch (error) {
+            console.error("🔥 Payment verification error:", error);
+            // On error, assume failure and trigger step 508
+            window.dispatchEvent(new CustomEvent("summare:paymentFailure"));
+            onFailure?.();
+          }
         }
       });
 

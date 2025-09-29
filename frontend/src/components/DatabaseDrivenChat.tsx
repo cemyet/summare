@@ -1876,14 +1876,25 @@ const selectiveMergeInk2 = (
     }
   }, [companyData.triggerChatStep]);
 
-  // Listen for payment success and continue to step 506
+  // Listen for payment success and failure events
   useEffect(() => {
-    const onPaid = () => {
-      addMessage("Tack för betalningen! Här är den färdiga årsredovisningen. 🎉", true, "🎉");
-      loadChatStep(506); // post-payment step
+    const onPaymentSuccess = () => {
+      console.log("💚 Payment success event received, loading step 510");
+      loadChatStep(510); // Payment success step
     };
-    window.addEventListener("summare:paymentSuccess", onPaid);
-    return () => window.removeEventListener("summare:paymentSuccess", onPaid);
+    
+    const onPaymentFailure = () => {
+      console.log("❌ Payment failure event received, loading step 508");
+      loadChatStep(508); // Payment failure step
+    };
+    
+    window.addEventListener("summare:paymentSuccess", onPaymentSuccess);
+    window.addEventListener("summare:paymentFailure", onPaymentFailure);
+    
+    return () => {
+      window.removeEventListener("summare:paymentSuccess", onPaymentSuccess);
+      window.removeEventListener("summare:paymentFailure", onPaymentFailure);
+    };
   }, []);
 
   // While-typing autoscroll (container-level, works for any typing impl)

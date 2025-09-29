@@ -61,7 +61,10 @@ export default function RightPane({ companyData, currentStep, editableAmounts = 
               <StripeEmbeddedCheckout
                 onComplete={() => {
                   console.log('🔧 StripeEmbeddedCheckout onComplete called');
-                  window.dispatchEvent(new CustomEvent("summare:paymentSuccess"));
+                  setShowPayment(false);
+                }}
+                onFailure={() => {
+                  console.log('🔧 StripeEmbeddedCheckout onFailure called');
                   setShowPayment(false);
                 }}
                 height={720}
