@@ -24,20 +24,20 @@ const HeroSection = () => {
         {/* Logo/Brand - Controlled by SHOW_CENTER_LOGO flag */}
         {SHOW_CENTER_LOGO && (
           <div className="mb-8">
-            <h1 className="text-5xl md:text-6xl font-bold text-summare-navy mb-4">
+            <h1 className="text-6xl md:text-7xl font-bold text-summare-navy mb-4">
               Summare
             </h1>
           </div>
         )}
 
         {/* Main Heading */}
-        <h2 className="text-hero mb-8 animate-fade-in" style={{ fontSize: '0.9em' }}>
+        <h2 className="text-hero mb-8 animate-fade-in">
           Digitala årsredovisningar<br />
           för egenföretagare
         </h2>
 
         {/* Subtitle */}
-        <p className="text-subtitle mb-8 max-w-2xl mx-auto animate-fade-in" style={{ fontSize: '0.9em' }}>
+        <p className="text-subtitle mb-8 max-w-2xl mx-auto animate-fade-in">
           Enkelt. Pålitligt. Prisvärt. Skapa en professionell<br />
           årsredovisning och skattedeklaration med<br />
           vårt AI verktyg på bara ett par minuter
@@ -51,7 +51,7 @@ const HeroSection = () => {
         </div>
 
         {/* Trust indicators */}
-        <div className="mt-12 text-sm text-summare-gray">
+        <div className="mt-12 text-base text-summare-gray">
           <p>Betrodd av 5,000+ företag</p>
         </div>
       </div>
