@@ -64,62 +64,21 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
             window.dispatchEvent(new CustomEvent("summare:paymentFailure"));
             onFailure?.();
           }
-        },
-        // Add error handling for declined payments
-        onError: (error: any) => {
-          console.log("❌ Stripe payment error:", error);
-          // Payment was declined or had an error - trigger chat step 508
-          window.dispatchEvent(new CustomEvent("summare:paymentFailure"));
-          onFailure?.();
         }
       });
 
       checkout = embedded;
       embedded.mount(ref.current);
-      
-      // Watch for payment decline messages in the Stripe UI
-      const watchForDeclines = () => {
-        const checkForDeclineMessages = () => {
-          // Look for common decline text patterns in the iframe content
-          const stripeFrames = document.querySelectorAll('iframe[src*="checkout.stripe.com"], iframe[src*="js.stripe.com"]');
-          
-          stripeFrames.forEach((frame) => {
-            try {
-              // Note: We can't access iframe content due to CORS, but we can detect if payment failed
-              // by watching for UI changes or using postMessage if Stripe supports it
-              console.log('🔍 Watching Stripe frame for payment feedback...');
-            } catch (e) {
-              // Cross-origin frame access blocked (expected)
-            }
-          });
-        };
-        
-        // Check periodically for changes
-        const intervalId = setInterval(checkForDeclineMessages, 2000);
-        setTimeout(() => clearInterval(intervalId), 30000); // Stop after 30 seconds
-      };
-      
-      setTimeout(watchForDeclines, 1000);
     })();
 
     return () => { alive = false; try { checkout?.destroy?.(); } catch {} };
-  }, [onComplete, onFailure]);
+  }, [onComplete]);
 
   // stay within your preview card frames (rounded border, hidden overflow)
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-neutral-200 flex justify-between items-center">
+      <div className="px-5 py-3 border-b border-neutral-200">
         <h3 className="text-sm font-medium text-neutral-700">Betalning</h3>
-        <button
-          onClick={() => {
-            console.log("🔄 Manual payment failure triggered");
-            window.dispatchEvent(new CustomEvent("summare:paymentFailure"));
-            onFailure?.();
-          }}
-          className="text-xs text-gray-500 hover:text-red-600 underline"
-        >
-          Betalning nekad? Försök igen
-        </button>
       </div>
 
       {/* Outer padding creates spacing between the card edge and the iframe */}
