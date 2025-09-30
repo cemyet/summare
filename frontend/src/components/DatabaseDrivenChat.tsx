@@ -477,46 +477,51 @@ interface ChatFlowResponse {
               arets_balanseras_nyrakning: dataToUseForMessage.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_balanseras_nyrakning) : '0'
             });
             
-            // Special handling for step 506: watch for payment module to be rendered and auto-scroll immediately
+            // Special handling for step 506: watch for actual Stripe payment content to be rendered
             if (stepNumber === 506) {
-              const watchForPaymentModule = () => {
-                const checkForModule = () => {
-                  const paymentModule = document.getElementById("payment-section-anchor");
-                  if (paymentModule) {
-                    // Payment module is now rendered, scroll to it immediately
+              const watchForPaymentContent = () => {
+                const checkForContent = () => {
+                  const paymentAnchor = document.getElementById("payment-section-anchor");
+                  // Check if the anchor has actual payment content (not just empty)
+                  const hasContent = paymentAnchor && 
+                    paymentAnchor.children.length > 0 && 
+                    paymentAnchor.offsetHeight > 100; // Stripe form should have substantial height
+                  
+                  if (hasContent) {
+                    // Stripe payment content is now rendered, scroll to it immediately
                     setTimeout(() => {
                       const scrollContainer = document.querySelector('.overflow-auto');
-                      if (paymentModule && scrollContainer) {
+                      if (paymentAnchor && scrollContainer) {
                         const containerRect = scrollContainer.getBoundingClientRect();
-                        const paymentRect = paymentModule.getBoundingClientRect();
+                        const paymentRect = paymentAnchor.getBoundingClientRect();
                         const scrollTop = scrollContainer.scrollTop + paymentRect.top - containerRect.top - 10;
                         scrollContainer.scrollTo({
                           top: scrollTop,
                           behavior: 'smooth'
                         });
-                        console.log('🎯 Auto-scrolled to payment module as soon as rendered');
+                        console.log('🎯 Auto-scrolled to Stripe payment content as soon as rendered');
                       }
-                    }, 100); // Small delay to ensure proper positioning
+                    }, 150); // Slightly longer delay for Stripe to fully render
                     return true; // Stop checking
                   }
                   return false; // Keep checking
                 };
 
-                // Start checking immediately, then every 100ms until found
-                if (!checkForModule()) {
+                // Start checking immediately, then every 150ms until found
+                if (!checkForContent()) {
                   const intervalId = setInterval(() => {
-                    if (checkForModule()) {
+                    if (checkForContent()) {
                       clearInterval(intervalId);
                     }
-                  }, 100);
+                  }, 150);
                   
-                  // Safety timeout after 3 seconds
-                  setTimeout(() => clearInterval(intervalId), 3000);
+                  // Safety timeout after 5 seconds (Stripe can be slow)
+                  setTimeout(() => clearInterval(intervalId), 5000);
                 }
               };
               
-              // Start watching for payment module after a short delay
-              setTimeout(watchForPaymentModule, 200);
+              // Start watching for Stripe content after a short delay
+              setTimeout(watchForPaymentContent, 300);
             }
 
             // Add the message with onDone callback to wait for animation completion
