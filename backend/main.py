@@ -201,14 +201,11 @@ async def create_embedded_checkout(request: Request):
     if not STRIPE_SECRET_KEY:
         raise HTTPException(status_code=500, detail="Stripe not configured")
 
-    # Read payload to check for consent settings
+    # you can read payload if you wish:
     try:
-        payload = await request.json()
+        _ = await request.json()
     except Exception:
-        payload = {}
-    
-    # Check if we should hide the save consent checkbox
-    hide_save_consent = bool(payload.get("hideSaveConsent", False))
+        _ = None
 
     # Build Stripe form for an embedded checkout session
     form = {
@@ -219,16 +216,10 @@ async def create_embedded_checkout(request: Request):
         "line_items[0][price_data][product_data][name]": "Årsredovisning",
         "line_items[0][price_data][unit_amount]": str(AMOUNT_SEK * 100),  # öre
         "line_items[0][quantity]": "1",
-        # Keep Link available but hide "Spara mina uppgifter" checkbox
-        "payment_method_types[]": ["card", "link"],
         # Disable redirects completely - completion handled by JavaScript onComplete only
         "redirect_on_completion": "never",
         "automatic_tax[enabled]": "true",
     }
-    
-    # Hide the "save my info" checkbox but keep Link functionality
-    if hide_save_consent:
-        form["consent_collection[payment_method_save]"] = "hidden"
 
     try:
         session = _stripe_post("/v1/checkout/sessions", form)

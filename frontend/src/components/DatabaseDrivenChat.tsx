@@ -1,4 +1,4 @@
-// Force deployment trigger - v3
+// Force deployment trigger - v4
 import React, { useState, useEffect, useRef } from 'react';
 import { apiService } from '@/services/api';
 import { ChatMessage } from './ChatMessage';

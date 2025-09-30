@@ -18,11 +18,7 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
         return;
       }
 
-      const res = await fetch(`${API_BASE}/api/payments/create-embedded-checkout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hideSaveConsent: true }) // keep Link, hide consent checkbox
-      });
+      const res = await fetch(`${API_BASE}/api/payments/create-embedded-checkout`, { method: "POST" });
       const raw = await res.text().catch(() => "");
       let data: any = {};
       try { data = raw ? JSON.parse(raw) : {}; } catch {}
