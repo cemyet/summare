@@ -1,3 +1,4 @@
+// Force deployment trigger - v3
 import React, { useState, useEffect, useRef } from 'react';
 import { apiService } from '@/services/api';
 import { ChatMessage } from './ChatMessage';
