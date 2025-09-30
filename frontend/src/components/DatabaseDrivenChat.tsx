@@ -472,6 +472,27 @@ interface ChatFlowResponse {
               arets_balanseras_nyrakning: dataToUseForMessage.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_balanseras_nyrakning) : '0'
             });
             
+            // Special handling for step 506: auto-scroll to payment module when message starts typing
+            if (stepNumber === 506) {
+              // Auto-scroll to payment module as message starts typing
+              setTimeout(() => {
+                const paymentModule = document.getElementById("payment-section-anchor");
+                const scrollContainer = document.querySelector('.overflow-auto');
+                if (paymentModule && scrollContainer) {
+                  const containerRect = scrollContainer.getBoundingClientRect();
+                  const paymentRect = paymentModule.getBoundingClientRect();
+                  const scrollTop = scrollContainer.scrollTop + paymentRect.top - containerRect.top - 10; // 10px padding from top
+                  scrollContainer.scrollTo({
+                    top: scrollTop,
+                    behavior: 'smooth'
+                  });
+                  console.log('🎯 Auto-scrolled to payment module during step 506 message');
+                } else {
+                  console.log('❌ Payment module auto-scroll failed: Missing elements');
+                }
+              }, 200); // Start scroll shortly after message typing begins
+            }
+
             // Add the message with onDone callback to wait for animation completion
             addMessage(questionText, true, response.question_icon, async () => {
               // After message is fully revealed, continue with no_option
@@ -1024,23 +1045,6 @@ interface ChatFlowResponse {
           case "show_payment_module":
             console.log("💳 Showing payment module");
             window.dispatchEvent(new Event("summare:showPayment"));
-            // Auto-scroll to payment module after a short delay
-            setTimeout(() => {
-              const paymentModule = document.getElementById("payment-section-anchor");
-              const scrollContainer = document.querySelector('.overflow-auto');
-              if (paymentModule && scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const paymentRect = paymentModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + paymentRect.top - containerRect.top - 10; // 10px padding from top
-                scrollContainer.scrollTo({
-                  top: scrollTop,
-                  behavior: 'smooth'
-                });
-                console.log('🎯 Auto-scrolled to payment module');
-              } else {
-                console.log('❌ Payment module auto-scroll failed: Missing elements');
-              }
-            }, 500);
             break;
             
           case "external_redirect": {
