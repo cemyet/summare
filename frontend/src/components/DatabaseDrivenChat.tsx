@@ -1020,14 +1020,18 @@ interface ChatFlowResponse {
               onDataUpdate({ showTaxPreview: true });
             }
             break;
+
+          case "show_payment_module":
+            console.log("💳 Showing payment module");
+            window.dispatchEvent(new Event("summare:showPayment"));
+            break;
             
           case "external_redirect": {
             const forceEmbed = (explicitStepNumber || currentStep) === 505 && isPaymentChoice;
 
             if (forceEmbed) {
-              console.log("💳 FORCE embedded checkout (step 505) — ignoring external_redirect");
-              addMessage("Öppnar betalning i förhandsvisningen …", true, "💳");
-              window.dispatchEvent(new Event("summare:showPayment"));
+              console.log("💳 FORCE embedded checkout (step 505) — ignoring external_redirect, loading step 506");
+              loadChatStep(506); // Load payment loading message from database
               // IMPORTANT: return here so we don't fall through to general navigation
               return;
             }
