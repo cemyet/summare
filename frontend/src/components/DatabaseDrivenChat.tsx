@@ -477,6 +477,47 @@ interface ChatFlowResponse {
               arets_balanseras_nyrakning: dataToUseForMessage.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_balanseras_nyrakning) : '0'
             });
             
+            // Special handling for step 506: watch for payment module to be rendered and auto-scroll immediately
+            if (stepNumber === 506) {
+              const watchForPaymentModule = () => {
+                const checkForModule = () => {
+                  const paymentModule = document.getElementById("payment-section-anchor");
+                  if (paymentModule) {
+                    // Payment module is now rendered, scroll to it immediately
+                    setTimeout(() => {
+                      const scrollContainer = document.querySelector('.overflow-auto');
+                      if (paymentModule && scrollContainer) {
+                        const containerRect = scrollContainer.getBoundingClientRect();
+                        const paymentRect = paymentModule.getBoundingClientRect();
+                        const scrollTop = scrollContainer.scrollTop + paymentRect.top - containerRect.top - 10;
+                        scrollContainer.scrollTo({
+                          top: scrollTop,
+                          behavior: 'smooth'
+                        });
+                        console.log('🎯 Auto-scrolled to payment module as soon as rendered');
+                      }
+                    }, 100); // Small delay to ensure proper positioning
+                    return true; // Stop checking
+                  }
+                  return false; // Keep checking
+                };
+
+                // Start checking immediately, then every 100ms until found
+                if (!checkForModule()) {
+                  const intervalId = setInterval(() => {
+                    if (checkForModule()) {
+                      clearInterval(intervalId);
+                    }
+                  }, 100);
+                  
+                  // Safety timeout after 3 seconds
+                  setTimeout(() => clearInterval(intervalId), 3000);
+                }
+              };
+              
+              // Start watching for payment module after a short delay
+              setTimeout(watchForPaymentModule, 200);
+            }
 
             // Add the message with onDone callback to wait for animation completion
             addMessage(questionText, true, response.question_icon, async () => {
@@ -1030,23 +1071,7 @@ interface ChatFlowResponse {
           case "show_payment_module":
             console.log("💳 Showing payment module");
             window.dispatchEvent(new Event("summare:showPayment"));
-            // Auto-scroll to payment module after it's rendered
-            setTimeout(() => {
-              const paymentModule = document.getElementById("payment-section-anchor");
-              const scrollContainer = document.querySelector('.overflow-auto');
-              if (paymentModule && scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const paymentRect = paymentModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + paymentRect.top - containerRect.top - 10; // 10px padding from top
-                scrollContainer.scrollTo({
-                  top: scrollTop,
-                  behavior: 'smooth'
-                });
-                console.log('🎯 Auto-scrolled to payment module after rendering');
-              } else {
-                console.log('❌ Payment module auto-scroll failed: Missing elements');
-              }
-            }, 300); // Wait for payment module to be fully rendered and positioned
+            // Auto-scroll is now handled by step 506 watcher for better timing
             break;
             
           case "external_redirect": {
