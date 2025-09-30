@@ -490,7 +490,7 @@ interface ChatFlowResponse {
                 } else {
                   console.log('❌ Payment module auto-scroll failed: Missing elements');
                 }
-              }, 200); // Start scroll shortly after message typing begins
+              }, 500); // Wait for payment module to fully render before scrolling
             }
 
             // Add the message with onDone callback to wait for animation completion
