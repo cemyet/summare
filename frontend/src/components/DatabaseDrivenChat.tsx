@@ -426,6 +426,11 @@ interface ChatFlowResponse {
       }
       const response = await apiService.getChatFlowStep(stepNumber) as ChatFlowResponse;
       
+      // Debug logging for step 506
+      if (stepNumber === 506) {
+        console.log('🔍 Step 506 loaded from database:', response.question_text);
+      }
+      
       if (response.success) {
         setCurrentStep(stepNumber);
         
@@ -472,26 +477,6 @@ interface ChatFlowResponse {
               arets_balanseras_nyrakning: dataToUseForMessage.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_balanseras_nyrakning) : '0'
             });
             
-            // Special handling for step 506: auto-scroll to payment module when message starts typing
-            if (stepNumber === 506) {
-              // Auto-scroll to payment module as message starts typing
-              setTimeout(() => {
-                const paymentModule = document.getElementById("payment-section-anchor");
-                const scrollContainer = document.querySelector('.overflow-auto');
-                if (paymentModule && scrollContainer) {
-                  const containerRect = scrollContainer.getBoundingClientRect();
-                  const paymentRect = paymentModule.getBoundingClientRect();
-                  const scrollTop = scrollContainer.scrollTop + paymentRect.top - containerRect.top - 10; // 10px padding from top
-                  scrollContainer.scrollTo({
-                    top: scrollTop,
-                    behavior: 'smooth'
-                  });
-                  console.log('🎯 Auto-scrolled to payment module during step 506 message');
-                } else {
-                  console.log('❌ Payment module auto-scroll failed: Missing elements');
-                }
-              }, 500); // Wait for payment module to fully render before scrolling
-            }
 
             // Add the message with onDone callback to wait for animation completion
             addMessage(questionText, true, response.question_icon, async () => {
@@ -1045,6 +1030,23 @@ interface ChatFlowResponse {
           case "show_payment_module":
             console.log("💳 Showing payment module");
             window.dispatchEvent(new Event("summare:showPayment"));
+            // Auto-scroll to payment module after it's rendered
+            setTimeout(() => {
+              const paymentModule = document.getElementById("payment-section-anchor");
+              const scrollContainer = document.querySelector('.overflow-auto');
+              if (paymentModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const paymentRect = paymentModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + paymentRect.top - containerRect.top - 10; // 10px padding from top
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+                console.log('🎯 Auto-scrolled to payment module after rendering');
+              } else {
+                console.log('❌ Payment module auto-scroll failed: Missing elements');
+              }
+            }, 300); // Wait for payment module to be fully rendered and positioned
             break;
             
           case "external_redirect": {
