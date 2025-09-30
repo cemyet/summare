@@ -1024,6 +1024,23 @@ interface ChatFlowResponse {
           case "show_payment_module":
             console.log("💳 Showing payment module");
             window.dispatchEvent(new Event("summare:showPayment"));
+            // Auto-scroll to payment module after a short delay
+            setTimeout(() => {
+              const paymentModule = document.getElementById("payment-section-anchor");
+              const scrollContainer = document.querySelector('.overflow-auto');
+              if (paymentModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const paymentRect = paymentModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + paymentRect.top - containerRect.top - 10; // 10px padding from top
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+                console.log('🎯 Auto-scrolled to payment module');
+              } else {
+                console.log('❌ Payment module auto-scroll failed: Missing elements');
+              }
+            }, 500);
             break;
             
           case "external_redirect": {
