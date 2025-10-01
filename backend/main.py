@@ -1252,10 +1252,59 @@ async def process_chat_choice(request: dict):
         return {"success": True, "result": result}
         
     except Exception as e:
-        import traceback
         print(f"Error processing chat choice: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Error processing chat choice: {str(e)}")
+
+@app.post("/api/send-for-digital-signing")
+async def send_for_digital_signing(request: dict):
+    """
+    Send annual report for digital signing with BankID
+    """
+    try:
+        signering_data = request.get("signeringData", {})
+        organization_number = request.get("organizationNumber")
+        
+        print(f"🖊️ Sending for digital signing: org={organization_number}")
+        print(f"🖊️ Signering data: {signering_data}")
+        
+        # Extract företrädare (company representatives) data
+        foretradare = signering_data.get("UnderskriftForetradare", [])
+        revisor = signering_data.get("UnderskriftAvRevisor", [])
+        
+        print(f"📋 Found {len(foretradare)} företrädare and {len(revisor)} revisors")
+        
+        # TODO: Implement actual BankID integration
+        # For now, return a success response
+        
+        # Log the signing request
+        signing_summary = []
+        for i, person in enumerate(foretradare):
+            name = f"{person.get('UnderskriftHandlingTilltalsnamn', '')} {person.get('UnderskriftHandlingEfternamn', '')}"
+            role = person.get('UnderskriftHandlingRoll', '')
+            signing_summary.append(f"  {i+1}. {name} ({role})")
+        
+        for i, person in enumerate(revisor):
+            name = f"{person.get('UnderskriftHandlingTilltalsnamn', '')} {person.get('UnderskriftHandlingEfternamn', '')}"
+            title = person.get('UnderskriftHandlingTitel', '')
+            is_main = person.get('UnderskriftRevisorspateckningRevisorHuvudansvarig', False)
+            main_text = " - Huvudansvarig" if is_main else ""
+            signing_summary.append(f"  R{i+1}. {name} ({title}){main_text}")
+        
+        print(f"📝 Sending signing invitations to:")
+        for line in signing_summary:
+            print(line)
+        
+        # Return success response
+        return {
+            "success": True,
+            "message": "Signing invitations sent successfully",
+            "signing_summary": signing_summary,
+            "organization_number": organization_number
+        }
+        
+    except Exception as e:
+        print(f"Error sending for digital signing: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error sending for digital signing: {str(e)}")
 
 def substitute_variables(data, context):
     """Replace {variable} placeholders with actual values"""

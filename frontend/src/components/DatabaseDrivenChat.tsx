@@ -1200,6 +1200,24 @@ interface ChatFlowResponse {
             }, 500);
           }
           
+          // Auto-scroll to signering section for step 515
+          if (next_step === 515) {
+            setTimeout(() => {
+              const signeringModule = document.querySelector('[data-section="signering"]');
+              const scrollContainer = document.querySelector('.overflow-auto');
+              if (signeringModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const signeringRect = signeringModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + signeringRect.top - containerRect.top - 10;
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+              }
+            }, 500);
+          }
+          
           setTimeout(() => loadChatStep(next_step, updatedInk2Data), 1000);
         } else if (interceptedExternalRedirect) {
           console.log('🧭 Skipping navigation because embedded checkout is shown');

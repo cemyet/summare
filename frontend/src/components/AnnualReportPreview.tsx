@@ -117,6 +117,7 @@ const Ink2AmountInput = ({ value, onChange, onCommit, variableName }: {
 import { Periodiseringsfonder } from './Periodiseringsfonder';
 import { Noter } from './Noter';
 import { Forvaltningsberattelse } from './Forvaltningsberattelse';
+import { Signering } from './Signering';
 
 interface CompanyData {
   results?: string;
@@ -305,6 +306,9 @@ interface CompanyData {
   acceptedInk2Manuals?: Record<string, number>;
   inkBeraknadSkatt?: number;
   arets_utdelning?: number;
+  
+  // Signering data
+  signeringData?: any;
   
   // Tax button tracking
   taxButtonClickedBefore?: boolean; // Track if tax approve button has been clicked before
@@ -2341,6 +2345,17 @@ const handleTaxCalculationClick = () => {
             onDataUpdate={onDataUpdate}
           />
         </div>
+
+        {/* Signering Section - Only show at step 515+ */}
+        {currentStep >= 515 && (
+          <div data-section="signering">
+            <Signering 
+              signeringData={companyData.signeringData}
+              onDataUpdate={onDataUpdate}
+              companyData={companyData}
+            />
+          </div>
+        )}
 
         {/* Payment Section Anchor - Stripe embedded checkout will be portaled here */}
         <section id="payment-section-anchor" className="mt-8">
