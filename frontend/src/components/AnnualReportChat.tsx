@@ -46,6 +46,9 @@ interface CompanyData {
   // Dividend variables
   arets_utdelning?: number | null;
   
+  // Current chat step
+  currentStep?: number;
+  
   // Tax button tracking
   taxButtonClickedBefore?: boolean; // Track if tax approve button has been clicked before
   triggerChatStep?: number | null; // Trigger navigation to a specific chat step
@@ -125,7 +128,7 @@ export function AnnualReportChat() {
             <div className="p-6 h-full overflow-auto pt-5">
               <RightPane 
                 companyData={companyData}
-                currentStep={0}
+                currentStep={companyData.currentStep || 0}
                 editableAmounts={false}
                 onDataUpdate={(updates) => {
                   setCompanyData(prev => {

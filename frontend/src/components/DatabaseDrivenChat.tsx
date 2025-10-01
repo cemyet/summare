@@ -434,6 +434,7 @@ interface ChatFlowResponse {
       
       if (response.success) {
         setCurrentStep(stepNumber);
+        onDataUpdate({ currentStep: stepNumber }); // 👉 expose step to the preview/right pane
         
         // Handle no_option automatically if it exists
         const noOption = response.options.find(opt => opt.option_order === 0);
