@@ -732,6 +732,38 @@ interface ChatFlowResponse {
     }
   };
 
+  // Helper: safe auto-scroll to Signering module
+  const scrollToSignering = () => {
+    try {
+      const signeringModule = document.querySelector('[data-section="signering"]') as HTMLElement | null;
+      // Anpassa selektor nedan till din scroll-container om du har en annan klass
+      const scrollContainer =
+        (document.querySelector('.overflow-auto') as HTMLElement | null) ||
+        (document.querySelector('[data-scroll-container="chat"]') as HTMLElement | null);
+
+      if (!signeringModule || !scrollContainer) {
+        console.log('❌ Scroll to Signering failed: Missing elements');
+        return;
+      }
+
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const signeringRect = signeringModule.getBoundingClientRect();
+      const scrollTop = scrollContainer.scrollTop + signeringRect.top - containerRect.top - 24;
+
+      console.log('📍 Scrolling to Signering:', {
+        currentScrollTop: scrollContainer.scrollTop,
+        targetScrollTop: scrollTop
+      });
+
+      scrollContainer.scrollTo({
+        top: scrollTop,
+        behavior: 'smooth'
+      });
+    } catch (error) {
+      console.error('❌ Error scrolling to Signering:', error);
+    }
+  };
+
   // Evaluate conditions for showing a step
   const evaluateConditions = (conditions: any): boolean => {
     if (!conditions) return true;
@@ -1200,22 +1232,9 @@ interface ChatFlowResponse {
             }, 500);
           }
           
-          // Auto-scroll to signering section for step 515
-          if (next_step === 515) {
-            setTimeout(() => {
-              const signeringModule = document.querySelector('[data-section="signering"]');
-              const scrollContainer = document.querySelector('.overflow-auto');
-              if (signeringModule && scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const signeringRect = signeringModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + signeringRect.top - containerRect.top - 10;
-                
-                scrollContainer.scrollTo({
-                  top: scrollTop,
-                  behavior: 'smooth'
-                });
-              }
-            }, 500);
+          // Auto-scroll to Signering on steps 515 or 520
+          if (next_step === 515 || next_step === 520) {
+            setTimeout(() => scrollToSignering(), 500);
           }
           
           setTimeout(() => loadChatStep(next_step, updatedInk2Data), 1000);

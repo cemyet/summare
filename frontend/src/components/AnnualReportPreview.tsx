@@ -836,7 +836,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const cd = companyData as CompanyData;
   
   // Requirement 1: render when showTaxPreview OR showRRBR is true
-  if (!cd.showTaxPreview && !cd.showRRBR) {
+  // NOTE: Signering ska visas på steg >= 515 även om tax/RRBR-flaggor är av.
+  if (!cd.showTaxPreview && !cd.showRRBR && currentStep < 515) {
     return null;
   }
 
