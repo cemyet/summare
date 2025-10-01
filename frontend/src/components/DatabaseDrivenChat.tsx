@@ -1483,6 +1483,37 @@ const selectiveMergeInk2 = (
       } catch (error) {
         console.error('API call failed:', error);
       }
+    } else if (actionData?.endpoint === 'send_for_digital_signing') {
+      try {
+        console.log('🖊️ Triggering digital signing from chat...', companyData.signeringData);
+        
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/send-for-digital-signing`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            signeringData: companyData.signeringData || {},
+            organizationNumber: companyData.organizationNumber
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        
+        if (result.success) {
+          console.log('✅ Digital signing initiated successfully:', result);
+          addMessage('Signering-invitationer har skickats! Du kommer att få bekräftelse via e-post när alla har signerat.', true, '✅');
+        } else {
+          throw new Error(result.message || 'Failed to send signing invitations');
+        }
+      } catch (error) {
+        console.error('❌ Error sending for digital signing:', error);
+        addMessage('Ett fel uppstod när signeringsinvitationerna skulle skickas. Försök igen.', true, '❌');
+      }
     }
   };
 
