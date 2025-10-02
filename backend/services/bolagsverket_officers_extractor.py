@@ -15,9 +15,14 @@ ROLE_MAP = {
     "AUKTORISERAD_REVISOR": "Revisor",
 }
 
-def _clean_id(val: str) -> str:
-    """Remove all non-digit characters from ID"""
-    return "".join(ch for ch in (val or "") if ch.isdigit())
+def _format_personnummer(val: str) -> str:
+    """Format personnummer as YYYYMMDD-XXXX"""
+    # Remove all non-digit characters
+    clean = "".join(ch for ch in (val or "") if ch.isdigit())
+    # Add hyphen after 8 digits if we have at least 10 digits
+    if len(clean) >= 10:
+        return f"{clean[:8]}-{clean[8:]}"
+    return clean
 
 def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -36,6 +41,7 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
     result = {
         "UnderskriftForetradare": [],
         "UnderskriftAvRevisor": [],
+        "ValtRevisionsbolag": "",
     }
 
     # Svaren kan komma som en lista av organisationer eller direkt objekt
@@ -50,6 +56,22 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
     org = orgs[0] if orgs else {}
 
     funktionarer = org.get("funktionarer") or org.get("FUNKTIONARER") or []
+    
+    # Extract revisionsbolag name from REV organization (not REVH person)
+    for f in funktionarer:
+        # Check if this is an organization (not a person) with REV role
+        org_namn = f.get("organisationsnamn") or {}
+        org_ident = f.get("identitet") or {}
+        roles = f.get("funktionarsroller") or []
+        
+        # Check if this has REV role and is an organization
+        for r in roles:
+            kod = (r.get("kod") or "").upper().strip()
+            if kod == "REV" and org_namn.get("namn"):
+                result["ValtRevisionsbolag"] = org_namn.get("namn", "")
+                break
+        if result["ValtRevisionsbolag"]:
+            break
 
     # Företrädare (styrelse, VD, etc.)
     for f in funktionarer:
@@ -60,7 +82,7 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         first = (person.get("fornamn") or "").strip()
         last = (person.get("efternamn") or "").strip()
-        pnr = _clean_id(ident.get("identitetsbeteckning", ""))
+        pnr = _format_personnummer(ident.get("identitetsbeteckning", ""))
 
         # Hitta bästa roll att visa med stöd för kombinerade roller
         is_vd = False
@@ -71,23 +93,35 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
         is_suppleant = False
         
         for r in roles:
-            kod = (r.get("kod") or "").upper().replace(" ", "_")
+            kod = (r.get("kod") or "").upper().strip()
             klartext = (r.get("klartext") or "").upper().replace(" ", "_")
             
-            # Check both kod and klartext
-            for check_str in [kod, klartext]:
-                if "SUPPLEANT" in check_str:
-                    is_suppleant = True
-                elif "REVISOR" in check_str:
-                    is_revisor = True
-                    if "HUVUDANSVAR" in check_str:
-                        is_huvudansvarig = True
-                elif "VD" in check_str or "VERKSTALLANDE_DIREKTOR" in check_str:
-                    is_vd = True
-                elif "STYRELSEORDFORANDE" in check_str:
-                    is_styrelseordforande = True
-                elif "STYRELSELEDAMOT" in check_str:
-                    is_styrelseledamot = True
+            # First check kod (simpler and more reliable)
+            if kod == "OF":
+                is_styrelseordforande = True
+            elif kod == "LE":
+                is_styrelseledamot = True
+            elif kod == "VD":
+                is_vd = True
+            elif "SUPPL" in kod:
+                is_suppleant = True
+            elif "REV" in kod:
+                is_revisor = True
+                if "HUVUDANSVAR" in kod:
+                    is_huvudansvarig = True
+            # Then check klartext as fallback (handle Swedish characters)
+            elif "SUPPLEANT" in klartext:
+                is_suppleant = True
+            elif "REVISOR" in klartext:
+                is_revisor = True
+                if "HUVUDANSVAR" in klartext:
+                    is_huvudansvarig = True
+            elif "VD" in klartext or "VERKSTÄLLANDE" in klartext:
+                is_vd = True
+            elif "ORDFÖRANDE" in klartext or "ORDFORANDE" in klartext:
+                is_styrelseordforande = True
+            elif "STYRELSELEDAMOT" in klartext:
+                is_styrelseledamot = True
 
         # Determine final role with combined role support
         display_role = ""
@@ -118,7 +152,7 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "UnderskriftHandlingPersonnummer": pnr,
                 "UnderskriftHandlingEmail": "",
                 "UnderskriftHandlingRoll": "Revisor",
-                "UnderskriftHandlingTitel": "Auktoriserad revisor",
+                "UnderskriftHandlingTitel": result["ValtRevisionsbolag"] or "Auktoriserad revisor",  # Use company name
                 "UnderskriftRevisorspateckningRevisorHuvudansvarig": is_huvudansvarig,
                 "RevisionsberattelseTyp": "UTAN_MODIFIERING",
                 "RevisionsberattelseDatum": "",
@@ -138,6 +172,20 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
                 "UnderskriftHandlingAvvikandeMening": None,
                 "fromBolagsverket": True,
             })
+
+    # Sort företrädare by role priority: VD (and combinations) first, then Ordförande, then Ledamot
+    def role_sort_key(foretradare):
+        role = foretradare.get("UnderskriftHandlingRoll", "").lower()
+        if "vd" in role:
+            return 0  # VD, VD & styrelseledamot, VD & styrelseordförande
+        elif "ordförande" in role or "ordforande" in role:
+            return 1  # Styrelseordförande
+        elif "ledamot" in role:
+            return 2  # Styrelseledamot
+        else:
+            return 3  # Others
+    
+    result["UnderskriftForetradare"].sort(key=role_sort_key)
 
     return result
 

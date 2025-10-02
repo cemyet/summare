@@ -156,7 +156,8 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
             const newData = {
               ...data,
               UnderskriftForetradare: företrädare,
-              UnderskriftAvRevisor: revisorer
+              UnderskriftAvRevisor: revisorer,
+              ValtRevisionsbolag: officers.ValtRevisionsbolag || data.ValtRevisionsbolag || ''
             };
             console.log('💾 Updating component data with:', newData);
             updateData(newData);
@@ -382,7 +383,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingTilltalsnamn', e.target.value)}
                       placeholder="Förnamn"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                     />
                   </div>
                   
@@ -392,7 +393,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingEfternamn', e.target.value)}
                       placeholder="Efternamn"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                     />
                   </div>
                   
@@ -402,7 +403,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingPersonnummer', e.target.value)}
                       placeholder="Personnummer"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                     />
                   </div>
                   
@@ -412,7 +413,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onValueChange={(value) => updateForetradare(index, 'UnderskriftHandlingRoll', value)}
                       disabled={foretradare.fromBolagsverket}
                     >
-                      <SelectTrigger className={`h-9 rounded-sm ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}>
+                      <SelectTrigger className={`h-9 rounded-sm ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}>
                         <SelectValue placeholder="Välj roll" className="placeholder:text-muted-foreground/40" />
                       </SelectTrigger>
                       <SelectContent className="p-1">
@@ -457,43 +458,6 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* Underskrifter Section */}
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Underskrifter</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              När du kontrollerat att alla befattningshavare är korrekt ifyllda, så kan årsredovisningen skickas till samtliga företrädare 
-              för digital signering med BankID. Klicka bara på knappen Skicka nedan så skickas ett mail till alla som ska underteckna 
-              med instruktioner om hur de ska skriva under. Du kommer att få ett bekräftelse mail när alla signerat och kan närsomelst 
-              också logga in under Mina Sidor för att följa processen och se vilka som har signerat.
-            </p>
-            
-            <div className="flex justify-between items-center gap-4">
-              {originalData && (
-                <Button 
-                  variant="outline"
-                  onClick={handleUndoChanges}
-                  className="flex items-center gap-2"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 7v6h6"/>
-                    <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
-                  </svg>
-                  Ångra ändringar
-                </Button>
-              )}
-              <Button 
-                className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 ml-auto"
-                onClick={handleSendForSigning}
-              >
-                Skicka
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14"/>
-                  <path d="m12 5 7 7-7 7"/>
-                </svg>
-              </Button>
             </div>
           </div>
 
@@ -595,7 +559,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingTilltalsnamn', e.target.value)}
                         placeholder="Förnamn"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                       />
                     </div>
                     
@@ -605,7 +569,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingEfternamn', e.target.value)}
                         placeholder="Efternamn"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                       />
                     </div>
                     
@@ -615,7 +579,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingPersonnummer', e.target.value)}
                         placeholder="Personnummer"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                       />
                     </div>
                     
@@ -625,7 +589,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingTitel', e.target.value)}
                         placeholder="Revisionsbolag"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                       />
                     </div>
                     
@@ -662,6 +626,43 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                   </div>
                 ))
               )}
+            </div>
+          </div>
+
+          {/* Underskrifter Section */}
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Underskrifter</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              När du kontrollerat att alla befattningshavare är korrekt ifyllda, så kan årsredovisningen skickas till samtliga företrädare 
+              för digital signering med BankID. Klicka bara på knappen Skicka nedan så skickas ett mail till alla som ska underteckna 
+              med instruktioner om hur de ska skriva under. Du kommer att få ett bekräftelse mail när alla signerat och kan närsomelst 
+              också logga in under Mina Sidor för att följa processen och se vilka som har signerat.
+            </p>
+            
+            <div className="flex justify-between items-center gap-4">
+              {originalData && (
+                <Button 
+                  variant="outline"
+                  onClick={handleUndoChanges}
+                  className="flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 7v6h6"/>
+                    <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+                  </svg>
+                  Ångra ändringar
+                </Button>
+              )}
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 ml-auto"
+                onClick={handleSendForSigning}
+              >
+                Skicka
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14"/>
+                  <path d="m12 5 7 7-7 7"/>
+                </svg>
+              </Button>
             </div>
           </div>
 
