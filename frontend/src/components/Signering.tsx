@@ -106,11 +106,18 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       setLoading(true);
       
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-        const url = `${apiUrl}/api/bolagsverket/officers/${companyData.organizationNumber}`;
+        // ✅ Robust API base detection (prod > dev), always prefer HTTPS in browser
+        const envBase =
+          (typeof window !== 'undefined' && (import.meta.env?.VITE_API_URL || (process as any)?.env?.NEXT_PUBLIC_API_BASE)) ||
+          'https://api.summare.se';
+        const API_BASE = envBase.replace(/^http:\/\/(.*)$/i, 'https://$1'); // force https if someone put http
+
+        // ✅ Normalisera orgnr: backend brukar föredra siffror utan bindestreck
+        const normalizedOrg = String(companyData.organizationNumber).replace(/\D/g, '');
+        const url = `${API_BASE}/api/bolagsverket/officers/${normalizedOrg}`;
         console.log('🌐 API URL:', url);
-        
-        const response = await fetch(url);
+
+        const response = await fetch(url, { credentials: 'omit' });
         
         console.log('📡 Response status:', response.status);
         
