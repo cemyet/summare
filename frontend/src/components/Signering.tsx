@@ -373,7 +373,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingTilltalsnamn', e.target.value)}
                       placeholder="Förnamn"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
                     />
                   </div>
                   
@@ -383,7 +383,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingEfternamn', e.target.value)}
                       placeholder="Efternamn"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
                     />
                   </div>
                   
@@ -393,7 +393,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingPersonnummer', e.target.value)}
                       placeholder="Personnummer"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
                     />
                   </div>
                   
@@ -403,7 +403,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onValueChange={(value) => updateForetradare(index, 'UnderskriftHandlingRoll', value)}
                       disabled={foretradare.fromBolagsverket}
                     >
-                      <SelectTrigger className={`h-9 rounded-sm ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}>
+                      <SelectTrigger className={`h-9 rounded-sm ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}>
                         <SelectValue placeholder="Välj roll" className="placeholder:text-muted-foreground/40" />
                       </SelectTrigger>
                       <SelectContent className="p-1">
@@ -503,7 +503,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingTilltalsnamn', e.target.value)}
                         placeholder="Förnamn"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
                       />
                     </div>
                     
@@ -513,7 +513,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingEfternamn', e.target.value)}
                         placeholder="Efternamn"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
                       />
                     </div>
                     
@@ -523,7 +523,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingPersonnummer', e.target.value)}
                         placeholder="Personnummer"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
                       />
                     </div>
                     
@@ -533,7 +533,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingTitel', e.target.value)}
                         placeholder="Titel"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
                       />
                     </div>
                     
@@ -543,7 +543,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onValueChange={(value) => updateRevisor(index, 'UnderskriftRevisorspateckningRevisorHuvudansvarig', value === 'true')}
                         disabled={revisor.fromBolagsverket}
                       >
-                        <SelectTrigger className={`h-9 rounded-sm ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}>
+                        <SelectTrigger className={`h-9 rounded-sm ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="p-1">
