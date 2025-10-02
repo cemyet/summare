@@ -900,6 +900,72 @@ async def bolagsverket_config_check():
         "scope": BVG_SCOPE or None,    # Usually safe to show
     }
 
+@app.get("/api/bolagsverket/full/{organization_number}")
+async def get_bolagsverket_full_data(organization_number: str):
+    """
+    🧪 TEST ENDPOINT - Returns raw, unfiltered data from Bolagsverket API
+    
+    This endpoint returns the complete, unprocessed response from Bolagsverket
+    including all information objects (FUNKTIONARER, FIRMATECKNING, etc.)
+    
+    Useful for debugging and exploring what data is available.
+    
+    Args:
+        organization_number: Swedish organization number (with or without hyphen)
+        
+    Returns:
+        Raw JSON response from Bolagsverket API
+    """
+    try:
+        from services.bolagsverket_service import fetch_company_objects
+        
+        # Clean organization number (remove hyphens and non-digits)
+        clean_org = "".join(ch for ch in organization_number if ch.isdigit())
+        
+        logger.info(f"🧪 TEST: Fetching full Bolagsverket data for: {clean_org}")
+        
+        # Fetch ALL available information objects
+        info_objects = [
+            "FUNKTIONARER",
+            "FIRMATECKNING",
+            "ORGANISATIONSADRESSER",
+            "HEMVISTKOMMUN",
+            "RAKENSKAPSAR",
+            "ORGANISATIONSDATUM",
+            "VERKSAMHETSBESKRIVNING",
+            "AKTIEINFORMATION",
+            "SAMTLIGA_ORGANISATIONSNAMN",
+            "ORGANISATIONSENGAGEMANG",
+            "TILLSTAND",
+            "OVRIG_ORGANISATIONSINFORMATION",
+            "ORGANISATIONSMARKERINGAR",
+            "BESTAMMELSER",
+            "VAKANSER_OCH_UPPLYSNINGAR",
+            "EKONOMISK_PLAN",
+            "UTLANDSK_FILIALAGANDE_ORGANISATION",
+            "FINANSIELLA_RAPPORTER"
+        ]
+        
+        # Fetch raw data from Bolagsverket
+        raw_data = fetch_company_objects(clean_org, info_objects)
+        
+        logger.info(f"✅ Successfully fetched full data for {clean_org}")
+        
+        return {
+            "success": True,
+            "organization_number": clean_org,
+            "info_objects_requested": info_objects,
+            "raw_data": raw_data,
+            "note": "This is the complete, unfiltered response from Bolagsverket API"
+        }
+    
+    except Exception as e:
+        logger.error(f"❌ Error fetching full Bolagsverket data: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Fel vid hämtning av data från Bolagsverket: {str(e)}"
+        )
+
 @app.post("/update-formula/{row_id}")
 async def update_formula(row_id: int, formula: str):
     """
