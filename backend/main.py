@@ -818,6 +818,46 @@ async def get_company_info(organization_number: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Fel vid hämtning av företagsinfo: {str(e)}")
 
+@app.get("/api/bolagsverket/officers/{organization_number}")
+async def get_bolagsverket_officers(organization_number: str):
+    """
+    Fetch company officers from Bolagsverket for pre-filling Signering module
+    Returns formatted officer data ready for the signing interface
+    """
+    try:
+        from services.bolagsverket_service import BolagsverketService
+        from services.bolagsverket_officers_extractor import extract_officers_for_signing
+        
+        # Initialize service and fetch company info
+        service = BolagsverketService()
+        company_info = await service.get_company_info(organization_number)
+        
+        if not company_info:
+            return {
+                "success": False,
+                "message": "No company information found",
+                "officers": {
+                    "UnderskriftForetradare": [],
+                    "UnderskriftAvRevisor": []
+                }
+            }
+        
+        # Extract and format officers
+        officers_data = extract_officers_for_signing(company_info)
+        
+        return {
+            "success": True,
+            "message": f"Found {len(officers_data['UnderskriftForetradare'])} företrädare and {len(officers_data['UnderskriftAvRevisor'])} revisorer",
+            "officers": officers_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching Bolagsverket officers: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Fel vid hämtning av företagsinformation från Bolagsverket: {str(e)}"
+        )
+
 @app.post("/update-formula/{row_id}")
 async def update_formula(row_id: int, formula: str):
     """
