@@ -383,7 +383,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingTilltalsnamn', e.target.value)}
                       placeholder="Förnamn"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}
                     />
                   </div>
                   
@@ -393,7 +393,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingEfternamn', e.target.value)}
                       placeholder="Efternamn"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}
                     />
                   </div>
                   
@@ -403,7 +403,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingPersonnummer', e.target.value)}
                       placeholder="Personnummer"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[85%] ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[85%] ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}
                     />
                   </div>
                   
@@ -413,7 +413,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onValueChange={(value) => updateForetradare(index, 'UnderskriftHandlingRoll', value)}
                       disabled={foretradare.fromBolagsverket}
                     >
-                      <SelectTrigger className={`h-9 rounded-sm w-[115%] ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}>
+                      <SelectTrigger className={`h-9 rounded-sm w-[115%] ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}>
                         <SelectValue placeholder="Välj roll" className="placeholder:text-muted-foreground/40" />
                       </SelectTrigger>
                       <SelectContent className="p-1">
@@ -560,7 +560,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingTilltalsnamn', e.target.value)}
                         placeholder="Förnamn"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}
                       />
                     </div>
                     
@@ -570,7 +570,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingEfternamn', e.target.value)}
                         placeholder="Efternamn"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}
                       />
                     </div>
                     
@@ -580,7 +580,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingPersonnummer', e.target.value)}
                         placeholder="Personnummer"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[85%] ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[85%] ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}
                       />
                     </div>
                     
@@ -590,7 +590,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingTitel', e.target.value)}
                         placeholder="Revisionsbolag"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[115%] ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[115%] ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}
                       />
                     </div>
                     
@@ -660,9 +660,8 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                 onClick={handleSendForSigning}
               >
                 Skicka
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14"/>
-                  <path d="m12 5 7 7-7 7"/>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
                 </svg>
               </Button>
             </div>
