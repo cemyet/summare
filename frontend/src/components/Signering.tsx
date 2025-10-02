@@ -406,9 +406,9 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       <SelectTrigger className={`h-9 rounded-sm ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}>
                         <SelectValue placeholder="Välj roll" className="placeholder:text-muted-foreground/40" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="p-1">
                         {roleOptions.map((role) => (
-                          <SelectItem key={role} value={role}>
+                          <SelectItem key={role} value={role} className="pl-2 pr-2">
                             {role}
                           </SelectItem>
                         ))}
@@ -546,9 +546,9 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         <SelectTrigger className={`h-9 rounded-sm ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed' : ''}`}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="true">Ja</SelectItem>
-                          <SelectItem value="false">Nej</SelectItem>
+                        <SelectContent className="p-1">
+                          <SelectItem value="true" className="pl-2 pr-2">Ja</SelectItem>
+                          <SelectItem value="false" className="pl-2 pr-2">Nej</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
