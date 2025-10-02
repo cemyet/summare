@@ -20,7 +20,7 @@ class BolagsverketService:
         # Production credentials
         self.client_id = "oH7J10u23a8r4YZMtid91N7fQ98a"
         self.client_secret = "xvD1Q2FcTIKVaYZUd9Q7N_0lfwka"
-        self.api_base_url = "https://gw.api.bolagsverket.se/vardefulla-datamangder/v1"
+        self.api_base_url = "https://gw.api.bolagsverket.se/foretagsinformation/v4"
         self.auth_url = "https://portal.api.bolagsverket.se/oauth2/token"
         
         # Token management
@@ -48,12 +48,12 @@ class BolagsverketService:
             return self.access_token
         
         try:
-            # Request new token with scope for valuable data
+            # Request new token with scope for company information
             token_data = {
                 "grant_type": "client_credentials",
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
-                "scope": "vardefulla-datamangder:read"
+                "scope": "foretagsinformation:read"
             }
             
             headers = {
