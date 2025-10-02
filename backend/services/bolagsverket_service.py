@@ -41,14 +41,22 @@ def get_token() -> str:
         return _token_cache["access_token"]
 
     token_url = BVG_AUTH_URL
+    
+    # Send client_id and client_secret as Basic Auth header (per Bolagsverket docs)
     data = {
         "grant_type": "client_credentials",
         "scope": BVG_SCOPE,
-        "client_id": BVG_CLIENT_ID,
-        "client_secret": BVG_CLIENT_SECRET,
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    r = requests.post(token_url, data=data, headers=headers, timeout=20)
+    
+    # Basic Auth: client_id as username, client_secret as password
+    r = requests.post(
+        token_url, 
+        data=data, 
+        headers=headers, 
+        auth=(BVG_CLIENT_ID, BVG_CLIENT_SECRET),
+        timeout=20
+    )
     r.raise_for_status()
     tok = r.json()
     _token_cache["access_token"] = tok["access_token"]
