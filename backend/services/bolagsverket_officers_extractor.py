@@ -62,8 +62,10 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
         last = (person.get("efternamn") or "").strip()
         pnr = _clean_id(ident.get("identitetsbeteckning", ""))
 
-        # Hitta bästa roll att visa
-        display_role = None
+        # Hitta bästa roll att visa med stöd för kombinerade roller
+        is_vd = False
+        is_styrelseledamot = False
+        is_styrelseordforande = False
         is_revisor = False
         is_huvudansvarig = False
         is_suppleant = False
@@ -80,9 +82,26 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
                     is_revisor = True
                     if "HUVUDANSVAR" in check_str:
                         is_huvudansvarig = True
-                elif check_str in ROLE_MAP:
-                    display_role = ROLE_MAP[check_str]
+                elif "VD" in check_str or "VERKSTALLANDE_DIREKTOR" in check_str:
+                    is_vd = True
+                elif "STYRELSEORDFORANDE" in check_str:
+                    is_styrelseordforande = True
+                elif "STYRELSELEDAMOT" in check_str:
+                    is_styrelseledamot = True
 
+        # Determine final role with combined role support
+        display_role = ""
+        if is_vd and is_styrelseordforande:
+            display_role = "VD & styrelseordförande"
+        elif is_vd and is_styrelseledamot:
+            display_role = "VD & styrelseledamot"
+        elif is_vd:
+            display_role = "VD"
+        elif is_styrelseordforande:
+            display_role = "Styrelseordförande"
+        elif is_styrelseledamot:
+            display_role = "Styrelseledamot"
+        
         # Fallback till första rollen om ingen mappning hittades
         if not display_role and roles and not is_revisor:
             display_role = roles[0].get("klartext") or roles[0].get("kod") or ""

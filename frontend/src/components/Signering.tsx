@@ -48,12 +48,11 @@ interface SigneringProps {
 }
 
 const roleOptions = [
-  'Styrelseledamot',
   'VD',
-  'Styrelseordförande', 
   'VD & styrelseledamot',
   'VD & styrelseordförande',
-  'Revisor'
+  'Styrelseordförande',
+  'Styrelseledamot'
 ];
 
 export function Signering({ signeringData, onDataUpdate, companyData }: SigneringProps) {
@@ -81,6 +80,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
   const [hasPrefilledData, setHasPrefilledData] = useState(false);
   const [showValidationMessage, setShowValidationMessage] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [originalData, setOriginalData] = useState<SigneringData | null>(null);
 
   const updateData = (newData: SigneringData) => {
     setData(newData);
@@ -160,6 +160,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
             };
             console.log('💾 Updating component data with:', newData);
             updateData(newData);
+            setOriginalData(newData); // Save original state for Ångra button
             setHasPrefilledData(true);
           } else {
             console.log('⚠️ No företrädare found, keeping default rows');
@@ -250,6 +251,14 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       )
     };
     updateData(newData);
+  };
+
+  const handleUndoChanges = () => {
+    if (originalData) {
+      setData(originalData);
+      onDataUpdate({ signeringData: originalData });
+      console.log('↩️ Restored original data from Bolagsverket');
+    }
   };
 
   const validateEmails = (): boolean => {
@@ -461,42 +470,125 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
               också logga in under Mina Sidor för att följa processen och se vilka som har signerat.
             </p>
             
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={handleSendForSigning}
-            >
-              Skicka
-            </Button>
+            <div className="flex justify-between items-center gap-4">
+              {originalData && (
+                <Button 
+                  variant="outline"
+                  onClick={handleUndoChanges}
+                  className="flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 7v6h6"/>
+                    <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+                  </svg>
+                  Ångra ändringar
+                </Button>
+              )}
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 ml-auto"
+                onClick={handleSendForSigning}
+              >
+                Skicka
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14"/>
+                  <path d="m12 5 7 7-7 7"/>
+                </svg>
+              </Button>
+            </div>
           </div>
 
-          {/* Revisor Section - Optional */}
-          {data.UnderskriftAvRevisor.length > 0 && (
-            <div>
-              <h2 className="text-xl font-semibold mb-4">Revisorspåteckning</h2>
-              
-              <div className="mb-4">
-                <label className="text-sm font-medium">Valt revisionsbolag</label>
-                <Input
-                  value={data.ValtRevisionsbolag || ''}
-                  onChange={(e) => updateData({ ...data, ValtRevisionsbolag: e.target.value })}
-                  placeholder="Revisionsbolag"
-                  className="mt-1"
-                />
+          {/* Revisor Section */}
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Revisor</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Ordinarie styrelseledamöter och eventuell revisor har automatiskt hämtats från Bolagsverket. Förnamn, efternamn, personnummer och roll är förfyllda och låsta. Du kan endast uppdatera e-postadresser och lägga till fler personer vid behov.
+            </p>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground">
+                <div className="col-span-2">Förnamn</div>
+                <div className="col-span-2">Efternamn</div>
+                <div className="col-span-2">Personnummer</div>
+                <div className="col-span-2">Revisionsbolag</div>
+                <div className="col-span-3">Email</div>
+                <div className="col-span-1"></div>
               </div>
 
-              <div className="space-y-3">
-                <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground">
-                  <div className="col-span-2">Förnamn</div>
-                  <div className="col-span-2">Efternamn</div>
-                  <div className="col-span-2">Personnummer</div>
-                  <div className="col-span-2">Titel</div>
-                  <div className="col-span-1">Huvudans.</div>
-                  <div className="col-span-2">Email</div>
-                  <div className="col-span-1"></div>
+              {data.UnderskriftAvRevisor.length === 0 ? (
+                <div className="grid grid-cols-12 gap-4 items-start">
+                  <div className="col-span-2">
+                    <Input
+                      value=""
+                      onChange={(e) => {
+                        const newRevisor = {
+                          UnderskriftHandlingTilltalsnamn: e.target.value,
+                          UnderskriftHandlingEfternamn: '',
+                          UnderskriftHandlingPersonnummer: '',
+                          UnderskriftHandlingEmail: '',
+                          UnderskriftHandlingTitel: '',
+                          UnderskriftRevisorspateckningRevisorHuvudansvarig: false,
+                          fromBolagsverket: false
+                        };
+                        updateData({
+                          ...data,
+                          UnderskriftAvRevisor: [newRevisor]
+                        });
+                      }}
+                      placeholder="Förnamn"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
+                    />
+                  </div>
+                  
+                  <div className="col-span-2">
+                    <Input
+                      value=""
+                      placeholder="Efternamn"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
+                      disabled
+                    />
+                  </div>
+                  
+                  <div className="col-span-2">
+                    <Input
+                      value=""
+                      placeholder="Personnummer"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
+                      disabled
+                    />
+                  </div>
+                  
+                  <div className="col-span-2">
+                    <Input
+                      value=""
+                      placeholder="Revisionsbolag"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
+                      disabled
+                    />
+                  </div>
+                  
+                  <div className="col-span-3">
+                    <Input
+                      value=""
+                      placeholder="Email"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
+                      disabled
+                    />
+                  </div>
+                  
+                  <div className="col-span-1 flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={addRevisor}
+                      className="h-9 w-9 p-0 rounded-sm"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-
-                {data.UnderskriftAvRevisor.map((revisor, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-4 items-center">
+              ) : (
+                data.UnderskriftAvRevisor.map((revisor, index) => (
+                  <div key={index} className="grid grid-cols-12 gap-4 items-start">
                     <div className="col-span-2">
                       <Input
                         value={revisor.UnderskriftHandlingTilltalsnamn}
@@ -531,29 +623,13 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       <Input
                         value={revisor.UnderskriftHandlingTitel}
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingTitel', e.target.value)}
-                        placeholder="Titel"
+                        placeholder="Revisionsbolag"
                         disabled={revisor.fromBolagsverket}
                         className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}
                       />
                     </div>
                     
-                    <div className="col-span-1">
-                      <Select
-                        value={revisor.UnderskriftRevisorspateckningRevisorHuvudansvarig ? 'true' : 'false'}
-                        onValueChange={(value) => updateRevisor(index, 'UnderskriftRevisorspateckningRevisorHuvudansvarig', value === 'true')}
-                        disabled={revisor.fromBolagsverket}
-                      >
-                        <SelectTrigger className={`h-9 rounded-sm ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed text-foreground/80' : ''}`}>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="p-1">
-                          <SelectItem value="true" className="pl-2 pr-2">Ja</SelectItem>
-                          <SelectItem value="false" className="pl-2 pr-2">Nej</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="col-span-2">
+                    <div className="col-span-3">
                       <Input
                         value={revisor.UnderskriftHandlingEmail}
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingEmail', e.target.value)}
@@ -572,34 +648,22 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
+                      {index === data.UnderskriftAvRevisor.length - 1 && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={addRevisor}
+                          className="h-9 w-9 p-0 rounded-sm"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-              
-              <Button
-                variant="outline"
-                onClick={addRevisor}
-                className="mt-4"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Lägg till revisor
-              </Button>
+                ))
+              )}
             </div>
-          )}
-
-          {/* Add Revisor Button - if no revisors exist */}
-          {data.UnderskriftAvRevisor.length === 0 && (
-            <div>
-              <Button
-                variant="outline"
-                onClick={addRevisor}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Lägg till revisor
-              </Button>
-            </div>
-          )}
+          </div>
 
         </CardContent>
       </Card>
