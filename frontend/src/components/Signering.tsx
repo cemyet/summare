@@ -352,7 +352,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
         </CardHeader>
         <CardContent className="space-y-8">
           
-          {/* Befattningshavare Section */}
+          {/* Befattningshavare Section - Company Officers */}
           <div>
             <h2 className="text-xl font-semibold mb-4">Befattningshavare</h2>
             <p className="text-sm text-muted-foreground mb-6">
