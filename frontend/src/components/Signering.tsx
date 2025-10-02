@@ -257,22 +257,26 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     // Validate företrädare emails
-    data.UnderskriftForetradare.forEach((foretradare, index) => {
+    data.UnderskriftForetradare.forEach((foretradare) => {
       const email = foretradare.UnderskriftHandlingEmail?.trim();
+      const fullName = `${foretradare.UnderskriftHandlingTilltalsnamn} ${foretradare.UnderskriftHandlingEfternamn}`.trim();
+      
       if (!email) {
-        errors.push(`Företrädare ${index + 1} (${foretradare.UnderskriftHandlingTilltalsnamn} ${foretradare.UnderskriftHandlingEfternamn}): Email saknas`);
+        errors.push(`Email saknas för ${fullName}. Vänligen kontrollera och försök igen.`);
       } else if (!emailRegex.test(email)) {
-        errors.push(`Företrädare ${index + 1} (${foretradare.UnderskriftHandlingTilltalsnamn} ${foretradare.UnderskriftHandlingEfternamn}): Ogiltig email-adress`);
+        errors.push(`Ogiltig emailadress för ${fullName}. Vänligen kontrollera och försök igen.`);
       }
     });
 
     // Validate revisor emails
-    data.UnderskriftAvRevisor.forEach((revisor, index) => {
+    data.UnderskriftAvRevisor.forEach((revisor) => {
       const email = revisor.UnderskriftHandlingEmail?.trim();
+      const fullName = `${revisor.UnderskriftHandlingTilltalsnamn} ${revisor.UnderskriftHandlingEfternamn}`.trim();
+      
       if (!email) {
-        errors.push(`Revisor ${index + 1} (${revisor.UnderskriftHandlingTilltalsnamn} ${revisor.UnderskriftHandlingEfternamn}): Email saknas`);
+        errors.push(`Email saknas för ${fullName}. Vänligen kontrollera och försök igen.`);
       } else if (!emailRegex.test(email)) {
-        errors.push(`Revisor ${index + 1} (${revisor.UnderskriftHandlingTilltalsnamn} ${revisor.UnderskriftHandlingEfternamn}): Ogiltig email-adress`);
+        errors.push(`Ogiltig emailadress för ${fullName}. Vänligen kontrollera och försök igen.`);
       }
     });
 
@@ -613,12 +617,10 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
               <p className="text-sm font-medium text-gray-900">
                 Ogiltiga email-adresser
               </p>
-              <div className="mt-2 text-sm text-gray-700">
-                <ul className="list-disc pl-5 space-y-1">
-                  {validationErrors.map((error, index) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
+              <div className="mt-2 text-sm text-gray-700 space-y-1">
+                {validationErrors.map((error, index) => (
+                  <p key={index}>{error}</p>
+                ))}
               </div>
             </div>
             <div className="ml-4 flex-shrink-0 flex">
