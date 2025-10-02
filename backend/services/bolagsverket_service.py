@@ -8,6 +8,8 @@ BVG_BASE = os.getenv("BOLAGSVERKET_BASE_URL")
 BVG_CLIENT_ID = os.getenv("BOLAGSVERKET_CLIENT_ID")
 BVG_CLIENT_SECRET = os.getenv("BOLAGSVERKET_CLIENT_SECRET")
 BVG_SCOPE = os.getenv("BOLAGSVERKET_SCOPE")
+# OAuth endpoint is at a different base URL (portal vs gw)
+BVG_AUTH_URL = "https://portal.api.bolagsverket.se/oauth2/token"
 
 _token_cache = {"access_token": None, "exp": 0}
 
@@ -38,7 +40,7 @@ def get_token() -> str:
     if _token_cache["access_token"] and _token_cache["exp"] - 60 > _now():
         return _token_cache["access_token"]
 
-    token_url = f"{BVG_BASE}/oauth2/token"
+    token_url = BVG_AUTH_URL
     data = {
         "grant_type": "client_credentials",
         "scope": BVG_SCOPE,
