@@ -825,12 +825,24 @@ async def get_bolagsverket_officers(organization_number: str):
     Returns formatted officer data ready for the signing interface
     """
     try:
-        from services.bolagsverket_service import BolagsverketService
+        from services.bolagsverket_service import fetch_company_objects
         from services.bolagsverket_officers_extractor import extract_officers_for_signing
         
-        # Initialize service and fetch company info
-        service = BolagsverketService()
-        company_info = await service.get_company_info(organization_number)
+        # Clean organization number (remove hyphens and non-digits)
+        clean_org = "".join(ch for ch in organization_number if ch.isdigit())
+        
+        logger.info(f"Fetching officers for organization: {clean_org}")
+        
+        # Fetch company data from Bolagsverket API
+        try:
+            company_info = fetch_company_objects(clean_org, ["FUNKTIONARER", "FIRMATECKNING"])
+        except Exception as fetch_error:
+            logger.error(f"Bolagsverket API error: {str(fetch_error)}")
+            # Return detailed error for debugging
+            raise HTTPException(
+                status_code=502,
+                detail=f"Bolagsverket upstream error: {str(fetch_error)}"
+            )
         
         if not company_info:
             return {
@@ -843,18 +855,30 @@ async def get_bolagsverket_officers(organization_number: str):
             }
         
         # Extract and format officers
-        officers_data = extract_officers_for_signing(company_info)
+        try:
+            officers_data = extract_officers_for_signing(company_info)
+        except Exception as extract_error:
+            logger.error(f"Officer extraction error: {str(extract_error)}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Extraction failed: {str(extract_error)}"
+            )
+        
+        logger.info(f"Successfully extracted {len(officers_data['UnderskriftForetradare'])} företrädare and {len(officers_data['UnderskriftAvRevisor'])} revisorer")
         
         return {
             "success": True,
             "message": f"Found {len(officers_data['UnderskriftForetradare'])} företrädare and {len(officers_data['UnderskriftAvRevisor'])} revisorer",
-            "officers": officers_data
+            "officers": officers_data,
+            "organization_number": clean_org
         }
-        
+    
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error fetching Bolagsverket officers: {str(e)}")
+        logger.error(f"Unexpected error fetching Bolagsverket officers: {str(e)}")
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Fel vid hämtning av företagsinformation från Bolagsverket: {str(e)}"
         )
 
