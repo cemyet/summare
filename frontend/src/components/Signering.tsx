@@ -413,8 +413,8 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onValueChange={(value) => updateForetradare(index, 'UnderskriftHandlingRoll', value)}
                       disabled={foretradare.fromBolagsverket}
                     >
-                      <SelectTrigger className={`h-9 rounded-sm w-[110%] ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}>
-                        <SelectValue placeholder="Välj roll" />
+                      <SelectTrigger className={`h-9 rounded-sm w-[110%] text-left [&>span]:text-left [&>span]:block ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}>
+                        <SelectValue placeholder="Välj roll" className="text-muted-foreground/40" />
                       </SelectTrigger>
                       <SelectContent className="p-1">
                         {roleOptions.map((role) => (
