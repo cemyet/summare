@@ -40,23 +40,30 @@ def extract_officers_for_signing(company_info: Dict[str, Any]) -> Dict[str, Any]
     revisor_list = []
     
     for officer in officers:
-        # Extract name
+        # Extract name (handle both direct and representerasAv structures)
         fornamn = ''
         efternamn = ''
+        personnummer = ''
         
+        # Check for direct personnamn (most common)
         if officer.get('personnamn'):
             name = officer['personnamn']
             fornamn = name.get('fornamn', '').strip()
             efternamn = name.get('efternamn', '').strip()
+        # Check for representerasAv (auditors represented by a person)
+        elif officer.get('representerasAv') and officer['representerasAv'].get('personnamn'):
+            name = officer['representerasAv']['personnamn']
+            fornamn = name.get('fornamn', '').strip()
+            efternamn = name.get('efternamn', '').strip()
+        # Check for organisationsnamn (company as auditor)
         elif officer.get('organisationsnamn'):
-            # If it's an organization (e.g., audit firm), put in efternamn
             efternamn = officer['organisationsnamn'].get('namn', '').strip()
         
-        # Extract personnummer (identity number)
-        personnummer = ''
+        # Extract personnummer (identity number) - check multiple locations
         if officer.get('identitet'):
-            identity = officer['identitet']
-            personnummer = identity.get('identitetsbeteckning', '').strip()
+            personnummer = officer['identitet'].get('identitetsbeteckning', '').strip()
+        elif officer.get('representerasAv') and officer['representerasAv'].get('identitet'):
+            personnummer = officer['representerasAv']['identitet'].get('identitetsbeteckning', '').strip()
         
         # Extract roles
         officer_roles = []
