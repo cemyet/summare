@@ -66,6 +66,7 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
         display_role = None
         is_revisor = False
         is_huvudansvarig = False
+        is_suppleant = False
         
         for r in roles:
             kod = (r.get("kod") or "").upper().replace(" ", "_")
@@ -73,7 +74,9 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
             
             # Check both kod and klartext
             for check_str in [kod, klartext]:
-                if "REVISOR" in check_str:
+                if "SUPPLEANT" in check_str:
+                    is_suppleant = True
+                elif "REVISOR" in check_str:
                     is_revisor = True
                     if "HUVUDANSVAR" in check_str:
                         is_huvudansvarig = True
@@ -84,8 +87,8 @@ def extract_officers_for_signing(payload: Dict[str, Any]) -> Dict[str, Any]:
         if not display_role and roles and not is_revisor:
             display_role = roles[0].get("klartext") or roles[0].get("kod") or ""
 
-        # Hoppa över tomma poster
-        if not (first or last):
+        # Hoppa över tomma poster och styrelsesuppleanter
+        if not (first or last) or is_suppleant:
             continue
 
         # Revisorer läggs i separat array
