@@ -1876,6 +1876,11 @@ const selectiveMergeInk2 = (
     }
     
     // Update company data with all extracted information
+    // Priority: SE file org number > scraped org number
+    const orgNumber = fileData.data?.company_info?.organization_number || 
+                      fileData.data?.scraped_company_data?.orgnr || 
+                      '';
+    
     onDataUpdate({ 
       seFileData: fileData.data,
       scraped_company_data: fileData.data?.scraped_company_data, // Add scraped company data
@@ -1893,8 +1898,8 @@ const selectiveMergeInk2 = (
       sarskildLoneskattPension: sarskildLoneskattPension,
       sarskildLoneskattPensionCalculated: sarskildLoneskattPensionCalculated,
       fiscalYear: fileData.data?.company_info?.fiscal_year || new Date().getFullYear(),
-      companyName: fileData.data?.company_info?.company_name || 'Företag AB',
-      organizationNumber: fileData.data?.company_info?.organization_number || '',
+      companyName: fileData.data?.company_info?.company_name || fileData.data?.scraped_company_data?.company_name || 'Företag AB',
+      organizationNumber: orgNumber,
       showRRBR: true // Show RR and BR data in preview
     });
     
