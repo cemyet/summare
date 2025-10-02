@@ -4,20 +4,36 @@ import time
 import requests
 from typing import Dict, Any, List, Optional
 
-BVG_BASE = os.getenv("BOLAGSVERKET_BASE_URL", "https://gw.api.bolagsverket.se")
-BVG_CLIENT_ID = os.getenv("BOLAGSVERKET_CLIENT_ID", "oH7J10u23a8r4YZMtid91N7fQ98a")
-BVG_CLIENT_SECRET = os.getenv("BOLAGSVERKET_CLIENT_SECRET", "xvD1Q2FcTIKVaYZUd9Q7N_0lfwka")
-BVG_SCOPE = os.getenv("BOLAGSVERKET_SCOPE", "foretagsinformation:read")
+BVG_BASE = os.getenv("BOLAGSVERKET_BASE_URL")
+BVG_CLIENT_ID = os.getenv("BOLAGSVERKET_CLIENT_ID")
+BVG_CLIENT_SECRET = os.getenv("BOLAGSVERKET_CLIENT_SECRET")
+BVG_SCOPE = os.getenv("BOLAGSVERKET_SCOPE")
 
 _token_cache = {"access_token": None, "exp": 0}
 
 def _now() -> int:
     return int(time.time())
 
+def _require_env():
+    """
+    Validate that all required environment variables are set.
+    Raises RuntimeError with clear message if any are missing.
+    """
+    missing = [k for k, v in {
+        "BOLAGSVERKET_BASE_URL": BVG_BASE,
+        "BOLAGSVERKET_CLIENT_ID": BVG_CLIENT_ID,
+        "BOLAGSVERKET_CLIENT_SECRET": BVG_CLIENT_SECRET,
+        "BOLAGSVERKET_SCOPE": BVG_SCOPE,
+    }.items() if not v]
+    if missing:
+        raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")
+
 def get_token() -> str:
     """
     Get OAuth2 token with 50-minute cache
     """
+    _require_env()
+    
     # cache 50 min
     if _token_cache["access_token"] and _token_cache["exp"] - 60 > _now():
         return _token_cache["access_token"]

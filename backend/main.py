@@ -825,7 +825,7 @@ async def get_bolagsverket_officers(organization_number: str):
     Returns formatted officer data ready for the signing interface
     """
     try:
-        from services.bolagsverket_service import fetch_company_objects
+        from services.bolagsverket_service import fetch_company_objects, BVG_BASE, BVG_SCOPE, BVG_CLIENT_ID, BVG_CLIENT_SECRET
         from services.bolagsverket_officers_extractor import extract_officers_for_signing
         
         # Clean organization number (remove hyphens and non-digits)
@@ -881,6 +881,24 @@ async def get_bolagsverket_officers(organization_number: str):
             status_code=500,
             detail=f"Fel vid hämtning av företagsinformation från Bolagsverket: {str(e)}"
         )
+
+@app.get("/api/bolagsverket/config-check")
+async def bolagsverket_config_check():
+    """
+    🔎 Hjälp vid drift: visar bara *att* env finns, inte värdena.
+    Debug endpoint to check if Bolagsverket environment variables are configured.
+    Does not leak secret values.
+    """
+    from services.bolagsverket_service import BVG_BASE, BVG_SCOPE, BVG_CLIENT_ID, BVG_CLIENT_SECRET
+    
+    return {
+        "base_url_set": bool(BVG_BASE),
+        "scope_set": bool(BVG_SCOPE),
+        "client_id_set": bool(BVG_CLIENT_ID),
+        "client_secret_set": bool(BVG_CLIENT_SECRET),
+        "base_url": BVG_BASE or None,  # Usually safe to show, remove if you want
+        "scope": BVG_SCOPE or None,    # Usually safe to show
+    }
 
 @app.post("/update-formula/{row_id}")
 async def update_formula(row_id: int, formula: str):
