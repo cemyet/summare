@@ -1894,6 +1894,7 @@ const selectiveMergeInk2 = (
       sarskildLoneskattPensionCalculated: sarskildLoneskattPensionCalculated,
       fiscalYear: fileData.data?.company_info?.fiscal_year || new Date().getFullYear(),
       companyName: fileData.data?.company_info?.company_name || 'Företag AB',
+      organizationNumber: fileData.data?.company_info?.organization_number || '',
       showRRBR: true // Show RR and BR data in preview
     });
     
