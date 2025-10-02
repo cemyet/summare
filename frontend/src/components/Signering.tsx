@@ -371,7 +371,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                 <div className="col-span-2">Efternamn</div>
                 <div className="col-span-2">Personnummer</div>
                 <div className="col-span-2">Roll</div>
-                <div className="col-span-3">Email</div>
+                <div className="col-span-3 ml-4">Email</div>
                 <div className="col-span-1"></div>
               </div>
 
@@ -413,8 +413,8 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onValueChange={(value) => updateForetradare(index, 'UnderskriftHandlingRoll', value)}
                       disabled={foretradare.fromBolagsverket}
                     >
-                      <SelectTrigger className={`h-9 rounded-sm ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}>
-                        <SelectValue placeholder="Välj roll" className="placeholder:text-muted-foreground/40" />
+                      <SelectTrigger className={`h-9 rounded-sm w-[110%] ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}>
+                        <SelectValue placeholder="Välj roll" />
                       </SelectTrigger>
                       <SelectContent className="p-1">
                         {roleOptions.map((role) => (
@@ -431,11 +431,11 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       value={foretradare.UnderskriftHandlingEmail}
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingEmail', e.target.value)}
                       placeholder="Email" 
-                      className="h-9 rounded-sm placeholder:text-muted-foreground/40 ml-3"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40 ml-4 w-[calc(100%-1rem)]"
                     />
                   </div>
                   
-                  <div className="col-span-1 flex gap-1 justify-end">
+                  <div className="col-span-1 flex gap-1">
                     {index === data.UnderskriftForetradare.length - 1 && (
                       <>
                         <Button
@@ -446,13 +446,12 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         >
                           <Plus className="h-4 w-4" />
                         </Button>
-                        {data.UnderskriftForetradare.length > 1 && (
+                        {data.UnderskriftForetradare.length > 1 && !foretradare.fromBolagsverket && (
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={() => removeForetradare(index)}
                             className="h-9 w-9 p-0 rounded-sm"
-                            disabled={foretradare.fromBolagsverket}
                           >
                             <Minus className="h-4 w-4" />
                           </Button>
@@ -475,7 +474,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                 <div className="col-span-2">Efternamn</div>
                 <div className="col-span-2">Personnummer</div>
                 <div className="col-span-2">Revisionsbolag</div>
-                <div className="col-span-3">Email</div>
+                <div className="col-span-3 ml-4">Email</div>
                 <div className="col-span-1"></div>
               </div>
 
@@ -526,7 +525,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                     <Input
                       value=""
                       placeholder="Revisionsbolag"
-                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40 w-[110%]"
                       disabled
                     />
                   </div>
@@ -535,7 +534,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                     <Input
                       value=""
                       placeholder="Email"
-                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40 ml-4 w-[calc(100%-1rem)]"
                       disabled
                     />
                   </div>
@@ -590,7 +589,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingTitel', e.target.value)}
                         placeholder="Revisionsbolag"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[110%] ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-90' : ''}`}
                       />
                     </div>
                     
@@ -599,11 +598,11 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         value={revisor.UnderskriftHandlingEmail}
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingEmail', e.target.value)}
                         placeholder="Email"
-                        className="h-9 rounded-sm placeholder:text-muted-foreground/40 ml-3"
+                        className="h-9 rounded-sm placeholder:text-muted-foreground/40 ml-4 w-[calc(100%-1rem)]"
                       />
                     </div>
                     
-                    <div className="col-span-1 flex gap-1 justify-end">
+                    <div className="col-span-1 flex gap-1">
                       {index === data.UnderskriftAvRevisor.length - 1 && (
                         <>
                           <Button
@@ -614,13 +613,12 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                           >
                             <Plus className="h-4 w-4" />
                           </Button>
-                          {data.UnderskriftAvRevisor.length > 1 && (
+                          {data.UnderskriftAvRevisor.length > 1 && !revisor.fromBolagsverket && (
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => removeRevisor(index)}
                               className="h-9 w-9 p-0 rounded-sm"
-                              disabled={revisor.fromBolagsverket}
                             >
                               <Minus className="h-4 w-4" />
                             </Button>
