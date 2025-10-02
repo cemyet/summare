@@ -146,9 +146,14 @@ class BolagsverketService:
                 "X-Request-Id": str(uuid.uuid4())
             }
             
-            # Request body for organization lookup
+            # Request body for organization lookup with FUNKTIONARER (officers) data
             request_data = {
-                "identitetsbeteckning": org_number
+                "organisationInformationsmangd": [
+                    {
+                        "identitetsbeteckning": org_number,
+                        "organisationInformationsmangd": ["FUNKTIONARER"]
+                    }
+                ]
             }
             
             response = requests.post(url, json=request_data, headers=headers, timeout=30)
