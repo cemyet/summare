@@ -359,7 +359,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
               {loading ? (
                 'Hämtar företagsinformation från Bolagsverket...'
               ) : hasPrefilledData ? (
-                'Ordinarie styrelseledamöter och eventuell revisor har automatiskt hämtats från Bolagsverket. Förnamn, efternamn, personnummer och roll är förfyllda och låsta. Du kan endast uppdatera e-postadresser och lägga till fler personer vid behov.'
+                'VD, styrelseledamöter och eventuell revisor har hämtats från Bolagsverket. Förnamn, efternamn, personnummer och roll är redan ifyllda och låsta. Du ska bara uppdatera emailadresser och kan lägga till fler befattningshavare om det skulle behövas.'
               ) : (
                 'Fyll i information om befattningshavare som ska signera årsredovisningen. Du kan lägga till eller ta bort rader vid behov.'
               )}
@@ -403,7 +403,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingPersonnummer', e.target.value)}
                       placeholder="Personnummer"
                       disabled={foretradare.fromBolagsverket}
-                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                      className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[85%] ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                     />
                   </div>
                   
@@ -413,7 +413,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       onValueChange={(value) => updateForetradare(index, 'UnderskriftHandlingRoll', value)}
                       disabled={foretradare.fromBolagsverket}
                     >
-                      <SelectTrigger className={`h-9 rounded-sm ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}>
+                      <SelectTrigger className={`h-9 rounded-sm w-[115%] ${foretradare.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}>
                         <SelectValue placeholder="Välj roll" className="placeholder:text-muted-foreground/40" />
                       </SelectTrigger>
                       <SelectContent className="p-1">
@@ -436,24 +436,28 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                   </div>
                   
                   <div className="col-span-1 flex gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={addForetradare}
-                      className="h-9 w-9 p-0 rounded-sm"
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                    {data.UnderskriftForetradare.length > 1 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeForetradare(index)}
-                        className="h-9 w-9 p-0 rounded-sm"
-                        disabled={foretradare.fromBolagsverket}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
+                    {index === data.UnderskriftForetradare.length - 1 && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={addForetradare}
+                          className="h-9 w-9 p-0 rounded-sm"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                        {data.UnderskriftForetradare.length > 1 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => removeForetradare(index)}
+                            className="h-9 w-9 p-0 rounded-sm"
+                            disabled={foretradare.fromBolagsverket}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -464,9 +468,6 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
           {/* Revisor Section */}
           <div>
             <h2 className="text-xl font-semibold mb-4">Revisor</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Ordinarie styrelseledamöter och eventuell revisor har automatiskt hämtats från Bolagsverket. Förnamn, efternamn, personnummer och roll är förfyllda och låsta. Du kan endast uppdatera e-postadresser och lägga till fler personer vid behov.
-            </p>
 
             <div className="space-y-3">
               <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground">
@@ -579,7 +580,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingPersonnummer', e.target.value)}
                         placeholder="Personnummer"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[85%] ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                       />
                     </div>
                     
@@ -589,7 +590,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         onChange={(e) => updateRevisor(index, 'UnderskriftHandlingTitel', e.target.value)}
                         placeholder="Revisionsbolag"
                         disabled={revisor.fromBolagsverket}
-                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
+                        className={`h-9 rounded-sm placeholder:text-muted-foreground/40 w-[115%] ${revisor.fromBolagsverket ? 'bg-muted cursor-not-allowed opacity-80' : ''}`}
                       />
                     </div>
                     
@@ -603,24 +604,28 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                     </div>
                     
                     <div className="col-span-1 flex gap-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeRevisor(index)}
-                        className="h-9 w-9 p-0 rounded-sm"
-                        disabled={revisor.fromBolagsverket}
-                      >
-                        <Minus className="h-4 w-4" />
-                      </Button>
                       {index === data.UnderskriftAvRevisor.length - 1 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={addRevisor}
-                          className="h-9 w-9 p-0 rounded-sm"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={addRevisor}
+                            className="h-9 w-9 p-0 rounded-sm"
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                          {data.UnderskriftAvRevisor.length > 1 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeRevisor(index)}
+                              className="h-9 w-9 p-0 rounded-sm"
+                              disabled={revisor.fromBolagsverket}
+                            >
+                              <Minus className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -633,10 +638,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
           <div>
             <h2 className="text-xl font-semibold mb-4">Underskrifter</h2>
             <p className="text-sm text-muted-foreground mb-6">
-              När du kontrollerat att alla befattningshavare är korrekt ifyllda, så kan årsredovisningen skickas till samtliga företrädare 
-              för digital signering med BankID. Klicka bara på knappen Skicka nedan så skickas ett mail till alla som ska underteckna 
-              med instruktioner om hur de ska skriva under. Du kommer att få ett bekräftelse mail när alla signerat och kan närsomelst 
-              också logga in under Mina Sidor för att följa processen och se vilka som har signerat.
+              När du har fyllt i emailadresserna kan årsredovisningen skickas till samtliga företrädare för digital signering med BankID. Klicka på knappen Skicka när du är klar, så skickas ett mail till alla som ska skriva under med instruktioner om hur de ska göra. Du kommer att få en bekräftelse på mail när alla signerat och kan också logga in under Mina Sidor för att följa processen och se vilka som har signerat.
             </p>
             
             <div className="flex justify-between items-center gap-4">
