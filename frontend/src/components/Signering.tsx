@@ -79,6 +79,8 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
 
   const [loading, setLoading] = useState(false);
   const [hasPrefilledData, setHasPrefilledData] = useState(false);
+  const [showValidationMessage, setShowValidationMessage] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   const updateData = (newData: SigneringData) => {
     setData(newData);
@@ -250,7 +252,51 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
     updateData(newData);
   };
 
+  const validateEmails = (): boolean => {
+    const errors: string[] = [];
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    // Validate företrädare emails
+    data.UnderskriftForetradare.forEach((foretradare, index) => {
+      const email = foretradare.UnderskriftHandlingEmail?.trim();
+      if (!email) {
+        errors.push(`Företrädare ${index + 1} (${foretradare.UnderskriftHandlingTilltalsnamn} ${foretradare.UnderskriftHandlingEfternamn}): Email saknas`);
+      } else if (!emailRegex.test(email)) {
+        errors.push(`Företrädare ${index + 1} (${foretradare.UnderskriftHandlingTilltalsnamn} ${foretradare.UnderskriftHandlingEfternamn}): Ogiltig email-adress`);
+      }
+    });
+
+    // Validate revisor emails
+    data.UnderskriftAvRevisor.forEach((revisor, index) => {
+      const email = revisor.UnderskriftHandlingEmail?.trim();
+      if (!email) {
+        errors.push(`Revisor ${index + 1} (${revisor.UnderskriftHandlingTilltalsnamn} ${revisor.UnderskriftHandlingEfternamn}): Email saknas`);
+      } else if (!emailRegex.test(email)) {
+        errors.push(`Revisor ${index + 1} (${revisor.UnderskriftHandlingTilltalsnamn} ${revisor.UnderskriftHandlingEfternamn}): Ogiltig email-adress`);
+      }
+    });
+
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      setShowValidationMessage(true);
+      
+      // Auto-hide after 6 seconds
+      setTimeout(() => {
+        setShowValidationMessage(false);
+      }, 6000);
+      
+      return false;
+    }
+    
+    return true;
+  };
+
   const handleSendForSigning = async () => {
+    // Validate emails before sending
+    if (!validateEmails()) {
+      return;
+    }
+
     try {
       console.log('🖊️ Sending for digital signing...', data);
       
@@ -553,6 +599,42 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
 
         </CardContent>
       </Card>
+
+      {/* Email Validation Toast Notification */}
+      {showValidationMessage && (
+        <div className="fixed bottom-4 right-4 z-50 bg-white rounded-lg shadow-lg p-4 max-w-sm animate-in slide-in-from-bottom-2">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div className="ml-3 flex-1">
+              <p className="text-sm font-medium text-gray-900">
+                Ogiltiga email-adresser
+              </p>
+              <div className="mt-2 text-sm text-gray-700">
+                <ul className="list-disc pl-5 space-y-1">
+                  {validationErrors.map((error, index) => (
+                    <li key={index}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="ml-4 flex-shrink-0 flex">
+              <button
+                className="inline-flex text-gray-400 hover:text-gray-500"
+                onClick={() => setShowValidationMessage(false)}
+              >
+                <span className="sr-only">Stäng</span>
+                <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
