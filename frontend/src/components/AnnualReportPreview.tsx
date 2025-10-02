@@ -2363,8 +2363,8 @@ const handleTaxCalculationClick = () => {
           {/* Stripe embedded checkout will be portaled here */}
         </section>
 
-        {/* Significant Events Section */}
-        {currentStep >= 2 && (
+        {/* Significant Events Section - Hide on Signering steps */}
+        {currentStep >= 2 && currentStep < 515 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground border-b pb-2">Väsentliga händelser</h2>
             <div className="text-sm text-muted-foreground space-y-2">
@@ -2379,8 +2379,8 @@ const handleTaxCalculationClick = () => {
           </div>
         )}
 
-        {/* Depreciation Policy */}
-        {currentStep >= 3 && (
+        {/* Depreciation Policy - Hide on Signering steps */}
+        {currentStep >= 3 && currentStep < 515 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground border-b pb-2">Avskrivningsprinciper</h2>
             <p className="text-sm text-muted-foreground">
@@ -2394,8 +2394,8 @@ const handleTaxCalculationClick = () => {
           </div>
         )}
 
-        {/* Employee Information */}
-        {currentStep >= 4 && (
+        {/* Employee Information - Hide on Signering steps */}
+        {currentStep >= 4 && currentStep < 515 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground border-b pb-2">Personal</h2>
             <p className="text-sm text-muted-foreground">
@@ -2406,8 +2406,8 @@ const handleTaxCalculationClick = () => {
           </div>
         )}
 
-        {/* Board Members */}
-        {currentStep >= 5 && (
+        {/* Board Members - Hide on Signering steps */}
+        {currentStep >= 5 && currentStep < 515 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold text-foreground border-b pb-2">Styrelse</h2>
             <div className="space-y-2">

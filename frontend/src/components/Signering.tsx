@@ -37,7 +37,7 @@ interface SigneringData {
 
 interface SigneringProps {
   signeringData?: SigneringData;
-  onDataUpdate: (data: SigneringData) => void;
+  onDataUpdate: (updates: any) => void;
   companyData?: any;
 }
 
@@ -190,24 +190,24 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
               Ordinarie styrelseledamöter och eventuell revisor har automatiskt hämtats från Bolagsverket. Du kan lägga till
             </p>
             
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground">
                 <div className="col-span-2">Förnamn</div>
                 <div className="col-span-2">Efternamn</div>
                 <div className="col-span-2">Personnummer</div>
-                <div className="col-span-3">Roll</div>
-                <div className="col-span-2">Email</div>
-                <div className="col-span-1">Åtgärder</div>
+                <div className="col-span-2">Roll</div>
+                <div className="col-span-3">Email</div>
+                <div className="col-span-1"></div>
               </div>
 
               {data.UnderskriftForetradare.map((foretradare, index) => (
                 <div key={index} className="grid grid-cols-12 gap-4 items-center">
                   <div className="col-span-2">
-                    <span className="text-xs text-muted-foreground">Företrädare {index + 1}</span>
                     <Input
                       value={foretradare.UnderskriftHandlingTilltalsnamn}
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingTilltalsnamn', e.target.value)}
                       placeholder="Förnamn"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
                     />
                   </div>
                   
@@ -216,23 +216,24 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                       value={foretradare.UnderskriftHandlingEfternamn}
                       onChange={(e) => updateForetradare(index, 'UnderskriftHandlingEfternamn', e.target.value)}
                       placeholder="Efternamn"
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
                     />
                   </div>
                   
                   <div className="col-span-2">
                     <Input
                       placeholder="Personnummer"
-                      // This would map to a separate field in the actual implementation
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
                     />
                   </div>
                   
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                     <Select
                       value={foretradare.UnderskriftHandlingRoll}
                       onValueChange={(value) => updateForetradare(index, 'UnderskriftHandlingRoll', value)}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Välj roll" />
+                      <SelectTrigger className="h-9 rounded-sm">
+                        <SelectValue placeholder="Välj roll" className="placeholder:text-muted-foreground/40" />
                       </SelectTrigger>
                       <SelectContent>
                         {roleOptions.map((role) => (
@@ -244,16 +245,19 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                     </Select>
                   </div>
                   
-                  <div className="col-span-2">
-                    <Input placeholder="Email" />
+                  <div className="col-span-3">
+                    <Input 
+                      placeholder="Email" 
+                      className="h-9 rounded-sm placeholder:text-muted-foreground/40"
+                    />
                   </div>
                   
-                  <div className="col-span-1 flex gap-2">
+                  <div className="col-span-1 flex gap-1">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={addForetradare}
-                      className="p-2"
+                      className="h-9 w-9 p-0 rounded-sm"
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
@@ -262,7 +266,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                         variant="outline"
                         size="sm"
                         onClick={() => removeForetradare(index)}
-                        className="p-2"
+                        className="h-9 w-9 p-0 rounded-sm"
                       >
                         <Minus className="h-4 w-4" />
                       </Button>
@@ -276,7 +280,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
           {/* Underskrifter Section */}
           <div>
             <h2 className="text-xl font-semibold mb-4">Underskrifter</h2>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-sm text-muted-foreground mb-6">
               När du kontrollerat att alla befattningshavare är korrekt ifyllda, så kan årsredovisningen skickas till samtliga företrädare 
               för digital signering med BankID. Klicka bara på knappen Skicka nedan så skickas ett mail till alla som ska underteckna 
               med instruktioner om hur de ska skriva under. Du kommer att få ett bekräftelse mail när alla signerat och kan närsomelst 
