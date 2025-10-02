@@ -835,6 +835,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // Safe access; never destructure undefined
   const cd = companyData as CompanyData;
   
+  // IMPORTANT: Wait for currentStep to be properly initialized to prevent flicker
+  // If we're on step 515+ (Signering), don't render other sections at all
+  // This prevents the flash of content before Signering renders
+  
   // Requirement 1: render when showTaxPreview OR showRRBR is true
   // NOTE: Signering ska visas på steg >= 515 även om tax/RRBR-flaggor är av.
   if (!cd.showTaxPreview && !cd.showRRBR && currentStep < 515) {
@@ -2363,61 +2367,64 @@ const handleTaxCalculationClick = () => {
           {/* Stripe embedded checkout will be portaled here */}
         </section>
 
-        {/* Significant Events Section - Hide on Signering steps */}
-        {currentStep >= 2 && currentStep < 515 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground border-b pb-2">Väsentliga händelser</h2>
-            <div className="text-sm text-muted-foreground space-y-2">
-              {seFileData?.significant_events ? (
-                seFileData.significant_events.map((event, index) => (
-                  <p key={index}>• {event}</p>
-                ))
-              ) : (
-                <p>{companyData.significantEvents || "Inga väsentliga händelser att rapportera."}</p>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Hide all these sections immediately on Signering steps (515+) to prevent flicker */}
+        {currentStep < 515 && (
+          <>
+            {/* Significant Events Section */}
+            {currentStep >= 2 && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-foreground border-b pb-2">Väsentliga händelser</h2>
+                <div className="text-sm text-muted-foreground space-y-2">
+                  {seFileData?.significant_events ? (
+                    seFileData.significant_events.map((event, index) => (
+                      <p key={index}>• {event}</p>
+                    ))
+                  ) : (
+                    <p>{companyData.significantEvents || "Inga väsentliga händelser att rapportera."}</p>
+                  )}
+                </div>
+              </div>
+            )}
 
-        {/* Depreciation Policy - Hide on Signering steps */}
-        {currentStep >= 3 && currentStep < 515 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground border-b pb-2">Avskrivningsprinciper</h2>
-            <p className="text-sm text-muted-foreground">
-              {seFileData?.depreciation_policy || 
-               (companyData.depreciation === "samma" 
-                 ? "Samma avskrivningstider som föregående år tillämpas."
-                 : "Förändrade avskrivningstider tillämpas detta år."
-               )
-              }
-            </p>
-          </div>
-        )}
+            {/* Depreciation Policy */}
+            {currentStep >= 3 && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-foreground border-b pb-2">Avskrivningsprinciper</h2>
+                <p className="text-sm text-muted-foreground">
+                  {seFileData?.depreciation_policy || 
+                   (companyData.depreciation === "samma" 
+                     ? "Samma avskrivningstider som föregående år tillämpas."
+                     : "Förändrade avskrivningstider tillämpas detta år."
+                   )
+                  }
+                </p>
+              </div>
+            )}
 
-        {/* Employee Information - Hide on Signering steps */}
-        {currentStep >= 4 && currentStep < 515 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground border-b pb-2">Personal</h2>
-            <p className="text-sm text-muted-foreground">
-              {seFileData?.employees?.description || 
-               `Antal anställda under räkenskapsåret: ${seFileData?.employees?.count || companyData.employees}`
-              }
-            </p>
-          </div>
-        )}
+            {/* Employee Information */}
+            {currentStep >= 4 && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-foreground border-b pb-2">Personal</h2>
+                <p className="text-sm text-muted-foreground">
+                  {seFileData?.employees?.description || 
+                   `Antal anställda under räkenskapsåret: ${seFileData?.employees?.count || companyData.employees}`
+                  }
+                </p>
+              </div>
+            )}
 
-        {/* Board Members - Hide on Signering steps */}
-        {currentStep >= 5 && currentStep < 515 && (
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-foreground border-b pb-2">Styrelse</h2>
-            <div className="space-y-2">
-              {seFileData?.board_members ? (
-                seFileData.board_members.map((member, index) => (
-                  <div key={index} className="text-sm">
-                    <span className="font-medium">{member.name}</span>
-                    <span className="text-muted-foreground ml-2">({member.role})</span>
-                  </div>
-                ))
+            {/* Board Members */}
+            {currentStep >= 5 && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold text-foreground border-b pb-2">Styrelse</h2>
+                <div className="space-y-2">
+                  {seFileData?.board_members ? (
+                    seFileData.board_members.map((member, index) => (
+                      <div key={index} className="text-sm">
+                        <span className="font-medium">{member.name}</span>
+                        <span className="text-muted-foreground ml-2">({member.role})</span>
+                      </div>
+                    ))
               ) : (
                 companyData.boardMembers.map((member, index) => (
                   <div key={index} className="text-sm">
@@ -2428,6 +2435,8 @@ const handleTaxCalculationClick = () => {
               )}
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     );

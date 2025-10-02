@@ -88,25 +88,46 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
   // Fetch officers from Bolagsverket on component mount
   useEffect(() => {
     const fetchOfficers = async () => {
+      console.log('🔍 Signering: Checking if should fetch from Bolagsverket...', {
+        orgNumber: companyData?.organizationNumber,
+        hasPrefilledData,
+        companyData
+      });
+
       if (!companyData?.organizationNumber || hasPrefilledData) {
+        console.log('⏭️ Skipping Bolagsverket fetch:', {
+          noOrgNumber: !companyData?.organizationNumber,
+          alreadyPrefilled: hasPrefilledData
+        });
         return;
       }
 
+      console.log('📥 Fetching officers from Bolagsverket for:', companyData.organizationNumber);
       setLoading(true);
+      
       try {
-        const response = await fetch(
-          `http://localhost:8000/api/bolagsverket/officers/${companyData.organizationNumber}`
-        );
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const url = `${apiUrl}/api/bolagsverket/officers/${companyData.organizationNumber}`;
+        console.log('🌐 API URL:', url);
+        
+        const response = await fetch(url);
+        
+        console.log('📡 Response status:', response.status);
         
         if (!response.ok) {
-          console.error('Failed to fetch officers from Bolagsverket');
+          console.error('❌ Failed to fetch officers from Bolagsverket:', response.status, response.statusText);
           return;
         }
 
         const result = await response.json();
+        console.log('✅ Bolagsverket response:', result);
         
         if (result.success && result.officers) {
           const officers = result.officers;
+          console.log('👥 Officers found:', {
+            företrädare: officers.UnderskriftForetradare.length,
+            revisorer: officers.UnderskriftAvRevisor.length
+          });
           
           // Mark all fetched data as from Bolagsverket
           const företrädare = officers.UnderskriftForetradare.map((o: any) => ({
@@ -119,6 +140,8 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
             fromBolagsverket: true
           }));
 
+          console.log('📋 Formatted data:', { företrädare, revisorer });
+
           // If we have officers, prefill the data
           if (företrädare.length > 0) {
             const newData = {
@@ -126,12 +149,17 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
               UnderskriftForetradare: företrädare,
               UnderskriftAvRevisor: revisorer
             };
+            console.log('💾 Updating component data with:', newData);
             updateData(newData);
             setHasPrefilledData(true);
+          } else {
+            console.log('⚠️ No företrädare found, keeping default rows');
           }
+        } else {
+          console.log('⚠️ Response not successful or no officers:', result);
         }
       } catch (error) {
-        console.error('Error fetching officers from Bolagsverket:', error);
+        console.error('💥 Error fetching officers from Bolagsverket:', error);
       } finally {
         setLoading(false);
       }
