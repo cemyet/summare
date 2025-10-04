@@ -137,17 +137,8 @@ export function Download({ companyData }: DownloadProps) {
                     className="cursor-pointer w-full mt-2"
                     onClick={() => handleDownload(file.id)}
                   >
-                    {file.downloaded ? (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                        Nedladdad
-                      </>
-                    ) : (
-                      <>
-                        <DownloadIcon className="w-4 h-4 mr-2" />
-                        Ladda ner
-                      </>
-                    )}
+                    <DownloadIcon className="w-4 h-4 mr-2" />
+                    Ladda ner
                   </Button>
                 </div>
               </div>
