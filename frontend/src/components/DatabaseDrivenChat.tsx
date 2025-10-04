@@ -785,12 +785,16 @@ interface ChatFlowResponse {
 
       console.log('📍 Scrolling to Signering:', {
         currentScrollTop: scrollContainer.scrollTop,
-        targetScrollTop: scrollTop
+        targetScrollTop: scrollTop,
+        willScroll: Math.abs(scrollContainer.scrollTop - scrollTop) > 10
       });
 
-      scrollContainer.scrollTo({
-        top: scrollTop,
-        behavior: 'smooth'
+      // Use requestAnimationFrame to ensure smooth scrolling works
+      requestAnimationFrame(() => {
+        scrollContainer.scrollTo({
+          top: scrollTop,
+          behavior: 'smooth'
+        });
       });
     } catch (error) {
       console.error('❌ Error scrolling to Signering:', error);
