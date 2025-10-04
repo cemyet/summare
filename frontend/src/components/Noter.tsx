@@ -5035,6 +5035,8 @@ const EventualNote: React.FC<{
   const startEdit = () => {
     setIsEditing(true);
     setToggle?.(true);
+    // Also enable the visibility toggle to show the note
+    setBlockToggles(prev => ({ ...prev, 'eventual-visibility': true }));
   };
 
   const cancelEdit = () => {
@@ -5360,6 +5362,8 @@ const SakerhetNote: React.FC<{
   const startEdit = () => {
     setIsEditing(true);
     setToggle?.(true);
+    // Also enable the visibility toggle to show the note
+    setBlockToggles(prev => ({ ...prev, 'sakerhet-visibility': true }));
   };
 
   const cancelEdit = () => {
