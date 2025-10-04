@@ -509,9 +509,19 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
                 {isEditingVerksamheten ? (
                   <textarea
                     value={getVal('allmant_om_verksamheten')}
-                    onChange={(e) => setEditedValues(prev => ({ ...prev, 'allmant_om_verksamheten': e.target.value }))}
-                    className="w-full p-2 border border-gray-300 rounded-md resize-none text-sm"
-                    rows={3}
+                    onChange={(e) => {
+                      setEditedValues(prev => ({ ...prev, 'allmant_om_verksamheten': e.target.value }));
+                      // Auto-resize to fit content
+                      e.target.style.height = 'auto';
+                      e.target.style.height = e.target.scrollHeight + 'px';
+                    }}
+                    onFocus={(e) => {
+                      // Initial resize when focused
+                      e.target.style.height = 'auto';
+                      e.target.style.height = e.target.scrollHeight + 'px';
+                    }}
+                    className="w-full p-2 border border-gray-300 rounded-md resize-y text-sm"
+                    style={{ minHeight: '80px' }}
                     placeholder="Beskriv verksamheten..."
                     data-editable-cell="1"
                     data-ord={1}
