@@ -78,7 +78,7 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white shadow-sm overflow-hidden">
       <div className="px-5 py-3 border-b border-neutral-200">
-        <h3 className="text-sm font-medium text-neutral-700">Betalning</h3>
+        <h3 className="text-xl font-medium text-neutral-700">Betalning</h3>
       </div>
 
       {/* Outer padding creates spacing between the card edge and the iframe */}
