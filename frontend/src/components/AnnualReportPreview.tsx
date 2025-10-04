@@ -445,16 +445,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               };
             }, [originalVerksamhetContent]);
             
-            // Auto-resize textarea when entering edit mode or content changes
-            React.useEffect(() => {
-              if (isEditingVerksamheten && textareaRef.current) {
-                const textarea = textareaRef.current;
-                textarea.style.height = 'auto';
-                textarea.style.height = textarea.scrollHeight + 'px';
-              }
-            }, [isEditingVerksamheten, getVal('allmant_om_verksamheten')]);
-            
-            // getVal function - EXACT same as NOT1
+            // getVal function - EXACT same as NOT1 (moved before useEffect)
             const getVal = (vn: string) => {
               if (editedValues[vn] !== undefined) return editedValues[vn];
               if (committedValues[vn] !== undefined) return committedValues[vn];
@@ -462,6 +453,15 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               if (vn === 'vasentliga_handelser') return originalVasentligaHandelser;
               return '';
             };
+            
+            // Auto-resize textarea when entering edit mode or content changes
+            React.useEffect(() => {
+              if (isEditingVerksamheten && textareaRef.current) {
+                const textarea = textareaRef.current;
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
+              }
+            }, [isEditingVerksamheten, editedValues['allmant_om_verksamheten'], committedValues['allmant_om_verksamheten'], originalVerksamhetContent]);
             
             const startEditVerksamheten = () => {
               setIsEditingVerksamheten(true);
