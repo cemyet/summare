@@ -436,12 +436,23 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
             
             // Track original baseline for proper undo 
             const originalBaselineVerksamheten = React.useRef<Record<string, string>>({});
+            const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+            
             React.useEffect(() => {
               originalBaselineVerksamheten.current = { 
                 'allmant_om_verksamheten': originalVerksamhetContent,
                 'vasentliga_handelser': originalVasentligaHandelser
               };
             }, [originalVerksamhetContent]);
+            
+            // Auto-resize textarea when entering edit mode or content changes
+            React.useEffect(() => {
+              if (isEditingVerksamheten && textareaRef.current) {
+                const textarea = textareaRef.current;
+                textarea.style.height = 'auto';
+                textarea.style.height = textarea.scrollHeight + 'px';
+              }
+            }, [isEditingVerksamheten, getVal('allmant_om_verksamheten')]);
             
             // getVal function - EXACT same as NOT1
             const getVal = (vn: string) => {
@@ -508,15 +519,11 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
                 <h3 className="text-base font-semibold mb-1 pt-1">Allmänt om verksamheten</h3>
                 {isEditingVerksamheten ? (
                   <textarea
+                    ref={textareaRef}
                     value={getVal('allmant_om_verksamheten')}
                     onChange={(e) => {
                       setEditedValues(prev => ({ ...prev, 'allmant_om_verksamheten': e.target.value }));
                       // Auto-resize to fit content
-                      e.target.style.height = 'auto';
-                      e.target.style.height = e.target.scrollHeight + 'px';
-                    }}
-                    onFocus={(e) => {
-                      // Initial resize when focused
                       e.target.style.height = 'auto';
                       e.target.style.height = e.target.scrollHeight + 'px';
                     }}
