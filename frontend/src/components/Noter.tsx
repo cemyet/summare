@@ -5361,8 +5361,7 @@ const SakerhetNote: React.FC<{
 
   const startEdit = () => {
     setIsEditing(true);
-    setToggle?.(true);
-    // Also enable the visibility toggle to show the note
+    // Only enable the visibility toggle to show the note (don't turn on "Visa alla rader")
     setBlockToggles(prev => ({ ...prev, 'sakerhet-visibility': true }));
   };
 
@@ -5371,7 +5370,6 @@ const SakerhetNote: React.FC<{
     setEditedValues({});
     setEditedPrevValues({});
     setShowValidationMessage(false);
-    setToggle?.(false);
   };
 
   const undoEdit = () => {
@@ -5390,7 +5388,6 @@ const SakerhetNote: React.FC<{
     setEditedValues({});
     setEditedPrevValues({});
     setIsEditing(false);
-    setToggle?.(false);
   };
 
   // Helper functions
