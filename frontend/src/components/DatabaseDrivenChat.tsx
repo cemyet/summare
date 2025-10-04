@@ -1265,6 +1265,29 @@ interface ChatFlowResponse {
             }, 500);
           }
           
+          // Auto-scroll to Förvaltningsberättelse (Resultatdisposition) on step 423
+          if (next_step === 423) {
+            setTimeout(() => {
+              const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]') as HTMLElement | null;
+              const scrollContainer = 
+                (document.querySelector('.overflow-auto') as HTMLElement | null) ||
+                (document.querySelector('[data-scroll-container="chat"]') as HTMLElement | null);
+              
+              if (fbModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const fbRect = fbModule.getBoundingClientRect();
+                // Scroll to bottom of Förvaltningsberättelse section
+                const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top + fbRect.height - containerRect.height + 50;
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+                console.log('📍 Scrolled to bottom of Förvaltningsberättelse');
+              }
+            }, 500);
+          }
+          
           // Auto-scroll to Download on step 510
           if (next_step === 510) {
             setTimeout(() => scrollToDownload(), 500);

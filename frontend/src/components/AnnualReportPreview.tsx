@@ -2352,10 +2352,10 @@ const handleTaxCalculationClick = () => {
           />
         </div>
 
-        {/* Download Section - Only show at step 510+ */}
+        {/* Download Section - Show at step 510+ (stays visible even when navigating to Signering) */}
         {(() => {
-          console.log('🔍 Download render check:', { currentStep, shouldShow: currentStep >= 510 && currentStep < 515 });
-          return currentStep >= 510 && currentStep < 515 && (
+          console.log('🔍 Download render check:', { currentStep, shouldShow: currentStep >= 510 });
+          return currentStep >= 510 && (
             <div data-section="download">
               <Download 
                 companyData={companyData}
