@@ -122,6 +122,7 @@ export default function PrintAnnualReport({
       <style>{`
         @media screen { .print-only { display: none; } }
         @media print {
+          #print-annual-report { width: 210mm; }
           .page-break { break-before: page; page-break-before: always; }
           .no-print { display: none !important; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -305,18 +306,36 @@ function labelForBlock(block: string) {
 }
 
 // -----------------------------------------------------------------------------
-// Client-side PDF generation using html2pdf
+// Client-side PDF generation using html2pdf (clone to avoid display:none)
 // -----------------------------------------------------------------------------
 export async function generatePdfFromPreview(companyData: any) {
-  // Ensure the hidden print component has been mounted and filled with the same data.
-  const el = document.getElementById('print-annual-report');
-  if (!el) throw new Error('Kunde inte hitta förhandsgranskningen för utskrift.');
+  const src = document.getElementById('print-annual-report');
+  if (!src) throw new Error('Kunde inte hitta förhandsgranskningen för utskrift.');
 
-  // Dynamically import html2pdf.js only on client
   const html2pdfMod: any = await import('html2pdf.js');
   const html2pdf = (html2pdfMod.default || (html2pdfMod as any));
 
-  const filename = `arsredovisning_${companyData?.company_name || companyData?.seFileData?.company_info?.company_name || 'bolag'}_${companyData?.fiscal_year || companyData?.seFileData?.company_info?.fiscal_year || new Date().getFullYear()}.pdf`;
+  // Clone the hidden print tree and make it renderable off-screen
+  const clone = src.cloneNode(true) as HTMLElement;
+  clone.id = 'print-annual-report__tmp';
+  clone.classList.remove('print-only');  // avoid display:none in @media screen
+  Object.assign(clone.style, {
+    position: 'fixed',
+    left: '-10000px',
+    top: '0',
+    width: '210mm',       // A4 content width
+    background: '#ffffff',
+    // Do NOT set display:none or visibility:hidden, html2canvas won't render those
+    zIndex: '0',
+  });
+  document.body.appendChild(clone);
+
+  const filename =
+    `arsredovisning_${companyData?.company_name
+      || companyData?.seFileData?.company_info?.company_name
+      || 'bolag'}_${companyData?.fiscal_year
+      || companyData?.seFileData?.company_info?.fiscal_year
+      || new Date().getFullYear()}.pdf`;
 
   const opt = {
     margin: [10, 12, 14, 12], // mm: top, right, bottom, left
@@ -324,11 +343,12 @@ export async function generatePdfFromPreview(companyData: any) {
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, letterRendering: true },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    pagebreak: { mode: ['css', 'legacy'] }, // obey .page-break and natural overflows
+    pagebreak: { mode: ['css', 'legacy'] }, // honors .page-break and overflows
   } as const;
 
-  // Ensure we're at top so headers render consistently in some browsers
   window.scrollTo({ top: 0 });
+  await html2pdf().set(opt).from(clone).save();
 
-  await html2pdf().set(opt).from(el).save();
+  // Clean up
+  clone.remove();
 }
