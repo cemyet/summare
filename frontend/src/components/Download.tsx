@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download as DownloadIcon, FileText, Check } from 'lucide-react';
+import { API_BASE_URL } from '@/config/api';
 
 interface DownloadFile {
   id: string;
@@ -51,20 +52,71 @@ export function Download({ companyData }: DownloadProps) {
       downloaded: false
     }
   ]);
+  const [isGenerating, setIsGenerating] = useState<string | null>(null);
 
   const handleDownload = async (fileId: string) => {
     const file = files.find(f => f.id === fileId);
     if (!file) return;
 
-    try {
-      // Fetch the file from public folder
-      const response = await fetch(`/${file.filename}`);
-      if (!response.ok) {
-        throw new Error('Failed to download file');
-      }
+    // Prevent multiple simultaneous downloads
+    if (isGenerating) return;
 
-      // Create blob from response
-      const blob = await response.blob();
+    try {
+      setIsGenerating(fileId);
+      let response: Response;
+      let blob: Blob;
+
+      if (fileId === 'arsredovisning') {
+        // Generate PDF from backend API for annual report
+        if (!companyData) {
+          alert('Företagsdata saknas. Vänligen ladda upp en SIE-fil först.');
+          setIsGenerating(null);
+          return;
+        }
+
+        // Prepare data for PDF generation
+        const pdfRequestData = {
+          company_data: {
+            company_name: companyData.company_name || companyData.companyName || 'Företag AB',
+            organization_number: companyData.organization_number || companyData.organizationNumber || '',
+            fiscal_year: companyData.fiscal_year || companyData.fiscalYear || new Date().getFullYear(),
+            hasEvents: companyData.hasEvents || false,
+            significantEvents: companyData.significantEvents || '',
+            fbTable: companyData.fbTable || [],
+            fbVariables: companyData.fbVariables || {},
+            verksamhetsbeskrivning: companyData.verksamhetsbeskrivning || 
+              companyData.businessDescription || 
+              'Bolaget bedriver verksamhet inom...'
+          },
+          rr_data: companyData.rrData || companyData.rr_data || [],
+          br_data: companyData.brData || companyData.br_data || [],
+          noter_data: companyData.noterData || companyData.noter_data || []
+        };
+
+        console.log('Generating PDF with data:', pdfRequestData);
+
+        response = await fetch(`${API_BASE_URL}/api/generate-annual-report-pdf`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(pdfRequestData)
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Failed to generate PDF: ${errorText}`);
+        }
+
+        blob = await response.blob();
+      } else {
+        // Fetch the file from public folder for other files
+        response = await fetch(`/${file.filename}`);
+        if (!response.ok) {
+          throw new Error('Failed to download file');
+        }
+        blob = await response.blob();
+      }
       
       // Create a temporary URL for the blob
       const url = window.URL.createObjectURL(blob);
@@ -72,7 +124,9 @@ export function Download({ companyData }: DownloadProps) {
       // Create a temporary anchor element to trigger download
       const a = document.createElement('a');
       a.href = url;
-      a.download = file.filename;
+      a.download = fileId === 'arsredovisning' 
+        ? `arsredovisning_${companyData?.company_name || 'company'}_${companyData?.fiscal_year || new Date().getFullYear()}.pdf`
+        : file.filename;
       document.body.appendChild(a);
       a.click();
       
@@ -88,7 +142,9 @@ export function Download({ companyData }: DownloadProps) {
       );
     } catch (error) {
       console.error('Error downloading file:', error);
-      alert('Ett fel uppstod vid nedladdning. Försök igen.');
+      alert(`Ett fel uppstod vid nedladdning: ${error instanceof Error ? error.message : 'Okänt fel'}. Försök igen.`);
+    } finally {
+      setIsGenerating(null);
     }
   };
 
@@ -136,9 +192,19 @@ export function Download({ companyData }: DownloadProps) {
                     size="sm"
                     className="cursor-pointer w-full mt-2"
                     onClick={() => handleDownload(file.id)}
+                    disabled={isGenerating === file.id}
                   >
-                    <DownloadIcon className="w-4 h-4 mr-2" />
-                    Ladda ner
+                    {isGenerating === file.id ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 border-2 border-t-transparent border-gray-600 rounded-full animate-spin" />
+                        Genererar...
+                      </>
+                    ) : (
+                      <>
+                        <DownloadIcon className="w-4 h-4 mr-2" />
+                        Ladda ner
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
