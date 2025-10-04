@@ -837,12 +837,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const cd = companyData as CompanyData;
   
   // IMPORTANT: Wait for currentStep to be properly initialized to prevent flicker
-  // If we're on step 515+ (Signering), don't render other sections at all
-  // This prevents the flash of content before Signering renders
+  // If we're on step 510+ (Download/Signering), don't render other sections at all
+  // This prevents the flash of content before Download/Signering renders
   
   // Requirement 1: render when showTaxPreview OR showRRBR is true
-  // NOTE: Signering ska visas på steg >= 515 även om tax/RRBR-flaggor är av.
-  if (!cd.showTaxPreview && !cd.showRRBR && currentStep < 515) {
+  // NOTE: Download (510+) and Signering (515+) ska visas även om tax/RRBR-flaggor är av.
+  if (!cd.showTaxPreview && !cd.showRRBR && currentStep < 510) {
     return null;
   }
 
