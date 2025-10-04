@@ -117,6 +117,7 @@ const Ink2AmountInput = ({ value, onChange, onCommit, variableName }: {
 import { Periodiseringsfonder } from './Periodiseringsfonder';
 import { Noter } from './Noter';
 import { Forvaltningsberattelse } from './Forvaltningsberattelse';
+import { Download } from './Download';
 import { Signering } from './Signering';
 
 interface CompanyData {
@@ -2350,6 +2351,15 @@ const handleTaxCalculationClick = () => {
             onDataUpdate={onDataUpdate}
           />
         </div>
+
+        {/* Download Section - Only show at step 510+ */}
+        {currentStep >= 510 && currentStep < 515 && (
+          <div data-section="download">
+            <Download 
+              companyData={companyData}
+            />
+          </div>
+        )}
 
         {/* Signering Section - Only show at step 515+ */}
         {currentStep >= 515 && (

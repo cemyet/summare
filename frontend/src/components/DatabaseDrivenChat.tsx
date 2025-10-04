@@ -733,6 +733,38 @@ interface ChatFlowResponse {
     }
   };
 
+  // Helper: safe auto-scroll to Download module
+  const scrollToDownload = () => {
+    try {
+      const downloadModule = document.querySelector('[data-section="download"]') as HTMLElement | null;
+      // Anpassa selektor nedan till din scroll-container om du har en annan klass
+      const scrollContainer =
+        (document.querySelector('.overflow-auto') as HTMLElement | null) ||
+        (document.querySelector('[data-scroll-container="chat"]') as HTMLElement | null);
+
+      if (!downloadModule || !scrollContainer) {
+        console.log('❌ Scroll to Download failed: Missing elements');
+        return;
+      }
+
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const downloadRect = downloadModule.getBoundingClientRect();
+      const scrollTop = scrollContainer.scrollTop + downloadRect.top - containerRect.top - 24;
+
+      console.log('📍 Scrolling to Download:', {
+        currentScrollTop: scrollContainer.scrollTop,
+        targetScrollTop: scrollTop
+      });
+
+      scrollContainer.scrollTo({
+        top: scrollTop,
+        behavior: 'smooth'
+      });
+    } catch (error) {
+      console.error('❌ Error scrolling to Download:', error);
+    }
+  };
+
   // Helper: safe auto-scroll to Signering module
   const scrollToSignering = () => {
     try {
@@ -1231,6 +1263,11 @@ interface ChatFlowResponse {
                 });
               }
             }, 500);
+          }
+          
+          // Auto-scroll to Download on step 510
+          if (next_step === 510) {
+            setTimeout(() => scrollToDownload(), 500);
           }
           
           // Auto-scroll to Signering on steps 515 or 520
