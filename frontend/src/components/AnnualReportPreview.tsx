@@ -437,6 +437,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
             // Track original baseline for proper undo 
             const originalBaselineVerksamheten = React.useRef<Record<string, string>>({});
             const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+            const textareaRef2 = React.useRef<HTMLTextAreaElement>(null);
             
             React.useEffect(() => {
               originalBaselineVerksamheten.current = { 
@@ -454,14 +455,21 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               return '';
             };
             
-            // Auto-resize textarea when entering edit mode or content changes
+            // Auto-resize textareas when entering edit mode or content changes
             React.useEffect(() => {
-              if (isEditingVerksamheten && textareaRef.current) {
-                const textarea = textareaRef.current;
-                textarea.style.height = 'auto';
-                textarea.style.height = textarea.scrollHeight + 'px';
+              if (isEditingVerksamheten) {
+                if (textareaRef.current) {
+                  const textarea = textareaRef.current;
+                  textarea.style.height = 'auto';
+                  textarea.style.height = textarea.scrollHeight + 'px';
+                }
+                if (textareaRef2.current) {
+                  const textarea2 = textareaRef2.current;
+                  textarea2.style.height = 'auto';
+                  textarea2.style.height = textarea2.scrollHeight + 'px';
+                }
               }
-            }, [isEditingVerksamheten, editedValues['allmant_om_verksamheten'], committedValues['allmant_om_verksamheten'], originalVerksamhetContent]);
+            }, [isEditingVerksamheten, editedValues['allmant_om_verksamheten'], committedValues['allmant_om_verksamheten'], originalVerksamhetContent, editedValues['vasentliga_handelser'], committedValues['vasentliga_handelser']]);
             
             const startEditVerksamheten = () => {
               setIsEditingVerksamheten(true);
@@ -540,10 +548,16 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
                 <h3 className="text-base font-semibold mt-4 pt-3">Väsentliga händelser under räkenskapsåret</h3>
                 {isEditingVerksamheten ? (
                   <textarea
+                    ref={textareaRef2}
                     value={getVal('vasentliga_handelser')}
-                    onChange={(e) => setEditedValues(prev => ({ ...prev, 'vasentliga_handelser': e.target.value }))}
-                    className="w-full p-2 border border-gray-300 rounded-md resize-none text-sm"
-                    rows={2}
+                    onChange={(e) => {
+                      setEditedValues(prev => ({ ...prev, 'vasentliga_handelser': e.target.value }));
+                      // Auto-resize to fit content
+                      e.target.style.height = 'auto';
+                      e.target.style.height = e.target.scrollHeight + 'px';
+                    }}
+                    className="w-full p-2 border border-gray-300 rounded-md resize-y text-sm"
+                    style={{ minHeight: '60px' }}
                     placeholder="Beskriv väsentliga händelser..."
                     data-editable-cell="1"
                     data-ord={2}

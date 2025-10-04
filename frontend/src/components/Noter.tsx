@@ -6369,6 +6369,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
               const [isEditingNOT1, setIsEditingNOT1] = useState(false);
               const [editedValues, setEditedValues] = useState<Record<string, number | string>>({});
               const [committedValues, setCommittedValues] = useState<Record<string, number | string>>({});
+              const textareaRefNOT1 = React.useRef<HTMLTextAreaElement>(null);
               
               // Track original baseline for proper undo (like other notes)
               const originalBaselineNOT1 = React.useRef<Record<string, number | string>>({});
@@ -6394,6 +6395,15 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                 if (vn === 'avskrtid_ovriga') return originalAvskrtidOvriga;
                 return 0;
               };
+              
+              // Auto-resize textarea when entering edit mode or content changes
+              React.useEffect(() => {
+                if (isEditingNOT1 && textareaRefNOT1.current) {
+                  const textarea = textareaRefNOT1.current;
+                  textarea.style.height = 'auto';
+                  textarea.style.height = textarea.scrollHeight + 'px';
+                }
+              }, [isEditingNOT1, editedValues['redovisning_principer'], committedValues['redovisning_principer'], originalText]);
               
               const startEditNOT1 = () => {
                 setIsEditingNOT1(true);
@@ -6453,10 +6463,16 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   <div className="text-sm leading-relaxed">
                     {isEditingNOT1 ? (
                       <textarea
+                        ref={textareaRefNOT1}
                         value={getVal('redovisning_principer') as string}
-                        onChange={(e) => setEditedValues(prev => ({ ...prev, 'redovisning_principer': e.target.value }))}
-                        className="w-full p-2 border border-gray-300 rounded-md resize-none"
-                        rows={3}
+                        onChange={(e) => {
+                          setEditedValues(prev => ({ ...prev, 'redovisning_principer': e.target.value }));
+                          // Auto-resize to fit content
+                          e.target.style.height = 'auto';
+                          e.target.style.height = e.target.scrollHeight + 'px';
+                        }}
+                        className="w-full p-2 border border-gray-300 rounded-md resize-y"
+                        style={{ minHeight: '80px' }}
                         placeholder="Skriv redovisningsprinciper..."
                       />
                     ) : (
