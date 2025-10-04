@@ -859,6 +859,12 @@ interface ChatFlowResponse {
         addMessage(optionText, false);
       }
 
+      // Immediate scroll to Signering when clicking "Fortsätt till signering" at step 510
+      if (currentStep === 510 && option.option_value === 'continue' && option.next_step === 515) {
+        console.log('🖊️ Triggering immediate scroll to Signering from step 510');
+        scrollToSignering();
+      }
+
       // Handle special cases first
       // Handle custom tax options to bypass API call
       if (option.option_value === 'approve_tax') {
@@ -1276,8 +1282,8 @@ interface ChatFlowResponse {
               if (fbModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const fbRect = fbModule.getBoundingClientRect();
-                // Scroll to bottom of Förvaltningsberättelse section
-                const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top + fbRect.height - containerRect.height + 50;
+                // Scroll to bottom of Förvaltningsberättelse section with extra padding
+                const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top + fbRect.height - containerRect.height + 150;
                 
                 scrollContainer.scrollTo({
                   top: scrollTop,
@@ -1286,6 +1292,29 @@ interface ChatFlowResponse {
                 console.log('📍 Scrolled to bottom of Förvaltningsberättelse');
               }
             }, 500);
+          }
+          
+          // Auto-scroll after dividend entry at step 501 to show Styrelsen text
+          if (next_step === 501) {
+            setTimeout(() => {
+              const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]') as HTMLElement | null;
+              const scrollContainer = 
+                (document.querySelector('.overflow-auto') as HTMLElement | null) ||
+                (document.querySelector('[data-scroll-container="chat"]') as HTMLElement | null);
+              
+              if (fbModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const fbRect = fbModule.getBoundingClientRect();
+                // Scroll to show the full Styrelsen text after Resultatdisposition
+                const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top + fbRect.height - containerRect.height + 200;
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+                console.log('📍 Scrolled to show Styrelsen text after dividend');
+              }
+            }, 800);
           }
           
           // Auto-scroll to Download on step 510
