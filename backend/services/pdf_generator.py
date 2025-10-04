@@ -23,57 +23,62 @@ class AnnualReportPDFGenerator:
     
     def _setup_styles(self):
         """Setup custom styles for Swedish annual reports"""
+        # Helper function to add style only if it doesn't exist
+        def add_style_if_not_exists(style_name, **kwargs):
+            if style_name not in self.styles:
+                self.styles.add(ParagraphStyle(name=style_name, **kwargs))
+        
         # Title style
-        self.styles.add(ParagraphStyle(
-            name='ReportTitle',
+        add_style_if_not_exists(
+            'ReportTitle',
             parent=self.styles['Heading1'],
             fontSize=18,
             textColor=colors.HexColor('#1a1a1a'),
             spaceAfter=12,
             alignment=1,  # Center
             fontName='Helvetica-Bold'
-        ))
+        )
         
         # Section header style
-        self.styles.add(ParagraphStyle(
-            name='SectionHeader',
+        add_style_if_not_exists(
+            'SectionHeader',
             parent=self.styles['Heading2'],
             fontSize=14,
             textColor=colors.HexColor('#2c3e50'),
             spaceAfter=10,
             spaceBefore=10,
             fontName='Helvetica-Bold'
-        ))
+        )
         
         # Subsection header style
-        self.styles.add(ParagraphStyle(
-            name='SubsectionHeader',
+        add_style_if_not_exists(
+            'SubsectionHeader',
             parent=self.styles['Heading3'],
             fontSize=12,
             textColor=colors.HexColor('#34495e'),
             spaceAfter=8,
             spaceBefore=8,
             fontName='Helvetica-Bold'
-        ))
+        )
         
-        # Body text style
-        self.styles.add(ParagraphStyle(
-            name='BodyText',
+        # Body text style (use custom name to avoid conflict)
+        add_style_if_not_exists(
+            'ReportBody',
             parent=self.styles['Normal'],
             fontSize=10,
             textColor=colors.HexColor('#333333'),
             spaceAfter=6,
             fontName='Helvetica'
-        ))
+        )
         
         # Table header style
-        self.styles.add(ParagraphStyle(
-            name='TableHeader',
+        add_style_if_not_exists(
+            'TableHeader',
             parent=self.styles['Normal'],
             fontSize=9,
             textColor=colors.HexColor('#ffffff'),
             fontName='Helvetica-Bold'
-        ))
+        )
     
     def _format_amount(self, amount):
         """Format amount in Swedish style (space as thousand separator)"""
@@ -97,8 +102,8 @@ class AnnualReportPDFGenerator:
         fiscal_year = company_data.get('fiscal_year', datetime.now().year)
         
         elements.append(Paragraph(f"<b>{company_name}</b>", self.styles['ReportTitle']))
-        elements.append(Paragraph(f"Organisationsnummer: {org_number}", self.styles['BodyText']))
-        elements.append(Paragraph(f"Räkenskapsår {fiscal_year}", self.styles['BodyText']))
+        elements.append(Paragraph(f"Organisationsnummer: {org_number}", self.styles['ReportBody']))
+        elements.append(Paragraph(f"Räkenskapsår {fiscal_year}", self.styles['ReportBody']))
         elements.append(Spacer(1, 20))
         
         return elements
@@ -114,14 +119,14 @@ class AnnualReportPDFGenerator:
         elements.append(Paragraph("Information om verksamheten", self.styles['SubsectionHeader']))
         verksamhet = company_data.get('verksamhetsbeskrivning', 
             'Bolaget bedriver verksamhet inom...')
-        elements.append(Paragraph(verksamhet, self.styles['BodyText']))
+        elements.append(Paragraph(verksamhet, self.styles['ReportBody']))
         elements.append(Spacer(1, 10))
         
         # Väsentliga händelser
         if company_data.get('hasEvents'):
             elements.append(Paragraph("Väsentliga händelser", self.styles['SubsectionHeader']))
             events = company_data.get('significantEvents', 'Inga väsentliga händelser att rapportera.')
-            elements.append(Paragraph(events, self.styles['BodyText']))
+            elements.append(Paragraph(events, self.styles['ReportBody']))
             elements.append(Spacer(1, 10))
         
         # Förändring i eget kapital
@@ -148,7 +153,7 @@ class AnnualReportPDFGenerator:
         Styrelsen föreslår att vinstmedlen disponeras enligt följande:<br/>
         I ny räkning överföres: {self._format_amount(total)} kr
         """
-        elements.append(Paragraph(disposition_text, self.styles['BodyText']))
+        elements.append(Paragraph(disposition_text, self.styles['ReportBody']))
         
         return elements
     
@@ -357,7 +362,7 @@ class AnnualReportPDFGenerator:
         elements.append(Spacer(1, 10))
         
         if not noter_data or len(noter_data) == 0:
-            elements.append(Paragraph("Inga noter att visa.", self.styles['BodyText']))
+            elements.append(Paragraph("Inga noter att visa.", self.styles['ReportBody']))
             return elements
         
         # Group notes by block
