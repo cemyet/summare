@@ -119,6 +119,7 @@ import { Noter } from './Noter';
 import { Forvaltningsberattelse } from './Forvaltningsberattelse';
 import { Download } from './Download';
 import { Signering } from './Signering';
+import PrintAnnualReport from './PrintAnnualReport';
 
 interface CompanyData {
   results?: string;
@@ -2387,11 +2388,20 @@ const handleTaxCalculationClick = () => {
         {(() => {
           console.log('🔍 Download render check:', { currentStep, shouldShow: currentStep >= 510 });
           return currentStep >= 510 && (
-            <div data-section="download">
-              <Download 
+            <>
+              {/* Hidden print-only component for PDF generation */}
+              <PrintAnnualReport
                 companyData={companyData}
+                rrData={rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData}
+                brData={brDataWithNotes.length > 0 ? brDataWithNotes : brData}
+                noterData={companyData.noterData || []}
               />
-            </div>
+              <div data-section="download">
+                <Download 
+                  companyData={companyData}
+                />
+              </div>
+            </>
           );
         })()}
 

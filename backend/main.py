@@ -121,7 +121,6 @@ from services.database_parser import DatabaseParser
 from services.supabase_database import db
 from services.bolagsverket_service import BolagsverketService
 from services.fb import ForvaltningsberattelseFB
-from services.pdf_generator import AnnualReportPDFGenerator
 from rating_bolag_scraper import get_company_info_with_search
 from models.schemas import (
     ReportRequest, ReportResponse, CompanyData, 
@@ -157,7 +156,6 @@ app.add_middleware(
 # report_generator = ReportGenerator()  # Disabled - using DatabaseParser instead
 supabase_service = SupabaseService()
 bolagsverket_service = BolagsverketService()
-pdf_generator = AnnualReportPDFGenerator()
 
 def get_supabase_client():
     """Get Supabase client from the service"""
@@ -1849,69 +1847,6 @@ async def submit_management_report(report_request: ManagementReportRequest):
     except Exception as e:
         print(f"Error submitting management report: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/generate-annual-report-pdf")
-async def generate_annual_report_pdf(request: dict):
-    """
-    Generate PDF for annual report (Årsredovisning)
-    
-    Expected request format:
-    {
-        "company_data": {
-            "company_name": "...",
-            "organization_number": "...",
-            "fiscal_year": 2024,
-            "hasEvents": true,
-            "significantEvents": "...",
-            "fbTable": [...],
-            "fbVariables": {...},
-            "verksamhetsbeskrivning": "..."
-        },
-        "rr_data": [...],  # Resultaträkning data
-        "br_data": [...],  # Balansräkning data
-        "noter_data": [...]  # Noter data
-    }
-    """
-    try:
-        company_data = request.get('company_data', {})
-        rr_data = request.get('rr_data', [])
-        br_data = request.get('br_data', [])
-        noter_data = request.get('noter_data', [])
-        
-        if not company_data:
-            raise HTTPException(status_code=400, detail="Company data is required")
-        
-        # Create temporary file for PDF
-        company_name = company_data.get('company_name', 'company')
-        fiscal_year = company_data.get('fiscal_year', datetime.now().year)
-        filename = f"arsredovisning_{company_name.replace(' ', '_')}_{fiscal_year}.pdf"
-        
-        # Generate PDF in temp directory
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf', prefix='annual_report_') as temp_file:
-            output_path = temp_file.name
-        
-        # Generate the PDF
-        pdf_generator.generate_pdf(
-            output_path=output_path,
-            company_data=company_data,
-            rr_data=rr_data,
-            br_data=br_data,
-            noter_data=noter_data
-        )
-        
-        # Return the PDF file
-        return FileResponse(
-            path=output_path,
-            filename=filename,
-            media_type="application/pdf",
-            background=BackgroundTasks()
-        )
-        
-    except Exception as e:
-        print(f"Error generating annual report PDF: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
 
 @app.post("/api/add-note-numbers-to-br")
 async def add_note_numbers_to_br(request: dict):

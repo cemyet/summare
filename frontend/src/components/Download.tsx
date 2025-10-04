@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download as DownloadIcon, FileText, Check } from 'lucide-react';
-import { API_BASE_URL } from '@/config/api';
+import { generatePdfFromPreview } from '@/components/PrintAnnualReport';
 
 interface DownloadFile {
   id: string;
@@ -67,72 +67,41 @@ export function Download({ companyData }: DownloadProps) {
       let blob: Blob;
 
       if (fileId === 'arsredovisning') {
-        // Generate PDF from backend API for annual report
+        // Generate PDF from client-side using the preview data
         if (!companyData) {
           alert('Företagsdata saknas. Vänligen ladda upp en SIE-fil först.');
           setIsGenerating(null);
           return;
         }
 
-        // Prepare data for PDF generation
-        const pdfRequestData = {
-          company_data: {
-            company_name: companyData.company_name || companyData.companyName || 'Företag AB',
-            organization_number: companyData.organization_number || companyData.organizationNumber || '',
-            fiscal_year: companyData.fiscal_year || companyData.fiscalYear || new Date().getFullYear(),
-            hasEvents: companyData.hasEvents || false,
-            significantEvents: companyData.significantEvents || '',
-            fbTable: companyData.fbTable || [],
-            fbVariables: companyData.fbVariables || {},
-            verksamhetsbeskrivning: companyData.verksamhetsbeskrivning || 
-              companyData.businessDescription || 
-              'Bolaget bedriver verksamhet inom...'
-          },
-          rr_data: companyData.rrData || companyData.rr_data || [],
-          br_data: companyData.brData || companyData.br_data || [],
-          noter_data: companyData.noterData || companyData.noter_data || []
-        };
-
-        console.log('Generating PDF with data:', pdfRequestData);
-
-        response = await fetch(`${API_BASE_URL}/api/generate-annual-report-pdf`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(pdfRequestData)
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Failed to generate PDF: ${errorText}`);
-        }
-
-        blob = await response.blob();
+        console.log('Generating PDF from preview...');
+        
+        // Use the client-side PDF generator
+        await generatePdfFromPreview(companyData);
+        
+        // No need to manually trigger download - html2pdf handles it
       } else {
         // Fetch the file from public folder for other files
-        response = await fetch(`/${file.filename}`);
+        const response = await fetch(`/${file.filename}`);
         if (!response.ok) {
           throw new Error('Failed to download file');
         }
-        blob = await response.blob();
+        const blob = await response.blob();
+        
+        // Create a temporary URL for the blob
+        const url = window.URL.createObjectURL(blob);
+        
+        // Create a temporary anchor element to trigger download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
       }
-      
-      // Create a temporary URL for the blob
-      const url = window.URL.createObjectURL(blob);
-      
-      // Create a temporary anchor element to trigger download
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileId === 'arsredovisning' 
-        ? `arsredovisning_${companyData?.company_name || 'company'}_${companyData?.fiscal_year || new Date().getFullYear()}.pdf`
-        : file.filename;
-      document.body.appendChild(a);
-      a.click();
-      
-      // Cleanup
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
 
       // Mark file as downloaded
       setFiles(prevFiles =>
