@@ -79,7 +79,7 @@ def _table_style():
         ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers (not first column)
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ('ROWSPACING', (0,0), (-1,-1), 0),  # 0pt row spacing
-        ('BOTTOMPADDING', (0,0), (-1,-1), 1),  # 1pt bottom padding
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),  # 0pt bottom padding (compact)
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 8),  # More padding between columns
     ])
