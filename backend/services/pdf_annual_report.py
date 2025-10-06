@@ -30,8 +30,8 @@ def _fmt_int(n: float) -> str:
 def _styles():
     """
     Typography styles for PDF generation (24mm margins, compact spacing)
-    H0: 16pt bold, 0pt before, 4pt after
-    H1: 10pt bold, 8pt before, 2pt after
+    H0: 16pt bold, 0pt before, 4pt after (main titles like "Förvaltningsberättelse")
+    H1: 12pt bold, 10pt before, 6pt after (subsections like "Verksamheten", "Flerårsöversikt")
     P: 10pt regular, 12pt leading, 2pt after
     """
     ss = getSampleStyleSheet()
@@ -51,9 +51,9 @@ def _styles():
         'H1', 
         parent=ss['Heading2'], 
         fontName='Helvetica-Bold', 
-        fontSize=10, 
-        spaceBefore=8, 
-        spaceAfter=2
+        fontSize=12, 
+        spaceBefore=10, 
+        spaceAfter=6
     )
     
     # P - Body text
@@ -106,14 +106,14 @@ def _extract_fb_texts(cd: Dict[str, Any]) -> Tuple[str, str]:
     return verksamhet.strip() or "–", vasentliga
 
 def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, P):
-    """Render Flerårsöversikt exactly as shown in frontend"""
+    """Render Flerårsöversikt exactly as shown in frontend - 3 years from scraped data"""
     elems.append(Paragraph("Flerårsöversikt", H1))
-    elems.append(Paragraph("Belopp i tkr", P))  # Small text
+    elems.append(Paragraph("Belopp i tkr", P))
     
     # Get flerårsöversikt data from companyData (comes from frontend state)
     flerars = company_data.get('flerarsoversikt', {})
     
-    # If we have structured flerarsoversikt data, use it
+    # If we have structured flerårsöversikt data, use it
     if flerars and flerars.get('years'):
         years = flerars.get('years', [])
         rows = flerars.get('rows', [])
@@ -134,15 +134,15 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, P):
             
             table_data.append([label] + formatted)
     else:
-        # Fallback: build from scraped data
+        # Fallback: build from scraped data (3 previous years only)
         scraped = company_data.get('scraped_company_data', {})
         nyckeltal = scraped.get('nyckeltal', {})
         
         if not nyckeltal:
             return
         
-        # Determine years (show current + 3 previous from scraped)
-        years = [str(fiscal_year), str(fiscal_year-1), str(fiscal_year-2), str(fiscal_year-3)]
+        # Show 3 previous years (fy-1, fy-2, fy-3) from scraped data
+        years = [str(fiscal_year-1), str(fiscal_year-2), str(fiscal_year-3)]
         
         def get_values(key_variants):
             for key in key_variants:
@@ -151,61 +151,47 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, P):
                     return [_num(x) for x in arr[:3]]  # Get first 3 values
             return [0, 0, 0]
         
-        # Get data (scraped data typically has 3 years of history)
+        # Get data (scraped data has 3 years of history)
         oms = get_values(['Omsättning', 'Total omsättning', 'omsättning'])
         ref = get_values(['Resultat efter finansnetto', 'Resultat efter finansiella poster'])
         bal = get_values(['Summa tillgångar', 'Balansomslutning'])
         sol = get_values(['Soliditet'])
         
-        # Calculate current year values from rr/br data
-        rr_data = company_data.get('seFileData', {}).get('rr_data', [])
-        br_data = company_data.get('seFileData', {}).get('br_data', [])
-        
-        # Find nettoomsättning (current year)
-        netto_oms_fy = 0
-        for row in rr_data:
-            if row.get('variable_name') == 'SumRorelseintakter':
-                netto_oms_fy = _num(row.get('current_amount', 0)) / 1000
-                break
-        
-        # Find result after financial items (current year)
-        refp_fy = 0
-        for row in rr_data:
-            if row.get('variable_name') == 'SumResultatEfterFinansiellaPoster':
-                refp_fy = _num(row.get('current_amount', 0)) / 1000
-                break
-        
-        # Find sum tillgångar (current year)
-        tillg_fy = 0
-        for row in br_data:
-            if row.get('variable_name') == 'SumTillgangar':
-                tillg_fy = _num(row.get('current_amount', 0))
-                break
-        
-        # Calculate soliditet (current year)
-        eget_kap = 0
-        for row in br_data:
-            if row.get('variable_name') == 'SumEgetKapital':
-                eget_kap = _num(row.get('current_amount', 0))
-                break
-        
-        soliditet_fy = (eget_kap / tillg_fy * 100) if tillg_fy != 0 else 0
-        
-        # Build table with 4 columns (current year + 3 previous)
+        # Build table with 3 columns
         table_data = [[""] + years]
-        table_data.append(["Omsättning"] + [_fmt_int(netto_oms_fy)] + [_fmt_int(v) for v in oms])
-        table_data.append(["Resultat efter finansiella poster"] + [_fmt_int(refp_fy)] + [_fmt_int(v) for v in ref])
-        table_data.append(["Balansomslutning"] + [_fmt_int(tillg_fy)] + [_fmt_int(v) for v in bal])
-        table_data.append(["Soliditet"] + [f"{int(round(soliditet_fy))}%"] + [f"{int(round(v))}%" for v in sol])
+        table_data.append(["Omsättning"] + [_fmt_int(v) for v in oms])
+        table_data.append(["Resultat efter finansiella poster"] + [_fmt_int(v) for v in ref])
+        table_data.append(["Balansomslutning"] + [_fmt_int(v) for v in bal])
+        table_data.append(["Soliditet"] + [f"{int(round(v))}%" for v in sol])
     
     if len(table_data) > 1:
-        t = Table(table_data, hAlign='LEFT', colWidths=[140, 70, 70, 70, 70])
-        t.setStyle(_table_style())
+        # Use full page width (459pt available)
+        available_width = 459
+        label_width = 200  # Label column
+        num_years = len(table_data[0]) - 1  # Number of year columns
+        year_width = (available_width - label_width) / num_years if num_years > 0 else 85
+        
+        col_widths = [label_width] + [year_width] * num_years
+        
+        t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
+        # Custom style with right-aligned headers
+        style = TableStyle([
+            ('FONT', (0,0), (-1,-1), 'Helvetica', 10),
+            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
+            ('ALIGN', (1,0), (-1,0), 'RIGHT'),  # Right-align year headers
+            ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ROWSPACING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ])
+        t.setStyle(style)
         elems.append(t)
         elems.append(Spacer(1, 8))
 
 def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_year, H1):
-    """Render Förändringar i eget kapital table with proper column widths"""
+    """Render Förändringar i eget kapital table with multi-line headers"""
     fb_table = company_data.get('fbTable', [])
     
     if not fb_table or len(fb_table) == 0:
@@ -213,9 +199,16 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
     
     elems.append(Paragraph("Förändringar i eget kapital", H1))
     
-    # Column headers (use exact labels from frontend)
+    # Column headers with line breaks
     cols = ['aktiekapital', 'reservfond', 'uppskrivningsfond', 'balanserat_resultat', 'arets_resultat', 'total']
-    col_labels = ['Aktie-kapital', 'Reserv-fond', 'Uppskriv-ningsfond', 'Balanserat resultat', 'Årets resultat', 'Totalt']
+    col_labels = [
+        'Aktie-\nkapital', 
+        'Reserv-\nfond', 
+        'Uppskrivnings-\nfond', 
+        'Balanserat\nresultat', 
+        'Årets\nresultat', 
+        'Totalt'
+    ]
     
     # Determine which columns have non-zero values
     col_has_data = {}
@@ -246,10 +239,9 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
         table_data.append([label] + formatted_values)
     
     if len(table_data) > 1:  # Has data beyond header
-        # Use full page width (A4 width - 2*68pt margins = 459pt available)
-        # Distribute width: 35% for label, 65% for data columns
+        # Use full page width (459pt available)
         available_width = 459
-        label_width = 160  # ~35%
+        label_width = 160
         num_cols = len(visible_cols)
         data_width = available_width - label_width
         col_width = data_width / num_cols if num_cols > 0 else 60
@@ -257,7 +249,19 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
         col_widths = [label_width] + [col_width] * num_cols
         
         t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
-        t.setStyle(_table_style())
+        # Custom style with right-aligned headers
+        style = TableStyle([
+            ('FONT', (0,0), (-1,-1), 'Helvetica', 10),
+            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
+            ('ALIGN', (1,0), (-1,0), 'RIGHT'),  # Right-align column headers
+            ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ROWSPACING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ])
+        t.setStyle(style)
         elems.append(t)
         elems.append(Spacer(1, 8))
 
