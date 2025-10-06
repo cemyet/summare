@@ -105,6 +105,168 @@ def _extract_fb_texts(cd: Dict[str, Any]) -> Tuple[str, str]:
     
     return verksamhet.strip() or "–", vasentliga
 
+def _render_flerarsoversikt(elems, company_data, fiscal_year, H1):
+    """Render Flerårsöversikt (multi-year overview) from scraped data"""
+    scraped = company_data.get('scraped_company_data', {})
+    nyckeltal = scraped.get('nyckeltal', {})
+    
+    if not nyckeltal:
+        return
+    
+    # Build table with years as columns
+    years = [str(fiscal_year-1), str(fiscal_year-2), str(fiscal_year-3)]
+    
+    # Extract data series
+    def get_series(key):
+        arr = nyckeltal.get(key) or nyckeltal.get(key.lower()) or []
+        return [_num(x) for x in (arr[:3] if isinstance(arr, list) else [])]
+    
+    omsattning = get_series('Omsättning') or get_series('Total omsättning')
+    resultat = get_series('Resultat efter finansnetto') or get_series('Resultat efter finansiella poster')
+    tillgangar = get_series('Summa tillgångar')
+    eget_kapital = get_series('Eget kapital')
+    
+    # Only render if we have at least one series with data
+    if not any([omsattning, resultat, tillgangar, eget_kapital]):
+        return
+    
+    elems.append(Paragraph("Flerårsöversikt (tkr)", H1))
+    
+    table_data = [[""] + years]
+    if omsattning and any(v != 0 for v in omsattning):
+        table_data.append(["Nettoomsättning"] + [_fmt_int(v/1000) for v in omsattning])
+    if resultat and any(v != 0 for v in resultat):
+        table_data.append(["Resultat efter finansnetto"] + [_fmt_int(v/1000) for v in resultat])
+    if tillgangar and any(v != 0 for v in tillgangar):
+        table_data.append(["Summa tillgångar"] + [_fmt_int(v) for v in tillgangar])
+    if eget_kapital and any(v != 0 for v in eget_kapital):
+        table_data.append(["Eget kapital"] + [_fmt_int(v) for v in eget_kapital])
+    
+    if len(table_data) > 1:  # Has data beyond header
+        t = Table(table_data, hAlign='LEFT')
+        t.setStyle(_table_style())
+        elems.append(t)
+        elems.append(Spacer(1, 8))
+
+def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_year, H1):
+    """Render Förändringar i eget kapital table, hiding all-zero columns and rows"""
+    fb_table = company_data.get('fbTable', [])
+    
+    if not fb_table or len(fb_table) == 0:
+        return
+    
+    elems.append(Paragraph("Förändringar i eget kapital", H1))
+    
+    # Column headers
+    cols = ['aktiekapital', 'reservfond', 'uppskrivningsfond', 'balanserat_resultat', 'arets_resultat', 'total']
+    col_labels = ['Aktie-kapital', 'Reserv-fond', 'Uppskriv-ningsfond', 'Balanserat resultat', 'Årets resultat', 'Totalt']
+    
+    # Determine which columns have non-zero values
+    col_has_data = {}
+    for col in cols:
+        col_has_data[col] = any(_num(row.get(col, 0)) != 0 for row in fb_table)
+    
+    # Build visible columns list
+    visible_cols = [col for col in cols if col_has_data[col]]
+    visible_labels = [col_labels[cols.index(col)] for col in visible_cols]
+    
+    if not visible_cols:
+        return  # All columns are zero
+    
+    # Build table data, filtering out all-zero rows
+    table_data = [[""] + visible_labels]
+    
+    for row in fb_table:
+        label = row.get('label', '')
+        row_values = [_num(row.get(col, 0)) for col in visible_cols]
+        
+        # Skip rows where all visible columns are zero (except IB/UB rows)
+        if not any(v != 0 for v in row_values):
+            # Keep IB and UB rows even if zero
+            if not ('Ingående' in label or 'Utgående' in label):
+                continue
+        
+        formatted_values = [_fmt_int(v) for v in row_values]
+        table_data.append([label] + formatted_values)
+    
+    if len(table_data) > 1:  # Has data beyond header
+        # Dynamic column widths based on number of visible columns
+        label_width = 100
+        col_width = 60
+        col_widths = [label_width] + [col_width] * len(visible_cols)
+        
+        t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
+        t.setStyle(_table_style())
+        elems.append(t)
+        elems.append(Spacer(1, 8))
+
+def _render_resultatdisposition(elems, company_data, H1):
+    """Render Resultatdisposition section"""
+    fb_table = company_data.get('fbTable', [])
+    arets_utdelning = _num(company_data.get('arets_utdelning', 0))
+    
+    if not fb_table:
+        return
+    
+    # Find "Till årsstämmans förfogande står" row (typically last row with årets_resultat)
+    ub_row = None
+    for row in fb_table:
+        if 'Utgående' in row.get('label', '') or 'förfogande' in row.get('label', '').lower():
+            ub_row = row
+            break
+    
+    if not ub_row:
+        # Fall back to last row
+        ub_row = fb_table[-1] if fb_table else {}
+    
+    # Get balanserat resultat and årets resultat from UB row
+    balanserat = _num(ub_row.get('balanserat_resultat', 0))
+    arets_res = _num(ub_row.get('arets_resultat', 0))
+    summa = balanserat + arets_res
+    
+    if summa == 0 and arets_utdelning == 0:
+        return  # Nothing to report
+    
+    elems.append(Paragraph("Resultatdisposition", H1))
+    
+    table_data = []
+    
+    # Title row
+    table_data.append(["Till årsstämmans förfogande står", ""])
+    
+    # Breakdown
+    if balanserat != 0:
+        table_data.append(["  Balanserat resultat", _fmt_sek(balanserat)])
+    if arets_res != 0:
+        table_data.append(["  Årets resultat", _fmt_sek(arets_res)])
+    
+    table_data.append(["", _fmt_sek(summa)])
+    table_data.append(["", ""])  # Spacer
+    
+    # Disposition
+    table_data.append(["Styrelsen föreslår att", ""])
+    
+    if arets_utdelning != 0:
+        table_data.append(["  Utdelas till aktieägare", _fmt_sek(arets_utdelning)])
+    
+    balanseras = summa - arets_utdelning
+    table_data.append(["  Balanseras i ny räkning", _fmt_sek(balanseras)])
+    table_data.append(["", _fmt_sek(summa)])
+    
+    t = Table(table_data, hAlign='LEFT', colWidths=[200, 100])
+    # Custom style for Resultatdisposition (no header underline)
+    style = TableStyle([
+        ('FONT', (0,0), (-1,-1), 'Helvetica', 10),
+        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+        ('ROWSPACING', (0,0), (-1,-1), 1),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 4),
+    ])
+    t.setStyle(style)
+    elems.append(t)
+    elems.append(Spacer(1, 8))
+
 def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     """
     Generate complete annual report PDF with all sections:
@@ -151,18 +313,14 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph(vasentliga_text, P))
     elems.append(Spacer(1, 8))
     
-    # Flerårsöversikt (if available)
-    flerarsoversikt = company_data.get('flerarsoversikt')
-    if flerarsoversikt and flerarsoversikt.get('years') and flerarsoversikt.get('rows'):
-        elems.append(Paragraph("Flerårsöversikt", H1))
-        table_data = [[""] + flerarsoversikt['years']]
-        for row in flerarsoversikt['rows']:
-            table_data.append([row['label']] + [_fmt_int(v) for v in row['values']])
-        
-        t = Table(table_data, hAlign='LEFT')
-        t.setStyle(_table_style())
-        elems.append(t)
-        elems.append(Spacer(1, 8))
+    # Flerårsöversikt
+    _render_flerarsoversikt(elems, company_data, fiscal_year, H1)
+    
+    # Förändringar i eget kapital
+    _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_year, H1)
+    
+    # Resultatdisposition
+    _render_resultatdisposition(elems, company_data, H1)
     
     # ===== 2. RESULTATRÄKNING =====
     elems.append(PageBreak())
