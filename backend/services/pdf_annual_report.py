@@ -52,7 +52,7 @@ def _styles():
         parent=ss['Heading2'], 
         fontName='Helvetica-Bold', 
         fontSize=12, 
-        spaceBefore=10, 
+        spaceBefore=14, 
         spaceAfter=6
     )
     
@@ -71,9 +71,10 @@ def _styles():
     return h0, h1, p, small
 
 def _table_style():
-    """Standard table style: 0.5pt 70% black borders, 0pt spacing"""
+    """Standard table style: 0.5pt 70% black borders, 0pt spacing, bold headers"""
     return TableStyle([
-        ('FONT', (0,0), (-1,-1), 'Helvetica', 10),
+        ('FONT', (0,0), (-1,0), 'Helvetica-Bold', 10),  # Bold header row
+        ('FONT', (0,1), (-1,-1), 'Helvetica', 10),  # Regular for data rows
         ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
         ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers (not first column)
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -134,15 +135,16 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, P):
             
             table_data.append([label] + formatted)
     else:
-        # Fallback: build from scraped data (3 previous years only)
+        # Fallback: build from scraped data
         scraped = company_data.get('scraped_company_data', {})
         nyckeltal = scraped.get('nyckeltal', {})
         
         if not nyckeltal:
             return
         
-        # Show 3 previous years (fy-1, fy-2, fy-3) from scraped data
-        years = [str(fiscal_year-1), str(fiscal_year-2), str(fiscal_year-3)]
+        # Check if scraped data includes fiscal year
+        scraped_years = nyckeltal.get('years', [])
+        scraped_includes_fiscal_year = len(scraped_years) > 0 and scraped_years[0] == fiscal_year
         
         def get_values(key_variants):
             for key in key_variants:
@@ -151,18 +153,78 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, P):
                     return [_num(x) for x in arr[:3]]  # Get first 3 values
             return [0, 0, 0]
         
-        # Get data (scraped data has 3 years of history)
-        oms = get_values(['Omsättning', 'Total omsättning', 'omsättning'])
-        ref = get_values(['Resultat efter finansnetto', 'Resultat efter finansiella poster'])
-        bal = get_values(['Summa tillgångar', 'Balansomslutning'])
-        sol = get_values(['Soliditet'])
-        
-        # Build table with 3 columns
-        table_data = [[""] + years]
-        table_data.append(["Omsättning"] + [_fmt_int(v) for v in oms])
-        table_data.append(["Resultat efter finansiella poster"] + [_fmt_int(v) for v in ref])
-        table_data.append(["Balansomslutning"] + [_fmt_int(v) for v in bal])
-        table_data.append(["Soliditet"] + [f"{int(round(v))}%" for v in sol])
+        if scraped_includes_fiscal_year:
+            # Use scraped years directly (scraped data already includes fiscal year)
+            years = [str(y) for y in scraped_years[:3]] if scraped_years else [str(fiscal_year), str(fiscal_year-1), str(fiscal_year-2)]
+            
+            # Get data from scraped (3 years)
+            oms = get_values(['Omsättning', 'Total omsättning', 'omsättning'])
+            ref = get_values(['Resultat efter finansnetto', 'Resultat efter finansiella poster'])
+            bal = get_values(['Summa tillgångar', 'Balansomslutning'])
+            sol = get_values(['Soliditet'])
+            
+            # Build table with scraped data
+            table_data = [[""] + years]
+            table_data.append(["Omsättning"] + [_fmt_int(v) for v in oms])
+            table_data.append(["Resultat efter finansiella poster"] + [_fmt_int(v) for v in ref])
+            table_data.append(["Balansomslutning"] + [_fmt_int(v) for v in bal])
+            table_data.append(["Soliditet"] + [f"{int(round(v))}%" for v in sol])
+        else:
+            # Scraped data doesn't include fiscal year - need to calculate current year
+            years = [str(fiscal_year), str(fiscal_year-1), str(fiscal_year-2)]
+            
+            # Get scraped data (fy-1, fy-2, fy-3)
+            oms_scraped = get_values(['Omsättning', 'Total omsättning', 'omsättning'])
+            ref_scraped = get_values(['Resultat efter finansnetto', 'Resultat efter finansiella poster'])
+            bal_scraped = get_values(['Summa tillgångar', 'Balansomslutning'])
+            sol_scraped = get_values(['Soliditet'])
+            
+            # Calculate current year values from rr/br data
+            rr_data = company_data.get('seFileData', {}).get('rr_data', [])
+            br_data = company_data.get('seFileData', {}).get('br_data', [])
+            
+            # Find nettoomsättning (current year) in tkr
+            netto_oms_fy = 0
+            for row in rr_data:
+                if row.get('variable_name') == 'SumRorelseintakter':
+                    netto_oms_fy = _num(row.get('current_amount', 0)) / 1000
+                    break
+            
+            # Find result after financial items (current year) in tkr
+            refp_fy = 0
+            for row in rr_data:
+                if row.get('variable_name') == 'SumResultatEfterFinansiellaPoster':
+                    refp_fy = _num(row.get('current_amount', 0)) / 1000
+                    break
+            
+            # Find sum tillgångar (current year) in tkr
+            tillg_fy = 0
+            for row in br_data:
+                if row.get('variable_name') == 'SumTillgangar':
+                    tillg_fy = _num(row.get('current_amount', 0)) / 1000
+                    break
+            
+            # Calculate soliditet (current year)
+            eget_kap = 0
+            for row in br_data:
+                if row.get('variable_name') == 'SumEgetKapital':
+                    eget_kap = _num(row.get('current_amount', 0))
+                    break
+            
+            tillg_fy_full = 0
+            for row in br_data:
+                if row.get('variable_name') == 'SumTillgangar':
+                    tillg_fy_full = _num(row.get('current_amount', 0))
+                    break
+            
+            soliditet_fy = (eget_kap / tillg_fy_full * 100) if tillg_fy_full != 0 else 0
+            
+            # Build table with current year + scraped data (take only first 2 from scraped)
+            table_data = [[""] + years]
+            table_data.append(["Omsättning"] + [_fmt_int(netto_oms_fy)] + [_fmt_int(v) for v in oms_scraped[:2]])
+            table_data.append(["Resultat efter finansiella poster"] + [_fmt_int(refp_fy)] + [_fmt_int(v) for v in ref_scraped[:2]])
+            table_data.append(["Balansomslutning"] + [_fmt_int(tillg_fy)] + [_fmt_int(v) for v in bal_scraped[:2]])
+            table_data.append(["Soliditet"] + [f"{int(round(soliditet_fy))}%"] + [f"{int(round(v))}%" for v in sol_scraped[:2]])
     
     if len(table_data) > 1:
         # Use full page width (459pt available)
@@ -202,9 +264,9 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
     # Column headers with line breaks
     cols = ['aktiekapital', 'reservfond', 'uppskrivningsfond', 'balanserat_resultat', 'arets_resultat', 'total']
     col_labels = [
-        'Aktie-\nkapital', 
-        'Reserv-\nfond', 
-        'Uppskrivnings-\nfond', 
+        'Aktie\nkapital', 
+        'Reserv\nfond', 
+        'Uppskrivnings\nfond', 
         'Balanserat\nresultat', 
         'Årets\nresultat', 
         'Totalt'
@@ -311,9 +373,8 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     # Disposition section header
     table_data.append(["Disponeras enligt följande", ""])
     
-    # Disposition breakdown
-    if arets_utdelning != 0:
-        table_data.append(["Utdelas till aktieägare", _fmt_int(arets_utdelning)])
+    # Disposition breakdown - always show "Utdelas till aktieägare" even if 0
+    table_data.append(["Utdelas till aktieägare", _fmt_int(arets_utdelning)])
     
     balanseras = summa - arets_utdelning
     table_data.append(["Balanseras i ny räkning", _fmt_int(balanseras)])
