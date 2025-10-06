@@ -259,7 +259,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # Group notes by block
     blocks = {}
     for note in noter_data:
-        block = note.get('block', 'Övriga')
+        block = note.get('block') or 'Övriga'  # Handle None values
         if block not in blocks:
             blocks[block] = []
         blocks[block].append(note)
@@ -270,9 +270,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         if block_name in blocks:
             _render_note_block(elems, block_name, blocks[block_name], fiscal_year, prev_year, H1, P)
     
-    for block_name in sorted(blocks.keys()):
-        if block_name not in priority_blocks:
-            _render_note_block(elems, block_name, blocks[block_name], fiscal_year, prev_year, H1, P)
+    # Sort remaining blocks, filtering out None values
+    remaining_blocks = [b for b in blocks.keys() if b and b not in priority_blocks]
+    for block_name in sorted(remaining_blocks):
+        _render_note_block(elems, block_name, blocks[block_name], fiscal_year, prev_year, H1, P)
     
     # Build PDF
     doc.build(elems)
