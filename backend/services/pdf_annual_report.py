@@ -294,12 +294,12 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     
     # Available funds breakdown
     if balanserat != 0:
-        table_data.append(["Balanserat resultat", f"{_fmt_sek(balanserat)}"[:-3]])  # Remove " kr"
+        table_data.append(["Balanserat resultat", _fmt_int(balanserat)])
     if arets_res != 0:
-        table_data.append(["Årets resultat", f"{_fmt_sek(arets_res)}"[:-3]])
+        table_data.append(["Årets resultat", _fmt_int(arets_res)])
     
-    # Summa row with separator line
-    table_data.append([("", "Summa"), f"{_fmt_sek(summa)}"[:-3]])
+    # Summa row
+    table_data.append(["Summa", _fmt_int(summa)])
     
     # Empty row for spacing
     table_data.append(["", ""])
@@ -309,13 +309,13 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     
     # Disposition breakdown
     if arets_utdelning != 0:
-        table_data.append(["Utdelas till aktieägare", f"{_fmt_sek(arets_utdelning)}"[:-3]])
+        table_data.append(["Utdelas till aktieägare", _fmt_int(arets_utdelning)])
     
     balanseras = summa - arets_utdelning
-    table_data.append(["Balanseras i ny räkning", f"{_fmt_sek(balanseras)}"[:-3]])
+    table_data.append(["Balanseras i ny räkning", _fmt_int(balanseras)])
     
     # Final summa row
-    table_data.append([("", "Summa"), f"{_fmt_sek(summa)}"[:-3]])
+    table_data.append(["Summa", _fmt_int(summa)])
     
     t = Table(table_data, hAlign='LEFT', colWidths=[280, 120])
     # Custom style for Resultatdisposition (no header underline, 0pt spacing)
