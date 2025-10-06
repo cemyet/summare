@@ -284,21 +284,31 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
     if not visible_cols:
         return  # All columns are zero
     
-    # Build table data, filtering out all-zero rows
+    # Build table data, filtering out all-zero rows and "Redovisat värde"
     table_data = [[""] + visible_labels]
+    utgaende_rows = []  # Track rows with "utgång" or "Utgående" to make them bold
     
     for row in fb_table:
         label = row.get('label', '')
+        
+        # Skip "Redovisat värde" rows completely
+        if 'Redovisat' in label:
+            continue
+        
         row_values = [_num(row.get(col, 0)) for col in visible_cols]
         
         # Skip rows where all visible columns are zero (except IB/UB rows)
         if not any(v != 0 for v in row_values):
             # Keep IB and UB rows even if zero
-            if not ('Ingående' in label or 'Utgående' in label or 'Redovisat' in label):
+            if not ('Ingående' in label or 'Utgående' in label or 'utgång' in label.lower()):
                 continue
         
         formatted_values = [_fmt_int(v) for v in row_values]
         table_data.append([label] + formatted_values)
+        
+        # Track if this row should be bold (contains "utgång" or "Utgående")
+        if 'utgång' in label.lower() or 'Utgående' in label:
+            utgaende_rows.append(len(table_data) - 1)  # Store row index (0-based)
     
     if len(table_data) > 1:  # Has data beyond header
         # Use full page width (459pt available)
@@ -319,10 +329,13 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
             ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ROWSPACING', (0,0), (-1,-1), 0),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ])
+        # Make "Belopp vid årets utgång" rows bold
+        for row_idx in utgaende_rows:
+            style.add('FONT', (0, row_idx), (-1, row_idx), 'Helvetica-Bold', 10)
         t.setStyle(style)
         elems.append(t)
         elems.append(Spacer(1, 8))
@@ -357,6 +370,7 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     elems.append(Paragraph("Styrelsen och VD föreslår att till förfogande stående medel", P))
     
     table_data = []
+    summa_rows = []  # Track which rows are "Summa" rows for bold styling
     
     # Available funds breakdown
     if balanserat != 0:
@@ -364,7 +378,8 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     if arets_res != 0:
         table_data.append(["Årets resultat", _fmt_int(arets_res)])
     
-    # Summa row
+    # First Summa row
+    summa_rows.append(len(table_data))
     table_data.append(["Summa", _fmt_int(summa)])
     
     # Empty row for spacing
@@ -380,18 +395,22 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     table_data.append(["Balanseras i ny räkning", _fmt_int(balanseras)])
     
     # Final summa row
+    summa_rows.append(len(table_data))
     table_data.append(["Summa", _fmt_int(summa)])
     
     t = Table(table_data, hAlign='LEFT', colWidths=[280, 120])
-    # Custom style for Resultatdisposition (no header underline, 0pt spacing)
+    # Custom style for Resultatdisposition (no header underline, 0pt spacing, bold Summa rows)
     style = TableStyle([
         ('FONT', (0,0), (-1,-1), 'Helvetica', 10),
         ('ALIGN', (1,0), (1,-1), 'RIGHT'),
         ('ROWSPACING', (0,0), (-1,-1), 0),  # 0pt row spacing
-        ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 0),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 8),
     ])
+    # Make Summa rows bold
+    for row_idx in summa_rows:
+        style.add('FONT', (0, row_idx), (-1, row_idx), 'Helvetica-Bold', 10)
     t.setStyle(style)
     elems.append(t)
     elems.append(Spacer(1, 8))
