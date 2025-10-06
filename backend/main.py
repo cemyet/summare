@@ -2174,6 +2174,45 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         print(f"Error updating tax in financial data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error updating tax in financial data: {str(e)}")
 
+@app.post("/api/pdf/annual-report")
+async def pdf_annual_report(request: Request):
+    """
+    Generate full annual report PDF using server-side ReportLab
+    Order: Förvaltningsberättelse, Resultaträkning, Balansräkning (tillgångar), 
+           Balansräkning (eget kapital och skulder), Noter
+    """
+    try:
+        from services.pdf_annual_report import generate_full_annual_report_pdf
+        from fastapi.responses import Response
+        
+        payload = await request.json()
+        company_data = payload.get('companyData', {})
+        
+        pdf_bytes = generate_full_annual_report_pdf(company_data)
+        
+        # Extract name and fiscal year for filename
+        name = (company_data.get('company_name') 
+                or (company_data.get('seFileData') or {}).get('company_info', {}).get('company_name') 
+                or 'bolag')
+        fy = (company_data.get('fiscalYear') 
+              or (company_data.get('seFileData') or {}).get('company_info', {}).get('fiscal_year') 
+              or '')
+        
+        filename = f'arsredovisning_{name}_{fy}.pdf'
+        
+        return Response(
+            content=pdf_bytes,
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:
+        print(f"Error generating PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     import os

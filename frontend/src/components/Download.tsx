@@ -17,12 +17,13 @@ interface DownloadProps {
 }
 
 export function Download({ companyData }: DownloadProps) {
+  const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [files, setFiles] = useState<DownloadFile[]>([
     {
       id: 'arsredovisning',
       title: 'Årsredovisning',
       subtitle: 'Ladda ner pdf',
-      filename: 'Test.pdf',
+      filename: 'arsredovisning.pdf',
       icon: <FileText className="w-5 h-5" />,
       downloaded: false
     },
@@ -57,28 +58,57 @@ export function Download({ companyData }: DownloadProps) {
     if (!file) return;
 
     try {
-      // Fetch the file from public folder
-      const response = await fetch(`/${file.filename}`);
-      if (!response.ok) {
-        throw new Error('Failed to download file');
-      }
+      setIsGenerating(fileId);
+      
+      // Handle Årsredovisning with server-side PDF generation
+      if (fileId === 'arsredovisning') {
+        if (!companyData) {
+          alert('Företagsdata saknas. Vänligen ladda upp en SIE-fil först.');
+          setIsGenerating(null);
+          return;
+        }
+        
+        const API_BASE = import.meta.env.VITE_API_URL || 'https://api.summare.se';
+        console.log('📄 Generating annual report PDF with ReportLab...');
+        
+        const response = await fetch(`${API_BASE}/api/pdf/annual-report`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companyData }),
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Annual report PDF error:', errorText);
+          throw new Error(`Server responded with ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        a.remove();
+      } else {
+        // Fetch other files from public folder
+        const response = await fetch(`/${file.filename}`);
+        if (!response.ok) {
+          throw new Error('Failed to download file');
+        }
 
-      // Create blob from response
-      const blob = await response.blob();
-      
-      // Create a temporary URL for the blob
-      const url = window.URL.createObjectURL(blob);
-      
-      // Create a temporary anchor element to trigger download
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.filename;
-      document.body.appendChild(a);
-      a.click();
-      
-      // Cleanup
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
 
       // Mark file as downloaded
       setFiles(prevFiles =>
@@ -86,9 +116,11 @@ export function Download({ companyData }: DownloadProps) {
           f.id === fileId ? { ...f, downloaded: true } : f
         )
       );
+      setIsGenerating(null);
     } catch (error) {
       console.error('Error downloading file:', error);
       alert('Ett fel uppstod vid nedladdning. Försök igen.');
+      setIsGenerating(null);
     }
   };
 
@@ -136,9 +168,19 @@ export function Download({ companyData }: DownloadProps) {
                     size="sm"
                     className="cursor-pointer w-full mt-2"
                     onClick={() => handleDownload(file.id)}
+                    disabled={isGenerating === file.id}
                   >
-                    <DownloadIcon className="w-4 h-4 mr-2" />
-                    Ladda ner
+                    {isGenerating === file.id ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                        Genererar...
+                      </>
+                    ) : (
+                      <>
+                        <DownloadIcon className="w-4 h-4 mr-2" />
+                        Ladda ner
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>
