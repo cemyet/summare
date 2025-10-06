@@ -333,9 +333,10 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ])
-        # Make "Belopp vid årets utgång" rows bold
+        # Make "Belopp vid årets utgång" rows bold and add line above
         for row_idx in utgaende_rows:
             style.add('FONT', (0, row_idx), (-1, row_idx), 'Helvetica-Bold', 10)
+            style.add('LINEABOVE', (0, row_idx), (-1, row_idx), 0.5, colors.Color(0, 0, 0, alpha=0.7))
         t.setStyle(style)
         elems.append(t)
         elems.append(Spacer(1, 8))
