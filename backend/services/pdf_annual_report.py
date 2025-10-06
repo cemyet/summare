@@ -236,15 +236,16 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, P):
         col_widths = [label_width] + [year_width] * num_years
         
         t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
-        # Custom style with right-aligned headers
+        # Custom style with right-aligned headers and bold year headers
         style = TableStyle([
-            ('FONT', (0,0), (-1,-1), 'Helvetica', 10),
+            ('FONT', (0,0), (-1,0), 'Helvetica-Bold', 10),  # Bold year header row
+            ('FONT', (0,1), (-1,-1), 'Helvetica', 10),  # Regular for data rows
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
             ('ALIGN', (1,0), (-1,0), 'RIGHT'),  # Right-align year headers
             ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ROWSPACING', (0,0), (-1,-1), 0),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ])
@@ -323,20 +324,20 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
         t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
         # Custom style with right-aligned headers
         style = TableStyle([
-            ('FONT', (0,0), (-1,-1), 'Helvetica', 10),
+            ('FONT', (0,0), (-1,0), 'Helvetica-Bold', 10),  # Bold header row
+            ('FONT', (0,1), (-1,-1), 'Helvetica', 10),  # Regular for data rows
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
             ('ALIGN', (1,0), (-1,0), 'RIGHT'),  # Right-align column headers
             ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),  # Bottom align to bring "Totalt" down
             ('ROWSPACING', (0,0), (-1,-1), 0),
             ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ])
-        # Make "Belopp vid årets utgång" rows bold and add line above
+        # Make "Belopp vid årets utgång" rows bold (no line above)
         for row_idx in utgaende_rows:
             style.add('FONT', (0, row_idx), (-1, row_idx), 'Helvetica-Bold', 10)
-            style.add('LINEABOVE', (0, row_idx), (-1, row_idx), 0.5, colors.Color(0, 0, 0, alpha=0.7))
         t.setStyle(style)
         elems.append(t)
         elems.append(Spacer(1, 8))
