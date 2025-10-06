@@ -6,6 +6,15 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import os
+
+# Register Roboto fonts
+FONT_DIR = os.path.join(os.path.dirname(__file__), '..', 'fonts')
+pdfmetrics.registerFont(TTFont('Roboto', os.path.join(FONT_DIR, 'Roboto-Regular.ttf')))
+pdfmetrics.registerFont(TTFont('Roboto-Medium', os.path.join(FONT_DIR, 'Roboto-Medium.ttf')))
+pdfmetrics.registerFont(TTFont('Roboto-Bold', os.path.join(FONT_DIR, 'Roboto-Bold.ttf')))
 
 def _num(v):
     try:
@@ -30,27 +39,27 @@ def _fmt_int(n: float) -> str:
 def _styles():
     """
     Typography styles for PDF generation (24mm margins, compact spacing)
-    H0: 16pt bold, 0pt before, 4pt after (main titles like "Förvaltningsberättelse")
-    H1: 12pt bold, 10pt before, 6pt after (subsections like "Verksamheten", "Flerårsöversikt")
+    H0: 16pt semibold, 0pt before, 4pt after (main titles like "Förvaltningsberättelse")
+    H1: 12pt semibold, 14pt before, 6pt after (subsections like "Verksamheten", "Flerårsöversikt")
     P: 10pt regular, 12pt leading, 2pt after
     """
     ss = getSampleStyleSheet()
     
-    # H0 - Main section titles
+    # H0 - Main section titles (semibold)
     h0 = ParagraphStyle(
         'H0', 
         parent=ss['Heading1'], 
-        fontName='Helvetica-Bold', 
+        fontName='Roboto-Medium', 
         fontSize=16, 
         spaceBefore=0, 
         spaceAfter=4
     )
     
-    # H1 - Subsection headings
+    # H1 - Subsection headings (semibold)
     h1 = ParagraphStyle(
         'H1', 
         parent=ss['Heading2'], 
-        fontName='Helvetica-Bold', 
+        fontName='Roboto-Medium', 
         fontSize=12, 
         spaceBefore=14, 
         spaceAfter=6
@@ -60,7 +69,7 @@ def _styles():
     p = ParagraphStyle(
         'P', 
         parent=ss['BodyText'], 
-        fontName='Helvetica', 
+        fontName='Roboto', 
         fontSize=10, 
         leading=12,  # 12pt line height
         spaceBefore=0, 
@@ -71,10 +80,10 @@ def _styles():
     return h0, h1, p, small
 
 def _table_style():
-    """Standard table style: 0.5pt 70% black borders, 0pt spacing, bold headers"""
+    """Standard table style: 0.5pt 70% black borders, 0pt spacing, semibold headers"""
     return TableStyle([
-        ('FONT', (0,0), (-1,0), 'Helvetica-Bold', 10),  # Bold header row
-        ('FONT', (0,1), (-1,-1), 'Helvetica', 10),  # Regular for data rows
+        ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
+        ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Regular for data rows
         ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
         ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers (not first column)
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -236,10 +245,10 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, P):
         col_widths = [label_width] + [year_width] * num_years
         
         t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
-        # Custom style with right-aligned headers and bold year headers
+        # Custom style with right-aligned headers and semibold year headers
         style = TableStyle([
-            ('FONT', (0,0), (-1,0), 'Helvetica-Bold', 10),  # Bold year header row
-            ('FONT', (0,1), (-1,-1), 'Helvetica', 10),  # Regular for data rows
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold year header row
+            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Regular for data rows
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
             ('ALIGN', (1,0), (-1,0), 'RIGHT'),  # Right-align year headers
             ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers
@@ -324,8 +333,8 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
         t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
         # Custom style with right-aligned headers
         style = TableStyle([
-            ('FONT', (0,0), (-1,0), 'Helvetica-Bold', 10),  # Bold header row
-            ('FONT', (0,1), (-1,-1), 'Helvetica', 10),  # Regular for data rows
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
+            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Regular for data rows
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
             ('ALIGN', (1,0), (-1,0), 'RIGHT'),  # Right-align column headers
             ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align numbers
@@ -335,9 +344,9 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ])
-        # Make "Belopp vid årets utgång" rows bold (no line above)
+        # Make "Belopp vid årets utgång" rows semibold (no line above)
         for row_idx in utgaende_rows:
-            style.add('FONT', (0, row_idx), (-1, row_idx), 'Helvetica-Bold', 10)
+            style.add('FONT', (0, row_idx), (-1, row_idx), 'Roboto-Medium', 10)
         t.setStyle(style)
         elems.append(t)
         elems.append(Spacer(1, 8))
@@ -401,18 +410,18 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     table_data.append(["Summa", _fmt_int(summa)])
     
     t = Table(table_data, hAlign='LEFT', colWidths=[280, 120])
-    # Custom style for Resultatdisposition (no header underline, 0pt spacing, bold Summa rows)
+    # Custom style for Resultatdisposition (no header underline, 0pt spacing, semibold Summa rows)
     style = TableStyle([
-        ('FONT', (0,0), (-1,-1), 'Helvetica', 10),
+        ('FONT', (0,0), (-1,-1), 'Roboto', 10),
         ('ALIGN', (1,0), (1,-1), 'RIGHT'),
         ('ROWSPACING', (0,0), (-1,-1), 0),  # 0pt row spacing
         ('BOTTOMPADDING', (0,0), (-1,-1), 0),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 8),
     ])
-    # Make Summa rows bold
+    # Make Summa rows semibold
     for row_idx in summa_rows:
-        style.add('FONT', (0, row_idx), (-1, row_idx), 'Helvetica-Bold', 10)
+        style.add('FONT', (0, row_idx), (-1, row_idx), 'Roboto-Medium', 10)
     t.setStyle(style)
     elems.append(t)
     elems.append(Spacer(1, 8))
