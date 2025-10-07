@@ -510,55 +510,100 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # Define section headings and sum rows for special formatting
     rr_headings = [
         'Rörelseintäkter', 'lagerförändringar m.m.', 'Rörelsekostnader',
-        'Finansiella poster', 'Bokslutsdispositioner', 'Skatter'
+        'Finansiella poster', 'Bokslutsdispositioner', 'Skatter',
+        'Rörelseresultat'  # Rörelseresultat is a heading with no amounts
     ]
     rr_sum_rows = [
         'Summa rörelseintäkter', 'lagerförändringar m.m.', 'Summa rörelsekostnader',
-        'Rörelseresultat', 'Summa finansiella poster', 'Resultat efter finansiella poster',
+        'Summa finansiella poster', 'Resultat efter finansiella poster',
         'Summa bokslutsdispositioner', 'Resultat före skatt', 'Årets resultat'
     ]
+    
+    # Helper function to check if a block_group has content
+    def block_has_content(block_group: str) -> bool:
+        """Check if any non-heading row in this block has non-zero amounts"""
+        if not block_group:
+            return True  # Items without block_group always show
+        
+        # Skatter block always shows
+        if 'Skatter' in block_group:
+            return True
+        
+        for row in rr_data:
+            if row.get('block_group') != block_group:
+                continue
+            label = row.get('label', '')
+            # Skip headings and sums when checking content
+            if any(h in label for h in rr_headings) or any(s in label for s in rr_sum_rows):
+                continue
+            # Check if this row has non-zero amount or always_show
+            if row.get('always_show'):
+                return True
+            curr = _num(row.get('current_amount', 0))
+            prev = _num(row.get('previous_amount', 0))
+            if curr != 0 or prev != 0:
+                return True
+        
+        return False
     
     # Header: Post (no text), Not, years (right-aligned)
     rr_table_data = [["", "Not", str(fiscal_year), str(prev_year)]]
     semibold_rows = []  # Track rows that need semibold styling
+    sum_rows = []  # Track sum rows for extra spacing
     
     for row in rr_data:
-        # Filter logic: respect show_tag, always_show, hide zero rows
+        # Filter logic: respect show_tag
         if row.get('show_tag') == False:
             continue
         
         label = row.get('label', '')
+        block_group = row.get('block_group', '')
         
         # Check if this is a heading or sum row
         is_heading = any(heading in label for heading in rr_headings)
         is_sum = any(sum_label in label for sum_label in rr_sum_rows)
         
-        if not row.get('always_show') and not is_heading and not is_sum:
-            curr = _num(row.get('current_amount', 0))
-            prev = _num(row.get('previous_amount', 0))
-            if curr == 0 and prev == 0:
-                continue
+        # Block hiding logic: if this row belongs to a block, check if block has content
+        if block_group and not block_has_content(block_group):
+            continue
         
+        # Add note number "2" to Personalkostnader
         note = str(row.get('note_number', '')) if row.get('note_number') else ''
+        if 'Personalkostnader' in label or 'personalkostnader' in label.lower():
+            note = '2'
         
         # For heading rows: show empty amounts
         if is_heading:
             curr_fmt = ''
             prev_fmt = ''
         else:
+            # Filter zero rows (unless always_show or sum)
+            if not row.get('always_show') and not is_sum:
+                curr = _num(row.get('current_amount', 0))
+                prev = _num(row.get('previous_amount', 0))
+                if curr == 0 and prev == 0:
+                    continue
+            
             curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
             prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
         
         # Swap order: Post (label), Not (note), amounts
-        rr_table_data.append([label, note, curr_fmt, prev_fmt])
+        from reportlab.platypus import Paragraph as RLParagraph
+        # Wrap text in Post column
+        label_para = RLParagraph(label, P)
+        rr_table_data.append([label_para, note, curr_fmt, prev_fmt])
         
         # Track semibold rows (headings and sums)
         if is_heading or is_sum:
             semibold_rows.append(len(rr_table_data) - 1)  # Row index
+        
+        # Track sum rows for spacing
+        if is_sum:
+            sum_rows.append(len(rr_table_data) - 1)
     
     if len(rr_table_data) > 1:  # Has data beyond header
-        # Col widths: Post (flexible), Not (30pt), Year1 (80pt), Year2 (80pt)
-        t = Table(rr_table_data, hAlign='LEFT', colWidths=[None, 30, 80, 80])
+        # Col widths: Post (269pt fixed with wrap), Not (30pt), Year1 (80pt), Year2 (80pt)
+        t = Table(rr_table_data, hAlign='LEFT', colWidths=[269, 30, 80, 80])
         # Custom style with right-aligned year headers
         style = TableStyle([
             ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
@@ -576,6 +621,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         # Apply semibold to heading and sum rows
         for row_idx in semibold_rows:
             style.add('FONT', (0, row_idx), (-1, row_idx), 'Roboto-Medium', 10)
+        # Add 10pt space after sum rows
+        for row_idx in sum_rows:
+            style.add('BOTTOMPADDING', (0, row_idx), (-1, row_idx), 10)
         t.setStyle(style)
         elems.append(t)
     else:
