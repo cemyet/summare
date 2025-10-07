@@ -510,8 +510,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # Define section headings and sum rows for special formatting
     # Headings are category labels with no amounts (semibold)
     rr_headings = [
-        'Rörelseintäkter', 'lagerförändringar m.m.', 'Rörelsekostnader',
-        'Finansiella poster', 'Bokslutsdispositioner', 'Skatter'
+        'Rörelseintäkter', 'lagerförändringar m.m.', 'Rörelseintäkter, lagerförändringar m.m.',
+        'Rörelsekostnader', 'Finansiella poster', 'Bokslutsdispositioner', 'Skatter'
     ]
     # Sum rows are calculated totals with amounts (semibold)
     rr_sum_rows = [
