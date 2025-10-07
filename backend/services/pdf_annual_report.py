@@ -507,24 +507,54 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("Resultaträkning", H0))
     elems.append(Spacer(1, 16))  # 2 line breaks
     
+    # Define section headings and sum rows for special formatting
+    rr_headings = [
+        'Rörelseintäkter', 'lagerförändringar m.m.', 'Rörelsekostnader',
+        'Finansiella poster', 'Bokslutsdispositioner', 'Skatter'
+    ]
+    rr_sum_rows = [
+        'Summa rörelseintäkter', 'lagerförändringar m.m.', 'Summa rörelsekostnader',
+        'Rörelseresultat', 'Summa finansiella poster', 'Resultat efter finansiella poster',
+        'Summa bokslutsdispositioner', 'Resultat före skatt', 'Årets resultat'
+    ]
+    
     # Header: Post (no text), Not, years (right-aligned)
     rr_table_data = [["", "Not", str(fiscal_year), str(prev_year)]]
+    semibold_rows = []  # Track rows that need semibold styling
+    
     for row in rr_data:
         # Filter logic: respect show_tag, always_show, hide zero rows
         if row.get('show_tag') == False:
             continue
-        if not row.get('always_show'):
+        
+        label = row.get('label', '')
+        
+        # Check if this is a heading or sum row
+        is_heading = any(heading in label for heading in rr_headings)
+        is_sum = any(sum_label in label for sum_label in rr_sum_rows)
+        
+        if not row.get('always_show') and not is_heading and not is_sum:
             curr = _num(row.get('current_amount', 0))
             prev = _num(row.get('previous_amount', 0))
             if curr == 0 and prev == 0:
                 continue
         
         note = str(row.get('note_number', '')) if row.get('note_number') else ''
-        label = row.get('label', '')
-        curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
-        prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
+        
+        # For heading rows: show empty amounts
+        if is_heading:
+            curr_fmt = ''
+            prev_fmt = ''
+        else:
+            curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
+            prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
+        
         # Swap order: Post (label), Not (note), amounts
         rr_table_data.append([label, note, curr_fmt, prev_fmt])
+        
+        # Track semibold rows (headings and sums)
+        if is_heading or is_sum:
+            semibold_rows.append(len(rr_table_data) - 1)  # Row index
     
     if len(rr_table_data) > 1:  # Has data beyond header
         # Col widths: Post (flexible), Not (30pt), Year1 (80pt), Year2 (80pt)
@@ -543,6 +573,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ])
+        # Apply semibold to heading and sum rows
+        for row_idx in semibold_rows:
+            style.add('FONT', (0, row_idx), (-1, row_idx), 'Roboto-Medium', 10)
         t.setStyle(style)
         elems.append(t)
     else:
