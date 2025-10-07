@@ -39,10 +39,10 @@ def _fmt_int(n: float) -> str:
 def _styles():
     """
     Typography styles for PDF generation (19.2mm top margin, 24mm other margins, compact spacing)
-    H0: 16pt semibold, 0pt before, 4pt after (main titles like "Förvaltningsberättelse")
-    H1: 12pt semibold, 14pt before, 6pt after (subsections like "Verksamheten", "Flerårsöversikt")
+    H0: 16pt semibold, 0pt before, 0pt after (main titles like "Förvaltningsberättelse")
+    H1: 12pt semibold, 18pt before, 0pt after (subsections like "Verksamheten", "Flerårsöversikt")
     P: 10pt regular, 12pt leading, 2pt after
-    SMALL: 7pt (70% of 10pt) for "Belopp i tkr"
+    SMALL: 8pt for "Belopp i tkr"
     """
     ss = getSampleStyleSheet()
     
@@ -53,7 +53,7 @@ def _styles():
         fontName='Roboto-Medium', 
         fontSize=16, 
         spaceBefore=0, 
-        spaceAfter=4
+        spaceAfter=0
     )
     
     # H1 - Subsection headings (semibold)
@@ -62,7 +62,7 @@ def _styles():
         parent=ss['Heading2'], 
         fontName='Roboto-Medium', 
         fontSize=12, 
-        spaceBefore=14, 
+        spaceBefore=18, 
         spaceAfter=0  # No padding after heading
     )
     
