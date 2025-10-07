@@ -557,7 +557,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # Header: Post (no text), Not, years (right-aligned)
     rr_table_data = [["", "Not", str(fiscal_year), str(prev_year)]]
     semibold_rows = []  # Track rows that need semibold styling
-    sum_rows = []  # Track sum rows for extra spacing
+    sum_rows = []  # Track sum rows for extra spacing after
+    arets_resultat_row = None  # Track "Årets resultat" row for spacing before
     seen_rorelseresultat = False  # Track to skip the first (duplicate) Rörelseresultat
     
     for row in rr_data:
@@ -641,9 +642,13 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         if is_heading or is_sum:
             semibold_rows.append(len(rr_table_data) - 1)  # Row index
         
-        # Track sum rows for spacing
+        # Track sum rows for spacing after
         if is_sum:
             sum_rows.append(len(rr_table_data) - 1)
+        
+        # Track "Årets resultat" for spacing before
+        if label == 'Årets resultat':
+            arets_resultat_row = len(rr_table_data) - 1
     
     if len(rr_table_data) > 1:  # Has data beyond header
         # Col widths: Post (269pt fixed with wrap), Not (30pt), Year1 (80pt), Year2 (80pt)
@@ -664,6 +669,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         # Add 10pt space after sum rows
         for row_idx in sum_rows:
             style.add('BOTTOMPADDING', (0, row_idx), (-1, row_idx), 10)
+        # Add 10pt space before "Årets resultat"
+        if arets_resultat_row is not None:
+            style.add('TOPPADDING', (0, arets_resultat_row), (-1, arets_resultat_row), 10)
         t.setStyle(style)
         elems.append(t)
     else:
