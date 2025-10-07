@@ -505,9 +505,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # ===== 2. RESULTATRÄKNING =====
     elems.append(PageBreak())
     elems.append(Paragraph("Resultaträkning", H0))
-    elems.append(Spacer(1, 8))
+    elems.append(Spacer(1, 16))  # 2 line breaks
     
-    rr_table_data = [["Not", "Post", str(fiscal_year), str(prev_year)]]
+    # Header: Post (no text), Not, years (right-aligned)
+    rr_table_data = [["", "Not", str(fiscal_year), str(prev_year)]]
     for row in rr_data:
         # Filter logic: respect show_tag, always_show, hide zero rows
         if row.get('show_tag') == False:
@@ -522,11 +523,27 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         label = row.get('label', '')
         curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
         prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
-        rr_table_data.append([note, label, curr_fmt, prev_fmt])
+        # Swap order: Post (label), Not (note), amounts
+        rr_table_data.append([label, note, curr_fmt, prev_fmt])
     
     if len(rr_table_data) > 1:  # Has data beyond header
-        t = Table(rr_table_data, hAlign='LEFT', colWidths=[30, None, 80, 80])
-        t.setStyle(_table_style())
+        # Col widths: Post (flexible), Not (30pt), Year1 (80pt), Year2 (80pt)
+        t = Table(rr_table_data, hAlign='LEFT', colWidths=[None, 30, 80, 80])
+        # Custom style with right-aligned year headers
+        style = TableStyle([
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
+            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Regular for data rows
+            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
+            ('ALIGN', (1,0), (1,0), 'LEFT'),  # Left-align "Not" header
+            ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
+            ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ROWSPACING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ])
+        t.setStyle(style)
         elems.append(t)
     else:
         elems.append(Paragraph("Ingen data tillgänglig", P))
@@ -534,10 +551,11 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # ===== 3. BALANSRÄKNING (TILLGÅNGAR) =====
     elems.append(PageBreak())
     elems.append(Paragraph("Balansräkning (Tillgångar)", H0))
-    elems.append(Spacer(1, 8))
+    elems.append(Spacer(1, 16))  # 2 line breaks
     
     br_assets = [r for r in br_data if r.get('type') == 'asset']
-    br_assets_table = [["Not", "Post", str(fiscal_year), str(prev_year)]]
+    # Header: Post (no text), Not, years (right-aligned)
+    br_assets_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     for row in br_assets:
         if row.get('show_tag') == False:
             continue
@@ -551,11 +569,27 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         label = row.get('label', '')
         curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
         prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
-        br_assets_table.append([note, label, curr_fmt, prev_fmt])
+        # Swap order: Post (label), Not (note), amounts
+        br_assets_table.append([label, note, curr_fmt, prev_fmt])
     
     if len(br_assets_table) > 1:
-        t = Table(br_assets_table, hAlign='LEFT', colWidths=[30, None, 80, 80])
-        t.setStyle(_table_style())
+        # Col widths: Post (flexible), Not (30pt), Year1 (80pt), Year2 (80pt)
+        t = Table(br_assets_table, hAlign='LEFT', colWidths=[None, 30, 80, 80])
+        # Custom style with right-aligned year headers
+        style = TableStyle([
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
+            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Regular for data rows
+            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
+            ('ALIGN', (1,0), (1,0), 'LEFT'),  # Left-align "Not" header
+            ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
+            ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ROWSPACING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ])
+        t.setStyle(style)
         elems.append(t)
     else:
         elems.append(Paragraph("Ingen data tillgänglig", P))
@@ -563,10 +597,11 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # ===== 4. BALANSRÄKNING (EGET KAPITAL OCH SKULDER) =====
     elems.append(PageBreak())
     elems.append(Paragraph("Balansräkning (Eget kapital och skulder)", H0))
-    elems.append(Spacer(1, 8))
+    elems.append(Spacer(1, 16))  # 2 line breaks
     
     br_equity_liab = [r for r in br_data if r.get('type') in ['equity', 'liability']]
-    br_eq_table = [["Not", "Post", str(fiscal_year), str(prev_year)]]
+    # Header: Post (no text), Not, years (right-aligned)
+    br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     for row in br_equity_liab:
         if row.get('show_tag') == False:
             continue
@@ -580,11 +615,27 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         label = row.get('label', '')
         curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
         prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
-        br_eq_table.append([note, label, curr_fmt, prev_fmt])
+        # Swap order: Post (label), Not (note), amounts
+        br_eq_table.append([label, note, curr_fmt, prev_fmt])
     
     if len(br_eq_table) > 1:
-        t = Table(br_eq_table, hAlign='LEFT', colWidths=[30, None, 80, 80])
-        t.setStyle(_table_style())
+        # Col widths: Post (flexible), Not (30pt), Year1 (80pt), Year2 (80pt)
+        t = Table(br_eq_table, hAlign='LEFT', colWidths=[None, 30, 80, 80])
+        # Custom style with right-aligned year headers
+        style = TableStyle([
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
+            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Regular for data rows
+            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
+            ('ALIGN', (1,0), (1,0), 'LEFT'),  # Left-align "Not" header
+            ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
+            ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ROWSPACING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ])
+        t.setStyle(style)
         elems.append(t)
     else:
         elems.append(Paragraph("Ingen data tillgänglig", P))
