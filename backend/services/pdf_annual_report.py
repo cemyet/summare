@@ -558,6 +558,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     rr_table_data = [["", "Not", str(fiscal_year), str(prev_year)]]
     semibold_rows = []  # Track rows that need semibold styling
     sum_rows = []  # Track sum rows for extra spacing
+    seen_rorelseresultat = False  # Track to skip the first (duplicate) Rörelseresultat
     
     for row in rr_data:
         # Filter logic: respect show_tag
@@ -567,10 +568,13 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         label = row.get('label', '')
         block_group = row.get('block_group', '')
         
-        # Skip rows that should not show amounts (header rows without show_amount)
-        # This hides the duplicate "Rörelseresultat" at the top
-        if row.get('show_amount') == False:
-            continue
+        # Skip the FIRST occurrence of "Rörelseresultat" (the duplicate at the top)
+        # Keep the second one (the sum row after Summa rörelsekostnader)
+        if label == 'Rörelseresultat':
+            if not seen_rorelseresultat:
+                seen_rorelseresultat = True
+                continue  # Skip the first one
+            # If we get here, it's the second one - keep it
         
         # Check if this is a heading or sum row
         # Use exact match or specific logic to avoid confusion
@@ -621,10 +625,17 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         if is_heading or is_sum:
             label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
             label_para = RLParagraph(label, label_style)
+            # Also apply semibold to amounts for sum rows (not for headings which have empty amounts)
+            if is_sum and curr_fmt:  # Sum rows have amounts
+                amount_style = ParagraphStyle('SemiboldAmount', parent=P, fontName='Roboto-Medium', alignment=2)  # 2=RIGHT
+                curr_para = RLParagraph(curr_fmt, amount_style)
+                prev_para = RLParagraph(prev_fmt, amount_style)
+                rr_table_data.append([label_para, note, curr_para, prev_para])
+            else:  # Headings with empty amounts
+                rr_table_data.append([label_para, note, curr_fmt, prev_fmt])
         else:
             label_para = RLParagraph(label, P)
-        
-        rr_table_data.append([label_para, note, curr_fmt, prev_fmt])
+            rr_table_data.append([label_para, note, curr_fmt, prev_fmt])
         
         # Track semibold rows (headings and sums) - still track for potential additional styling
         if is_heading or is_sum:
