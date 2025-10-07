@@ -508,13 +508,15 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Spacer(1, 16))  # 2 line breaks
     
     # Define section headings and sum rows for special formatting
+    # Headings are category labels with no amounts (semibold)
     rr_headings = [
         'Rörelseintäkter', 'lagerförändringar m.m.', 'Rörelsekostnader',
-        'Finansiella poster', 'Bokslutsdispositioner', 'Skatter',
-        'Rörelseresultat'  # Rörelseresultat is a heading with no amounts
+        'Finansiella poster', 'Bokslutsdispositioner', 'Skatter'
     ]
+    # Sum rows are calculated totals with amounts (semibold)
     rr_sum_rows = [
         'Summa rörelseintäkter', 'lagerförändringar m.m.', 'Summa rörelsekostnader',
+        'Rörelseresultat',  # This is a sum row with formula (comes after Summa rörelsekostnader)
         'Summa finansiella poster', 'Resultat efter finansiella poster',
         'Summa bokslutsdispositioner', 'Resultat före skatt', 'Årets resultat'
     ]
@@ -533,9 +535,15 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             if row.get('block_group') != block_group:
                 continue
             label = row.get('label', '')
-            # Skip headings and sums when checking content
-            if any(h in label for h in rr_headings) or any(s in label for s in rr_sum_rows):
+            
+            # Skip headings (exact match only)
+            row_is_heading = any(h == label for h in rr_headings)
+            # Skip sums (exact match or starts with "Summa")
+            row_is_sum = any(s == label or (s in label and label.startswith('Summa')) for s in rr_sum_rows)
+            
+            if row_is_heading or row_is_sum:
                 continue
+            
             # Check if this row has non-zero amount or always_show
             if row.get('always_show'):
                 return True
@@ -560,8 +568,23 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         block_group = row.get('block_group', '')
         
         # Check if this is a heading or sum row
-        is_heading = any(heading in label for heading in rr_headings)
-        is_sum = any(sum_label in label for sum_label in rr_sum_rows)
+        # Use exact match or specific logic to avoid confusion
+        # e.g., "lagerförändringar m.m." is a heading, but "Summa rörelseintäkter, lagerförändringar m.m." is a sum
+        is_sum = False
+        is_heading = False
+        
+        # Check sum rows first (more specific)
+        for sum_label in rr_sum_rows:
+            if sum_label == label or (sum_label in label and label.startswith('Summa')):
+                is_sum = True
+                break
+        
+        # If not a sum, check headings (exact match only)
+        if not is_sum:
+            for heading in rr_headings:
+                if heading == label:
+                    is_heading = True
+                    break
         
         # Block hiding logic: if this row belongs to a block, check if block has content
         if block_group and not block_has_content(block_group):
