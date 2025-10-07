@@ -63,7 +63,7 @@ def _styles():
         fontName='Roboto-Medium', 
         fontSize=12, 
         spaceBefore=14, 
-        spaceAfter=6
+        spaceAfter=0  # No padding after heading
     )
     
     # P - Body text
@@ -77,13 +77,13 @@ def _styles():
         spaceAfter=2
     )
     
-    # SMALL - 70% of normal font size for table subheadings like "Belopp i tkr"
+    # SMALL - 8pt for table subheadings like "Belopp i tkr"
     small = ParagraphStyle(
         'SMALL', 
         parent=p, 
-        fontSize=7,  # 70% of 10pt
+        fontSize=8,
         spaceBefore=0, 
-        spaceAfter=2,
+        spaceAfter=0,  # No extra space after
         textColor=colors.black
     )
     return h0, h1, p, small
@@ -394,37 +394,36 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     
     # Available funds breakdown
     if balanserat != 0:
-        table_data.append(["Balanserat resultat", "", _fmt_int(balanserat)])
+        table_data.append(["Balanserat resultat", _fmt_int(balanserat)])
     if arets_res != 0:
-        table_data.append(["Årets resultat", "", _fmt_int(arets_res)])
+        table_data.append(["Årets resultat", _fmt_int(arets_res)])
     
     # First Summa row
     summa_rows.append(len(table_data))
-    table_data.append(["Summa", "", _fmt_int(summa)])
+    table_data.append(["Summa", _fmt_int(summa)])
     
     # Empty row for spacing
-    table_data.append(["", "", ""])
+    table_data.append(["", ""])
     
     # Disposition section header
-    table_data.append(["Disponeras enligt följande", "", ""])
+    table_data.append(["Disponeras enligt följande", ""])
     
     # Disposition breakdown - always show "Utdelas till aktieägare" even if 0
-    table_data.append(["Utdelas till aktieägare", "", _fmt_int(arets_utdelning)])
+    table_data.append(["Utdelas till aktieägare", _fmt_int(arets_utdelning)])
     
     balanseras = summa - arets_utdelning
-    table_data.append(["Balanseras i ny räkning", "", _fmt_int(balanseras)])
+    table_data.append(["Balanseras i ny räkning", _fmt_int(balanseras)])
     
     # Final summa row
     summa_rows.append(len(table_data))
-    table_data.append(["Summa", "", _fmt_int(summa)])
+    table_data.append(["Summa", _fmt_int(summa)])
     
-    # Column widths: label (160pt), spacer to align with 3rd column (100pt), amount (199pt)
-    # This aligns the amount with approximately the 3rd column of Förändringar i eget kapital
-    t = Table(table_data, hAlign='LEFT', colWidths=[160, 100, 199])
+    # Simple 2-column layout with amounts close to labels
+    t = Table(table_data, hAlign='LEFT', colWidths=[300, 150])
     # Custom style for Resultatdisposition (no header underline, 0pt spacing, semibold Summa rows)
     style = TableStyle([
         ('FONT', (0,0), (-1,-1), 'Roboto', 10),
-        ('ALIGN', (2,0), (2,-1), 'RIGHT'),  # Right-align amounts in column 3
+        ('ALIGN', (1,0), (1,-1), 'RIGHT'),  # Right-align amounts
         ('ROWSPACING', (0,0), (-1,-1), 0),  # 0pt row spacing
         ('BOTTOMPADDING', (0,0), (-1,-1), 0),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -437,8 +436,9 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     elems.append(t)
     elems.append(Spacer(1, 8))
     
-    # Add dividend policy text if utdelning > 0
+    # Add dividend policy text if utdelning > 0 (with extra line break before)
     if arets_utdelning > 0:
+        elems.append(Spacer(1, 8))  # Extra line break
         dividend_text = ("Styrelsen anser att förslaget är förenligt med försiktighetsregeln "
                         "i 17 kap. 3 § aktiebolagslagen enligt följande redogörelse. Styrelsens "
                         "uppfattning är att vinstutdelningen är försvarlig med hänsyn till de krav "
