@@ -567,6 +567,11 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         label = row.get('label', '')
         block_group = row.get('block_group', '')
         
+        # Skip rows that should not show amounts (header rows without show_amount)
+        # This hides the duplicate "Rörelseresultat" at the top
+        if row.get('show_amount') == False:
+            continue
+        
         # Check if this is a heading or sum row
         # Use exact match or specific logic to avoid confusion
         # e.g., "lagerförändringar m.m." is a heading, but "Summa rörelseintäkter, lagerförändringar m.m." is a sum
@@ -612,11 +617,16 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         
         # Swap order: Post (label), Not (note), amounts
         from reportlab.platypus import Paragraph as RLParagraph
-        # Wrap text in Post column
-        label_para = RLParagraph(label, P)
+        # Apply semibold style directly to label if it's a heading or sum
+        if is_heading or is_sum:
+            label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
+            label_para = RLParagraph(label, label_style)
+        else:
+            label_para = RLParagraph(label, P)
+        
         rr_table_data.append([label_para, note, curr_fmt, prev_fmt])
         
-        # Track semibold rows (headings and sums)
+        # Track semibold rows (headings and sums) - still track for potential additional styling
         if is_heading or is_sum:
             semibold_rows.append(len(rr_table_data) - 1)  # Row index
         
@@ -630,9 +640,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         # Custom style with right-aligned year headers
         style = TableStyle([
             ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
-            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Regular for data rows
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
-            ('ALIGN', (1,0), (1,0), 'LEFT'),  # Left-align "Not" header
+            ('ALIGN', (1,0), (1,-1), 'CENTER'),  # Center "Not" column (header and all rows)
             ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
             ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -641,9 +650,6 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ])
-        # Apply semibold to heading and sum rows
-        for row_idx in semibold_rows:
-            style.add('FONT', (0, row_idx), (-1, row_idx), 'Roboto-Medium', 10)
         # Add 10pt space after sum rows
         for row_idx in sum_rows:
             style.add('BOTTOMPADDING', (0, row_idx), (-1, row_idx), 10)
