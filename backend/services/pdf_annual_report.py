@@ -38,10 +38,11 @@ def _fmt_int(n: float) -> str:
 
 def _styles():
     """
-    Typography styles for PDF generation (24mm margins, compact spacing)
+    Typography styles for PDF generation (19.2mm top margin, 24mm other margins, compact spacing)
     H0: 16pt semibold, 0pt before, 4pt after (main titles like "Förvaltningsberättelse")
     H1: 12pt semibold, 14pt before, 6pt after (subsections like "Verksamheten", "Flerårsöversikt")
     P: 10pt regular, 12pt leading, 2pt after
+    SMALL: 7pt (70% of 10pt) for "Belopp i tkr"
     """
     ss = getSampleStyleSheet()
     
@@ -76,7 +77,15 @@ def _styles():
         spaceAfter=2
     )
     
-    small = ParagraphStyle('SMALL', parent=p, fontSize=9, textColor=colors.grey)
+    # SMALL - 70% of normal font size for table subheadings like "Belopp i tkr"
+    small = ParagraphStyle(
+        'SMALL', 
+        parent=p, 
+        fontSize=7,  # 70% of 10pt
+        spaceBefore=0, 
+        spaceAfter=2,
+        textColor=colors.black
+    )
     return h0, h1, p, small
 
 def _table_style():
@@ -115,10 +124,10 @@ def _extract_fb_texts(cd: Dict[str, Any]) -> Tuple[str, str]:
     
     return verksamhet.strip() or "–", vasentliga
 
-def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, P):
+def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL):
     """Render Flerårsöversikt exactly as shown in frontend - 3 years from scraped data"""
     elems.append(Paragraph("Flerårsöversikt", H1))
-    elems.append(Paragraph("Belopp i tkr", P))
+    elems.append(Paragraph("Belopp i tkr", SMALL))
     
     # Get flerårsöversikt data from companyData (comes from frontend state)
     flerars = company_data.get('flerarsoversikt', {})
@@ -352,7 +361,7 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
         elems.append(Spacer(1, 8))
 
 def _render_resultatdisposition(elems, company_data, H1, P):
-    """Render Resultatdisposition section with correct row structure"""
+    """Render Resultatdisposition section with correct row structure and utdelning text"""
     fb_table = company_data.get('fbTable', [])
     arets_utdelning = _num(company_data.get('arets_utdelning', 0))
     
@@ -385,35 +394,37 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     
     # Available funds breakdown
     if balanserat != 0:
-        table_data.append(["Balanserat resultat", _fmt_int(balanserat)])
+        table_data.append(["Balanserat resultat", "", _fmt_int(balanserat)])
     if arets_res != 0:
-        table_data.append(["Årets resultat", _fmt_int(arets_res)])
+        table_data.append(["Årets resultat", "", _fmt_int(arets_res)])
     
     # First Summa row
     summa_rows.append(len(table_data))
-    table_data.append(["Summa", _fmt_int(summa)])
+    table_data.append(["Summa", "", _fmt_int(summa)])
     
     # Empty row for spacing
-    table_data.append(["", ""])
+    table_data.append(["", "", ""])
     
     # Disposition section header
-    table_data.append(["Disponeras enligt följande", ""])
+    table_data.append(["Disponeras enligt följande", "", ""])
     
     # Disposition breakdown - always show "Utdelas till aktieägare" even if 0
-    table_data.append(["Utdelas till aktieägare", _fmt_int(arets_utdelning)])
+    table_data.append(["Utdelas till aktieägare", "", _fmt_int(arets_utdelning)])
     
     balanseras = summa - arets_utdelning
-    table_data.append(["Balanseras i ny räkning", _fmt_int(balanseras)])
+    table_data.append(["Balanseras i ny räkning", "", _fmt_int(balanseras)])
     
     # Final summa row
     summa_rows.append(len(table_data))
-    table_data.append(["Summa", _fmt_int(summa)])
+    table_data.append(["Summa", "", _fmt_int(summa)])
     
-    t = Table(table_data, hAlign='LEFT', colWidths=[280, 120])
+    # Column widths: label (160pt), spacer to align with 3rd column (100pt), amount (199pt)
+    # This aligns the amount with approximately the 3rd column of Förändringar i eget kapital
+    t = Table(table_data, hAlign='LEFT', colWidths=[160, 100, 199])
     # Custom style for Resultatdisposition (no header underline, 0pt spacing, semibold Summa rows)
     style = TableStyle([
         ('FONT', (0,0), (-1,-1), 'Roboto', 10),
-        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+        ('ALIGN', (2,0), (2,-1), 'RIGHT'),  # Right-align amounts in column 3
         ('ROWSPACING', (0,0), (-1,-1), 0),  # 0pt row spacing
         ('BOTTOMPADDING', (0,0), (-1,-1), 0),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
@@ -425,6 +436,16 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     t.setStyle(style)
     elems.append(t)
     elems.append(Spacer(1, 8))
+    
+    # Add dividend policy text if utdelning > 0
+    if arets_utdelning > 0:
+        dividend_text = ("Styrelsen anser att förslaget är förenligt med försiktighetsregeln "
+                        "i 17 kap. 3 § aktiebolagslagen enligt följande redogörelse. Styrelsens "
+                        "uppfattning är att vinstutdelningen är försvarlig med hänsyn till de krav "
+                        "verksamhetens art, omfattning och risk ställer på storleken på det egna "
+                        "kapitalet, bolagets konsolideringsbehov, likviditet och ställning i övrigt.")
+        elems.append(Paragraph(dividend_text, P))
+        elems.append(Spacer(1, 8))
 
 def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     """
@@ -439,9 +460,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     doc = SimpleDocTemplate(
         buf, 
         pagesize=A4, 
-        leftMargin=68,  # 24mm
+        leftMargin=68,  # 24mm (~68pt)
         rightMargin=68, 
-        topMargin=68, 
+        topMargin=54,  # 19.2mm (80% of 24mm)
         bottomMargin=68
     )
     
@@ -473,7 +494,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Spacer(1, 8))
     
     # Flerårsöversikt
-    _render_flerarsoversikt(elems, company_data, fiscal_year, H1, P)
+    _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL)
     
     # Förändringar i eget kapital
     _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_year, H1)
