@@ -419,7 +419,7 @@ def _render_resultatdisposition(elems, company_data, H1, P):
     table_data.append(["Summa", _fmt_int(summa)])
     
     # Simple 2-column layout with amounts close to labels
-    t = Table(table_data, hAlign='LEFT', colWidths=[300, 150])
+    t = Table(table_data, hAlign='LEFT', colWidths=[150, 150])
     # Custom style for Resultatdisposition (no header underline, 0pt spacing, semibold Summa rows)
     style = TableStyle([
         ('FONT', (0,0), (-1,-1), 'Roboto', 10),
