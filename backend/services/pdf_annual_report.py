@@ -921,7 +921,14 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         
         return False
     
-    br_equity_liab = [r for r in br_data if r.get('type') in ['equity', 'liability']]
+    # Include equity/liability rows AND any heading rows (style H0-H3) regardless of type
+    def _is_br_heading(item: dict) -> bool:
+        return item.get('style') in ['H0', 'H1', 'H2', 'H3']
+    
+    br_equity_liab = [
+        r for r in br_data
+        if (r.get('type') in ['equity', 'liability']) or _is_br_heading(r)
+    ]
     # Header: Post (no text), Not, years (right-aligned)
     br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     sum_rows_br_equity_liab = []
@@ -931,16 +938,20 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     BR_H1 = ParagraphStyle('BR_H1', parent=H1, fontSize=10, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
     BR_H2 = ParagraphStyle('BR_H2', parent=H2, fontSize=12, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
     
-    # Helper: Check if row should show (simplified - headings ALWAYS show)
+    # Helper: Check if row should show (headings show if block has content)
     def should_show_row_br_equity(item: dict) -> bool:
         """Determine if a row should be shown based on frontend logic"""
         style = item.get('style', '')
+        block_group = item.get('block_group', '')
         
         # Check if this is a heading based on style field (H0, H1, H2, H3)
         is_heading = style in ['H0', 'H1', 'H2', 'H3']
         
-        # ALL headings ALWAYS show - they provide structure
+        # For headings: hide entire block (including heading) if it has no content
         if is_heading:
+            if block_group and not block_has_content_br_equity_liab(block_group):
+                return False
+            # Otherwise show the heading
             return True
         
         # For non-headings, check amounts or always_show
