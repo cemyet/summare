@@ -902,35 +902,6 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         'Summa eget kapital och skulder'
     ]
     
-    # Map sum rows to their corresponding heading (heading shows only if sum shows)
-    sum_to_heading_map = {
-        'Summa bundet eget kapital': 'Bundet eget kapital',
-        'Summa fritt eget kapital': 'Fritt eget kapital',
-        'Summa obeskattade reserver': 'Obeskattade reserver',
-        'Summa avsättningar': 'Avsättningar',
-        'Summa långfristiga skulder': 'Långfristiga skulder',
-        'Summa kortfristiga skulder': 'Kortfristiga skulder'
-    }
-    
-    # First pass: determine which sum rows will show (to know which headings to insert)
-    sum_rows_that_will_show = set()
-    for row in br_equity_liab:
-        if row.get('show_tag') == False:
-            continue
-        label = row.get('label', '')
-        # Check if this is a sum row
-        is_sum = any(sum_label == label or (sum_label in label and label.startswith('Summa')) 
-                     for sum_label in br_equity_liab_sum_rows)
-        if is_sum:
-            # Check if it has content or always_show
-            if row.get('always_show'):
-                sum_rows_that_will_show.add(label)
-            else:
-                curr = _num(row.get('current_amount', 0))
-                prev = _num(row.get('previous_amount', 0))
-                if curr != 0 or prev != 0:
-                    sum_rows_that_will_show.add(label)
-    
     # Helper function to check if a block_group has content (same as RR)
     def block_has_content_br_equity_liab(block_group: str) -> bool:
         """Check if any non-heading row in this block has non-zero amounts"""
@@ -965,110 +936,74 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # Header: Post (no text), Not, years (right-aligned)
     br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     sum_rows_br_equity_liab = []
-    inserted_headings = set()  # Track which headings we've already inserted
-    pending_heading = None  # Track heading to insert before next non-heading/non-sum row
     
     # Create BR H1 and H2 styles with correct font sizes
     from reportlab.platypus import Paragraph as RLParagraph
     BR_H1 = ParagraphStyle('BR_H1', parent=H1, fontSize=10, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
     BR_H2 = ParagraphStyle('BR_H2', parent=H2, fontSize=12, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
     
-    # Create a mapping from sum rows to their block_group to identify which rows belong to which heading
-    # We'll process rows and track which block we're entering
+    # Helper: Check if row should show (same logic as frontend)
+    def should_show_row_br_equity(item: dict) -> bool:
+        """Determine if a row should be shown based on frontend logic"""
+        # Check if this is a heading
+        is_heading = False
+        is_h2_heading = item.get('label') in br_equity_liab_h2_headings
+        is_h1_heading = item.get('label') in br_equity_liab_h1_headings
+        is_heading = is_h2_heading or is_h1_heading
+        
+        if is_heading:
+            # For headings, check if their block group has content
+            block_group = item.get('block_group', '')
+            if block_group:
+                return block_has_content_br_equity_liab(block_group)
+            # Headings without block_group must follow always_show rule
+            return item.get('always_show') == True
+        
+        # For non-headings, check amounts or always_show
+        has_non_zero = (item.get('current_amount') not in [None, 0]) or \
+                      (item.get('previous_amount') not in [None, 0])
+        is_always_show = item.get('always_show') == True
+        has_note = item.get('note_number') is not None
+        
+        return has_non_zero or is_always_show or has_note
     
     for row in br_equity_liab:
         if row.get('show_tag') == False:
             continue
         
-        label = row.get('label', '')
-        block_group = row.get('block_group', '')
-        
-        # Check if this is a heading or sum row
-        is_sum = False
-        is_h2_heading = False
-        is_h1_heading = False
-        
-        # Check sum rows first
-        for sum_label in br_equity_liab_sum_rows:
-            if sum_label == label or (sum_label in label and label.startswith('Summa')):
-                is_sum = True
-                break
-        
-        # If not a sum, check headings
-        if not is_sum:
-            for heading in br_equity_liab_h2_headings:
-                if heading == label:
-                    is_h2_heading = True
-                    break
-            if not is_h2_heading:
-                for heading in br_equity_liab_h1_headings:
-                    if heading == label:
-                        is_h1_heading = True
-                        break
-        
-        is_heading = is_h2_heading or is_h1_heading
-        
-        # Block hiding logic
-        if block_group and not block_has_content_br_equity_liab(block_group):
+        # Use frontend logic to determine if row should show
+        if not should_show_row_br_equity(row):
             continue
         
+        label = row.get('label', '')
         note = str(row.get('note_number', '')) if row.get('note_number') else ''
         
-        # For heading rows: show empty amounts
+        # Check if this is a heading or sum row
+        is_h2_heading = label in br_equity_liab_h2_headings
+        is_h1_heading = label in br_equity_liab_h1_headings
+        is_heading = is_h2_heading or is_h1_heading
+        
+        is_sum = any(sum_label == label or (sum_label in label and label.startswith('Summa')) 
+                    for sum_label in br_equity_liab_sum_rows)
+        
+        # Format amounts
         if is_heading:
             curr_fmt = ''
             prev_fmt = ''
         else:
-            # Filter zero rows (unless always_show or sum)
-            if not row.get('always_show') and not is_sum:
-                curr = _num(row.get('current_amount', 0))
-                prev = _num(row.get('previous_amount', 0))
-                if curr == 0 and prev == 0:
-                    continue
-            
             curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
             prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
         
-        # If we have a pending heading and this is not a heading, insert it now
-        if pending_heading and not is_heading:
-            heading_para = RLParagraph(pending_heading, BR_H1)
-            br_eq_table.append([heading_para, '', '', ''])
-            inserted_headings.add(pending_heading)
-            pending_heading = None
-        
-        # Swap order: Post (label), Not (note), amounts
-        # Apply semibold style directly to label if it's a heading or sum
+        # Build row with appropriate styling
         if is_h2_heading:
             # H2 style for major headings (12pt)
             label_para = RLParagraph(label, BR_H2)
             br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
-            inserted_headings.add(label)
         elif is_h1_heading:
             # H1 style for section headings (10pt)
             label_para = RLParagraph(label, BR_H1)
             br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
-            inserted_headings.add(label)
         elif is_sum:
-            # Check if this sum row maps to a heading that we need to auto-insert for future blocks
-            # Look ahead: after this sum, what heading should we insert?
-            for future_sum, future_heading in sum_to_heading_map.items():
-                if future_sum in sum_rows_that_will_show and future_heading not in inserted_headings:
-                    # We'll need to insert this heading before the next block starts
-                    # But we can't know which sum comes next, so let's check if this sum row
-                    # corresponds to the heading that should precede the next block
-                    pass
-            
-            # Check if we should have inserted a heading for THIS block before now
-            if label in sum_to_heading_map:
-                heading_for_this_block = sum_to_heading_map[label]
-                if heading_for_this_block not in inserted_headings and label in sum_rows_that_will_show:
-                    # We should have inserted this heading but didn't - this means it was missing from data
-                    # and we need to mark it for insertion AFTER this sum (for the pattern where
-                    # heading comes after previous sum)
-                    # Actually, user wants heading BEFORE its rows, not after the sum
-                    # This is tricky - we missed the window. Skip for now and fix in next iteration.
-                    pass
-            
             # Semibold for sum rows (both label and amounts)
             label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
             label_para = RLParagraph(label, label_style)
@@ -1079,22 +1014,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
                 br_eq_table.append([label_para, note, curr_para, prev_para])
             else:
                 br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
-            
-            # After adding this sum, prepare to insert the next heading (if any)
-            # Find which heading should come after this sum
-            sum_row_labels_list = list(br_equity_liab_sum_rows)
-            try:
-                current_sum_idx = sum_row_labels_list.index(label)
-                # Check if there's a next sum that maps to a heading
-                for next_sum_label in sum_row_labels_list[current_sum_idx + 1:]:
-                    if next_sum_label in sum_to_heading_map and next_sum_label in sum_rows_that_will_show:
-                        next_heading = sum_to_heading_map[next_sum_label]
-                        if next_heading not in inserted_headings:
-                            pending_heading = next_heading
-                            break
-            except ValueError:
-                pass
         else:
+            # Regular row
             label_para = RLParagraph(label, P)
             br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
         
