@@ -931,7 +931,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     BR_H1 = ParagraphStyle('BR_H1', parent=H1, fontSize=10, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
     BR_H2 = ParagraphStyle('BR_H2', parent=H2, fontSize=12, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
     
-    # Helper: Check if row should show (same logic as frontend - use actual style field)
+    # Helper: Check if row should show (simplified - headings ALWAYS show)
     def should_show_row_br_equity(item: dict) -> bool:
         """Determine if a row should be shown based on frontend logic"""
         style = item.get('style', '')
@@ -939,16 +939,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         # Check if this is a heading based on style field (H0, H1, H2, H3)
         is_heading = style in ['H0', 'H1', 'H2', 'H3']
         
+        # ALL headings ALWAYS show - they provide structure
         if is_heading:
-            # For headings, check if their block group has content
-            block_group = item.get('block_group', '')
-            if block_group:
-                return block_has_content_br_equity_liab(block_group)
-            # Headings without block_group: show if always_show is True
-            if item.get('always_show') == True:
-                return True
-            # For structural headings, always show them (they organize the report structure)
-            # These include major sections like "Eget kapital och skulder", "Eget kapital", etc.
             return True
         
         # For non-headings, check amounts or always_show
