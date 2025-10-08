@@ -956,8 +956,17 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             block_group = item.get('block_group', '')
             if block_group:
                 return block_has_content_br_equity_liab(block_group)
-            # Headings without block_group must follow always_show rule
-            return item.get('always_show') == True
+            # Headings without block_group: show if always_show OR if it's a major structural heading
+            # Major headings like "Eget kapital och skulder", "Eget kapital" should always show
+            if item.get('always_show') == True:
+                return True
+            # Show major structural headings even if always_show is not set
+            if is_h2_heading or item.get('label') in ['Eget kapital', 'Bundet eget kapital', 
+                                                        'Fritt eget kapital', 'Obeskattade reserver',
+                                                        'Avsättningar', 'Långfristiga skulder', 
+                                                        'Kortfristiga skulder']:
+                return True
+            return False
         
         # For non-headings, check amounts or always_show
         has_non_zero = (item.get('current_amount') not in [None, 0]) or \
