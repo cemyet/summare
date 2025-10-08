@@ -929,6 +929,17 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         r for r in br_data
         if (r.get('type') in ['equity', 'liability']) or _is_br_heading(r)
     ]
+    
+    # Headings that must NOT appear on the equity & liabilities page
+    HIDE_HEADINGS_BR_EQ = {
+        'Balansräkning',
+        'Tillgångar',
+        'Tecknat men ej inbetalt kapital',
+        'Anläggningstillgångar',
+        'Omsättningstillgångar',
+        'Eget kapital och skulder',  # top-level page-1 heading, not here
+    }
+    
     # Header: Post (no text), Not, years (right-aligned)
     br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     sum_rows_br_equity_liab = []
@@ -966,11 +977,15 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         if row.get('show_tag') == False:
             continue
         
+        label = row.get('label', '')
+        
+        # Hide assets-page and global headings on this page
+        if label in HIDE_HEADINGS_BR_EQ:
+            continue
+        
         # Use frontend logic to determine if row should show
         if not should_show_row_br_equity(row):
             continue
-        
-        label = row.get('label', '')
         note = str(row.get('note_number', '')) if row.get('note_number') else ''
         style = row.get('style', '')
         
