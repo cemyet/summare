@@ -881,19 +881,6 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("Balansräkning", H0))
     elems.append(Spacer(1, 16))  # 2 line breaks
     
-    # Define H2 headings for BR Eget kapital och skulder (12pt semibold, no amounts)
-    br_equity_liab_h2_headings = [
-        'Eget kapital och skulder'
-    ]
-    # Define H1 headings for BR Eget kapital och skulder (10pt semibold, no amounts)
-    br_equity_liab_h1_headings = [
-        'Eget kapital', 'Bundet eget kapital', 'Fritt eget kapital',
-        'Obeskattade reserver', 'Avsättningar',
-        'Långfristiga skulder', 'Kortfristiga skulder'
-    ]
-    # All headings combined
-    br_equity_liab_headings = br_equity_liab_h2_headings + br_equity_liab_h1_headings
-    
     # Define sum rows for BR Eget kapital och skulder (semibold for both text and amounts)
     br_equity_liab_sum_rows = [
         'Summa bundet eget kapital', 'Summa fritt eget kapital', 'Summa eget kapital',
@@ -902,7 +889,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         'Summa eget kapital och skulder'
     ]
     
-    # Helper function to check if a block_group has content (same as RR)
+    # Helper function to check if a block_group has content (use style field)
     def block_has_content_br_equity_liab(block_group: str) -> bool:
         """Check if any non-heading row in this block has non-zero amounts"""
         if not block_group:
@@ -913,10 +900,12 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
                 continue
             if row.get('block_group') != block_group:
                 continue
+            
+            style = row.get('style', '')
             label = row.get('label', '')
             
-            # Skip headings and sums
-            row_is_heading = any(h == label for h in br_equity_liab_headings)
+            # Skip headings (H0, H1, H2, H3) and sums
+            row_is_heading = style in ['H0', 'H1', 'H2', 'H3']
             row_is_sum = any(s == label or (s in label and label.startswith('Summa')) for s in br_equity_liab_sum_rows)
             
             if row_is_heading or row_is_sum:
@@ -942,31 +931,25 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     BR_H1 = ParagraphStyle('BR_H1', parent=H1, fontSize=10, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
     BR_H2 = ParagraphStyle('BR_H2', parent=H2, fontSize=12, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
     
-    # Helper: Check if row should show (same logic as frontend)
+    # Helper: Check if row should show (same logic as frontend - use actual style field)
     def should_show_row_br_equity(item: dict) -> bool:
         """Determine if a row should be shown based on frontend logic"""
-        # Check if this is a heading
-        is_heading = False
-        is_h2_heading = item.get('label') in br_equity_liab_h2_headings
-        is_h1_heading = item.get('label') in br_equity_liab_h1_headings
-        is_heading = is_h2_heading or is_h1_heading
+        style = item.get('style', '')
+        
+        # Check if this is a heading based on style field (H0, H1, H2, H3)
+        is_heading = style in ['H0', 'H1', 'H2', 'H3']
         
         if is_heading:
             # For headings, check if their block group has content
             block_group = item.get('block_group', '')
             if block_group:
                 return block_has_content_br_equity_liab(block_group)
-            # Headings without block_group: show if always_show OR if it's a major structural heading
-            # Major headings like "Eget kapital och skulder", "Eget kapital" should always show
+            # Headings without block_group: show if always_show is True
             if item.get('always_show') == True:
                 return True
-            # Show major structural headings even if always_show is not set
-            if is_h2_heading or item.get('label') in ['Eget kapital', 'Bundet eget kapital', 
-                                                        'Fritt eget kapital', 'Obeskattade reserver',
-                                                        'Avsättningar', 'Långfristiga skulder', 
-                                                        'Kortfristiga skulder']:
-                return True
-            return False
+            # For structural headings, always show them (they organize the report structure)
+            # These include major sections like "Eget kapital och skulder", "Eget kapital", etc.
+            return True
         
         # For non-headings, check amounts or always_show
         has_non_zero = (item.get('current_amount') not in [None, 0]) or \
@@ -986,12 +969,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         
         label = row.get('label', '')
         note = str(row.get('note_number', '')) if row.get('note_number') else ''
+        style = row.get('style', '')
         
-        # Check if this is a heading or sum row
-        is_h2_heading = label in br_equity_liab_h2_headings
-        is_h1_heading = label in br_equity_liab_h1_headings
-        is_heading = is_h2_heading or is_h1_heading
-        
+        # Check if this is a heading or sum row based on style
+        is_heading = style in ['H0', 'H1', 'H2', 'H3']
         is_sum = any(sum_label == label or (sum_label in label and label.startswith('Summa')) 
                     for sum_label in br_equity_liab_sum_rows)
         
@@ -1003,14 +984,14 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
             prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
         
-        # Build row with appropriate styling
-        if is_h2_heading:
-            # H2 style for major headings (12pt)
-            label_para = RLParagraph(label, BR_H2)
-            br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
-        elif is_h1_heading:
-            # H1 style for section headings (10pt)
-            label_para = RLParagraph(label, BR_H1)
+        # Build row with appropriate styling based on actual style field
+        if is_heading:
+            # For heading rows, use appropriate heading style
+            # H0/H1/H2 → BR_H2 (12pt), H3 → BR_H1 (10pt)
+            if style in ['H0', 'H1', 'H2']:
+                label_para = RLParagraph(label, BR_H2)
+            else:  # H3
+                label_para = RLParagraph(label, BR_H1)
             br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
         elif is_sum:
             # Semibold for sum rows (both label and amounts)
