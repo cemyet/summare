@@ -682,34 +682,132 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("Balansräkning (Tillgångar)", H0))
     elems.append(Spacer(1, 16))  # 2 line breaks
     
+    # Define headings for BR Tillgångar (semibold, no amounts)
+    br_assets_headings = [
+        'Tillgångar', 'Anläggningstillgångar', 'Immateriella anläggningstillgångar',
+        'Materiella anläggningstillgångar', 'Finansiella anläggningstillgångar',
+        'Omsättningstillgångar', 'Varulager m.m.', 'Kortfristiga fordringar',
+        'Kortfristiga placeringar', 'Kassa och bank'
+    ]
+    # Define sum rows for BR Tillgångar (semibold for both text and amounts)
+    br_assets_sum_rows = [
+        'Summa immateriella anläggningstillgångar', 'Summa materiella anläggningstillgångar',
+        'Summa finansiella anläggningstillgångar', 'Summa anläggningstillgångar',
+        'Summa varulager m.m.', 'Summa kortfristiga fordringar',
+        'Summa kortfristiga placeringar', 'Summa kassa och bank',
+        'Summa omsättningstillgångar'
+    ]
+    
+    # Helper function to check if a block_group has content (same as RR)
+    def block_has_content_br_assets(block_group: str) -> bool:
+        """Check if any non-heading row in this block has non-zero amounts"""
+        if not block_group:
+            return True  # Items without block_group always show
+        
+        for row in br_data:
+            if row.get('type') != 'asset':
+                continue
+            if row.get('block_group') != block_group:
+                continue
+            label = row.get('label', '')
+            
+            # Skip headings and sums
+            row_is_heading = any(h == label for h in br_assets_headings)
+            row_is_sum = any(s == label or (s in label and label.startswith('Summa')) for s in br_assets_sum_rows)
+            
+            if row_is_heading or row_is_sum:
+                continue
+            
+            # Check if this row has non-zero amount or always_show
+            if row.get('always_show'):
+                return True
+            curr = _num(row.get('current_amount', 0))
+            prev = _num(row.get('previous_amount', 0))
+            if curr != 0 or prev != 0:
+                return True
+        
+        return False
+    
     br_assets = [r for r in br_data if r.get('type') == 'asset']
     # Header: Post (no text), Not, years (right-aligned)
     br_assets_table = [["", "Not", str(fiscal_year), str(prev_year)]]
+    sum_rows_br_assets = []
+    
     for row in br_assets:
         if row.get('show_tag') == False:
             continue
-        if not row.get('always_show'):
-            curr = _num(row.get('current_amount', 0))
-            prev = _num(row.get('previous_amount', 0))
-            if curr == 0 and prev == 0:
-                continue
+        
+        label = row.get('label', '')
+        block_group = row.get('block_group', '')
+        
+        # Check if this is a heading or sum row
+        is_sum = False
+        is_heading = False
+        
+        # Check sum rows first
+        for sum_label in br_assets_sum_rows:
+            if sum_label == label or (sum_label in label and label.startswith('Summa')):
+                is_sum = True
+                break
+        
+        # If not a sum, check headings
+        if not is_sum:
+            for heading in br_assets_headings:
+                if heading == label:
+                    is_heading = True
+                    break
+        
+        # Block hiding logic
+        if block_group and not block_has_content_br_assets(block_group):
+            continue
         
         note = str(row.get('note_number', '')) if row.get('note_number') else ''
-        label = row.get('label', '')
-        curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
-        prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
+        
+        # For heading rows: show empty amounts
+        if is_heading:
+            curr_fmt = ''
+            prev_fmt = ''
+        else:
+            # Filter zero rows (unless always_show or sum)
+            if not row.get('always_show') and not is_sum:
+                curr = _num(row.get('current_amount', 0))
+                prev = _num(row.get('previous_amount', 0))
+                if curr == 0 and prev == 0:
+                    continue
+            
+            curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
+            prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
+        
         # Swap order: Post (label), Not (note), amounts
-        br_assets_table.append([label, note, curr_fmt, prev_fmt])
+        from reportlab.platypus import Paragraph as RLParagraph
+        # Apply semibold style directly to label if it's a heading or sum
+        if is_heading or is_sum:
+            label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
+            label_para = RLParagraph(label, label_style)
+            # Also apply semibold to amounts for sum rows
+            if is_sum and curr_fmt:
+                amount_style = ParagraphStyle('SemiboldAmount', parent=P, fontName='Roboto-Medium', alignment=2)
+                curr_para = RLParagraph(curr_fmt, amount_style)
+                prev_para = RLParagraph(prev_fmt, amount_style)
+                br_assets_table.append([label_para, note, curr_para, prev_para])
+            else:  # Headings with empty amounts
+                br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
+        else:
+            label_para = RLParagraph(label, P)
+            br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
+        
+        # Track sum rows for spacing
+        if is_sum:
+            sum_rows_br_assets.append(len(br_assets_table) - 1)
     
     if len(br_assets_table) > 1:
-        # Col widths: Post (flexible), Not (30pt), Year1 (80pt), Year2 (80pt)
-        t = Table(br_assets_table, hAlign='LEFT', colWidths=[None, 30, 80, 80])
+        # Col widths: Post (269pt fixed with wrap), Not (30pt), Year1 (80pt), Year2 (80pt)
+        t = Table(br_assets_table, hAlign='LEFT', colWidths=[269, 30, 80, 80])
         # Custom style with right-aligned year headers
         style = TableStyle([
             ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
-            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Regular for data rows
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
-            ('ALIGN', (1,0), (1,0), 'LEFT'),  # Left-align "Not" header
+            ('ALIGN', (1,0), (1,-1), 'CENTER'),  # Center "Not" column
             ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
             ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -718,6 +816,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ])
+        # Add 10pt space after sum rows
+        for row_idx in sum_rows_br_assets:
+            style.add('BOTTOMPADDING', (0, row_idx), (-1, row_idx), 10)
         t.setStyle(style)
         elems.append(t)
     else:
@@ -728,34 +829,130 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("Balansräkning (Eget kapital och skulder)", H0))
     elems.append(Spacer(1, 16))  # 2 line breaks
     
+    # Define headings for BR Eget kapital och skulder (semibold, no amounts)
+    br_equity_liab_headings = [
+        'Eget kapital och skulder', 'Eget kapital', 'Bundet eget kapital',
+        'Fritt eget kapital', 'Obeskattade reserver', 'Avsättningar',
+        'Långfristiga skulder', 'Kortfristiga skulder'
+    ]
+    # Define sum rows for BR Eget kapital och skulder (semibold for both text and amounts)
+    br_equity_liab_sum_rows = [
+        'Summa bundet eget kapital', 'Summa fritt eget kapital', 'Summa eget kapital',
+        'Summa obeskattade reserver', 'Summa avsättningar',
+        'Summa långfristiga skulder', 'Summa kortfristiga skulder',
+        'Summa eget kapital och skulder'
+    ]
+    
+    # Helper function to check if a block_group has content (same as RR)
+    def block_has_content_br_equity_liab(block_group: str) -> bool:
+        """Check if any non-heading row in this block has non-zero amounts"""
+        if not block_group:
+            return True  # Items without block_group always show
+        
+        for row in br_data:
+            if row.get('type') not in ['equity', 'liability']:
+                continue
+            if row.get('block_group') != block_group:
+                continue
+            label = row.get('label', '')
+            
+            # Skip headings and sums
+            row_is_heading = any(h == label for h in br_equity_liab_headings)
+            row_is_sum = any(s == label or (s in label and label.startswith('Summa')) for s in br_equity_liab_sum_rows)
+            
+            if row_is_heading or row_is_sum:
+                continue
+            
+            # Check if this row has non-zero amount or always_show
+            if row.get('always_show'):
+                return True
+            curr = _num(row.get('current_amount', 0))
+            prev = _num(row.get('previous_amount', 0))
+            if curr != 0 or prev != 0:
+                return True
+        
+        return False
+    
     br_equity_liab = [r for r in br_data if r.get('type') in ['equity', 'liability']]
     # Header: Post (no text), Not, years (right-aligned)
     br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
+    sum_rows_br_equity_liab = []
+    
     for row in br_equity_liab:
         if row.get('show_tag') == False:
             continue
-        if not row.get('always_show'):
-            curr = _num(row.get('current_amount', 0))
-            prev = _num(row.get('previous_amount', 0))
-            if curr == 0 and prev == 0:
-                continue
+        
+        label = row.get('label', '')
+        block_group = row.get('block_group', '')
+        
+        # Check if this is a heading or sum row
+        is_sum = False
+        is_heading = False
+        
+        # Check sum rows first
+        for sum_label in br_equity_liab_sum_rows:
+            if sum_label == label or (sum_label in label and label.startswith('Summa')):
+                is_sum = True
+                break
+        
+        # If not a sum, check headings
+        if not is_sum:
+            for heading in br_equity_liab_headings:
+                if heading == label:
+                    is_heading = True
+                    break
+        
+        # Block hiding logic
+        if block_group and not block_has_content_br_equity_liab(block_group):
+            continue
         
         note = str(row.get('note_number', '')) if row.get('note_number') else ''
-        label = row.get('label', '')
-        curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
-        prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
+        
+        # For heading rows: show empty amounts
+        if is_heading:
+            curr_fmt = ''
+            prev_fmt = ''
+        else:
+            # Filter zero rows (unless always_show or sum)
+            if not row.get('always_show') and not is_sum:
+                curr = _num(row.get('current_amount', 0))
+                prev = _num(row.get('previous_amount', 0))
+                if curr == 0 and prev == 0:
+                    continue
+            
+            curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
+            prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
+        
         # Swap order: Post (label), Not (note), amounts
-        br_eq_table.append([label, note, curr_fmt, prev_fmt])
+        from reportlab.platypus import Paragraph as RLParagraph
+        # Apply semibold style directly to label if it's a heading or sum
+        if is_heading or is_sum:
+            label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
+            label_para = RLParagraph(label, label_style)
+            # Also apply semibold to amounts for sum rows
+            if is_sum and curr_fmt:
+                amount_style = ParagraphStyle('SemiboldAmount', parent=P, fontName='Roboto-Medium', alignment=2)
+                curr_para = RLParagraph(curr_fmt, amount_style)
+                prev_para = RLParagraph(prev_fmt, amount_style)
+                br_eq_table.append([label_para, note, curr_para, prev_para])
+            else:  # Headings with empty amounts
+                br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
+        else:
+            label_para = RLParagraph(label, P)
+            br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
+        
+        # Track sum rows for spacing
+        if is_sum:
+            sum_rows_br_equity_liab.append(len(br_eq_table) - 1)
     
     if len(br_eq_table) > 1:
-        # Col widths: Post (flexible), Not (30pt), Year1 (80pt), Year2 (80pt)
-        t = Table(br_eq_table, hAlign='LEFT', colWidths=[None, 30, 80, 80])
+        # Col widths: Post (269pt fixed with wrap), Not (30pt), Year1 (80pt), Year2 (80pt)
+        t = Table(br_eq_table, hAlign='LEFT', colWidths=[269, 30, 80, 80])
         # Custom style with right-aligned year headers
         style = TableStyle([
             ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
-            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Regular for data rows
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
-            ('ALIGN', (1,0), (1,0), 'LEFT'),  # Left-align "Not" header
+            ('ALIGN', (1,0), (1,-1), 'CENTER'),  # Center "Not" column
             ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
             ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
@@ -764,6 +961,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ])
+        # Add 10pt space after sum rows
+        for row_idx in sum_rows_br_equity_liab:
+            style.add('BOTTOMPADDING', (0, row_idx), (-1, row_idx), 10)
         t.setStyle(style)
         elems.append(t)
     else:
