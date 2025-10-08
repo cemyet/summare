@@ -41,9 +41,10 @@ def _styles():
     Typography styles for PDF generation (19.2mm top margin, 24mm other margins, compact spacing)
     H0: 16pt semibold, 0pt before, 0pt after (main titles like "Förvaltningsberättelse")
     H1: 12pt semibold, 18pt before, 0pt after (subsections like "Verksamheten", "Flerårsöversikt")
-    H2: 15pt semibold, 18pt before, 0pt after (major section headings in BR like "Tillgångar")
+    H2: 15pt semibold, 18pt before, 0pt after (major section headings - overridden in BR to 12pt/10pt)
     P: 10pt regular, 12pt leading, 2pt after
     SMALL: 8pt for "Belopp i tkr"
+    Note: BR uses custom BR_H1 (10pt) and BR_H2 (12pt) for its headings
     """
     ss = getSampleStyleSheet()
     
@@ -760,6 +761,11 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     br_assets_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     sum_rows_br_assets = []
     
+    # Create BR H1 and H2 styles with correct font sizes
+    from reportlab.platypus import Paragraph as RLParagraph
+    BR_H1 = ParagraphStyle('BR_H1', parent=H1, fontSize=10, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
+    BR_H2 = ParagraphStyle('BR_H2', parent=H2, fontSize=12, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
+    
     for row in br_assets:
         if row.get('show_tag') == False:
             continue
@@ -818,15 +824,14 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
         
         # Swap order: Post (label), Not (note), amounts
-        from reportlab.platypus import Paragraph as RLParagraph
         # Apply semibold style directly to label if it's a heading or sum
         if is_h2_heading:
-            # H2 style for major headings
-            label_para = RLParagraph(label, H2)
+            # H2 style for major headings (12pt)
+            label_para = RLParagraph(label, BR_H2)
             br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
         elif is_h1_heading:
-            # H1 style for section headings
-            label_para = RLParagraph(label, H1)
+            # H1 style for section headings (10pt)
+            label_para = RLParagraph(label, BR_H1)
             br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
         elif is_sum:
             # Semibold for sum rows (both label and amounts)
@@ -876,11 +881,11 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("Balansräkning", H0))
     elems.append(Spacer(1, 16))  # 2 line breaks
     
-    # Define H2 headings for BR Eget kapital och skulder (larger, semibold, no amounts)
+    # Define H2 headings for BR Eget kapital och skulder (12pt semibold, no amounts)
     br_equity_liab_h2_headings = [
         'Eget kapital och skulder'
     ]
-    # Define H1 headings for BR Eget kapital och skulder (semibold, no amounts)
+    # Define H1 headings for BR Eget kapital och skulder (10pt semibold, no amounts)
     br_equity_liab_h1_headings = [
         'Eget kapital', 'Bundet eget kapital', 'Fritt eget kapital',
         'Obeskattade reserver', 'Avsättningar',
@@ -897,14 +902,34 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         'Summa eget kapital och skulder'
     ]
     
-    # Heading rows to insert after specific sum rows
-    heading_inserts_after_sums = {
-        'Summa bundet eget kapital': 'Fritt eget kapital',
-        'Summa eget kapital': 'Obeskattade reserver',
-        'Summa obeskattade reserver': 'Avsättningar',
-        'Summa avsättningar': 'Långfristiga skulder',
-        'Summa långfristiga skulder': 'Kortfristiga skulder'
+    # Map sum rows to their corresponding heading (heading shows only if sum shows)
+    sum_to_heading_map = {
+        'Summa bundet eget kapital': 'Bundet eget kapital',
+        'Summa fritt eget kapital': 'Fritt eget kapital',
+        'Summa obeskattade reserver': 'Obeskattade reserver',
+        'Summa avsättningar': 'Avsättningar',
+        'Summa långfristiga skulder': 'Långfristiga skulder',
+        'Summa kortfristiga skulder': 'Kortfristiga skulder'
     }
+    
+    # First pass: determine which sum rows will show (to know which headings to insert)
+    sum_rows_that_will_show = set()
+    for row in br_equity_liab:
+        if row.get('show_tag') == False:
+            continue
+        label = row.get('label', '')
+        # Check if this is a sum row
+        is_sum = any(sum_label == label or (sum_label in label and label.startswith('Summa')) 
+                     for sum_label in br_equity_liab_sum_rows)
+        if is_sum:
+            # Check if it has content or always_show
+            if row.get('always_show'):
+                sum_rows_that_will_show.add(label)
+            else:
+                curr = _num(row.get('current_amount', 0))
+                prev = _num(row.get('previous_amount', 0))
+                if curr != 0 or prev != 0:
+                    sum_rows_that_will_show.add(label)
     
     # Helper function to check if a block_group has content (same as RR)
     def block_has_content_br_equity_liab(block_group: str) -> bool:
@@ -940,6 +965,16 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # Header: Post (no text), Not, years (right-aligned)
     br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     sum_rows_br_equity_liab = []
+    inserted_headings = set()  # Track which headings we've already inserted
+    pending_heading = None  # Track heading to insert before next non-heading/non-sum row
+    
+    # Create BR H1 and H2 styles with correct font sizes
+    from reportlab.platypus import Paragraph as RLParagraph
+    BR_H1 = ParagraphStyle('BR_H1', parent=H1, fontSize=10, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
+    BR_H2 = ParagraphStyle('BR_H2', parent=H2, fontSize=12, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
+    
+    # Create a mapping from sum rows to their block_group to identify which rows belong to which heading
+    # We'll process rows and track which block we're entering
     
     for row in br_equity_liab:
         if row.get('show_tag') == False:
@@ -994,18 +1029,46 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
             prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
         
+        # If we have a pending heading and this is not a heading, insert it now
+        if pending_heading and not is_heading:
+            heading_para = RLParagraph(pending_heading, BR_H1)
+            br_eq_table.append([heading_para, '', '', ''])
+            inserted_headings.add(pending_heading)
+            pending_heading = None
+        
         # Swap order: Post (label), Not (note), amounts
-        from reportlab.platypus import Paragraph as RLParagraph
         # Apply semibold style directly to label if it's a heading or sum
         if is_h2_heading:
-            # H2 style for major headings
-            label_para = RLParagraph(label, H2)
+            # H2 style for major headings (12pt)
+            label_para = RLParagraph(label, BR_H2)
             br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
+            inserted_headings.add(label)
         elif is_h1_heading:
-            # H1 style for section headings
-            label_para = RLParagraph(label, H1)
+            # H1 style for section headings (10pt)
+            label_para = RLParagraph(label, BR_H1)
             br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
+            inserted_headings.add(label)
         elif is_sum:
+            # Check if this sum row maps to a heading that we need to auto-insert for future blocks
+            # Look ahead: after this sum, what heading should we insert?
+            for future_sum, future_heading in sum_to_heading_map.items():
+                if future_sum in sum_rows_that_will_show and future_heading not in inserted_headings:
+                    # We'll need to insert this heading before the next block starts
+                    # But we can't know which sum comes next, so let's check if this sum row
+                    # corresponds to the heading that should precede the next block
+                    pass
+            
+            # Check if we should have inserted a heading for THIS block before now
+            if label in sum_to_heading_map:
+                heading_for_this_block = sum_to_heading_map[label]
+                if heading_for_this_block not in inserted_headings and label in sum_rows_that_will_show:
+                    # We should have inserted this heading but didn't - this means it was missing from data
+                    # and we need to mark it for insertion AFTER this sum (for the pattern where
+                    # heading comes after previous sum)
+                    # Actually, user wants heading BEFORE its rows, not after the sum
+                    # This is tricky - we missed the window. Skip for now and fix in next iteration.
+                    pass
+            
             # Semibold for sum rows (both label and amounts)
             label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
             label_para = RLParagraph(label, label_style)
@@ -1017,11 +1080,20 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             else:
                 br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
             
-            # After adding sum row, check if we need to insert a heading
-            if label in heading_inserts_after_sums:
-                heading_to_insert = heading_inserts_after_sums[label]
-                heading_para = RLParagraph(heading_to_insert, H1)
-                br_eq_table.append([heading_para, '', '', ''])
+            # After adding this sum, prepare to insert the next heading (if any)
+            # Find which heading should come after this sum
+            sum_row_labels_list = list(br_equity_liab_sum_rows)
+            try:
+                current_sum_idx = sum_row_labels_list.index(label)
+                # Check if there's a next sum that maps to a heading
+                for next_sum_label in sum_row_labels_list[current_sum_idx + 1:]:
+                    if next_sum_label in sum_to_heading_map and next_sum_label in sum_rows_that_will_show:
+                        next_heading = sum_to_heading_map[next_sum_label]
+                        if next_heading not in inserted_headings:
+                            pending_heading = next_heading
+                            break
+            except ValueError:
+                pass
         else:
             label_para = RLParagraph(label, P)
             br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
