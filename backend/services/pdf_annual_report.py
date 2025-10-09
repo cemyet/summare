@@ -761,10 +761,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     br_assets_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     sum_rows_br_assets = []
     
-    # Create BR H1 and H2 styles with correct font sizes
+    # Create BR H1 and H2 styles for TABLE use (no spaceBefore/After to avoid gaps in table)
     from reportlab.platypus import Paragraph as RLParagraph
-    BR_H1 = ParagraphStyle('BR_H1', parent=H1, fontSize=10, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
-    BR_H2 = ParagraphStyle('BR_H2', parent=H2, fontSize=12, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
+    BR_H1_TABLE = ParagraphStyle('BR_H1_TABLE', parent=P, fontSize=10, fontName='Roboto-Medium', spaceBefore=0, spaceAfter=0)
+    BR_H2_TABLE = ParagraphStyle('BR_H2_TABLE', parent=P, fontSize=12, fontName='Roboto-Medium', spaceBefore=0, spaceAfter=0)
     
     for row in br_assets:
         if row.get('show_tag') == False:
@@ -826,12 +826,12 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         # Swap order: Post (label), Not (note), amounts
         # Apply semibold style directly to label if it's a heading or sum
         if is_h2_heading:
-            # H2 style for major headings (12pt)
-            label_para = RLParagraph(label, BR_H2)
+            # H2 style for major headings (12pt, no spacing for table)
+            label_para = RLParagraph(label, BR_H2_TABLE)
             br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
         elif is_h1_heading:
-            # H1 style for section headings (10pt)
-            label_para = RLParagraph(label, BR_H1)
+            # H1 style for section headings (10pt, no spacing for table)
+            label_para = RLParagraph(label, BR_H1_TABLE)
             br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
         elif is_sum:
             # Semibold for sum rows (both label and amounts)
@@ -944,10 +944,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     sum_rows_br_equity_liab = []
     
-    # Create BR H1 and H2 styles with correct font sizes
+    # Create BR H1 and H2 styles for TABLE use (no spaceBefore/After to avoid gaps in table)
     from reportlab.platypus import Paragraph as RLParagraph
-    BR_H1 = ParagraphStyle('BR_H1', parent=H1, fontSize=10, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
-    BR_H2 = ParagraphStyle('BR_H2', parent=H2, fontSize=12, fontName='Roboto-Medium', spaceBefore=18, spaceAfter=0)
+    BR_H1_TABLE = ParagraphStyle('BR_H1_TABLE', parent=P, fontSize=10, fontName='Roboto-Medium', spaceBefore=0, spaceAfter=0)
+    BR_H2_TABLE = ParagraphStyle('BR_H2_TABLE', parent=P, fontSize=12, fontName='Roboto-Medium', spaceBefore=0, spaceAfter=0)
     
     # Helper: Check if row should show (headings show if block has content)
     def should_show_row_br_equity(item: dict) -> bool:
@@ -1005,11 +1005,12 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         # Build row with appropriate styling based on actual style field
         if is_heading:
             # For heading rows, use appropriate heading style
-            # H0/H1/H2 → BR_H2 (12pt), H3 → BR_H1 (10pt)
-            if style in ['H0', 'H1', 'H2']:
-                label_para = RLParagraph(label, BR_H2)
-            else:  # H3
-                label_para = RLParagraph(label, BR_H1)
+            # H1, H3 → BR_H1_TABLE (10pt)
+            # H0, H2 → BR_H2_TABLE (12pt)
+            if style in ['H1', 'H3']:
+                label_para = RLParagraph(label, BR_H1_TABLE)  # 10pt, no spacing
+            else:  # H0, H2
+                label_para = RLParagraph(label, BR_H2_TABLE)  # 12pt, no spacing
             br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
         elif is_sum:
             # Semibold for sum rows (both label and amounts)
