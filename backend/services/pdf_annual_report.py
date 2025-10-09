@@ -864,6 +864,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ROWSPACING', (0,0), (-1,-1), 0),
+            ('TOPPADDING', (0,0), (-1,-1), 0),
             ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
@@ -940,6 +941,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         'Eget kapital och skulder',  # top-level page-1 heading, not here
     }
     
+    # Force-correct some headings to H1 (10pt) regardless of incoming style
+    FORCE_H1_EQ = {'Kortfristiga skulder', 'Bundet eget kapital', 'Fritt eget kapital'}
+    
     # Header: Post (no text), Not, years (right-aligned)
     br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
     sum_rows_br_equity_liab = []
@@ -988,6 +992,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             continue
         note = str(row.get('note_number', '')) if row.get('note_number') else ''
         style = row.get('style', '')
+        
+        # Normalize specific headings to H1 (10pt)
+        if label in FORCE_H1_EQ:
+            style = 'H1'
         
         # Check if this is a heading or sum row based on style
         is_heading = style in ['H0', 'H1', 'H2', 'H3']
@@ -1044,6 +1052,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ROWSPACING', (0,0), (-1,-1), 0),
+            ('TOPPADDING', (0,0), (-1,-1), 0),
             ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
