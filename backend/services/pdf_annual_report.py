@@ -16,6 +16,11 @@ pdfmetrics.registerFont(TTFont('Roboto', os.path.join(FONT_DIR, 'Roboto-Regular.
 pdfmetrics.registerFont(TTFont('Roboto-Medium', os.path.join(FONT_DIR, 'Roboto-Medium.ttf')))
 pdfmetrics.registerFont(TTFont('Roboto-Bold', os.path.join(FONT_DIR, 'Roboto-Bold.ttf')))
 
+# Balance sheet heading sizes / spacing (one source of truth)
+BR_H1_SIZE = 10            # Bundet/Fritt/Kortfristiga skulder etc.
+BR_H2_SIZE = 13            # e.g. "Anläggningstillgångar", "Omsättningstillgångar"
+BR_H2_SPACE_AFTER = 18     # extra air *after* an H2 row
+
 def _num(v):
     try:
         if v is None: return 0
@@ -759,19 +764,18 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     br_assets = [r for r in br_data if r.get('type') == 'asset']
     # Header: Post (no text), Not, years (right-aligned)
     br_assets_table = [["", "Not", str(fiscal_year), str(prev_year)]]
-    sum_rows_br_assets = []
-    
-    # Create BR H1 and H2 styles for TABLE use (no spaceBefore/After to avoid gaps in table)
-    from reportlab.platypus import Paragraph as RLParagraph
-    BR_H1_TABLE = ParagraphStyle('BR_H1_TABLE', parent=P, fontSize=10, fontName='Roboto-Medium', spaceBefore=0, spaceAfter=0)
-    BR_H2_TABLE = ParagraphStyle('BR_H2_TABLE', parent=P, fontSize=12, fontName='Roboto-Medium', spaceBefore=0, spaceAfter=0)
+    table_cmds = []  # Per-row style commands
     
     for row in br_assets:
         if row.get('show_tag') == False:
             continue
         
-        label = row.get('label', '')
+        label = row.get('label', '').strip()
         block_group = row.get('block_group', '')
+        
+        # Hide "Tillgångar" (page 1 top-level heading)
+        if label == 'Tillgångar':
+            continue
         
         # Hide rows that belong in the second table
         if label in br_assets_rows_to_hide:
@@ -823,56 +827,55 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
             prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
         
-        # Swap order: Post (label), Not (note), amounts
-        # Apply semibold style directly to label if it's a heading or sum
+        # Add row as plain strings
+        br_assets_table.append([label, note, curr_fmt, prev_fmt])
+        r = len(br_assets_table) - 1  # Current row index
+        
+        # Zero paddings for crisp stacking
+        table_cmds += [
+            ('TOPPADDING', (0,r), (-1,r), 0),
+            ('BOTTOMPADDING', (0,r), (-1,r), 0),
+            ('LEFTPADDING', (0,r), (-1,r), 0),
+            ('RIGHTPADDING', (0,r), (-1,r), 8),
+            ('VALIGN', (0,r), (-1,r), 'TOP'),
+        ]
+        
+        # Apply heading/sum styles
         if is_h2_heading:
-            # H2 style for major headings (12pt, no spacing for table)
-            label_para = RLParagraph(label, BR_H2_TABLE)
-            br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
+            table_cmds += [
+                ('FONT', (0,r), (0,r), 'Roboto-Bold', BR_H2_SIZE),
+                ('BOTTOMPADDING', (0,r), (-1,r), BR_H2_SPACE_AFTER),  # 18pt space after H2
+            ]
         elif is_h1_heading:
-            # H1 style for section headings (10pt, no spacing for table)
-            label_para = RLParagraph(label, BR_H1_TABLE)
-            br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
+            table_cmds += [
+                ('FONT', (0,r), (0,r), 'Roboto-Bold', BR_H1_SIZE),
+                # NO bottom padding on H1 so its block starts immediately
+            ]
         elif is_sum:
             # Semibold for sum rows (both label and amounts)
-            label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
-            label_para = RLParagraph(label, label_style)
-            if curr_fmt:
-                amount_style = ParagraphStyle('SemiboldAmount', parent=P, fontName='Roboto-Medium', alignment=2)
-                curr_para = RLParagraph(curr_fmt, amount_style)
-                prev_para = RLParagraph(prev_fmt, amount_style)
-                br_assets_table.append([label_para, note, curr_para, prev_para])
-            else:
-                br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
-        else:
-            label_para = RLParagraph(label, P)
-            br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
-        
-        # Track sum rows for spacing
-        if is_sum:
-            sum_rows_br_assets.append(len(br_assets_table) - 1)
+            table_cmds += [
+                ('FONT', (0,r), (0,r), 'Roboto-Medium', 10),
+                ('FONT', (2,r), (3,r), 'Roboto-Medium', 10),
+                ('BOTTOMPADDING', (0,r), (-1,r), 10),  # 10pt space after sums
+            ]
     
     if len(br_assets_table) > 1:
         # Col widths: Post (269pt fixed with wrap), Not (30pt), Year1 (80pt), Year2 (80pt)
         t = Table(br_assets_table, hAlign='LEFT', colWidths=[269, 30, 80, 80])
-        # Custom style with right-aligned year headers
-        style = TableStyle([
-            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
-            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
+        # Base style + per-row commands
+        base_style = [
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Header row
+            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
             ('ALIGN', (1,0), (1,-1), 'CENTER'),  # Center "Not" column
             ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
             ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ROWSPACING', (0,0), (-1,-1), 0),
             ('TOPPADDING', (0,0), (-1,-1), 0),
             ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
-        ])
-        # Add 10pt space after sum rows
-        for row_idx in sum_rows_br_assets:
-            style.add('BOTTOMPADDING', (0, row_idx), (-1, row_idx), 10)
-        t.setStyle(style)
+        ]
+        t.setStyle(TableStyle(base_style + table_cmds))
         elems.append(t)
     else:
         elems.append(Paragraph("Ingen data tillgänglig", P))
@@ -946,12 +949,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     
     # Header: Post (no text), Not, years (right-aligned)
     br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
-    sum_rows_br_equity_liab = []
-    
-    # Create BR H1 and H2 styles for TABLE use (no spaceBefore/After to avoid gaps in table)
-    from reportlab.platypus import Paragraph as RLParagraph
-    BR_H1_TABLE = ParagraphStyle('BR_H1_TABLE', parent=P, fontSize=10, fontName='Roboto-Medium', spaceBefore=0, spaceAfter=0)
-    BR_H2_TABLE = ParagraphStyle('BR_H2_TABLE', parent=P, fontSize=12, fontName='Roboto-Medium', spaceBefore=0, spaceAfter=0)
+    table_cmds_eq = []  # Per-row style commands
     
     # Helper: Check if row should show (headings show if block has content)
     def should_show_row_br_equity(item: dict) -> bool:
@@ -981,7 +979,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         if row.get('show_tag') == False:
             continue
         
-        label = row.get('label', '')
+        label = row.get('label', '').strip()
         
         # Hide assets-page and global headings on this page
         if label in HIDE_HEADINGS_BR_EQ:
@@ -1010,57 +1008,58 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
             prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
         
-        # Build row with appropriate styling based on actual style field
+        # Add row as plain strings
+        br_eq_table.append([label, note, curr_fmt, prev_fmt])
+        r = len(br_eq_table) - 1  # Current row index
+        
+        # Zero paddings for crisp stacking
+        table_cmds_eq += [
+            ('TOPPADDING', (0,r), (-1,r), 0),
+            ('BOTTOMPADDING', (0,r), (-1,r), 0),
+            ('LEFTPADDING', (0,r), (-1,r), 0),
+            ('RIGHTPADDING', (0,r), (-1,r), 8),
+            ('VALIGN', (0,r), (-1,r), 'TOP'),
+        ]
+        
+        # Apply heading/sum styles
         if is_heading:
-            # For heading rows, use appropriate heading style
-            # H1, H3 → BR_H1_TABLE (10pt)
-            # H0, H2 → BR_H2_TABLE (12pt)
-            if style in ['H1', 'H3']:
-                label_para = RLParagraph(label, BR_H1_TABLE)  # 10pt, no spacing
-            else:  # H0, H2
-                label_para = RLParagraph(label, BR_H2_TABLE)  # 12pt, no spacing
-            br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
+            # H2 or H0 → 13pt (larger headings)
+            # H1 or H3 → 10pt (smaller headings)
+            if style in ['H2', 'H0']:
+                table_cmds_eq += [
+                    ('FONT', (0,r), (0,r), 'Roboto-Bold', BR_H2_SIZE),
+                    ('BOTTOMPADDING', (0,r), (-1,r), BR_H2_SPACE_AFTER),  # 18pt space after H2
+                ]
+            else:  # H1, H3
+                table_cmds_eq += [
+                    ('FONT', (0,r), (0,r), 'Roboto-Bold', BR_H1_SIZE),
+                    # NO bottom padding on H1 so its block starts immediately
+                ]
         elif is_sum:
             # Semibold for sum rows (both label and amounts)
-            label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
-            label_para = RLParagraph(label, label_style)
-            if curr_fmt:
-                amount_style = ParagraphStyle('SemiboldAmount', parent=P, fontName='Roboto-Medium', alignment=2)
-                curr_para = RLParagraph(curr_fmt, amount_style)
-                prev_para = RLParagraph(prev_fmt, amount_style)
-                br_eq_table.append([label_para, note, curr_para, prev_para])
-            else:
-                br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
-        else:
-            # Regular row
-            label_para = RLParagraph(label, P)
-            br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
-        
-        # Track sum rows for spacing
-        if is_sum:
-            sum_rows_br_equity_liab.append(len(br_eq_table) - 1)
+            table_cmds_eq += [
+                ('FONT', (0,r), (0,r), 'Roboto-Medium', 10),
+                ('FONT', (2,r), (3,r), 'Roboto-Medium', 10),
+                ('BOTTOMPADDING', (0,r), (-1,r), 10),  # 10pt space after sums
+            ]
     
     if len(br_eq_table) > 1:
         # Col widths: Post (269pt fixed with wrap), Not (30pt), Year1 (80pt), Year2 (80pt)
         t = Table(br_eq_table, hAlign='LEFT', colWidths=[269, 30, 80, 80])
-        # Custom style with right-aligned year headers
-        style = TableStyle([
-            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Semibold header row
-            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
+        # Base style + per-row commands
+        base_style = [
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Header row
+            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
             ('ALIGN', (1,0), (1,-1), 'CENTER'),  # Center "Not" column
             ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
             ('ALIGN', (2,1), (3,-1), 'RIGHT'),  # Right-align amounts
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ROWSPACING', (0,0), (-1,-1), 0),
             ('TOPPADDING', (0,0), (-1,-1), 0),
             ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
-        ])
-        # Add 10pt space after sum rows
-        for row_idx in sum_rows_br_equity_liab:
-            style.add('BOTTOMPADDING', (0, row_idx), (-1, row_idx), 10)
-        t.setStyle(style)
+        ]
+        t.setStyle(TableStyle(base_style + table_cmds_eq))
         elems.append(t)
     else:
         elems.append(Paragraph("Ingen data tillgänglig", P))
