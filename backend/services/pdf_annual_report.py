@@ -1174,22 +1174,23 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
     
     # Pass 1: base visibility (row itself is visible?)
     base_visible = []
-    for it in notes:
+    for idx, it in enumerate(notes):
         if it.get('show_tag') == False or it.get('toggle_show') == False:
             continue
         if it.get('always_show'):
-            base_visible.append(it)
+            base_visible.append(idx)
             continue
         curr = _num(it.get('current_amount', 0))
         prev = _num(it.get('previous_amount', 0))
         if curr != 0 or prev != 0:
-            base_visible.append(it)
+            base_visible.append(idx)
     
-    base_set = set(n.get('row_id') for n in base_visible)
+    base_set = set(base_visible)
+    print(f"[NOTER-PDF-DEBUG] Block '{block_name}': base_set indices={base_set}")
     
     # Rows allowed to TRIGGER headings/subtotals (content rows only)
-    trigger_rows = []
-    for it in notes:
+    trigger_indices = []
+    for idx, it in enumerate(notes):
         style = it.get('style', '')
         if is_sum_line(style):
             continue
@@ -1198,15 +1199,16 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
         curr = _num(it.get('current_amount', 0))
         prev = _num(it.get('previous_amount', 0))
         if curr != 0 or prev != 0:
-            trigger_rows.append(it)
+            trigger_indices.append(idx)
     
-    trigger_set = set(n.get('row_id') for n in trigger_rows)
+    trigger_set = set(trigger_indices)
+    print(f"[NOTER-PDF-DEBUG] Block '{block_name}': trigger_set indices={trigger_set}")
     
     # Pass 2: add H2/H3 headings + S2/TS2 subtotals based on nearby trigger rows
     visible = []
     for i, it in enumerate(notes):
         # Already visible? keep it.
-        if it.get('row_id') in base_set:
+        if i in base_set:
             visible.append(it)
             continue
         
@@ -1219,7 +1221,7 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
                 nxt = notes[j]
                 if is_heading_style(nxt.get('style', '')):
                     break  # stop at next block/subblock
-                if nxt.get('row_id') in trigger_set:
+                if j in trigger_set:
                     show = True
                     break
             if show:
@@ -1234,7 +1236,7 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
                 prev_style = prev_item.get('style', '')
                 if is_heading_style(prev_style) or is_subtotal_trigger(prev_style):
                     break
-                if prev_item.get('row_id') in trigger_set:
+                if j in trigger_set:
                     show = True
                     break
             if show:
