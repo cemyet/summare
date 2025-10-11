@@ -1588,12 +1588,16 @@ class DatabaseParser:
                     company_info['organization_number'] = parts[1]
                     
             elif line.startswith('#RAR'):
-                # Fiscal year: #RAR 0 20240101 20241231
+                # Fiscal year: #RAR 0 20240101 20241231 or #RAR -1 20230101 20231231
                 parts = line.split()
-                if len(parts) >= 4 and parts[1] == '0':  # Current year
-                    company_info['fiscal_year'] = int(parts[2][:4])  # Extract year from date
-                    company_info['start_date'] = parts[2]
-                    company_info['end_date'] = parts[3]
+                if len(parts) >= 4:
+                    if parts[1] == '0':  # Current year
+                        company_info['fiscal_year'] = int(parts[2][:4])  # Extract year from date
+                        company_info['start_date'] = parts[2]
+                        company_info['end_date'] = parts[3]
+                    elif parts[1] == '-1':  # Previous year
+                        company_info['previous_start_date'] = parts[2]
+                        company_info['previous_end_date'] = parts[3]
         
         return company_info
     

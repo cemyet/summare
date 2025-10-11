@@ -18,8 +18,9 @@ pdfmetrics.registerFont(TTFont('Roboto-Bold', os.path.join(FONT_DIR, 'Roboto-Bol
 
 # Balance sheet heading sizes / spacing (one source of truth)
 BR_H1_SIZE = 10            # Bundet/Fritt/Kortfristiga skulder etc.
-BR_H2_SIZE = 13            # e.g. "Anläggningstillgångar", "Omsättningstillgångar"
-BR_H2_SPACE_AFTER = 18     # extra air *after* an H2 row
+BR_H2_SIZE = 12            # e.g. "Anläggningstillgångar", "Omsättningstillgångar"
+BR_H2_SPACE_BEFORE = 8     # extra air *before* an H2 row
+BR_H2_SPACE_AFTER = 12     # extra air *after* an H2 row
 
 def _num(v):
     try:
@@ -49,7 +50,7 @@ def _styles():
     H2: 15pt semibold, 18pt before, 0pt after (major section headings - overridden in BR to 12pt/10pt)
     P: 10pt regular, 12pt leading, 2pt after
     SMALL: 8pt for "Belopp i tkr"
-    Note: BR uses custom BR_H1 (10pt) and BR_H2 (12pt) for its headings
+    Note: BR uses custom BR_H1 (10pt bold) and BR_H2 (12pt semibold, 8pt before, 12pt after) for its headings
     """
     ss = getSampleStyleSheet()
     
@@ -126,6 +127,37 @@ def _company_meta(data: Dict[str, Any]) -> Tuple[str, str, int]:
     orgnr = data.get('organizationNumber') or info.get('organization_number') or ""
     fy = data.get('fiscalYear') or info.get('fiscal_year') or 0
     return str(name), str(orgnr), int(fy) if fy else 0
+
+def _format_date(date_str: str) -> str:
+    """Format date from YYYYMMDD to YYYY-MM-DD"""
+    if not date_str or len(date_str) != 8:
+        return date_str
+    try:
+        return f"{date_str[0:4]}-{date_str[4:6]}-{date_str[6:8]}"
+    except Exception:
+        return date_str
+
+def _get_year_headers(data: Dict[str, Any], fiscal_year: int, prev_year: int) -> Tuple[str, str]:
+    """Get formatted year headers with end dates for BR columns"""
+    se = (data or {}).get('seFileData') or {}
+    info = se.get('company_info') or {}
+    
+    # Try to get end dates from company_info
+    current_end_date = info.get('end_date', '')
+    previous_end_date = info.get('previous_end_date', '')
+    
+    # Format dates if available, otherwise use year numbers
+    if current_end_date:
+        current_header = _format_date(current_end_date)
+    else:
+        current_header = str(fiscal_year)
+    
+    if previous_end_date:
+        previous_header = _format_date(previous_end_date)
+    else:
+        previous_header = str(prev_year)
+    
+    return current_header, previous_header
 
 def _extract_fb_texts(cd: Dict[str, Any]) -> Tuple[str, str]:
     """Extract Förvaltningsberättelse text fields"""
@@ -490,6 +522,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     name, orgnr, fiscal_year = _company_meta(company_data)
     prev_year = fiscal_year - 1 if fiscal_year else 0
     
+    # Get year headers with end dates for BR
+    current_year_header, previous_year_header = _get_year_headers(company_data, fiscal_year, prev_year)
+    
     # Extract data sections
     se_data = company_data.get('seFileData', {})
     rr_data = se_data.get('rr_data', [])
@@ -762,8 +797,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         return False
     
     br_assets = [r for r in br_data if r.get('type') == 'asset']
-    # Header: Post (no text), Not, years (right-aligned)
-    br_assets_table = [["", "Not", str(fiscal_year), str(prev_year)]]
+    # Header: Post (no text), Not, year end dates (right-aligned)
+    br_assets_table = [["", "Not", current_year_header, previous_year_header]]
     table_cmds = []  # Per-row style commands
     
     for row in br_assets:
@@ -843,8 +878,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         # Apply heading/sum styles
         if is_h2_heading:
             table_cmds += [
-                ('FONT', (0,r), (0,r), 'Roboto-Bold', BR_H2_SIZE),
-                ('BOTTOMPADDING', (0,r), (-1,r), BR_H2_SPACE_AFTER),  # 18pt space after H2
+                ('FONT', (0,r), (0,r), 'Roboto-Medium', BR_H2_SIZE),
+                ('TOPPADDING', (0,r), (-1,r), BR_H2_SPACE_BEFORE),  # 8pt space before H2
+                ('BOTTOMPADDING', (0,r), (-1,r), BR_H2_SPACE_AFTER),  # 12pt space after H2
             ]
         elif is_h1_heading:
             table_cmds += [
@@ -947,9 +983,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # Force-correct some headings to H1 (10pt) regardless of incoming style
     FORCE_H1_EQ = {'Kortfristiga skulder', 'Bundet eget kapital', 'Fritt eget kapital'}
     
-    # Header: Post (no text), Not, years (right-aligned)
-    br_eq_table = [["", "Not", str(fiscal_year), str(prev_year)]]
+    # Header: Post (no text), Not, year end dates (right-aligned)
+    br_eq_table = [["", "Not", current_year_header, previous_year_header]]
     table_cmds_eq = []  # Per-row style commands
+    skulder_header_added = False  # Track if we've added the "Skulder" header
     
     # Helper: Check if row should show (headings show if block has content)
     def should_show_row_br_equity(item: dict) -> bool:
@@ -1023,12 +1060,13 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         
         # Apply heading/sum styles
         if is_heading:
-            # H2 or H0 → 13pt (larger headings)
+            # H2 or H0 → 12pt (larger headings)
             # H1 or H3 → 10pt (smaller headings)
             if style in ['H2', 'H0']:
                 table_cmds_eq += [
-                    ('FONT', (0,r), (0,r), 'Roboto-Bold', BR_H2_SIZE),
-                    ('BOTTOMPADDING', (0,r), (-1,r), BR_H2_SPACE_AFTER),  # 18pt space after H2
+                    ('FONT', (0,r), (0,r), 'Roboto-Medium', BR_H2_SIZE),
+                    ('TOPPADDING', (0,r), (-1,r), BR_H2_SPACE_BEFORE),  # 8pt space before H2
+                    ('BOTTOMPADDING', (0,r), (-1,r), BR_H2_SPACE_AFTER),  # 12pt space after H2
                 ]
             else:  # H1, H3
                 table_cmds_eq += [
@@ -1041,6 +1079,25 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
                 ('FONT', (0,r), (0,r), 'Roboto-Medium', 10),
                 ('FONT', (2,r), (3,r), 'Roboto-Medium', 10),
                 ('BOTTOMPADDING', (0,r), (-1,r), 10),  # 10pt space after sums
+            ]
+        
+        # Insert "Skulder" header after "Summa eget kapital"
+        if label == 'Summa eget kapital' and not skulder_header_added:
+            skulder_header_added = True
+            # Add "Skulder" as H2 heading (no amounts)
+            br_eq_table.append(['Skulder', '', '', ''])
+            r_skulder = len(br_eq_table) - 1
+            
+            # Apply H2 styling to "Skulder" header
+            table_cmds_eq += [
+                ('TOPPADDING', (0, r_skulder), (-1, r_skulder), 0),
+                ('BOTTOMPADDING', (0, r_skulder), (-1, r_skulder), 0),
+                ('LEFTPADDING', (0, r_skulder), (-1, r_skulder), 0),
+                ('RIGHTPADDING', (0, r_skulder), (-1, r_skulder), 8),
+                ('VALIGN', (0, r_skulder), (-1, r_skulder), 'TOP'),
+                ('FONT', (0, r_skulder), (0, r_skulder), 'Roboto-Medium', BR_H2_SIZE),
+                ('TOPPADDING', (0, r_skulder), (-1, r_skulder), BR_H2_SPACE_BEFORE),
+                ('BOTTOMPADDING', (0, r_skulder), (-1, r_skulder), BR_H2_SPACE_AFTER),
             ]
     
     if len(br_eq_table) > 1:
