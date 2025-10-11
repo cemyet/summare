@@ -1150,27 +1150,102 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     return buf.getvalue()
 
 def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
-    """Render a single note block with its table"""
-    # Filter visible notes
-    visible = []
-    for n in notes:
-        if n.get('show_tag') == False or n.get('toggle_show') == False:
+    """Render a single note block with its table - Frontend-matching visibility logic"""
+    
+    def is_heading_style(style: str) -> bool:
+        return style in ['H0', 'H1', 'H2', 'H3']
+    
+    def is_sum_line(style: str) -> bool:
+        return style in ['S2', 'S3', 'TS2', 'TS3']
+    
+    def is_subtotal_trigger(style: str) -> bool:
+        return style in ['S2', 'TS2']
+    
+    # Pass 1: base visibility (row itself is visible?)
+    base_visible = []
+    for it in notes:
+        if it.get('show_tag') == False or it.get('toggle_show') == False:
             continue
-        if n.get('always_show'):
-            visible.append(n)
+        if it.get('always_show'):
+            base_visible.append(it)
             continue
-        curr = _num(n.get('current_amount', 0))
-        prev = _num(n.get('previous_amount', 0))
+        curr = _num(it.get('current_amount', 0))
+        prev = _num(it.get('previous_amount', 0))
         if curr != 0 or prev != 0:
-            visible.append(n)
+            base_visible.append(it)
+    
+    base_set = set(n.get('row_id') for n in base_visible)
+    
+    # Rows allowed to TRIGGER headings/subtotals (content rows only)
+    trigger_rows = []
+    for it in notes:
+        style = it.get('style', '')
+        if is_sum_line(style):
+            continue
+        if it.get('always_show'):
+            continue
+        curr = _num(it.get('current_amount', 0))
+        prev = _num(it.get('previous_amount', 0))
+        if curr != 0 or prev != 0:
+            trigger_rows.append(it)
+    
+    trigger_set = set(n.get('row_id') for n in trigger_rows)
+    
+    # Pass 2: add H2/H3 headings + S2/TS2 subtotals based on nearby trigger rows
+    visible = []
+    for i, it in enumerate(notes):
+        # Already visible? keep it.
+        if it.get('row_id') in base_set:
+            visible.append(it)
+            continue
+        
+        style = it.get('style', '')
+        
+        # Headings (H2/H3): show if ANY following trigger row until next heading is present
+        if is_heading_style(style):
+            show = False
+            for j in range(i + 1, len(notes)):
+                nxt = notes[j]
+                if is_heading_style(nxt.get('style', '')):
+                    break  # stop at next block/subblock
+                if nxt.get('row_id') in trigger_set:
+                    show = True
+                    break
+            if show:
+                visible.append(it)
+                continue
+        
+        # Subtotals (S2/TS2): show if ANY preceding trigger row until previous heading/S2 is present
+        if is_subtotal_trigger(style):
+            show = False
+            for j in range(i - 1, -1, -1):
+                prev_item = notes[j]
+                prev_style = prev_item.get('style', '')
+                if is_heading_style(prev_style) or is_subtotal_trigger(prev_style):
+                    break
+                if prev_item.get('row_id') in trigger_set:
+                    show = True
+                    break
+            if show:
+                visible.append(it)
     
     if not visible:
         return
     
-    # Block title
+    # Block title with note numbers
     block_labels = {
         'NOT1': 'Not 1 – Redovisningsprinciper',
         'NOT2': 'Not 2 – Medeltal anställda',
+        'KONCERN': 'Not – Andelar i koncernföretag',
+        'INTRESSEFTG': 'Not – Andelar i intresseföretag',
+        'BYGG': 'Not – Byggnader och mark',
+        'MASKIN': 'Not – Maskiner och inventarier',
+        'INV': 'Not – Inventarier, verktyg och installationer',
+        'MAT': 'Not – Materiella anläggningstillgångar',
+        'LVP': 'Not – Långfristiga fordringar',
+        'FORDR_KONCERN': 'Not – Fordringar hos koncernföretag',
+        'FORDR_INTRESSE': 'Not – Fordringar hos intresseföretag',
+        'FORDR_OVRIG': 'Not – Övriga fordringar',
     }
     title = block_labels.get(block_name, f"Not – {block_name}")
     elems.append(Paragraph(title, H1))
@@ -1184,16 +1259,49 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
         elems.append(Spacer(1, 6))
         return
     
-    # For other notes, render as table
+    # For other notes, render as table with style-aware formatting
     table_data = [["Post", str(fiscal_year), str(prev_year)]]
+    table_cmds = []
+    
     for note in visible:
+        style = note.get('style', '')
         row_title = note.get('row_title', '')
-        curr_fmt = _fmt_int(_num(note.get('current_amount', 0)))
-        prev_fmt = _fmt_int(_num(note.get('previous_amount', 0)))
+        
+        # Check if this is a heading (no amounts)
+        if is_heading_style(style):
+            curr_fmt = ''
+            prev_fmt = ''
+        else:
+            curr_fmt = _fmt_int(_num(note.get('current_amount', 0)))
+            prev_fmt = _fmt_int(_num(note.get('previous_amount', 0)))
+        
         table_data.append([row_title, curr_fmt, prev_fmt])
+        r = len(table_data) - 1  # Current row index
+        
+        # Apply styling based on style field
+        if is_heading_style(style):
+            # Headings: semibold
+            table_cmds.append(('FONT', (0,r), (0,r), 'Roboto-Medium', 10))
+        elif is_sum_line(style):
+            # Sum lines: semibold + borders
+            table_cmds.append(('FONT', (0,r), (-1,r), 'Roboto-Medium', 10))
+            table_cmds.append(('LINEABOVE', (0,r), (-1,r), 0.5, colors.Color(0, 0, 0, alpha=0.7)))
+            table_cmds.append(('LINEBELOW', (0,r), (-1,r), 0.5, colors.Color(0, 0, 0, alpha=0.7)))
+            table_cmds.append(('BOTTOMPADDING', (0,r), (-1,r), 6))
     
     if len(table_data) > 1:
         t = Table(table_data, hAlign='LEFT', colWidths=[None, 80, 80])
-        t.setStyle(_table_style())
+        base_style = [
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Header row
+            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Data rows (default)
+            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
+            ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align amounts
+            ('VALIGN', (0,0), (-1,-1), 'TOP'),
+            ('ROWSPACING', (0,0), (-1,-1), 0),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ]
+        t.setStyle(TableStyle(base_style + table_cmds))
         elems.append(t)
         elems.append(Spacer(1, 6))
