@@ -18,9 +18,10 @@ pdfmetrics.registerFont(TTFont('Roboto-Bold', os.path.join(FONT_DIR, 'Roboto-Bol
 
 # Balance sheet heading sizes / spacing (one source of truth)
 BR_H1_SIZE = 10            # Bundet/Fritt/Kortfristiga skulder etc.
-BR_H2_SIZE = 12            # e.g. "Anläggningstillgångar", "Omsättningstillgångar"
+BR_H2_SIZE = 11            # e.g. "Anläggningstillgångar", "Omsättningstillgångar"
 BR_H2_SPACE_BEFORE = 8     # extra air *before* an H2 row
 BR_H2_SPACE_AFTER = 12     # extra air *after* an H2 row
+BR_ROW_SPACING = 2         # spacing between normal rows
 
 def _num(v):
     try:
@@ -47,10 +48,10 @@ def _styles():
     Typography styles for PDF generation (19.2mm top margin, 24mm other margins, compact spacing)
     H0: 16pt semibold, 0pt before, 0pt after (main titles like "Förvaltningsberättelse")
     H1: 12pt semibold, 18pt before, 0pt after (subsections like "Verksamheten", "Flerårsöversikt")
-    H2: 15pt semibold, 18pt before, 0pt after (major section headings - overridden in BR to 12pt/10pt)
+    H2: 15pt semibold, 18pt before, 0pt after (major section headings - overridden in BR to 11pt/10pt)
     P: 10pt regular, 12pt leading, 2pt after
     SMALL: 8pt for "Belopp i tkr"
-    Note: BR uses custom BR_H1 (10pt bold) and BR_H2 (12pt semibold, 8pt before, 12pt after) for its headings
+    Note: BR uses custom BR_H1 (10pt semibold) and BR_H2 (11pt semibold, 8pt before, 12pt after) for its headings
     """
     ss = getSampleStyleSheet()
     
@@ -866,10 +867,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         br_assets_table.append([label, note, curr_fmt, prev_fmt])
         r = len(br_assets_table) - 1  # Current row index
         
-        # Zero paddings for crisp stacking
+        # Default row padding
         table_cmds += [
             ('TOPPADDING', (0,r), (-1,r), 0),
-            ('BOTTOMPADDING', (0,r), (-1,r), 0),
+            ('BOTTOMPADDING', (0,r), (-1,r), BR_ROW_SPACING),  # Add spacing between rows
             ('LEFTPADDING', (0,r), (-1,r), 0),
             ('RIGHTPADDING', (0,r), (-1,r), 8),
             ('VALIGN', (0,r), (-1,r), 'TOP'),
@@ -884,8 +885,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             ]
         elif is_h1_heading:
             table_cmds += [
-                ('FONT', (0,r), (0,r), 'Roboto-Bold', BR_H1_SIZE),
-                # NO bottom padding on H1 so its block starts immediately
+                ('FONT', (0,r), (0,r), 'Roboto-Medium', BR_H1_SIZE),  # Semibold
+                # NO extra bottom padding on H1 so its block starts immediately
             ]
         elif is_sum:
             # Semibold for sum rows (both label and amounts)
@@ -900,7 +901,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         t = Table(br_assets_table, hAlign='LEFT', colWidths=[269, 30, 80, 80])
         # Base style + per-row commands
         base_style = [
-            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Header row
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Header row semibold
+            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Data rows regular Roboto
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
             ('ALIGN', (1,0), (1,-1), 'CENTER'),  # Center "Not" column
             ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
@@ -1049,10 +1051,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         br_eq_table.append([label, note, curr_fmt, prev_fmt])
         r = len(br_eq_table) - 1  # Current row index
         
-        # Zero paddings for crisp stacking
+        # Default row padding
         table_cmds_eq += [
             ('TOPPADDING', (0,r), (-1,r), 0),
-            ('BOTTOMPADDING', (0,r), (-1,r), 0),
+            ('BOTTOMPADDING', (0,r), (-1,r), BR_ROW_SPACING),  # Add spacing between rows
             ('LEFTPADDING', (0,r), (-1,r), 0),
             ('RIGHTPADDING', (0,r), (-1,r), 8),
             ('VALIGN', (0,r), (-1,r), 'TOP'),
@@ -1060,7 +1062,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         
         # Apply heading/sum styles
         if is_heading:
-            # H2 or H0 → 12pt (larger headings)
+            # H2 or H0 → 11pt (larger headings)
             # H1 or H3 → 10pt (smaller headings)
             if style in ['H2', 'H0']:
                 table_cmds_eq += [
@@ -1070,8 +1072,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
                 ]
             else:  # H1, H3
                 table_cmds_eq += [
-                    ('FONT', (0,r), (0,r), 'Roboto-Bold', BR_H1_SIZE),
-                    # NO bottom padding on H1 so its block starts immediately
+                    ('FONT', (0,r), (0,r), 'Roboto-Medium', BR_H1_SIZE),  # Semibold
+                    # NO extra bottom padding on H1 so its block starts immediately
                 ]
         elif is_sum:
             # Semibold for sum rows (both label and amounts)
@@ -1105,7 +1107,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         t = Table(br_eq_table, hAlign='LEFT', colWidths=[269, 30, 80, 80])
         # Base style + per-row commands
         base_style = [
-            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Header row
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Header row semibold
+            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Data rows regular Roboto
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
             ('ALIGN', (1,0), (1,-1), 'CENTER'),  # Center "Not" column
             ('ALIGN', (2,0), (3,0), 'RIGHT'),  # Right-align year headers
