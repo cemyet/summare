@@ -1129,6 +1129,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("Noter", H0))
     elems.append(Spacer(1, 8))
     
+    print(f"[NOTER-PDF-DEBUG] Total noter_data items: {len(noter_data)}")
+    if noter_data and len(noter_data) > 0:
+        print(f"[NOTER-PDF-DEBUG] Sample note: {noter_data[0]}")
+    
     # Group notes by block
     blocks = {}
     for note in noter_data:
@@ -1136,6 +1140,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         if block not in blocks:
             blocks[block] = []
         blocks[block].append(note)
+    
+    print(f"[NOTER-PDF-DEBUG] Blocks found: {list(blocks.keys())}")
     
     # Render blocks (NOT1, NOT2 first, then others)
     priority_blocks = ['NOT1', 'NOT2']
@@ -1154,6 +1160,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
 
 def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
     """Render a single note block with its table - Frontend-matching visibility logic"""
+    
+    print(f"[NOTER-PDF-DEBUG] Rendering block '{block_name}' with {len(notes)} notes")
     
     def is_heading_style(style: str) -> bool:
         return style in ['H0', 'H1', 'H2', 'H3']
@@ -1232,7 +1240,10 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
             if show:
                 visible.append(it)
     
+    print(f"[NOTER-PDF-DEBUG] Block '{block_name}': base_visible={len(base_visible)}, visible={len(visible)}")
+    
     if not visible:
+        print(f"[NOTER-PDF-DEBUG] Block '{block_name}' has no visible items, skipping")
         return
     
     # Block title with note numbers
