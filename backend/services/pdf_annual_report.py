@@ -1158,91 +1158,121 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     doc.build(elems)
     return buf.getvalue()
 
+# ---- Noter visibility logic (mirror of Noter.tsx) ----
+def _is_heading_style(s):
+    """Check if style is a heading (H0, H1, H2, H3)"""
+    return (s or "NORMAL") in {"H0", "H1", "H2", "H3"}
+
+def _is_sum_line(s):
+    """Check if style is a sum line (S2, S3, TS2, TS3)"""
+    return (s or "") in {"S2", "S3", "TS2", "TS3"}
+
+def _is_subtotal_trigger(s):
+    """Check if style is a subtotal trigger (S2, TS2)"""
+    return (s or "") in {"S2", "TS2"}
+
+def build_visible_with_headings_pdf(items, toggle_on=False):
+    """
+    items: list of dicts with keys:
+      row_id, row_title, current_amount, previous_amount, toggle_show, always_show, style, variable_name, ...
+    toggle_on: when True, rows with toggle_show=True become visible even if amounts are zero
+    Mirrors Noter.tsx buildVisibleWithHeadings.
+    """
+    # --- Pass 1: base visibility (row itself is visible?) ---
+    base_visible = []
+    for it in items:
+        if it.get("always_show"):
+            base_visible.append(it)
+            continue
+        cur = _num(it.get("current_amount", 0))
+        prev = _num(it.get("previous_amount", 0))
+        if cur != 0 or prev != 0 or (it.get("toggle_show") is True and toggle_on):
+            base_visible.append(it)
+
+    base_ids = {it.get("row_id") for it in base_visible}
+
+    # Rows allowed to TRIGGER headings/subtotals (content rows only)
+    triggers = []
+    for it in items:
+        if _is_sum_line(it.get("style")): 
+            continue
+        if it.get("always_show"):
+            continue
+        cur = _num(it.get("current_amount", 0))
+        prev = _num(it.get("previous_amount", 0))
+        if cur != 0 or prev != 0 or (it.get("toggle_show") is True and toggle_on):
+            triggers.append(it)
+    trigger_ids = {it.get("row_id") for it in triggers}
+
+    # --- Pass 2: add H2/H3 headings + S2/TS2 subtotals based on nearby trigger rows ---
+    out = []
+    n = len(items)
+    for i, it in enumerate(items):
+        rid = it.get("row_id")
+
+        # Already visible? keep it.
+        if rid in base_ids:
+            out.append(it)
+            continue
+
+        sty = it.get("style")
+
+        # Headings (H2/H3): show if ANY following trigger row until next heading is present
+        if _is_heading_style(sty):
+            show = False
+            j = i + 1
+            while j < n:
+                nxt = items[j]
+                if _is_heading_style(nxt.get("style")):
+                    break
+                if nxt.get("row_id") in trigger_ids:
+                    show = True
+                    break
+                j += 1
+            if show:
+                out.append(it)
+                continue
+
+        # Subtotals (S2/TS2): show if ANY preceding trigger row until previous heading/S2 is present
+        if _is_subtotal_trigger(sty):
+            show = False
+            j = i - 1
+            while j >= 0:
+                prv = items[j]
+                if _is_heading_style(prv.get("style")) or _is_subtotal_trigger(prv.get("style")):
+                    break
+                if prv.get("row_id") in trigger_ids:
+                    show = True
+                    break
+                j -= 1
+            if show:
+                out.append(it)
+                continue
+
+    return out
+
+def subtotal_above(visible_rows, idx, year_key):
+    """Calculate subtotal by summing visible rows above until hitting a heading or another subtotal"""
+    s = 0
+    j = idx - 1
+    while j >= 0:
+        r = visible_rows[j]
+        if _is_heading_style(r.get("style")) or _is_subtotal_trigger(r.get("style")):
+            break
+        s += _num(r.get(year_key, 0))
+        j -= 1
+    return s
+
 def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
-    """Render a single note block with its table - Frontend-matching visibility logic"""
+    """Render a single note block with its table - Exact mirror of Noter.tsx"""
     
     print(f"[NOTER-PDF-DEBUG] Rendering block '{block_name}' with {len(notes)} notes")
     
-    def is_heading_style(style: str) -> bool:
-        return style in ['H0', 'H1', 'H2', 'H3']
+    # Mirror frontend toggle: usually OFF in the final PDF
+    toggle_on = False  # set True only if you want the "Visa alla rader" behavior in PDF
+    visible = build_visible_with_headings_pdf(notes, toggle_on=toggle_on)
     
-    def is_sum_line(style: str) -> bool:
-        return style in ['S2', 'S3', 'TS2', 'TS3']
-    
-    def is_subtotal_trigger(style: str) -> bool:
-        return style in ['S2', 'TS2']
-    
-    # Pass 1: base visibility (row itself is visible?)
-    base_visible = []
-    for idx, it in enumerate(notes):
-        # Mirror frontend: ignore show_tag; toggle_show only *adds* visibility when true
-        if it.get('always_show'):
-            base_visible.append(idx)
-            continue
-        
-        curr = _num(it.get('current_amount', 0))
-        prev = _num(it.get('previous_amount', 0))
-        if curr != 0 or prev != 0 or it.get('toggle_show') is True:
-            base_visible.append(idx)
-    
-    base_set = set(base_visible)
-    print(f"[NOTER-PDF-DEBUG] Block '{block_name}': base_set indices={base_set}")
-    
-    # Rows allowed to TRIGGER headings/subtotals (content rows only)
-    trigger_indices = []
-    for idx, it in enumerate(notes):
-        style = it.get('style', '')
-        if is_sum_line(style):
-            continue
-        if it.get('always_show'):
-            continue
-        curr = _num(it.get('current_amount', 0))
-        prev = _num(it.get('previous_amount', 0))
-        if curr != 0 or prev != 0 or it.get('toggle_show') is True:
-            trigger_indices.append(idx)
-    
-    trigger_set = set(trigger_indices)
-    print(f"[NOTER-PDF-DEBUG] Block '{block_name}': trigger_set indices={trigger_set}")
-    
-    # Pass 2: add H2/H3 headings + S2/TS2 subtotals based on nearby trigger rows
-    visible = []
-    for i, it in enumerate(notes):
-        # Already visible? keep it.
-        if i in base_set:
-            visible.append(it)
-            continue
-        
-        style = it.get('style', '')
-        
-        # Headings (H2/H3): show if ANY following trigger row until next heading is present
-        if is_heading_style(style):
-            show = False
-            for j in range(i + 1, len(notes)):
-                nxt = notes[j]
-                if is_heading_style(nxt.get('style', '')):
-                    break  # stop at next block/subblock
-                if j in trigger_set:
-                    show = True
-                    break
-            if show:
-                visible.append(it)
-                continue
-        
-        # Subtotals (S2/TS2): show if ANY preceding trigger row until previous heading/S2 is present
-        if is_subtotal_trigger(style):
-            show = False
-            for j in range(i - 1, -1, -1):
-                prev_item = notes[j]
-                prev_style = prev_item.get('style', '')
-                if is_heading_style(prev_style) or is_subtotal_trigger(prev_style):
-                    break
-                if j in trigger_set:
-                    show = True
-                    break
-            if show:
-                visible.append(it)
-    
-    print(f"[NOTER-PDF-DEBUG] Block '{block_name}': base_visible={len(base_visible)}, visible={len(visible)}")
+    print(f"[NOTER-PDF-DEBUG] Block '{block_name}': visible={len(visible)} notes after filtering")
     
     if not visible:
         print(f"[NOTER-PDF-DEBUG] Block '{block_name}' has no visible items, skipping")
@@ -1279,14 +1309,20 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
     table_data = [["Post", str(fiscal_year), str(prev_year)]]
     table_cmds = []
     
-    for note in visible:
+    for i, note in enumerate(visible):
         style = note.get('style', '')
         row_title = note.get('row_title', '')
         
         # Check if this is a heading (no amounts)
-        if is_heading_style(style):
+        if _is_heading_style(style):
             curr_fmt = ''
             prev_fmt = ''
+        elif _is_subtotal_trigger(style):
+            # Calculate subtotals by summing visible rows above
+            cur = subtotal_above(visible, i, 'current_amount')
+            prev = subtotal_above(visible, i, 'previous_amount')
+            curr_fmt = _fmt_int(cur)
+            prev_fmt = _fmt_int(prev)
         else:
             curr_fmt = _fmt_int(_num(note.get('current_amount', 0)))
             prev_fmt = _fmt_int(_num(note.get('previous_amount', 0)))
@@ -1295,10 +1331,10 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
         r = len(table_data) - 1  # Current row index
         
         # Apply styling based on style field
-        if is_heading_style(style):
+        if _is_heading_style(style):
             # Headings: semibold
             table_cmds.append(('FONT', (0,r), (0,r), 'Roboto-Medium', 10))
-        elif is_sum_line(style):
+        elif _is_sum_line(style):
             # Sum lines: semibold + borders
             table_cmds.append(('FONT', (0,r), (-1,r), 'Roboto-Medium', 10))
             table_cmds.append(('LINEABOVE', (0,r), (-1,r), 0.5, colors.Color(0, 0, 0, alpha=0.7)))
