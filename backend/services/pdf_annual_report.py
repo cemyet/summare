@@ -1175,14 +1175,14 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
     # Pass 1: base visibility (row itself is visible?)
     base_visible = []
     for idx, it in enumerate(notes):
-        if it.get('show_tag') == False or it.get('toggle_show') == False:
-            continue
+        # Mirror frontend: ignore show_tag; toggle_show only *adds* visibility when true
         if it.get('always_show'):
             base_visible.append(idx)
             continue
+        
         curr = _num(it.get('current_amount', 0))
         prev = _num(it.get('previous_amount', 0))
-        if curr != 0 or prev != 0:
+        if curr != 0 or prev != 0 or it.get('toggle_show') is True:
             base_visible.append(idx)
     
     base_set = set(base_visible)
@@ -1198,7 +1198,7 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
             continue
         curr = _num(it.get('current_amount', 0))
         prev = _num(it.get('previous_amount', 0))
-        if curr != 0 or prev != 0:
+        if curr != 0 or prev != 0 or it.get('toggle_show') is True:
             trigger_indices.append(idx)
     
     trigger_set = set(trigger_indices)
