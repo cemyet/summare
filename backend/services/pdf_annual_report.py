@@ -1406,10 +1406,10 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
     # Define explicit order to match preview (NOT1, NOT2, then by asset type)
     note_order = [
         'NOT1', 'NOT2',  # Always first
-        'BYGG',   # Byggnader och mark
-        'INV',    # Inventarier (comes BEFORE Maskiner in preview)
-        'MASKIN', # Maskiner (comes AFTER Inventarier in preview)
-        'MAT',    # Övriga materiella
+        'BYGG',   # Not 3 - Byggnader och mark
+        'MASKIN', # Not 4 - Maskiner och andra tekniska anläggningar (BEFORE INV in preview!)
+        'INV',    # Not 5 - Inventarier, verktyg och installationer (AFTER MASKIN in preview!)
+        'MAT',    # Not 6 - Övriga materiella
         'KONCERN', 'INTRESSEFTG', 'LVP',  # Financial assets
         'FORDRKONC', 'FORDRINTRE', 'FORDROVRFTG', 'OVRIGAFTG',  # Receivables
         'EVENTUAL', 'SAKERHET',  # Contingencies
@@ -1554,6 +1554,19 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     """Render a single note block with its table - uses pre-filtered visible items"""
     
     print(f"[NOTER-PDF-DEBUG] Rendering Not {note_number}: '{block_title}' with {len(visible)} items")
+    
+    # Debug INV specifically
+    if block_name == 'INV':
+        print(f"[INV-DEBUG] Block name: {block_name}")
+        print(f"[INV-DEBUG] Visible items count: {len(visible)}")
+        if visible:
+            sample = visible[0]
+            print(f"[INV-DEBUG] Sample item: {sample}")
+            # Find items with notable values
+            notable = [it for it in visible if _num(it.get('current_amount', 0)) > 10000]
+            print(f"[INV-DEBUG] Items with current_amount > 10k: {len(notable)}")
+            for item in notable[:3]:  # Show first 3
+                print(f"[INV-DEBUG]   - {item.get('row_title')}: cur={item.get('current_amount')}, prev={item.get('previous_amount')}")
     
     # Get fiscal year info from company_data
     fiscal_year = company_data.get('fiscal_year', 2024)
