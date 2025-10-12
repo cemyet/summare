@@ -1415,16 +1415,17 @@ def _collect_visible_note_blocks(blocks, company_data):
         # Apply visibility logic
         visible = build_visible_with_headings_pdf(items, toggle_on=toggle_on)
         
-        # Skip rows before first heading
-        pruned = []
-        seen_heading = False
-        for r in visible:
-            if _is_heading_style(r.get("style")):
-                seen_heading = True
-                pruned.append(r)
-            elif seen_heading:
-                pruned.append(r)
-        visible = pruned
+        # Skip rows before first heading (but not for NOT1/NOT2 which don't have headings)
+        if block_name not in ['NOT1', 'NOT2']:
+            pruned = []
+            seen_heading = False
+            for r in visible:
+                if _is_heading_style(r.get("style")):
+                    seen_heading = True
+                    pruned.append(r)
+                elif seen_heading:
+                    pruned.append(r)
+            visible = pruned
         
         # Skip block if no visible items
         if not visible:
