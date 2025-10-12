@@ -1147,18 +1147,26 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     priority_blocks = ['NOT1', 'NOT2']
     for block_name in priority_blocks:
         if block_name in blocks:
-            _render_note_block(elems, block_name, blocks[block_name], fiscal_year, prev_year, H1, P)
+            _render_note_block(elems, block_name, blocks[block_name], company_data, H1, P)
     
     # Sort remaining blocks, filtering out None values
     remaining_blocks = [b for b in blocks.keys() if b and b not in priority_blocks]
     for block_name in sorted(remaining_blocks):
-        _render_note_block(elems, block_name, blocks[block_name], fiscal_year, prev_year, H1, P)
+        _render_note_block(elems, block_name, blocks[block_name], company_data, H1, P)
     
     # Build PDF
     doc.build(elems)
     return buf.getvalue()
 
 # ---- Noter visibility logic (mirror of Noter.tsx) ----
+def _fmt_note_title(nr: int, title: str) -> str:
+    """Format note title by removing '–' and cleaning up spaces"""
+    t = (title or "").replace(" – ", " ").replace(" - ", " ").replace("–", " ").replace("-", " ")
+    # Clean up multiple spaces
+    import re
+    t = re.sub(r'\s+', ' ', t).strip()
+    return f"Not {nr} {t}".strip()
+
 def _is_heading_style(s):
     """Check if style is a heading (H0, H1, H2, H3)"""
     return (s or "NORMAL") in {"H0", "H1", "H2", "H3"}
@@ -1263,14 +1271,38 @@ def subtotal_above(visible_rows, idx, year_key):
         j -= 1
     return s
 
-def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
+def _render_note_block(elems, block_name, notes, company_data, H1, P):
     """Render a single note block with its table - Exact mirror of Noter.tsx"""
     
     print(f"[NOTER-PDF-DEBUG] Rendering block '{block_name}' with {len(notes)} notes")
     
+    # Get fiscal year info from company_data
+    fiscal_year = company_data.get('fiscal_year', 2024)
+    prev_year = fiscal_year - 1
+    
     # Mirror frontend toggle: usually OFF in the final PDF
     toggle_on = False  # set True only if you want the "Visa alla rader" behavior in PDF
+    
+    # Check if this is Eventualförpliktelser or Säkerheter block
+    block_name_lower = (block_name or "").strip().lower()
+    if block_name_lower in {"eventualförpliktelser", "eventual", "säkerheter", "sakerhet", "säkerhet"} and not toggle_on:
+        print(f"[NOTER-PDF-DEBUG] Block '{block_name}' hidden (toggle_on=False)")
+        return  # Hide these blocks when toggle is off
+    
+    # 1) Apply visibility logic
     visible = build_visible_with_headings_pdf(notes, toggle_on=toggle_on)
+    
+    # 2) Skip rows before first heading (nothing should appear "outside" a block)
+    filtered = []
+    seen_heading = False
+    for it in visible:
+        if _is_heading_style(it.get("style")):
+            seen_heading = True
+            filtered.append(it)
+            continue
+        if seen_heading:
+            filtered.append(it)
+    visible = filtered
     
     print(f"[NOTER-PDF-DEBUG] Block '{block_name}': visible={len(visible)} notes after filtering")
     
@@ -1278,22 +1310,23 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
         print(f"[NOTER-PDF-DEBUG] Block '{block_name}' has no visible items, skipping")
         return
     
-    # Block title with note numbers
-    block_labels = {
-        'NOT1': 'Not 1 – Redovisningsprinciper',
-        'NOT2': 'Not 2 – Medeltal anställda',
-        'KONCERN': 'Not – Andelar i koncernföretag',
-        'INTRESSEFTG': 'Not – Andelar i intresseföretag',
-        'BYGG': 'Not – Byggnader och mark',
-        'MASKIN': 'Not – Maskiner och inventarier',
-        'INV': 'Not – Inventarier, verktyg och installationer',
-        'MAT': 'Not – Materiella anläggningstillgångar',
-        'LVP': 'Not – Långfristiga fordringar',
-        'FORDR_KONCERN': 'Not – Fordringar hos koncernföretag',
-        'FORDR_INTRESSE': 'Not – Fordringar hos intresseföretag',
-        'FORDR_OVRIG': 'Not – Övriga fordringar',
+    # Block title with note numbers (map to note numbers and clean titles)
+    block_info = {
+        'NOT1': (1, 'Redovisningsprinciper'),
+        'NOT2': (2, 'Medeltal anställda'),
+        'KONCERN': (3, 'Andelar i koncernföretag'),
+        'INTRESSEFTG': (4, 'Andelar i intresseföretag'),
+        'BYGG': (5, 'Byggnader och mark'),
+        'MASKIN': (6, 'Maskiner och inventarier'),
+        'INV': (7, 'Inventarier, verktyg och installationer'),
+        'MAT': (8, 'Materiella anläggningstillgångar'),
+        'LVP': (9, 'Långfristiga fordringar'),
+        'FORDR_KONCERN': (10, 'Fordringar hos koncernföretag'),
+        'FORDR_INTRESSE': (11, 'Fordringar hos intresseföretag'),
+        'FORDR_OVRIG': (12, 'Övriga fordringar'),
     }
-    title = block_labels.get(block_name, f"Not – {block_name}")
+    note_nr, note_title = block_info.get(block_name, (0, block_name))
+    title = _fmt_note_title(note_nr, note_title) if note_nr else f"Not {block_name}"
     elems.append(Paragraph(title, H1))
     
     # For NOT1 (text note), render as paragraphs
@@ -1305,9 +1338,19 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
         elems.append(Spacer(1, 6))
         return
     
+    # Get period end dates from company_data
+    cur_end = company_data.get("currentPeriodEndDate") or f"{fiscal_year}-12-31"
+    prev_end = company_data.get("previousPeriodEndDate") or f"{prev_year}-12-31"
+    
     # For other notes, render as table with style-aware formatting
-    table_data = [["Post", str(fiscal_year), str(prev_year)]]
-    table_cmds = []
+    # Remove "Post" column header, use end dates for columns 2 & 3
+    table_data = [["", cur_end, prev_end]]
+    table_cmds = [
+        # Right-align column headers 2 & 3
+        ('ALIGN', (1,0), (2,0), 'RIGHT'),
+        ('FONT', (0,0), (-1,0), 'Roboto-Medium', 9),
+        ('BOTTOMPADDING', (0,0), (-1,0), 2),
+    ]
     
     for i, note in enumerate(visible):
         style = note.get('style', '')
@@ -1344,12 +1387,11 @@ def _render_note_block(elems, block_name, notes, fiscal_year, prev_year, H1, P):
     if len(table_data) > 1:
         t = Table(table_data, hAlign='LEFT', colWidths=[None, 80, 80])
         base_style = [
-            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Header row
             ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Data rows (default)
             ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
-            ('ALIGN', (1,1), (-1,-1), 'RIGHT'),  # Right-align amounts
+            ('ALIGN', (1,1), (2,-1), 'RIGHT'),  # Right-align amount columns
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('ROWSPACING', (0,0), (-1,-1), 0),
+            ('TOPPADDING', (0,0), (-1,-1), 0),
             ('BOTTOMPADDING', (0,0), (-1,-1), 0),
             ('LEFTPADDING', (0,0), (-1,-1), 0),
             ('RIGHTPADDING', (0,0), (-1,-1), 8),
