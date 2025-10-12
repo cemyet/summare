@@ -6985,7 +6985,9 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                 
                 console.log('✅ [NOT2-APPROVE] Updating items with edits:', { 
                   editedCount: Object.keys(editedValues).length,
-                  updatedItems: updatedItems.length
+                  updatedItems: updatedItems.length,
+                  editedValues: editedValues,
+                  newCommittedValues: newCommittedValues
                 });
                 
                 // Merge updated items back into full noterData
@@ -6993,6 +6995,15 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   const updated = updatedItems.find(u => u.row_id === item.row_id && u.block === 'NOT2');
                   return updated || item;
                 });
+                
+                // Debug: show what we're sending
+                const not2Items = updatedNoterData.filter(item => item.block === 'NOT2');
+                console.log('✅ [NOT2-APPROVE] Bubbling updated NOT2 items:', not2Items.map(item => ({
+                  title: item.row_title,
+                  current: item.current_amount,
+                  previous: item.previous_amount
+                })));
+                
                 onDataUpdate?.({ noterData: updatedNoterData });
               };
               
