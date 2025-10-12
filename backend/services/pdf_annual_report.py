@@ -187,6 +187,10 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL):
     # Get flerårsöversikt data from companyData (comes from frontend state)
     flerars = company_data.get('flerarsoversikt', {})
     
+    # Debug: show what we received
+    print(f"[FLERARS-DEBUG] Received flerarsoversikt: {flerars}")
+    print(f"[FLERARS-DEBUG] Type: {type(flerars)}, Keys: {list(flerars.keys()) if isinstance(flerars, dict) else 'not a dict'}")
+    
     # If we have structured flerårsöversikt data, use it
     if flerars and flerars.get('years'):
         years = flerars.get('years', [])
@@ -588,7 +592,19 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("Förvaltningsberättelse", H0))
     elems.append(Spacer(1, 8))
     
-    verksamhet_text, vasentliga_text = _extract_fb_texts(company_data)
+    # Extract text content - prefer edited values from frontend
+    verksamhet_text = company_data.get('verksamhetContent', '')
+    vasentliga_text = company_data.get('vasentligaHandelser', 'Inga väsentliga händelser under året.')
+    
+    # Debug: show what we received
+    print(f"[VERKSAMHET-DEBUG] verksamhetContent: {verksamhet_text[:100] if verksamhet_text else 'EMPTY'}")
+    print(f"[VERKSAMHET-DEBUG] vasentligaHandelser: {vasentliga_text[:100] if vasentliga_text else 'EMPTY'}")
+    
+    # Fallback to empty if not provided
+    if not verksamhet_text:
+        verksamhet_text = "Bolaget bedriver..."  # Default text
+    if not vasentliga_text:
+        vasentliga_text = "Inga väsentliga händelser under året."
     
     elems.append(Paragraph("Verksamheten", H1))
     elems.append(Paragraph(verksamhet_text, P))
@@ -1443,6 +1459,14 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         
         # Special handling for NOT2 "Medeltal anställda" - ensure single row display
         if block_title.strip().lower() == "medeltal anställda" or block_name == "NOT2":
+            # Debug: show what items we received
+            print(f"[NOT2-BACKEND-DEBUG] NOT2 block has {len(items) if items else 0} items")
+            if items:
+                for i, it in enumerate(items):
+                    print(f"[NOT2-BACKEND-DEBUG]   Item {i}: title='{it.get('row_title')}', "
+                          f"cur={it.get('current_amount')}, prev={it.get('previous_amount')}, "
+                          f"var={it.get('variable_name')}")
+            
             # Prefer values from noter data (scraped + edited)
             emp_current = 0
             emp_previous = 0
@@ -1463,6 +1487,7 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                 if src:
                     emp_current = _num(src.get('current_amount', 0))
                     emp_previous = _num(src.get('previous_amount', 0))
+                    print(f"[NOT2-BACKEND-DEBUG] Found source item: cur={emp_current}, prev={emp_previous}")
             
             # Fallback to scraper data from rating_bolag (NOT SIE!)
             if emp_current == 0 and emp_previous == 0:

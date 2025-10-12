@@ -78,6 +78,9 @@ export function Download({ companyData }: DownloadProps) {
           (item.row_title || '').toLowerCase().includes('nedskrivning')
         );
         
+        // Debug NOT2 specifically
+        const not2Items = (companyData.noterData || []).filter((item: any) => item.block === 'NOT2');
+        
         console.log('🚀 [PDF-DOWNLOAD] Sending companyData to backend:', {
           // FB (Förvaltningsberättelse)
           hasFbTable: !!companyData.fbTable,
@@ -97,7 +100,19 @@ export function Download({ companyData }: DownloadProps) {
             title: item.row_title,
             current: item.current_amount,
             previous: item.previous_amount
-          }))
+          })),
+          // NOT2 specific debug
+          not2ItemsCount: not2Items.length,
+          not2Items: not2Items.map((item: any) => ({
+            title: item.row_title,
+            current: item.current_amount,
+            previous: item.previous_amount
+          })),
+          // Text fields
+          hasVerksamhetContent: !!companyData.verksamhetContent,
+          verksamhetContent: companyData.verksamhetContent?.substring(0, 50) + '...',
+          hasVasentligaHandelser: !!companyData.vasentligaHandelser,
+          hasFlerarsoversikt: !!companyData.flerarsoversikt
         });
         
         const response = await fetch(`${API_BASE}/api/pdf/annual-report`, {
