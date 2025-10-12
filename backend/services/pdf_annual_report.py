@@ -1077,7 +1077,13 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     }
     
     # Force-correct some headings to H1 (10pt) regardless of incoming style
-    FORCE_H1_EQ = {'Kortfristiga skulder', 'Bundet eget kapital', 'Fritt eget kapital'}
+    FORCE_H1_EQ = {
+        'Kortfristiga skulder', 
+        'Långfristiga skulder',
+        'Avsättningar',
+        'Bundet eget kapital', 
+        'Fritt eget kapital'
+    }
     
     # Header: Post (no text), Not, year end dates (right-aligned)
     br_eq_table = [["", "Not", current_year_header, previous_year_header]]
