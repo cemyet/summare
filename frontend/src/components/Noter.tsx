@@ -1985,7 +1985,8 @@ const KoncernNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
@@ -2170,6 +2171,23 @@ const KoncernNote: React.FC<{
     setShowValidationMessage(false);
     setIsEditing(false);
     setToggle?.(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = committedValues[item.variable_name];
+      const newPrevious = committedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [KONCERN-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Helper functions
@@ -2499,7 +2517,8 @@ const IntresseforetagNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
@@ -2684,6 +2703,23 @@ const IntresseforetagNote: React.FC<{
     setShowValidationMessage(false);
     setIsEditing(false);
     setToggle?.(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = committedValues[item.variable_name];
+      const newPrevious = committedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [INTRESSEFTG-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Helper functions
@@ -3013,7 +3049,8 @@ const LangfristigaVardepapperNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
@@ -3193,6 +3230,23 @@ const LangfristigaVardepapperNote: React.FC<{
     setShowValidationMessage(false);
     setIsEditing(false);
     setToggle?.(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = committedValues[item.variable_name];
+      const newPrevious = committedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [LVP-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Helper functions
@@ -3522,7 +3576,8 @@ const FordringarKoncernNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
@@ -3706,6 +3761,23 @@ const FordringarKoncernNote: React.FC<{
     setShowValidationMessage(false);
     setIsEditing(false);
     setToggle?.(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = committedValues[item.variable_name];
+      const newPrevious = committedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [FORDRKONC-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Helper functions
@@ -4035,7 +4107,8 @@ const FordringarIntresseNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
@@ -4219,6 +4292,23 @@ const FordringarIntresseNote: React.FC<{
     setShowValidationMessage(false);
     setIsEditing(false);
     setToggle?.(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = committedValues[item.variable_name];
+      const newPrevious = committedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [FORDRINTRE-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Helper functions
@@ -4548,7 +4638,8 @@ const FordringarOvrigaNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
@@ -4710,6 +4801,23 @@ const FordringarOvrigaNote: React.FC<{
     setShowValidationMessage(false);
     setIsEditing(false);
     setToggle?.(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = committedValues[item.variable_name];
+      const newPrevious = committedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [FORDROVRFTG-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Helper functions
@@ -5039,6 +5147,7 @@ const EventualNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
   blockToggles: Record<string, boolean>;
   setBlockToggles: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void;
 }> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, blockToggles, setBlockToggles }) => {
@@ -5143,6 +5252,23 @@ const EventualNote: React.FC<{
     setEditedPrevValues({});
     setIsEditing(false);
     setToggle?.(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = committedValues[item.variable_name];
+      const newPrevious = committedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [EVENTUAL-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Helper functions
@@ -5365,6 +5491,7 @@ const SakerhetNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
   blockToggles: Record<string, boolean>;
   setBlockToggles: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void;
 }> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, blockToggles, setBlockToggles }) => {
@@ -5705,7 +5832,8 @@ const InventarierNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate }) => {
   // Keep original table look-and-feel (same grid as other notes)
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
@@ -5935,6 +6063,23 @@ const InventarierNote: React.FC<{
     setShowValidationMessage(false);
     setIsEditing(false);
     setToggle?.(false); // collapse zero rows after approve
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = committedValues[item.variable_name];
+      const newPrevious = committedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [INV-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
 
@@ -6963,6 +7108,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                   blockToggles={blockToggles}
                   setBlockToggles={wrappedSetBlockToggles}
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}
                 />
               );
             }
@@ -6980,7 +7126,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
-                />
+                
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}/>
               );
             }
             
@@ -7046,7 +7193,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
-                />
+                
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}/>
               );
             }
             
@@ -7062,7 +7210,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
-                />
+                
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}/>
               );
             }
             
@@ -7078,7 +7227,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
-                />
+                
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}/>
               );
             }
             
@@ -7094,7 +7244,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
-                />
+                
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}/>
               );
             }
             
@@ -7110,7 +7261,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
-                />
+                
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}/>
               );
             }
             
@@ -7126,7 +7278,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
-                />
+                
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}/>
               );
             }
             
@@ -7144,6 +7297,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                   blockToggles={blockToggles}
                   setBlockToggles={wrappedSetBlockToggles}
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}
                 />
               );
             }
