@@ -7205,6 +7205,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}
                 />
               );
             }

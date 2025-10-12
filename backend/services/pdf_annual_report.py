@@ -1392,9 +1392,9 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         'KONCERN': 'Andelar i koncernföretag',
         'INTRESSEFTG': 'Andelar i intresseföretag',
         'BYGG': 'Byggnader och mark',
-        'MASKIN': 'Maskiner och inventarier',
-        'INV': 'Inventarier, verktyg och installationer',
-        'MAT': 'Materiella anläggningstillgångar',
+        'INV': 'Inventarier, verktyg och installationer',  # Fixed order: INV before MASKIN
+        'MASKIN': 'Maskiner och andra tekniska anläggningar',  # Fixed title
+        'MAT': 'Övriga materiella anläggningstillgångar',  # Fixed title
         'LVP': 'Långfristiga fordringar',
         'FORDR_KONCERN': 'Fordringar hos koncernföretag',
         'FORDR_INTRESSE': 'Fordringar hos intresseföretag',
@@ -1403,18 +1403,27 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
     
     collected = []
     
-    # Priority blocks first (NOT1, NOT2)
-    priority_blocks = ['NOT1', 'NOT2']
-    remaining_block_names = []
+    # Define explicit order to match preview (NOT1, NOT2, then by asset type)
+    note_order = [
+        'NOT1', 'NOT2',  # Always first
+        'BYGG',   # Byggnader och mark
+        'INV',    # Inventarier (comes BEFORE Maskiner in preview)
+        'MASKIN', # Maskiner (comes AFTER Inventarier in preview)
+        'MAT',    # Övriga materiella
+        'KONCERN', 'INTRESSEFTG', 'LVP',  # Financial assets
+        'FORDRKONC', 'FORDRINTRE', 'FORDROVRFTG', 'OVRIGAFTG',  # Receivables
+        'EVENTUAL', 'SAKERHET',  # Contingencies
+        'OVRIGA', 'OTHER'  # Other notes
+    ]
     
+    # Collect blocks in the defined order, then add any blocks not in the order list
+    remaining_block_names = []
     for block_name in blocks.keys():
-        if block_name in priority_blocks:
-            continue
-        if block_name:
+        if block_name not in note_order:
             remaining_block_names.append(block_name)
     
-    # Process in order: NOT1, NOT2, then sorted remaining
-    ordered_blocks = priority_blocks + sorted(remaining_block_names)
+    # Process in explicit order, then add any remaining blocks
+    ordered_blocks = [b for b in note_order if b in blocks] + sorted(remaining_block_names)
     
     for block_name in ordered_blocks:
         if block_name not in blocks:
