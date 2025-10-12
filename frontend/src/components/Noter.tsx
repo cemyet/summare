@@ -869,7 +869,8 @@ const ByggnaderNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
@@ -1071,14 +1072,35 @@ const ByggnaderNote: React.FC<{
       return;
     }
 
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
     setShowValidationMessage(false);
     setIsEditing(false);
     setToggle?.(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [BYGGNADER-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues).length + Object.keys(editedPrevValues).length,
+      sampleEdit: Object.keys(editedValues)[0]
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Helper functions (reuse from module scope)
