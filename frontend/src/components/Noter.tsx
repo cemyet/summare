@@ -1598,6 +1598,8 @@ const OvrigaMateriellaNote: React.FC<{
   };
 
   const approveEdit = () => {
+    console.log('🔵 [MAT-APPROVE] Button clicked!');
+    
     const redCurCalc  = redCur;
     const redPrevCalc = redPrev;
 
@@ -1606,7 +1608,18 @@ const OvrigaMateriellaNote: React.FC<{
 
     const hasMismatch = Math.round(deltaCur) !== 0 || Math.round(deltaPrev) !== 0;
 
+    console.log('🔵 [MAT-APPROVE] Validation check:', {
+      redCurCalc,
+      redPrevCalc,
+      brBookValueUBCur,
+      brBookValueUBPrev,
+      deltaCur,
+      deltaPrev,
+      hasMismatch
+    });
+
     if (hasMismatch) {
+      console.log('❌ [MAT-APPROVE] Validation FAILED - mismatch detected, blocking save');
       setMismatch({ open: true, deltaCur, deltaPrev });
       setShowValidationMessage(true);
       return;
