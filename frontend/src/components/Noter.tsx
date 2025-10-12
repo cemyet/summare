@@ -1654,7 +1654,7 @@ const OvrigaMateriellaNote: React.FC<{
       sampleEdit: Object.keys(editedValues)[0]
     });
     onItemsUpdate?.(updatedItems);
-
+  };
 
   // Helper functions
   const isSumRow = (it: NoterItem) => it.style === 'S2';
