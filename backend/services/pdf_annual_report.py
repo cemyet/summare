@@ -1204,6 +1204,10 @@ def _is_subtotal_trigger(s):
     """Check if style is a subtotal trigger (S2, TS2)"""
     return (s or "") in {"S2", "TS2"}
 
+def _is_s2(s):
+    """Alias for _is_subtotal_trigger"""
+    return _is_subtotal_trigger(s)
+
 def _sum_group_above(rows, idx, key):
     """Sum content rows above current row until hitting a heading or subtotal"""
     total = 0.0
@@ -1211,11 +1215,70 @@ def _sum_group_above(rows, idx, key):
     while j >= 0:
         r = rows[j]
         st = r.get("style", "")
-        if _is_head(st) or _is_subtotal_trigger(st):  # stop at head or another subtotal
+        if _is_head(st) or _is_s2(st):  # stop at head or another subtotal
             break
         total += _num(r.get(key, 0))
         j -= 1
     return total
+
+def _ub_s2(rows, varname, year_key):
+    """If a UB row exists as S2 in the *visible* list, use its dynamic subtotal"""
+    for i, r in enumerate(rows):
+        if r.get("variable_name") == varname and _is_s2(r.get("style")):
+            return _sum_group_above(rows, i, year_key)
+    return None  # not visible as S2
+
+def redovisat_varde(block_title, visible_rows, year_key):
+    """Calculate Redovisat värde from UB subtotals (exactly like Preview)"""
+    t = block_title.lower()
+    
+    def vfallback(mask):
+        # flows → UB fallback when S2 not visible
+        by = {r.get("variable_name"): r for r in visible_rows if r.get("variable_name")}
+        def gv(name): return _num(by.get(name, {}).get(year_key, 0))
+        
+        if mask == "maskiner":
+            return (gv('maskiner_ib') + gv('arets_inkop_maskiner') + gv('arets_fsg_maskiner') + gv('arets_omklass_maskiner')
+                   + gv('ack_avskr_maskiner_ib') + gv('arets_avskr_maskiner') + gv('aterfor_avskr_fsg_maskiner') + gv('omklass_avskr_maskiner')
+                   + gv('ack_nedskr_maskiner_ib') + gv('arets_nedskr_maskiner') + gv('aterfor_nedskr_maskiner') + gv('aterfor_nedskr_fsg_maskiner') + gv('omklass_nedskr_maskiner'))
+        if mask == "inventarier":
+            return (gv('inventarier_ib') + gv('arets_inkop_inv') + gv('arets_fsg_inv') + gv('arets_omklass_inv')
+                   + gv('ack_avskr_inv_ib') + gv('arets_avskr_inv') + gv('aterfor_avskr_fsg_inv') + gv('omklass_avskr_inv')
+                   + gv('ack_nedskr_inv_ib') + gv('arets_nedskr_inv') + gv('aterfor_nedskr_inv') + gv('aterfor_nedskr_fsg_inv') + gv('omklass_nedskr_inv'))
+        if mask == "byggnader":
+            return (gv('bygg_ib') + gv('arets_inkop_bygg') + gv('arets_fsg_bygg') + gv('arets_omklass_bygg')
+                   + gv('ack_avskr_bygg_ib') + gv('arets_avskr_bygg') + gv('aterfor_avskr_fsg_bygg') + gv('omklass_avskr_bygg')
+                   + gv('ack_uppskr_bygg_ib') + gv('arets_uppskr_bygg') + gv('aterfor_uppskr_fsg_bygg') + gv('arets_avskr_uppskr_bygg') + gv('omklass_uppskr_bygg')
+                   + gv('ack_nedskr_bygg_ib') + gv('arets_nedskr_bygg') + gv('aterfor_nedskr_bygg') + gv('aterfor_nedskr_fsg_bygg') + gv('omklass_nedskr_bygg'))
+        return 0.0
+
+    # Prefer visible S2 subtotals (exactly like the preview UI)
+    if "maskiner" in t:
+        m = _ub_s2(visible_rows, 'maskiner_ub', year_key)
+        a = _ub_s2(visible_rows, 'ack_avskr_maskiner_ub', year_key)
+        n = _ub_s2(visible_rows, 'ack_nedskr_maskiner_ub', year_key)
+        if None not in (m, a, n):
+            return m + a + n
+        return vfallback("maskiner")
+
+    if "inventarier" in t:
+        m = _ub_s2(visible_rows, 'inventarier_ub', year_key)
+        a = _ub_s2(visible_rows, 'ack_avskr_inv_ub', year_key)
+        n = _ub_s2(visible_rows, 'ack_nedskr_inv_ub', year_key)
+        if None not in (m, a, n):
+            return m + a + n
+        return vfallback("inventarier")
+
+    if "byggnader" in t or "byggnader och mark" in t or "bygg" in t:
+        b = _ub_s2(visible_rows, 'bygg_ub', year_key)
+        a = _ub_s2(visible_rows, 'ack_avskr_bygg_ub', year_key)
+        u = _ub_s2(visible_rows, 'ack_uppskr_bygg_ub', year_key)
+        n = _ub_s2(visible_rows, 'ack_nedskr_bygg_ub', year_key)
+        if None not in (b, a, u, n):
+            return b + a + u + n
+        return vfallback("byggnader")
+
+    return 0.0
 
 def build_visible_with_headings_pdf(items, toggle_on=False):
     """
@@ -1297,18 +1360,6 @@ def build_visible_with_headings_pdf(items, toggle_on=False):
 
     return out
 
-def subtotal_above(visible_rows, idx, year_key):
-    """Calculate subtotal by summing visible rows above until hitting a heading or another subtotal"""
-    s = 0
-    j = idx - 1
-    while j >= 0:
-        r = visible_rows[j]
-        if _is_heading_style(r.get("style")) or _is_subtotal_trigger(r.get("style")):
-            break
-        s += _num(r.get(year_key, 0))
-        j -= 1
-    return s
-
 def _has_nonzero_content(rows):
     """Check if block has any non-zero content rows (excluding headings and subtotals)"""
     for r in rows:
@@ -1318,46 +1369,6 @@ def _has_nonzero_content(rows):
         if (_num(r.get("current_amount", 0)) != 0) or (_num(r.get("previous_amount", 0)) != 0):
             return True
     return False
-
-def _value_for_pdf_row(visible, idx, it, year_key, block_name):
-    """Calculate value for a row - handles S2 subtotals and 'Redovisat värde' specially"""
-    st = it.get("style", "")
-    vn = (it.get("variable_name") or "").lower()
-    title = (it.get("row_title") or "").lower()
-
-    # Dynamic subtotals (S2/TS2) = sum of content rows immediately above
-    if _is_subtotal_trigger(st):
-        return _sum_group_above(visible, idx, year_key)
-
-    # "Redovisat värde" rows = sum of the three/four UB subtotals shown in UI
-    if "redovisat" in title or "red_varde" in vn:
-        # Find the S2 rows for UB within this mini-block:
-        # – Anskaffningsvärden UB
-        # – Avskrivningar UB
-        # – Nedskrivningar UB
-        # – (Bygg) Uppskrivningar UB
-        need_titles = ["utgående anskaffningsvärden", "utgaende anskaffningsvarden",
-                       "utgående avskrivningar", "utgaende avskrivningar",
-                       "utgående nedskrivningar", "utgaende nedskrivningar"]
-        if "bygg" in block_name.lower():
-            need_titles += ["utgående uppskrivningar", "utgaende uppskrivningar"]
-
-        total = 0.0
-        # scan up until previous heading; collect S2 rows whose label matches
-        j = idx - 1
-        while j >= 0:
-            r = visible[j]
-            if _is_head(r.get("style", "")):
-                break
-            if _is_subtotal_trigger(r.get("style", "")):
-                lbl = (r.get("row_title") or "").lower()
-                if any(lbl.startswith(nt) for nt in need_titles):
-                    total += _sum_group_above(visible, j, year_key)
-            j -= 1
-        return total
-
-    # default: value from item
-    return _num(it.get(year_key, 0))
 
 def _collect_visible_note_blocks(blocks, company_data):
     """
@@ -1514,60 +1525,49 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     header_row = ["", cur_end, prev_end]
     table_data = [header_row]
     
-    # Base style with vertical centering and consistent spacing
+    # Clean style with only header line (no body lines)
     style_cmds = [
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),         # vertically center every cell
-        ('TOPPADDING', (0,0), (-1,-1), 3),            # restore minimal paddings
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('TOPPADDING', (0,0), (-1,-1), 2.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 8),
-        ('ALIGN', (1,0), (2,0), 'RIGHT'),             # right-align col headers
-        ('ALIGN', (1,1), (2,-1), 'RIGHT'),            # right-align numbers
+        ('ALIGN', (1,0), (2,0), 'RIGHT'),   # header dates
+        ('ALIGN', (1,1), (2,-1), 'RIGHT'),  # numbers
         ('FONT', (0,0), (-1,0), 'Roboto-Medium', 9),  # Header row
         ('FONT', (0,1), (-1,-1), 'Roboto', 10),       # Data rows (default)
-        ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
+        # single heading line only:
+        ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.20)),
     ]
     
-    # Build table rows and collect row-specific styling
-    for i, note in enumerate(visible):
-        style = note.get('style', '')
-        row_title = note.get('row_title', '')
-        lbl = row_title.lower()
+    # Build table rows
+    for i, it in enumerate(visible):
+        style = it.get('style', '')
+        row_title = it.get('row_title', '')
         
         # Check if this is a heading (no amounts)
         if _is_heading_style(style):
             curr_fmt = ''
             prev_fmt = ''
         else:
-            # Use _value_for_pdf_row to handle S2 and "Redovisat värde" specially
-            cur = _value_for_pdf_row(visible, i, note, 'current_amount', block_name)
-            prev = _value_for_pdf_row(visible, i, note, 'previous_amount', block_name)
+            # Detect Redovisat värde and calculate it specially
+            if "redovisat" in (it.get("row_title", "").lower()) or "red_varde" in (it.get("variable_name") or "").lower():
+                cur = redovisat_varde(block_title, visible, 'current_amount')
+                prev = redovisat_varde(block_title, visible, 'previous_amount')
+            else:
+                # S2 rows use dynamic subtotal, others use stored value
+                cur = _sum_group_above(visible, i, 'current_amount') if _is_s2(it.get("style")) else _num(it.get('current_amount', 0))
+                prev = _sum_group_above(visible, i, 'previous_amount') if _is_s2(it.get("style")) else _num(it.get('previous_amount', 0))
+            
             curr_fmt = _fmt_int(cur)
             prev_fmt = _fmt_int(prev)
         
         table_data.append([row_title, curr_fmt, prev_fmt])
-        r_index = len(table_data) - 1  # Current row index in table (0 is header, data starts at 1)
+        r_index = len(table_data) - 1
         
-        # Apply styling based on style field
+        # Apply semibold to headings
         if _is_heading_style(style):
-            # Headings: semibold
             style_cmds.append(('FONT', (0,r_index), (0,r_index), 'Roboto-Medium', 10))
-        
-        # Draw thin lines at TOP+BOTTOM for:
-        # – S2/TS2 ("Utgående …")
-        # – "Redovisat värde"
-        is_sum_row = _is_subtotal_trigger(style)
-        is_redv = ("redovisat" in lbl) or ("red_varde" in (note.get('variable_name') or '').lower())
-        
-        if is_sum_row or is_redv:
-            style_cmds += [
-                ('FONT', (0,r_index), (-1,r_index), 'Roboto-Medium', 10),  # Semibold
-                ('LINEABOVE', (0,r_index), (-1,r_index), 0.5, THIN_GREY),
-                ('LINEBELOW', (0,r_index), (-1,r_index), 0.5, THIN_GREY),
-                ('BOTTOMPADDING', (0,r_index), (-1,r_index), 6),  # a little air inside the rule
-            ]
-            # add 12pt "mini-block" gap AFTER this row
-            style_cmds.append(('BOTTOMPADDING', (0,r_index), (-1,r_index), 12))
     
     if len(table_data) > 1:
         t = Table(table_data, hAlign='LEFT', colWidths=[None, 80, 80])
