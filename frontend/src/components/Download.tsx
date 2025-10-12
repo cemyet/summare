@@ -72,6 +72,12 @@ export function Download({ companyData }: DownloadProps) {
         console.log('📄 Generating annual report PDF with ReportLab...');
         
         // Add cache buster to ensure fresh PDF generation
+        // Debug INV specifically before sending
+        const invItems = (companyData.noterData || []).filter((item: any) => item.block === 'INV');
+        const invNedskr = invItems.filter((item: any) => 
+          (item.row_title || '').toLowerCase().includes('nedskrivning')
+        );
+        
         console.log('🚀 [PDF-DOWNLOAD] Sending companyData to backend:', {
           // FB (Förvaltningsberättelse)
           hasFbTable: !!companyData.fbTable,
@@ -85,6 +91,13 @@ export function Download({ companyData }: DownloadProps) {
           noterToggleOn: companyData.noterToggleOn,
           noterBlockToggles: companyData.noterBlockToggles,
           sampleNote: companyData.noterData?.[0],
+          // INV specific debug
+          invItemsCount: invItems.length,
+          invNedskrivningar: invNedskr.map((item: any) => ({
+            title: item.row_title,
+            current: item.current_amount,
+            previous: item.previous_amount
+          }))
         });
         
         const response = await fetch(`${API_BASE}/api/pdf/annual-report`, {
