@@ -558,6 +558,11 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     
     print(f"[PDF-DEBUG] Using RR data source: {'edited' if company_data.get('rrData') or company_data.get('rrRows') else 'seFileData'}")
     print(f"[PDF-DEBUG] Using BR data source: {'edited' if company_data.get('brData') or company_data.get('brRows') else 'seFileData'}")
+    print(f"[PDF-DEBUG] Noter data received: {len(noter_data)} items")
+    print(f"[PDF-DEBUG] Noter toggles: toggle_on={noter_toggle_on}, block_toggles={noter_block_toggles}")
+    if noter_data and len(noter_data) > 0:
+        sample = noter_data[0]
+        print(f"[PDF-DEBUG] Sample note item: block={sample.get('block')}, title={sample.get('row_title')}, current={sample.get('current_amount')}, previous={sample.get('previous_amount')}")
     
     # ===== 1. FÖRVALTNINGSBERÄTTELSE =====
     elems.append(Paragraph("Förvaltningsberättelse", H0))

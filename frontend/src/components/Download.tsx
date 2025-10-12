@@ -72,6 +72,14 @@ export function Download({ companyData }: DownloadProps) {
         console.log('📄 Generating annual report PDF with ReportLab...');
         
         // Add cache buster to ensure fresh PDF generation
+        console.log('🚀 [PDF-DOWNLOAD] Sending companyData to backend:', {
+          hasNoterData: !!companyData.noterData,
+          noterDataLength: companyData.noterData?.length || 0,
+          noterToggleOn: companyData.noterToggleOn,
+          noterBlockToggles: companyData.noterBlockToggles,
+          sampleNote: companyData.noterData?.[0],
+        });
+        
         const response = await fetch(`${API_BASE}/api/pdf/annual-report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

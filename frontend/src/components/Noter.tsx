@@ -314,7 +314,8 @@ const MaskinerNote: React.FC<{
   companyData?: any;
   toggleOn: boolean;
   setToggle: (checked: boolean) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle }) => {
+  onItemsUpdate?: (updatedItems: NoterItem[]) => void;
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate }) => {
   // Keep original table look-and-feel (same grid as other notes)
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
@@ -503,14 +504,35 @@ const MaskinerNote: React.FC<{
       return;
     }
 
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
     setShowValidationMessage(false);
     setIsEditing(false);
     setToggle?.(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [MASKINER-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues).length + Object.keys(editedPrevValues).length,
+      sampleEdit: Object.keys(editedValues)[0]
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Reuse the same AmountCell from InventarierNote (already defined above)
@@ -6231,6 +6253,26 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
     });
   };
 
+  // Helper to handle note item updates from editors
+  const handleItemsUpdate = (blockName: string, updatedItems: NoterItem[]) => {
+    console.log('📝 [NOTER-UPDATE] Block edited:', blockName, 'Items:', updatedItems.length);
+    
+    // Update noterData by replacing items for this block
+    const updatedNoterData = noterData.map(item => {
+      // Find if this item is in the updated block
+      const updatedItem = updatedItems.find(ui => ui.row_id === item.row_id && ui.block === item.block);
+      return updatedItem || item;
+    });
+    
+    console.log('📝 [NOTER-UPDATE] Bubbling updated noterData to parent:', {
+      totalItems: updatedNoterData.length,
+      changedBlock: blockName
+    });
+    
+    // Bubble up to companyData
+    onDataUpdate?.({ noterData: updatedNoterData });
+  };
+
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('sv-SE', {
       minimumFractionDigits: 0,
@@ -6897,6 +6939,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
                   setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
+                  onItemsUpdate={(items) => handleItemsUpdate(block, items)}
                 />
               );
             }
