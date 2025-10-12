@@ -1221,64 +1221,28 @@ def _sum_group_above(rows, idx, key):
         j -= 1
     return total
 
-def _ub_s2(rows, varname, year_key):
-    """If a UB row exists as S2 in the *visible* list, use its dynamic subtotal"""
-    for i, r in enumerate(rows):
-        if r.get("variable_name") == varname and _is_s2(r.get("style")):
-            return _sum_group_above(rows, i, year_key)
-    return None  # not visible as S2
-
-def redovisat_varde(block_title, visible_rows, year_key):
-    """Calculate Redovisat värde from UB subtotals (exactly like Preview)"""
-    t = block_title.lower()
-    
-    def vfallback(mask):
-        # flows → UB fallback when S2 not visible
-        by = {r.get("variable_name"): r for r in visible_rows if r.get("variable_name")}
-        def gv(name): return _num(by.get(name, {}).get(year_key, 0))
-        
-        if mask == "maskiner":
-            return (gv('maskiner_ib') + gv('arets_inkop_maskiner') + gv('arets_fsg_maskiner') + gv('arets_omklass_maskiner')
-                   + gv('ack_avskr_maskiner_ib') + gv('arets_avskr_maskiner') + gv('aterfor_avskr_fsg_maskiner') + gv('omklass_avskr_maskiner')
-                   + gv('ack_nedskr_maskiner_ib') + gv('arets_nedskr_maskiner') + gv('aterfor_nedskr_maskiner') + gv('aterfor_nedskr_fsg_maskiner') + gv('omklass_nedskr_maskiner'))
-        if mask == "inventarier":
-            return (gv('inventarier_ib') + gv('arets_inkop_inv') + gv('arets_fsg_inv') + gv('arets_omklass_inv')
-                   + gv('ack_avskr_inv_ib') + gv('arets_avskr_inv') + gv('aterfor_avskr_fsg_inv') + gv('omklass_avskr_inv')
-                   + gv('ack_nedskr_inv_ib') + gv('arets_nedskr_inv') + gv('aterfor_nedskr_inv') + gv('aterfor_nedskr_fsg_inv') + gv('omklass_nedskr_inv'))
-        if mask == "byggnader":
-            return (gv('bygg_ib') + gv('arets_inkop_bygg') + gv('arets_fsg_bygg') + gv('arets_omklass_bygg')
-                   + gv('ack_avskr_bygg_ib') + gv('arets_avskr_bygg') + gv('aterfor_avskr_fsg_bygg') + gv('omklass_avskr_bygg')
-                   + gv('ack_uppskr_bygg_ib') + gv('arets_uppskr_bygg') + gv('aterfor_uppskr_fsg_bygg') + gv('arets_avskr_uppskr_bygg') + gv('omklass_uppskr_bygg')
-                   + gv('ack_nedskr_bygg_ib') + gv('arets_nedskr_bygg') + gv('aterfor_nedskr_bygg') + gv('aterfor_nedskr_fsg_bygg') + gv('omklass_nedskr_bygg'))
-        return 0.0
-
-    # Prefer visible S2 subtotals (exactly like the preview UI)
-    if "maskiner" in t:
-        m = _ub_s2(visible_rows, 'maskiner_ub', year_key)
-        a = _ub_s2(visible_rows, 'ack_avskr_maskiner_ub', year_key)
-        n = _ub_s2(visible_rows, 'ack_nedskr_maskiner_ub', year_key)
-        if None not in (m, a, n):
-            return m + a + n
-        return vfallback("maskiner")
-
-    if "inventarier" in t:
-        m = _ub_s2(visible_rows, 'inventarier_ub', year_key)
-        a = _ub_s2(visible_rows, 'ack_avskr_inv_ub', year_key)
-        n = _ub_s2(visible_rows, 'ack_nedskr_inv_ub', year_key)
-        if None not in (m, a, n):
-            return m + a + n
-        return vfallback("inventarier")
-
-    if "byggnader" in t or "byggnader och mark" in t or "bygg" in t:
-        b = _ub_s2(visible_rows, 'bygg_ub', year_key)
-        a = _ub_s2(visible_rows, 'ack_avskr_bygg_ub', year_key)
-        u = _ub_s2(visible_rows, 'ack_uppskr_bygg_ub', year_key)
-        n = _ub_s2(visible_rows, 'ack_nedskr_bygg_ub', year_key)
-        if None not in (b, a, u, n):
-            return b + a + u + n
-        return vfallback("byggnader")
-
+def _s2_amount_by_label(visible, key, startswith_text):
+    """Find S2 row by label and return its subtotal"""
+    sl = startswith_text.lower()
+    for i, rr in enumerate(visible):
+        if not _is_s2(rr.get('style', '')):
+            continue
+        t = (rr.get('row_title') or '').lower()
+        if t.startswith(sl):
+            return _sum_group_above(visible, i, key)
     return 0.0
+
+def compute_redovisat_varde(block_title, visible, key):
+    """Calculate Redovisat värde from visible S2 UB rows (exactly like Preview)"""
+    bt = (block_title or '').lower()
+    a = _s2_amount_by_label(visible, key, 'utgående anskaffningsvärden')
+    v = _s2_amount_by_label(visible, key, 'utgående avskrivningar')
+    n = _s2_amount_by_label(visible, key, 'utgående nedskrivningar')
+    total = a + v + n
+    if 'bygg' in bt:  # only for Byggnader och mark
+        u = _s2_amount_by_label(visible, key, 'utgående uppskrivningar')
+        total += u
+    return total
 
 def build_visible_with_headings_pdf(items, toggle_on=False):
     """
@@ -1417,19 +1381,20 @@ def _collect_visible_note_blocks(blocks, company_data):
         
         # Special handling for NOT2 "Medeltal anställda" - force single row with employee count
         if block_title.strip().lower() == "medeltal anställda" or block_name == "NOT2":
-            emp_val = (company_data.get("employees") or 
-                      (company_data.get("seFileData", {}).get("employees") or {}).get("count") or 
-                      0)
+            emp = (
+                company_data.get('employees') or
+                (company_data.get('seFileData', {}).get('employees') or {}).get('count') or
+                company_data.get('employeesAverage') or 0
+            )
             items = [{
-                "row_id": 10001,
+                "row_id": 1,
                 "row_title": "Medelantalet anställda under året",
-                "current_amount": emp_val,
-                "previous_amount": 0,  # Can be updated if prev year data available
-                "variable_name": "medelantal_anstallda_under_aret",
+                "current_amount": emp,
+                "previous_amount": 0,  # if you have previous, plug it
                 "style": "NORMAL",
+                "variable_name": "medelantal_anstallda_under_aret",
                 "always_show": True,
                 "toggle_show": False,
-                "block": block_title
             }]
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
@@ -1504,7 +1469,7 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     # Format and render title
     title = _fmt_note_title(note_number, block_title)
     note_flow.append(Paragraph(title, H1))
-    note_flow.append(Spacer(1, 12))  # 12pt after heading
+    note_flow.append(Spacer(1, 10))  # 10pt after heading
     
     # For NOT1 (text note), render as paragraphs
     if block_name == 'NOT1':
@@ -1525,25 +1490,29 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     header_row = ["", cur_end, prev_end]
     table_data = [header_row]
     
-    # Clean style with only header line (no body lines)
-    style_cmds = [
+    # Clean style with only header line (no body lines) - mirrors RR
+    note_style = [
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('TOPPADDING', (0,0), (-1,-1), 2.5),
         ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 8),
-        ('ALIGN', (1,0), (2,0), 'RIGHT'),   # header dates
-        ('ALIGN', (1,1), (2,-1), 'RIGHT'),  # numbers
+        ('ALIGN', (1,0), (2,0), 'RIGHT'),
+        ('ALIGN', (1,1), (2,-1), 'RIGHT'),
         ('FONT', (0,0), (-1,0), 'Roboto-Medium', 9),  # Header row
         ('FONT', (0,1), (-1,-1), 'Roboto', 10),       # Data rows (default)
-        # single heading line only:
+        # keep one thin line only under the header (dates)
         ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.20)),
     ]
     
-    # Build table rows
+    # Sub-headings that need 10pt space before them
+    heading_kick = {"avskrivningar", "uppskrivningar", "nedskrivningar"}
+    
+    # Build table rows with proper styling
     for i, it in enumerate(visible):
         style = it.get('style', '')
         row_title = it.get('row_title', '')
+        lbl = (row_title or '').strip().lower()
         
         # Check if this is a heading (no amounts)
         if _is_heading_style(style):
@@ -1551,29 +1520,58 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
             prev_fmt = ''
         else:
             # Detect Redovisat värde and calculate it specially
-            if "redovisat" in (it.get("row_title", "").lower()) or "red_varde" in (it.get("variable_name") or "").lower():
-                cur = redovisat_varde(block_title, visible, 'current_amount')
-                prev = redovisat_varde(block_title, visible, 'previous_amount')
+            is_redv = 'redovisat värde' in lbl or 'redovisat varde' in lbl
+            if is_redv:
+                cur = compute_redovisat_varde(block_title, visible, 'current_amount')
+                prev = compute_redovisat_varde(block_title, visible, 'previous_amount')
+            elif _is_s2(style):
+                cur = _sum_group_above(visible, i, 'current_amount')
+                prev = _sum_group_above(visible, i, 'previous_amount')
             else:
-                # S2 rows use dynamic subtotal, others use stored value
-                cur = _sum_group_above(visible, i, 'current_amount') if _is_s2(it.get("style")) else _num(it.get('current_amount', 0))
-                prev = _sum_group_above(visible, i, 'previous_amount') if _is_s2(it.get("style")) else _num(it.get('previous_amount', 0))
+                cur = _num(it.get('current_amount', 0))
+                prev = _num(it.get('previous_amount', 0))
             
             curr_fmt = _fmt_int(cur)
             prev_fmt = _fmt_int(prev)
         
         table_data.append([row_title, curr_fmt, prev_fmt])
-        r_index = len(table_data) - 1
+        r = len(table_data) - 1  # Current row index
         
         # Apply semibold to headings
         if _is_heading_style(style):
-            style_cmds.append(('FONT', (0,r_index), (0,r_index), 'Roboto-Medium', 10))
+            note_style.append(('FONT', (0,r), (0,r), 'Roboto-Medium', 10))
+            # 10 pt space before sub-headings
+            title = lbl
+            if style in {'H1', 'H2', 'H3'} and title in heading_kick:
+                note_style.append(('TOPPADDING', (0,r), (-1,r), 10))
+        
+        # Sums semibold + 6 pt before "Redovisat värde"
+        is_sum_label = lbl.startswith('utgående ') or lbl.startswith('utgaende ')
+        is_redv = ('redovisat värde' in lbl) or ('redovisat varde' in lbl)
+        
+        if is_sum_label or is_redv:
+            note_style.append(('FONT', (0,r), (0,r), 'Roboto-Medium', 10))
+            note_style.append(('FONT', (1,r), (2,r), 'Roboto-Medium', 10))
+        
+        if is_redv:
+            note_style.append(('TOPPADDING', (0,r), (-1,r), 6))
     
     if len(table_data) > 1:
-        t = Table(table_data, hAlign='LEFT', colWidths=[None, 80, 80])
-        t.setStyle(TableStyle(style_cmds))
-        note_flow.append(t)
-        note_flow.append(Spacer(1, 16))  # gap before next note
+        # Column widths: make col 1 "140%" for Not 3+
+        avail_width = 520  # approximate available width
+        if note_number >= 3:
+            # 5.6fr:1fr:1fr (140% wider first column)
+            col_fr = [5.6, 1.0, 1.0]
+            unit = avail_width / sum(col_fr)
+            col_widths = [col_fr[0]*unit, col_fr[1]*unit, col_fr[2]*unit]
+        else:
+            # Keep Not 1-2 as-is
+            col_widths = [None, 80, 80]
         
-        # Wrap entire note in KeepTogether to prevent page breaks mid-note
+        t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
+        t.setStyle(TableStyle(note_style))
+        note_flow.append(t)
+        
+        # Keep note together and add proper spacing
         elems.append(KeepTogether(note_flow))
+        elems.append(Spacer(1, 16))  # gap to next note
