@@ -541,6 +541,27 @@ def _render_resultatdisposition(elems, company_data, H1, P):
         elems.append(Paragraph(dividend_text, P))
         elems.append(Spacer(1, 8))
 
+def _merge_br_data(se_br: list, overlay: list) -> list:
+    """Overlay posted/edited BR rows onto seFileData baseline, preserving all baseline rows."""
+    if not overlay:
+        return se_br or []
+    def _key(r):
+        vn = (r.get('variable_name') or '').strip().lower()
+        lbl = (r.get('label') or '').strip().lower()
+        typ = (r.get('type') or '').strip().lower()
+        return (vn if vn else f"lbl::{lbl}") + f"::type::{typ}"
+    base = { _key(r): dict(r) for r in (se_br or []) }
+    for r in overlay:
+        k = _key(r)
+        if k in base:
+            # overlay values but keep row identity/style
+            for fld in ('current_amount','previous_amount','note_number','always_show','style','label'):
+                if r.get(fld) is not None:
+                    base[k][fld] = r.get(fld)
+        else:
+            base[k] = r
+    return list(base.values())
+
 def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     """
     Generate complete annual report PDF with all sections:
@@ -576,10 +597,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
                company_data.get('rrRows') or 
                company_data.get('seFileData', {}).get('rr_data', []))
     
-    # BR: Check for edited data first, fallback to seFileData  
-    br_data = (company_data.get('brData') or 
-               company_data.get('brRows') or 
-               company_data.get('seFileData', {}).get('br_data', []))
+    # BR: Merge overlay onto baseline to preserve all baseline rows (Kassa och bank, Varulager, etc.)
+    se_br = (company_data.get('seFileData', {}) or {}).get('br_data', []) or []
+    posted_br = company_data.get('brData') or company_data.get('brRows') or []
+    br_data = _merge_br_data(se_br, posted_br)
     
     # Noter: Use edited data from database + toggle states
     noter_data = company_data.get('noterData', [])
@@ -1237,6 +1258,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             blocks[block] = []
         blocks[block].append(note)
     
+    # Ensure OVRIGA exists when company has a parent (so the PDF can render the moderbolag text)
+    if 'OVRIGA' not in blocks and (scraped_company_data.get('moderbolag') or scraped_company_data.get('moderbolag_namn')):
+        blocks['OVRIGA'] = []
+    
     # Collect and filter blocks, then assign note numbers
     rendered_blocks = _collect_visible_note_blocks(blocks, company_data, noter_toggle_on, noter_block_toggles, scraped_company_data)
     
@@ -1581,9 +1606,17 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         # These blocks require explicit toggle to be visible
         
         if is_eventual or is_sakerhet:
-            # Check block-specific toggle (e.g., 'eventual-visibility', 'sakerhet-visibility')
+            # Check block-specific toggle - accept both legacy and new key styles
             toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
-            block_visible = block_toggles.get(toggle_key, False)
+            legacy_key = 'EVENTUAL' if is_eventual else 'SAKERHET'
+            alt_keys = [
+                toggle_key,
+                toggle_key.upper(),
+                toggle_key.replace('-visibility', ''),
+                legacy_key,
+                legacy_key.lower(),
+            ]
+            block_visible = any(bool(block_toggles.get(k)) for k in alt_keys)
             
             if not block_visible:
                 continue
@@ -1603,8 +1636,17 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         # (we need to show the block if toggle is on, even if rows get filtered out)
         block_toggle_enabled = False
         if is_eventual or is_sakerhet:
+            # Use the same tolerant lookup as above
             toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
-            block_toggle_enabled = block_toggles.get(toggle_key, False)
+            legacy_key = 'EVENTUAL' if is_eventual else 'SAKERHET'
+            alt_keys = [
+                toggle_key,
+                toggle_key.upper(),
+                toggle_key.replace('-visibility', ''),
+                legacy_key,
+                legacy_key.lower(),
+            ]
+            block_toggle_enabled = any(bool(block_toggles.get(k)) for k in alt_keys)
         
         # Apply visibility logic
         visible = build_visible_with_headings_pdf(items, toggle_on=effective_toggle)
