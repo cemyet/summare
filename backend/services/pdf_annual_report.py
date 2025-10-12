@@ -551,6 +551,15 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     noter_toggle_on = company_data.get('noterToggleOn', False)
     noter_block_toggles = company_data.get('noterBlockToggles', {})
     
+    # Debug: Check if we received INV edits
+    inv_items = [item for item in noter_data if item.get('block') == 'INV']
+    if inv_items:
+        print(f"[PDF-RECEIVED] INV items received: {len(inv_items)}")
+        # Find "Årets nedskrivningar"
+        nedskr = [item for item in inv_items if 'nedskrivning' in (item.get('row_title') or '').lower()]
+        for item in nedskr:
+            print(f"[PDF-RECEIVED] INV nedskrivning: {item.get('row_title')} = cur:{item.get('current_amount')}, prev:{item.get('previous_amount')}")
+    
     # Scraped data (for Medeltal anställda, moderbolag, etc.)
     scraped_company_data = company_data.get('scraped_company_data', {})
     
