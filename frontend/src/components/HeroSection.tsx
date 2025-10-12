@@ -52,7 +52,7 @@ const HeroSection = () => {
 
         {/* Trust indicators */}
         <div className="mt-12 text-base text-summare-gray">
-          <p>Betrodd av 5,000+ företag</p>
+          <p>Betrodd av 100+ företag</p>
         </div>
       </div>
     </section>

@@ -187,10 +187,6 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL):
     # Get flerårsöversikt data from companyData (comes from frontend state)
     flerars = company_data.get('flerarsoversikt', {})
     
-    # Debug: show what we received
-    print(f"[FLERARS-DEBUG] Received flerarsoversikt: {flerars}")
-    print(f"[FLERARS-DEBUG] Type: {type(flerars)}, Keys: {list(flerars.keys()) if isinstance(flerars, dict) else 'not a dict'}")
-    
     # If we have structured flerårsöversikt data with years/rows, use it
     if flerars and flerars.get('years'):
         years = flerars.get('years', [])
@@ -213,19 +209,29 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL):
             table_data.append([label] + formatted)
     elif flerars and any(k.startswith(('oms', 'ref', 'bal', 'sol')) for k in flerars.keys()):
         # Handle edited values map format: {'oms1': 1000, 'oms2': 2000, ...}
-        print(f"[FLERARS-DEBUG] Using edited values map format")
+        # Merge with scraped data for missing values
+        scraped = company_data.get('scraped_company_data', {})
+        nyckeltal = scraped.get('nyckeltal', {})
         
-        # Extract values for each row (3 years)
-        oms_vals = [_num(flerars.get(f'oms{i}', 0)) for i in [1, 2, 3]]
-        ref_vals = [_num(flerars.get(f'ref{i}', 0)) for i in [1, 2, 3]]
-        bal_vals = [_num(flerars.get(f'bal{i}', 0)) for i in [1, 2, 3]]
-        sol_vals = [_num(flerars.get(f'sol{i}', 0)) for i in [1, 2, 3]]
+        # Helper to get scraped values
+        def get_scraped_values(key_variants):
+            for key in key_variants:
+                arr = nyckeltal.get(key)
+                if arr and isinstance(arr, list):
+                    return [_num(x) for x in arr[:3]]
+            return [0, 0, 0]
         
-        # Also check for tkr values (computed from the map)
-        nettoOmsFY_tkr = _num(flerars.get('nettoOmsFY_tkr', oms_vals[0]))
-        refpFY_tkr = _num(flerars.get('refpFY_tkr', ref_vals[0]))
-        tillgFY_tkr = _num(flerars.get('tillgFY_tkr', bal_vals[0]))
-        soliditetFY = _num(flerars.get('soliditetFY', sol_vals[0]))
+        # Get scraped values as fallback
+        scraped_oms = get_scraped_values(['Omsättning', 'Total omsättning', 'omsättning'])
+        scraped_ref = get_scraped_values(['Resultat efter finansnetto', 'Resultat efter finansiella poster'])
+        scraped_bal = get_scraped_values(['Summa tillgångar', 'Balansomslutning'])
+        scraped_sol = get_scraped_values(['Soliditet'])
+        
+        # Extract edited values, fallback to scraped if not present
+        oms_vals = [_num(flerars.get(f'oms{i}')) if flerars.get(f'oms{i}') is not None else scraped_oms[i-1] for i in [1, 2, 3]]
+        ref_vals = [_num(flerars.get(f'ref{i}')) if flerars.get(f'ref{i}') is not None else scraped_ref[i-1] for i in [1, 2, 3]]
+        bal_vals = [_num(flerars.get(f'bal{i}')) if flerars.get(f'bal{i}') is not None else scraped_bal[i-1] for i in [1, 2, 3]]
+        sol_vals = [_num(flerars.get(f'sol{i}')) if flerars.get(f'sol{i}') is not None else scraped_sol[i-1] for i in [1, 2, 3]]
         
         # Build years (fiscal year and 2 previous)
         years = [str(fiscal_year), str(fiscal_year-1), str(fiscal_year-2)]
@@ -235,9 +241,7 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL):
         table_data.append(["Omsättning"] + [_fmt_int(v) for v in oms_vals])
         table_data.append(["Resultat efter finansiella poster"] + [_fmt_int(v) for v in ref_vals])
         table_data.append(["Balansomslutning"] + [_fmt_int(v) for v in bal_vals])
-        table_data.append(["Soliditet"] + [f"{int(round(v))}%" for v in sol_vals])
-        
-        print(f"[FLERARS-DEBUG] Built table with edited values: oms={oms_vals}, ref={ref_vals}")
+        table_data.append(["Soliditet"] + [f"{int(round(v))}%" for v in sol_vals]])
     else:
         # Fallback: build from scraped data
         scraped = company_data.get('scraped_company_data', {})
@@ -582,54 +586,26 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     noter_toggle_on = company_data.get('noterToggleOn', False)
     noter_block_toggles = company_data.get('noterBlockToggles', {})
     
-    # Debug: Check if we received INV edits
-    inv_items = [item for item in noter_data if item.get('block') == 'INV']
-    if inv_items:
-        print(f"[PDF-RECEIVED] INV items received: {len(inv_items)}")
-        # Find "Årets nedskrivningar"
-        nedskr = [item for item in inv_items if 'nedskrivning' in (item.get('row_title') or '').lower()]
-        for item in nedskr:
-            print(f"[PDF-RECEIVED] INV nedskrivning: {item.get('row_title')} = cur:{item.get('current_amount')}, prev:{item.get('previous_amount')}")
-    
     # Scraped data (for Medeltal anställda, moderbolag, etc.)
     scraped_company_data = company_data.get('scraped_company_data', {})
     
-    # FB: Extract and debug
+    # FB: Extract data
     fb_table = company_data.get('fbTable', [])
     fb_variables = company_data.get('fbVariables', {})
-    
-    print(f"[PDF-DEBUG] ========== DATA SOURCES ==========")
-    print(f"[PDF-DEBUG] RR data source: {'edited' if company_data.get('rrData') or company_data.get('rrRows') else 'seFileData'}")
-    print(f"[PDF-DEBUG] BR data source: {'edited' if company_data.get('brData') or company_data.get('brRows') else 'seFileData'}")
-    print(f"[PDF-DEBUG] FB data: {len(fb_table)} table rows, {len(fb_variables)} variables")
-    if fb_table and len(fb_table) > 0:
-        sample_fb = fb_table[0]
-        print(f"[PDF-DEBUG] Sample FB row: label={sample_fb.get('label')}, aktiekapital={sample_fb.get('aktiekapital')}, total={sample_fb.get('total')}")
-    if fb_variables:
-        sample_vars = list(fb_variables.items())[:3]
-        print(f"[PDF-DEBUG] Sample FB variables: {sample_vars}")
-    print(f"[PDF-DEBUG] Noter data: {len(noter_data)} items")
-    print(f"[PDF-DEBUG] Noter toggles: toggle_on={noter_toggle_on}, block_toggles={noter_block_toggles}")
-    if noter_data and len(noter_data) > 0:
-        sample = noter_data[0]
-        print(f"[PDF-DEBUG] Sample note item: block={sample.get('block')}, title={sample.get('row_title')}, current={sample.get('current_amount')}, previous={sample.get('previous_amount')}")
-    print(f"[PDF-DEBUG] =====================================")
     
     # ===== 1. FÖRVALTNINGSBERÄTTELSE =====
     elems.append(Paragraph("Förvaltningsberättelse", H0))
     elems.append(Spacer(1, 8))
     
-    # Extract text content - prefer edited values from frontend
-    verksamhet_text = company_data.get('verksamhetContent', '')
-    vasentliga_text = company_data.get('vasentligaHandelser', 'Inga väsentliga händelser under året.')
+    # Extract text content - prefer edited values, fallback to original data
+    verksamhet_text = company_data.get('verksamhetContent') or company_data.get('verksamhetContent_original') or ''
+    vasentliga_text = company_data.get('vasentligaHandelser') or company_data.get('vasentligaHandelser_original') or ''
     
-    # Debug: show what we received
-    print(f"[VERKSAMHET-DEBUG] verksamhetContent: {verksamhet_text[:100] if verksamhet_text else 'EMPTY'}")
-    print(f"[VERKSAMHET-DEBUG] vasentligaHandelser: {vasentliga_text[:100] if vasentliga_text else 'EMPTY'}")
-    
-    # Fallback to empty if not provided
+    # If still empty, try to extract from scraped/parsed data
     if not verksamhet_text:
-        verksamhet_text = "Bolaget bedriver..."  # Default text
+        scraped = company_data.get('scraped_company_data', {})
+        verksamhet_text = scraped.get('verksamhet_description') or scraped.get('description') or "Bolaget bedriver verksamhet enligt bolagsordningen."
+    
     if not vasentliga_text:
         vasentliga_text = "Inga väsentliga händelser under året."
     
@@ -1224,10 +1200,6 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("Noter", H0))
     elems.append(Spacer(1, 8))
     
-    print(f"[NOTER-PDF-DEBUG] Total noter_data items: {len(noter_data)}")
-    if noter_data and len(noter_data) > 0:
-        print(f"[NOTER-PDF-DEBUG] Sample note: {noter_data[0]}")
-    
     # Group notes by block
     blocks = {}
     for note in noter_data:
@@ -1235,8 +1207,6 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         if block not in blocks:
             blocks[block] = []
         blocks[block].append(note)
-    
-    print(f"[NOTER-PDF-DEBUG] Blocks found: {list(blocks.keys())}")
     
     # Collect and filter blocks, then assign note numbers
     rendered_blocks = _collect_visible_note_blocks(blocks, company_data, noter_toggle_on, noter_block_toggles, scraped_company_data)
@@ -1333,7 +1303,6 @@ def compute_redovisat_varde(block_title, visible, key):
         u = _s2_amount_by_label(visible, key, 'utgående uppskrivningar')
         total += u
     
-    print(f"[REDOVISAT-DEBUG] {block_title} {key}: anskaffning={a}, avskrivningar={v}, nedskrivningar={n}, total={total}")
     return total
 
 def build_visible_with_headings_pdf(items, toggle_on=False):
@@ -1486,14 +1455,6 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         
         # Special handling for NOT2 "Medeltal anställda" - ensure single row display
         if block_title.strip().lower() == "medeltal anställda" or block_name == "NOT2":
-            # Debug: show what items we received
-            print(f"[NOT2-BACKEND-DEBUG] NOT2 block has {len(items) if items else 0} items")
-            if items:
-                for i, it in enumerate(items):
-                    print(f"[NOT2-BACKEND-DEBUG]   Item {i}: title='{it.get('row_title')}', "
-                          f"cur={it.get('current_amount')}, prev={it.get('previous_amount')}, "
-                          f"var={it.get('variable_name')}")
-            
             # Prefer values from noter data (scraped + edited)
             emp_current = 0
             emp_previous = 0
@@ -1508,7 +1469,6 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                     vn = r.get("variable_name", "")
                     if vn in {"ant_anstallda", "medelantal_anstallda_under_aret"}:
                         src = r
-                        print(f"[NOT2-BACKEND-DEBUG] Matched by variable_name: {vn}")
                         break
                 
                 # Second pass: Look for title match if no variable_name match
@@ -1519,7 +1479,6 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                             # Only accept if this looks like the data row (has variable_name or non-zero values)
                             if r.get("variable_name") or r.get("current_amount") or r.get("previous_amount"):
                                 src = r
-                                print(f"[NOT2-BACKEND-DEBUG] Matched by title: {r.get('row_title')}")
                                 break
                 
                 # Fallback to first item with variable_name
@@ -1527,18 +1486,15 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                     for r in items:
                         if r.get("variable_name"):
                             src = r
-                            print(f"[NOT2-BACKEND-DEBUG] Fallback to first item with variable_name")
                             break
                 
                 # Last resort: first item
                 if not src and items:
                     src = items[0]
-                    print(f"[NOT2-BACKEND-DEBUG] Fallback to first item")
                 
                 if src:
                     emp_current = _num(src.get('current_amount', 0))
                     emp_previous = _num(src.get('previous_amount', 0))
-                    print(f"[NOT2-BACKEND-DEBUG] Found source item: cur={emp_current}, prev={emp_previous}, title='{src.get('row_title')}'")
             
             # Fallback to scraper data from rating_bolag (NOT SIE!)
             if emp_current == 0 and emp_previous == 0:
@@ -1550,8 +1506,6 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                 
                 # Current year = previous year (same as preview logic)
                 emp_current = _num(scraped_data.get('medeltal_anstallda_cur') or emp_previous)
-                
-                print(f"[NOTER-PDF-DEBUG] NOT2 from scraped: current={emp_current}, previous={emp_previous}")
             
             # Force single row with canonical variable name
             items = [{
@@ -1581,10 +1535,7 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             block_visible = block_toggles.get(toggle_key, False)
             
             if not block_visible:
-                print(f"[NOTER-PDF-DEBUG] Block '{block_name}' hidden (toggle '{toggle_key}' = {block_visible})")
                 continue
-            else:
-                print(f"[NOTER-PDF-DEBUG] Block '{block_name}' shown (toggle '{toggle_key}' = {block_visible})")
         
         # Force always_show for NOT1 and NOT2
         force_always = (block_name in ALWAYS_SHOW_NOTES or block_title in ALWAYS_SHOW_NOTES)
@@ -1609,12 +1560,10 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         
         # Skip block if no visible items
         if not visible:
-            print(f"[NOTER-PDF-DEBUG] Block '{block_name}' has no visible items, skipping")
             continue
         
         # Skip block if not force-always and has no non-zero content
         if (not force_always) and (not _has_nonzero_content(visible)):
-            print(f"[NOTER-PDF-DEBUG] Block '{block_name}' has no non-zero content, skipping")
             continue
         
         collected.append((block_name, block_title, visible))
@@ -1637,21 +1586,6 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
 
 def _render_note_block(elems, block_name, block_title, note_number, visible, company_data, H1, P):
     """Render a single note block with its table - uses pre-filtered visible items"""
-    
-    print(f"[NOTER-PDF-DEBUG] Rendering Not {note_number}: '{block_title}' with {len(visible)} items")
-    
-    # Debug INV specifically
-    if block_name == 'INV':
-        print(f"[INV-DEBUG] Block name: {block_name}")
-        print(f"[INV-DEBUG] Visible items count: {len(visible)}")
-        if visible:
-            sample = visible[0]
-            print(f"[INV-DEBUG] Sample item: {sample}")
-            # Find items with notable values
-            notable = [it for it in visible if _num(it.get('current_amount', 0)) > 10000]
-            print(f"[INV-DEBUG] Items with current_amount > 10k: {len(notable)}")
-            for item in notable[:3]:  # Show first 3
-                print(f"[INV-DEBUG]   - {item.get('row_title')}: cur={item.get('current_amount')}, prev={item.get('previous_amount')}")
     
     # Get fiscal year info from company_data
     fiscal_year = company_data.get('fiscal_year', 2024)
@@ -1721,7 +1655,6 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
             if is_redv:
                 cur = compute_redovisat_varde(block_title, visible, 'current_amount')
                 prev = compute_redovisat_varde(block_title, visible, 'previous_amount')
-                print(f"[RENDER-DEBUG] Redovisat värde row: cur={cur}, prev={prev}")
             elif _is_s2(style):
                 cur = _sum_group_above(visible, i, 'current_amount')
                 prev = _sum_group_above(visible, i, 'previous_amount')
