@@ -597,14 +597,37 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("Förvaltningsberättelse", H0))
     elems.append(Spacer(1, 8))
     
-    # Extract text content - prefer edited values, fallback to original data
-    verksamhet_text = company_data.get('verksamhetContent') or company_data.get('verksamhetContent_original') or ''
-    vasentliga_text = company_data.get('vasentligaHandelser') or company_data.get('vasentligaHandelser_original') or ''
+    # Extract text content - prefer edited values, fallback to building from scraped data (like frontend)
+    verksamhet_text = company_data.get('verksamhetContent')
+    vasentliga_text = company_data.get('vasentligaHandelser')
     
-    # If still empty, try to extract from scraped/parsed data
+    # If not edited, build from scraped data exactly like frontend does
     if not verksamhet_text:
-        scraped = company_data.get('scraped_company_data', {})
-        verksamhet_text = scraped.get('verksamhet_description') or scraped.get('description') or "Bolaget bedriver verksamhet enligt bolagsordningen."
+        # Build verksamhet text from scraped data (mirrors AnnualReportPreview.tsx lines 343-357)
+        verksamhetsbeskrivning = (scraped_company_data.get('verksamhetsbeskrivning') or 
+                                  scraped_company_data.get('Verksamhetsbeskrivning') or '').strip()
+        sate = (scraped_company_data.get('säte') or 
+                scraped_company_data.get('sate') or 
+                scraped_company_data.get('Säte') or '').strip()
+        moderbolag = (scraped_company_data.get('moderbolag') or 
+                     scraped_company_data.get('Moderbolag') or '').strip()
+        moderbolag_orgnr = (scraped_company_data.get('moderbolag_orgnr') or 
+                           scraped_company_data.get('ModerbolagOrgNr') or '').strip()
+        
+        verksamhet_text = verksamhetsbeskrivning
+        if sate:
+            verksamhet_text += (' ' if verksamhet_text else '') + f"Bolaget har sitt säte i {sate}."
+        if moderbolag:
+            moder_sate = (scraped_company_data.get('moderbolag_säte') or 
+                         scraped_company_data.get('moderbolag_sate') or sate).strip()
+            verksamhet_text += f" Bolaget är dotterbolag till {moderbolag}"
+            if moderbolag_orgnr:
+                verksamhet_text += f" med organisationsnummer {moderbolag_orgnr}"
+            verksamhet_text += f", som har sitt säte i {moder_sate or sate}."
+        
+        # Fallback if still empty
+        if not verksamhet_text:
+            verksamhet_text = "Bolaget bedriver verksamhet enligt bolagsordningen."
     
     if not vasentliga_text:
         vasentliga_text = "Inga väsentliga händelser under året."
@@ -1496,15 +1519,17 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                     emp_current = _num(src.get('current_amount', 0))
                     emp_previous = _num(src.get('previous_amount', 0))
             
-            # Fallback to scraper data from rating_bolag (NOT SIE!)
-            if emp_current == 0 and emp_previous == 0:
-                # Try scraped data first (most reliable source)
+            # Fallback to scraper data for missing values
+            # Check each value independently (user might edit current but not previous)
+            if emp_previous == 0:
+                # Try scraped data for previous year
                 emp_previous = _num(scraped_data.get('medeltal_anstallda') or 
                                    scraped_data.get('medeltal_anstallda_prev') or
                                    scraped_data.get('employees') or
                                    company_data.get("employees", 0))
-                
-                # Current year = previous year (same as preview logic)
+            
+            if emp_current == 0:
+                # Try scraped data for current year, fallback to previous
                 emp_current = _num(scraped_data.get('medeltal_anstallda_cur') or emp_previous)
             
             # Force single row with canonical variable name
