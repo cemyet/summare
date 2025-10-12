@@ -1599,6 +1599,13 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         # Zero-value toggle_show rows are only for editing, not for final PDF
         effective_toggle = toggle_on  # Keep as False for PDF (no zero rows)
         
+        # For EVENTUAL and SAKERHET blocks, check if toggle is enabled BEFORE filtering
+        # (we need to show the block if toggle is on, even if rows get filtered out)
+        block_toggle_enabled = False
+        if is_eventual or is_sakerhet:
+            toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
+            block_toggle_enabled = block_toggles.get(toggle_key, False)
+        
         # Apply visibility logic
         visible = build_visible_with_headings_pdf(items, toggle_on=effective_toggle)
         
@@ -1614,18 +1621,14 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                     pruned.append(r)
             visible = pruned
         
-        # Skip block if no visible items
+        # Skip block if no visible items (UNLESS it's EVENTUAL/SAKERHET with toggle enabled or OVRIGA with moderbolag)
+        ovriga_with_moderbolag = (is_ovriga and moderbolag)
         if not visible:
-            continue
-        
-        # For EVENTUAL and SAKERHET blocks, if toggle is enabled, don't skip even if all zeros
-        block_toggle_enabled = False
-        if is_eventual or is_sakerhet:
-            toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
-            block_toggle_enabled = block_toggles.get(toggle_key, False)
+            # Allow empty blocks for: EVENTUAL/SAKERHET with toggle, OVRIGA with moderbolag, or forced blocks
+            if not (block_toggle_enabled or ovriga_with_moderbolag or force_always):
+                continue
         
         # Skip block if not force-always, not toggle-enabled, has no non-zero content, and not OVRIGA with moderbolag
-        ovriga_with_moderbolag = (is_ovriga and moderbolag)
         if (not force_always) and (not block_toggle_enabled) and (not ovriga_with_moderbolag) and (not _has_nonzero_content(visible)):
             continue
         
