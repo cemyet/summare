@@ -1494,8 +1494,8 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     # Clean style with only header line (no body lines) - mirrors RR
     note_style = [
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), 2.5),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 2.5),
+        ('TOPPADDING', (0,0), (-1,-1), 2.0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2.0),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ('ALIGN', (1,0), (2,0), 'RIGHT'),
@@ -1546,7 +1546,7 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
             if style in {'H1', 'H2', 'H3'} and title in heading_kick:
                 note_style.append(('TOPPADDING', (0,r), (-1,r), 10))
         
-        # Sums semibold + 6 pt before "Redovisat värde"
+        # Sums semibold + 10 pt before / 0 pt after "Redovisat värde"
         is_sum_label = lbl.startswith('utgående ') or lbl.startswith('utgaende ')
         is_redv = ('redovisat värde' in lbl) or ('redovisat varde' in lbl)
         
@@ -1555,7 +1555,8 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
             note_style.append(('FONT', (1,r), (2,r), 'Roboto-Medium', 10))
         
         if is_redv:
-            note_style.append(('TOPPADDING', (0,r), (-1,r), 6))
+            note_style.append(('TOPPADDING', (0,r), (-1,r), 10))
+            note_style.append(('BOTTOMPADDING', (0,r), (-1,r), 0))
     
     if len(table_data) > 1:
         # Column widths: mirror BR/RR (269, 80, 80) - no note number column
