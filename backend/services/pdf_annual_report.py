@@ -1143,22 +1143,34 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     
     print(f"[NOTER-PDF-DEBUG] Blocks found: {list(blocks.keys())}")
     
-    # Render blocks (NOT1, NOT2 first, then others)
-    priority_blocks = ['NOT1', 'NOT2']
-    for block_name in priority_blocks:
-        if block_name in blocks:
-            _render_note_block(elems, block_name, blocks[block_name], company_data, H1, P)
+    # Collect and filter blocks, then assign note numbers
+    rendered_blocks = _collect_visible_note_blocks(blocks, company_data)
     
-    # Sort remaining blocks, filtering out None values
-    remaining_blocks = [b for b in blocks.keys() if b and b not in priority_blocks]
-    for block_name in sorted(remaining_blocks):
-        _render_note_block(elems, block_name, blocks[block_name], company_data, H1, P)
+    # Render each block with assigned note number
+    for block_name, block_title, note_number, visible_items in rendered_blocks:
+        _render_note_block(elems, block_name, block_title, note_number, visible_items, company_data, H1, P)
     
     # Build PDF
     doc.build(elems)
     return buf.getvalue()
 
 # ---- Noter visibility logic (mirror of Noter.tsx) ----
+# Notes that must always show
+ALWAYS_SHOW_NOTES = {
+    "Redovisningsprinciper",  # Not 1
+    "Medeltal anställda",     # Not 2
+    "NOT1",  # Block name
+    "NOT2",  # Block name
+}
+
+# Fixed note numbers
+NOTE_NUM_FIXED = {
+    "Redovisningsprinciper": 1,
+    "Medeltal anställda": 2,
+    "NOT1": 1,
+    "NOT2": 2,
+}
+
 def _fmt_note_title(nr: int, title: str) -> str:
     """Format note title by removing '–' and cleaning up spaces"""
     t = (title or "").replace(" – ", " ").replace(" - ", " ").replace("–", " ").replace("-", " ")
@@ -1271,62 +1283,155 @@ def subtotal_above(visible_rows, idx, year_key):
         j -= 1
     return s
 
-def _render_note_block(elems, block_name, notes, company_data, H1, P):
-    """Render a single note block with its table - Exact mirror of Noter.tsx"""
+def _has_nonzero_content(rows):
+    """Check if block has any non-zero content rows (excluding headings and subtotals)"""
+    for r in rows:
+        s = r.get("style", "")
+        if _is_heading_style(s) or _is_subtotal_trigger(s):
+            continue
+        if (_num(r.get("current_amount", 0)) != 0) or (_num(r.get("previous_amount", 0)) != 0):
+            return True
+    return False
+
+def _value_for_row(rows, idx, it, year_key):
+    """Calculate value for a row - handles S2 subtotals and 'Redovisat värde' specially"""
+    # S2 rows: dynamic subtotal of preceding visible rows (exact Preview behavior)
+    if _is_subtotal_trigger(it.get("style")):
+        return subtotal_above(rows, idx, year_key)
+
+    # "Redovisat värde" rows: sum the S2 rows above (works for Bygg/Maskiner/Inv/etc.)
+    vn = (it.get("variable_name") or "").lower()
+    row_title_lower = (it.get("row_title") or "").lower()
+    if "red_varde" in vn or "redovisat" in row_title_lower:
+        # Sum all S2 subtotals until we hit a heading
+        total = 0
+        j = idx - 1
+        while j >= 0:
+            rr = rows[j]
+            st = rr.get("style", "")
+            if _is_heading_style(st):
+                break
+            if _is_subtotal_trigger(st):
+                total += subtotal_above(rows, j, year_key)
+            j -= 1
+        return total
+
+    # Default: use stored value
+    return _num(it.get(year_key, 0))
+
+def _collect_visible_note_blocks(blocks, company_data):
+    """
+    Collect visible note blocks, apply visibility filters, and assign note numbers.
+    Returns list of (block_name, block_title, note_number, visible_items)
+    """
+    toggle_on = False  # PDF matches "Visa alla rader = OFF"
     
-    print(f"[NOTER-PDF-DEBUG] Rendering block '{block_name}' with {len(notes)} notes")
+    # Block title mapping
+    block_title_map = {
+        'NOT1': 'Redovisningsprinciper',
+        'NOT2': 'Medeltal anställda',
+        'KONCERN': 'Andelar i koncernföretag',
+        'INTRESSEFTG': 'Andelar i intresseföretag',
+        'BYGG': 'Byggnader och mark',
+        'MASKIN': 'Maskiner och inventarier',
+        'INV': 'Inventarier, verktyg och installationer',
+        'MAT': 'Materiella anläggningstillgångar',
+        'LVP': 'Långfristiga fordringar',
+        'FORDR_KONCERN': 'Fordringar hos koncernföretag',
+        'FORDR_INTRESSE': 'Fordringar hos intresseföretag',
+        'FORDR_OVRIG': 'Övriga fordringar',
+    }
+    
+    collected = []
+    
+    # Priority blocks first (NOT1, NOT2)
+    priority_blocks = ['NOT1', 'NOT2']
+    remaining_block_names = []
+    
+    for block_name in blocks.keys():
+        if block_name in priority_blocks:
+            continue
+        if block_name:
+            remaining_block_names.append(block_name)
+    
+    # Process in order: NOT1, NOT2, then sorted remaining
+    ordered_blocks = priority_blocks + sorted(remaining_block_names)
+    
+    for block_name in ordered_blocks:
+        if block_name not in blocks:
+            continue
+            
+        items = blocks[block_name]
+        block_title = block_title_map.get(block_name, block_name)
+        
+        # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
+        block_name_lower = block_name.lower()
+        block_title_lower = block_title.lower()
+        if (block_name_lower in {"eventualförpliktelser", "eventual", "säkerheter", "säkerhet", "sakerhet"} or
+            block_title_lower in {"eventualförpliktelser", "eventual", "säkerheter", "säkerhet", "sakerhet"}):
+            if not toggle_on:
+                print(f"[NOTER-PDF-DEBUG] Block '{block_name}' hidden (toggle_on=False)")
+                continue
+        
+        # Force always_show for NOT1 and NOT2
+        force_always = (block_name in ALWAYS_SHOW_NOTES or block_title in ALWAYS_SHOW_NOTES)
+        if force_always:
+            for it in items:
+                it["always_show"] = True
+        
+        # Apply visibility logic
+        visible = build_visible_with_headings_pdf(items, toggle_on=toggle_on)
+        
+        # Skip rows before first heading
+        pruned = []
+        seen_heading = False
+        for r in visible:
+            if _is_heading_style(r.get("style")):
+                seen_heading = True
+                pruned.append(r)
+            elif seen_heading:
+                pruned.append(r)
+        visible = pruned
+        
+        # Skip block if no visible items
+        if not visible:
+            print(f"[NOTER-PDF-DEBUG] Block '{block_name}' has no visible items, skipping")
+            continue
+        
+        # Skip block if not force-always and has no non-zero content
+        if (not force_always) and (not _has_nonzero_content(visible)):
+            print(f"[NOTER-PDF-DEBUG] Block '{block_name}' has no non-zero content, skipping")
+            continue
+        
+        collected.append((block_name, block_title, visible))
+    
+    # Assign note numbers
+    result = []
+    next_no = 3
+    for block_name, block_title, visible in collected:
+        if block_name in NOTE_NUM_FIXED:
+            note_number = NOTE_NUM_FIXED[block_name]
+        elif block_title in NOTE_NUM_FIXED:
+            note_number = NOTE_NUM_FIXED[block_title]
+        else:
+            note_number = next_no
+            next_no += 1
+        
+        result.append((block_name, block_title, note_number, visible))
+    
+    return result
+
+def _render_note_block(elems, block_name, block_title, note_number, visible, company_data, H1, P):
+    """Render a single note block with its table - uses pre-filtered visible items"""
+    
+    print(f"[NOTER-PDF-DEBUG] Rendering Not {note_number}: '{block_title}' with {len(visible)} items")
     
     # Get fiscal year info from company_data
     fiscal_year = company_data.get('fiscal_year', 2024)
     prev_year = fiscal_year - 1
     
-    # Mirror frontend toggle: usually OFF in the final PDF
-    toggle_on = False  # set True only if you want the "Visa alla rader" behavior in PDF
-    
-    # Check if this is Eventualförpliktelser or Säkerheter block
-    block_name_lower = (block_name or "").strip().lower()
-    if block_name_lower in {"eventualförpliktelser", "eventual", "säkerheter", "sakerhet", "säkerhet"} and not toggle_on:
-        print(f"[NOTER-PDF-DEBUG] Block '{block_name}' hidden (toggle_on=False)")
-        return  # Hide these blocks when toggle is off
-    
-    # 1) Apply visibility logic
-    visible = build_visible_with_headings_pdf(notes, toggle_on=toggle_on)
-    
-    # 2) Skip rows before first heading (nothing should appear "outside" a block)
-    filtered = []
-    seen_heading = False
-    for it in visible:
-        if _is_heading_style(it.get("style")):
-            seen_heading = True
-            filtered.append(it)
-            continue
-        if seen_heading:
-            filtered.append(it)
-    visible = filtered
-    
-    print(f"[NOTER-PDF-DEBUG] Block '{block_name}': visible={len(visible)} notes after filtering")
-    
-    if not visible:
-        print(f"[NOTER-PDF-DEBUG] Block '{block_name}' has no visible items, skipping")
-        return
-    
-    # Block title with note numbers (map to note numbers and clean titles)
-    block_info = {
-        'NOT1': (1, 'Redovisningsprinciper'),
-        'NOT2': (2, 'Medeltal anställda'),
-        'KONCERN': (3, 'Andelar i koncernföretag'),
-        'INTRESSEFTG': (4, 'Andelar i intresseföretag'),
-        'BYGG': (5, 'Byggnader och mark'),
-        'MASKIN': (6, 'Maskiner och inventarier'),
-        'INV': (7, 'Inventarier, verktyg och installationer'),
-        'MAT': (8, 'Materiella anläggningstillgångar'),
-        'LVP': (9, 'Långfristiga fordringar'),
-        'FORDR_KONCERN': (10, 'Fordringar hos koncernföretag'),
-        'FORDR_INTRESSE': (11, 'Fordringar hos intresseföretag'),
-        'FORDR_OVRIG': (12, 'Övriga fordringar'),
-    }
-    note_nr, note_title = block_info.get(block_name, (0, block_name))
-    title = _fmt_note_title(note_nr, note_title) if note_nr else f"Not {block_name}"
+    # Format and render title
+    title = _fmt_note_title(note_number, block_title)
     elems.append(Paragraph(title, H1))
     
     # For NOT1 (text note), render as paragraphs
@@ -1345,12 +1450,22 @@ def _render_note_block(elems, block_name, notes, company_data, H1, P):
     # For other notes, render as table with style-aware formatting
     # Remove "Post" column header, use end dates for columns 2 & 3
     table_data = [["", cur_end, prev_end]]
-    table_cmds = [
-        # Right-align column headers 2 & 3
-        ('ALIGN', (1,0), (2,0), 'RIGHT'),
-        ('FONT', (0,0), (-1,0), 'Roboto-Medium', 9),
-        ('BOTTOMPADDING', (0,0), (-1,0), 2),
+    
+    # Base style with minimal padding
+    base_style = [
+        ('ROWSPACING', (0,0), (-1,-1), 0),
+        ('TOPPADDING', (0,0), (-1,-1), 1.5),    # Restore minimal padding
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1.5),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ('ALIGN', (1,0), (2,0), 'RIGHT'),       # Right-align col headers 2 & 3
+        ('ALIGN', (1,1), (2,-1), 'RIGHT'),      # Right-align all numeric cells
+        ('FONT', (0,0), (-1,0), 'Roboto-Medium', 9),  # Header row
+        ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Data rows (default)
+        ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
+        ('VALIGN', (0,0), (-1,-1), 'TOP'),
     ]
+    table_cmds = []
     
     for i, note in enumerate(visible):
         style = note.get('style', '')
@@ -1360,15 +1475,12 @@ def _render_note_block(elems, block_name, notes, company_data, H1, P):
         if _is_heading_style(style):
             curr_fmt = ''
             prev_fmt = ''
-        elif _is_subtotal_trigger(style):
-            # Calculate subtotals by summing visible rows above
-            cur = subtotal_above(visible, i, 'current_amount')
-            prev = subtotal_above(visible, i, 'previous_amount')
+        else:
+            # Use _value_for_row to handle S2 and "Redovisat värde" specially
+            cur = _value_for_row(visible, i, note, 'current_amount')
+            prev = _value_for_row(visible, i, note, 'previous_amount')
             curr_fmt = _fmt_int(cur)
             prev_fmt = _fmt_int(prev)
-        else:
-            curr_fmt = _fmt_int(_num(note.get('current_amount', 0)))
-            prev_fmt = _fmt_int(_num(note.get('previous_amount', 0)))
         
         table_data.append([row_title, curr_fmt, prev_fmt])
         r = len(table_data) - 1  # Current row index
@@ -1377,25 +1489,14 @@ def _render_note_block(elems, block_name, notes, company_data, H1, P):
         if _is_heading_style(style):
             # Headings: semibold
             table_cmds.append(('FONT', (0,r), (0,r), 'Roboto-Medium', 10))
-        elif _is_sum_line(style):
-            # Sum lines: semibold + borders
+        elif _is_subtotal_trigger(style):
+            # S2/TS2 rows: semibold + borders
             table_cmds.append(('FONT', (0,r), (-1,r), 'Roboto-Medium', 10))
-            table_cmds.append(('LINEABOVE', (0,r), (-1,r), 0.5, colors.Color(0, 0, 0, alpha=0.7)))
-            table_cmds.append(('LINEBELOW', (0,r), (-1,r), 0.5, colors.Color(0, 0, 0, alpha=0.7)))
-            table_cmds.append(('BOTTOMPADDING', (0,r), (-1,r), 6))
+            table_cmds.append(('LINEABOVE', (0,r), (-1,r), 0.5, colors.black))
+            table_cmds.append(('LINEBELOW', (0,r), (-1,r), 0.5, colors.black))
     
     if len(table_data) > 1:
         t = Table(table_data, hAlign='LEFT', colWidths=[None, 80, 80])
-        base_style = [
-            ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Data rows (default)
-            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),
-            ('ALIGN', (1,1), (2,-1), 'RIGHT'),  # Right-align amount columns
-            ('VALIGN', (0,0), (-1,-1), 'TOP'),
-            ('TOPPADDING', (0,0), (-1,-1), 0),
-            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
-            ('LEFTPADDING', (0,0), (-1,-1), 0),
-            ('RIGHTPADDING', (0,0), (-1,-1), 8),
-        ]
         t.setStyle(TableStyle(base_style + table_cmds))
         elems.append(t)
         elems.append(Spacer(1, 6))
