@@ -1624,12 +1624,49 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     note_flow.append(Paragraph(title, H1))
     note_flow.append(Spacer(1, 10))  # 10pt after heading
     
-    # For NOT1 (text note), render as paragraphs
+    # For NOT1 (text note + depreciation table), render as paragraphs plus table
     if block_name == 'NOT1':
+        # Render the text paragraph(s)
         for note in visible:
             text = note.get('variable_text', note.get('row_title', ''))
             if text:
                 note_flow.append(Paragraph(text, P))
+        
+        # Add spacing before the depreciation table
+        note_flow.append(Spacer(1, 10))
+        
+        # Build the depreciation table from company noterData
+        noter_data = company_data.get('noterData', [])
+        avskrtid_bygg = next((item['current_amount'] for item in noter_data if item.get('variable_name') == 'avskrtid_bygg'), 0)
+        avskrtid_mask = next((item['current_amount'] for item in noter_data if item.get('variable_name') == 'avskrtid_mask'), 0)
+        avskrtid_inv = next((item['current_amount'] for item in noter_data if item.get('variable_name') == 'avskrtid_inv'), 0)
+        avskrtid_ovriga = next((item['current_amount'] for item in noter_data if item.get('variable_name') == 'avskrtid_ovriga'), 0)
+        
+        # Create the depreciation table
+        depr_table_data = [
+            ['Anläggningstillgångar', 'År'],
+            ['Byggnader & mark', _fmt_int(avskrtid_bygg) if avskrtid_bygg else '0'],
+            ['Maskiner och andra tekniska anläggningar', _fmt_int(avskrtid_mask) if avskrtid_mask else '0'],
+            ['Inventarier, verktyg och installationer', _fmt_int(avskrtid_inv) if avskrtid_inv else '0'],
+            ['Övriga materiella anläggningstillgångar', _fmt_int(avskrtid_ovriga) if avskrtid_ovriga else '0'],
+        ]
+        
+        # Create table with appropriate column widths
+        depr_table = Table(depr_table_data, hAlign='LEFT', colWidths=[320, 80])
+        depr_style = TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('TOPPADDING', (0,0), (-1,-1), 1.5),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 1.5),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 8),
+            ('ALIGN', (1,0), (1,-1), 'RIGHT'),  # Right-align "År" column
+            ('FONT', (0,0), (-1,0), 'Roboto-Medium', 10),  # Header row semibold
+            ('FONT', (0,1), (-1,-1), 'Roboto', 10),       # Data rows regular
+            ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.20)),  # Line under header
+        ])
+        depr_table.setStyle(depr_style)
+        note_flow.append(depr_table)
+        
         note_flow.append(Spacer(1, 16))  # gap before next note
         elems.append(KeepTogether(note_flow))
         return
