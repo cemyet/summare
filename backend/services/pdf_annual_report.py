@@ -191,7 +191,7 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL):
     print(f"[FLERARS-DEBUG] Received flerarsoversikt: {flerars}")
     print(f"[FLERARS-DEBUG] Type: {type(flerars)}, Keys: {list(flerars.keys()) if isinstance(flerars, dict) else 'not a dict'}")
     
-    # If we have structured flerårsöversikt data, use it
+    # If we have structured flerårsöversikt data with years/rows, use it
     if flerars and flerars.get('years'):
         years = flerars.get('years', [])
         rows = flerars.get('rows', [])
@@ -211,6 +211,33 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL):
                 formatted = [_fmt_int(v) if v else "0" for v in values]
             
             table_data.append([label] + formatted)
+    elif flerars and any(k.startswith(('oms', 'ref', 'bal', 'sol')) for k in flerars.keys()):
+        # Handle edited values map format: {'oms1': 1000, 'oms2': 2000, ...}
+        print(f"[FLERARS-DEBUG] Using edited values map format")
+        
+        # Extract values for each row (3 years)
+        oms_vals = [_num(flerars.get(f'oms{i}', 0)) for i in [1, 2, 3]]
+        ref_vals = [_num(flerars.get(f'ref{i}', 0)) for i in [1, 2, 3]]
+        bal_vals = [_num(flerars.get(f'bal{i}', 0)) for i in [1, 2, 3]]
+        sol_vals = [_num(flerars.get(f'sol{i}', 0)) for i in [1, 2, 3]]
+        
+        # Also check for tkr values (computed from the map)
+        nettoOmsFY_tkr = _num(flerars.get('nettoOmsFY_tkr', oms_vals[0]))
+        refpFY_tkr = _num(flerars.get('refpFY_tkr', ref_vals[0]))
+        tillgFY_tkr = _num(flerars.get('tillgFY_tkr', bal_vals[0]))
+        soliditetFY = _num(flerars.get('soliditetFY', sol_vals[0]))
+        
+        # Build years (fiscal year and 2 previous)
+        years = [str(fiscal_year), str(fiscal_year-1), str(fiscal_year-2)]
+        
+        # Build table
+        table_data = [[""] + years]
+        table_data.append(["Omsättning"] + [_fmt_int(v) for v in oms_vals])
+        table_data.append(["Resultat efter finansiella poster"] + [_fmt_int(v) for v in ref_vals])
+        table_data.append(["Balansomslutning"] + [_fmt_int(v) for v in bal_vals])
+        table_data.append(["Soliditet"] + [f"{int(round(v))}%" for v in sol_vals])
+        
+        print(f"[FLERARS-DEBUG] Built table with edited values: oms={oms_vals}, ref={ref_vals}")
     else:
         # Fallback: build from scraped data
         scraped = company_data.get('scraped_company_data', {})
@@ -1473,21 +1500,45 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             
             if items and len(items) > 0:
                 # Try to find the explicit row for employee count
+                # PRIORITY: Items with variable_name set (these have user edits)
                 src = None
+                
+                # First pass: Look for items with variable_name (most reliable)
                 for r in items:
                     vn = r.get("variable_name", "")
-                    rt = (r.get("row_title") or "").lower()
-                    if vn in {"ant_anstallda", "medelantal_anstallda_under_aret"} or "medelantalet" in rt:
+                    if vn in {"ant_anstallda", "medelantal_anstallda_under_aret"}:
                         src = r
+                        print(f"[NOT2-BACKEND-DEBUG] Matched by variable_name: {vn}")
                         break
-                # Fallback to first item if no match
+                
+                # Second pass: Look for title match if no variable_name match
+                if not src:
+                    for r in items:
+                        rt = (r.get("row_title") or "").lower()
+                        if "medelantalet anställda under året" in rt or rt == "medelantalet anställda":
+                            # Only accept if this looks like the data row (has variable_name or non-zero values)
+                            if r.get("variable_name") or r.get("current_amount") or r.get("previous_amount"):
+                                src = r
+                                print(f"[NOT2-BACKEND-DEBUG] Matched by title: {r.get('row_title')}")
+                                break
+                
+                # Fallback to first item with variable_name
+                if not src:
+                    for r in items:
+                        if r.get("variable_name"):
+                            src = r
+                            print(f"[NOT2-BACKEND-DEBUG] Fallback to first item with variable_name")
+                            break
+                
+                # Last resort: first item
                 if not src and items:
                     src = items[0]
+                    print(f"[NOT2-BACKEND-DEBUG] Fallback to first item")
                 
                 if src:
                     emp_current = _num(src.get('current_amount', 0))
                     emp_previous = _num(src.get('previous_amount', 0))
-                    print(f"[NOT2-BACKEND-DEBUG] Found source item: cur={emp_current}, prev={emp_previous}")
+                    print(f"[NOT2-BACKEND-DEBUG] Found source item: cur={emp_current}, prev={emp_previous}, title='{src.get('row_title')}'")
             
             # Fallback to scraper data from rating_bolag (NOT SIE!)
             if emp_current == 0 and emp_previous == 0:
