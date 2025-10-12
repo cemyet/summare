@@ -535,7 +535,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     se_data = company_data.get('seFileData', {})
     rr_data = se_data.get('rr_data', [])
     br_data = se_data.get('br_data', [])
+    # Use noter data from company_data (should be user's edited data from database)
     noter_data = company_data.get('noterData', [])
+    # Get toggle state for showing all rows (default: False)
+    noter_toggle_on = company_data.get('noterToggleOn', False)
     
     # ===== 1. FÖRVALTNINGSBERÄTTELSE =====
     elems.append(Paragraph("Förvaltningsberättelse", H0))
@@ -1149,7 +1152,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     print(f"[NOTER-PDF-DEBUG] Blocks found: {list(blocks.keys())}")
     
     # Collect and filter blocks, then assign note numbers
-    rendered_blocks = _collect_visible_note_blocks(blocks, company_data)
+    rendered_blocks = _collect_visible_note_blocks(blocks, company_data, noter_toggle_on)
     
     # Render each block with assigned note number
     for block_name, block_title, note_number, visible_items in rendered_blocks:
@@ -1334,12 +1337,12 @@ def _has_nonzero_content(rows):
             return True
     return False
 
-def _collect_visible_note_blocks(blocks, company_data):
+def _collect_visible_note_blocks(blocks, company_data, toggle_on=False):
     """
     Collect visible note blocks, apply visibility filters, and assign note numbers.
     Returns list of (block_name, block_title, note_number, visible_items)
+    toggle_on: If True, shows all rows including those with toggle_show=True (e.g., Eventualförpliktelser)
     """
-    toggle_on = False  # PDF matches "Visa alla rader = OFF"
     
     # Block title mapping
     block_title_map = {
