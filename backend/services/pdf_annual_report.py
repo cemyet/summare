@@ -1553,9 +1553,11 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                 "toggle_show": False,
             }]
         
-        # Special handling for OVRIGA - show if there's moderbolag data (mirrors frontend logic)
-        if block_name == 'OVRIGA':
-            moderbolag = scraped_data.get('moderbolag')
+        # Special handling for OVRIGA - always show if there's moderbolag data (mirrors frontend logic)
+        is_ovriga = (block_name == 'OVRIGA')
+        moderbolag = scraped_data.get('moderbolag')
+        
+        if is_ovriga:
             if not moderbolag:
                 # Check if block has any non-zero content
                 has_content = any(
@@ -1590,11 +1592,10 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             for it in items:
                 it["always_show"] = True
         
-        # For EVENTUAL and SAKERHET blocks, use block-specific toggle instead of global toggle
-        effective_toggle = toggle_on
-        if is_eventual or is_sakerhet:
-            toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
-            effective_toggle = block_toggles.get(toggle_key, False)
+        # For EVENTUAL and SAKERHET blocks, DON'T use toggle for visibility in PDF
+        # The toggle is only used to show the block, not to show zero-value rows within it
+        # Zero-value toggle_show rows are only for editing, not for final PDF
+        effective_toggle = toggle_on  # Keep as False for PDF (no zero rows)
         
         # Apply visibility logic
         visible = build_visible_with_headings_pdf(items, toggle_on=effective_toggle)
@@ -1621,8 +1622,9 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
             block_toggle_enabled = block_toggles.get(toggle_key, False)
         
-        # Skip block if not force-always, not toggle-enabled, and has no non-zero content
-        if (not force_always) and (not block_toggle_enabled) and (not _has_nonzero_content(visible)):
+        # Skip block if not force-always, not toggle-enabled, has no non-zero content, and not OVRIGA with moderbolag
+        ovriga_with_moderbolag = (is_ovriga and moderbolag)
+        if (not force_always) and (not block_toggle_enabled) and (not ovriga_with_moderbolag) and (not _has_nonzero_content(visible)):
             continue
         
         collected.append((block_name, block_title, visible))
@@ -1657,6 +1659,28 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     title = _fmt_note_title(note_number, block_title)
     note_flow.append(Paragraph(title, H1))
     note_flow.append(Spacer(1, 10))  # 10pt after heading
+    
+    # For OVRIGA (text note with moderbolag info), render text first
+    if block_name == 'OVRIGA':
+        scraped_data = company_data.get('scraped_company_data', {})
+        moderbolag = scraped_data.get('moderbolag')
+        moderbolag_orgnr = scraped_data.get('moderbolag_orgnr')
+        sate = scraped_data.get('säte')
+        
+        if moderbolag:
+            text = f"Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolag_orgnr} med säte i {sate}, som upprättar koncernredovisning."
+            note_flow.append(Paragraph(text, P))
+            note_flow.append(Spacer(1, 10))
+        
+        # If there are visible items with amounts, render them as table
+        if visible and any(_num(it.get('current_amount', 0)) != 0 or _num(it.get('previous_amount', 0)) != 0 for it in visible):
+            # Continue to table rendering below
+            pass
+        else:
+            # Just text, no table needed
+            note_flow.append(Spacer(1, 16))
+            elems.append(KeepTogether(note_flow))
+            return
     
     # For NOT1 (text note + depreciation table), render as paragraphs plus table
     if block_name == 'NOT1':
