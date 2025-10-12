@@ -362,9 +362,12 @@ const MaskinerNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management - save original values for proper undo
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -912,9 +915,12 @@ const ByggnaderNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -1479,9 +1485,12 @@ const OvrigaMateriellaNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -2028,9 +2037,12 @@ const KoncernNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -2563,9 +2575,12 @@ const IntresseforetagNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -3098,9 +3113,12 @@ const LangfristigaVardepapperNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -3628,9 +3646,12 @@ const FordringarKoncernNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -4162,9 +4183,12 @@ const FordringarIntresseNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -4696,9 +4720,12 @@ const FordringarOvrigaNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -5187,9 +5214,12 @@ const EventualNote: React.FC<{
   const brBookValueUBCur = 0;
   const brBookValueUBPrev = 0;
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -5531,9 +5561,12 @@ const SakerhetNote: React.FC<{
   const brBookValueUBCur = 0;
   const brBookValueUBPrev = 0;
 
-  // Baseline management
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -5901,9 +5934,12 @@ const InventarierNote: React.FC<{
     return { brBookValueUBCur: cur, brBookValueUBPrev: prev };
   }, [companyData, byVar]);
 
-  // Baseline management - save original values for proper undo
+  // Baseline management - save original values for proper undo (only once, never overwrite)
   const originalBaselineRef = React.useRef<{cur: Record<string, number>, prev: Record<string, number>}>({cur:{}, prev:{}});
   React.useEffect(() => {
+    // Only initialize if not already set (preserve original values even after Godkänn)
+    if (Object.keys(originalBaselineRef.current.cur).length > 0) return;
+    
     const cur: Record<string, number> = {};
     const prev: Record<string, number> = {};
     items.forEach(it => {
@@ -5914,7 +5950,7 @@ const InventarierNote: React.FC<{
       prev[vn] = it.previous_amount ?? 0;
     });
     originalBaselineRef.current = { cur, prev };
-  }, [items]);  // uppdatera baseline om ny SIE/parse kommer in
+  }, [items]);
 
   // Local edit state (simplified to match FB)
   const [isEditing, setIsEditing] = useState(false);
