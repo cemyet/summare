@@ -2371,6 +2371,7 @@ const handleTaxCalculationClick = () => {
                 currentPeriodEndDate: getCurrentPeriodEndDate(),
                 previousPeriodEndDate: getPreviousPeriodEndDate()
               }}
+              onDataUpdate={onDataUpdate}
             />
           </div>
         )}

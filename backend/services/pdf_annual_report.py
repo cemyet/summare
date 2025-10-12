@@ -1384,24 +1384,41 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False):
         
         # Special handling for NOT2 "Medeltal anställda" - ensure single row display
         if block_title.strip().lower() == "medeltal anställda" or block_name == "NOT2":
-            # Get values from noter data (which has scraped + edited values)
+            # Prefer values from noter data (scraped + edited)
             emp_current = 0
             emp_previous = 0
             
             if items and len(items) > 0:
-                # Use the first item from noter data
-                first_item = items[0]
-                emp_current = _num(first_item.get('current_amount', 0))
-                emp_previous = _num(first_item.get('previous_amount', 0))
+                # Try to find the explicit row for employee count
+                src = None
+                for r in items:
+                    vn = r.get("variable_name", "")
+                    rt = (r.get("row_title") or "").lower()
+                    if vn in {"ant_anstallda", "medelantal_anstallda_under_aret"} or "medelantalet" in rt:
+                        src = r
+                        break
+                # Fallback to first item if no match
+                if not src and items:
+                    src = items[0]
+                
+                if src:
+                    emp_current = _num(src.get('current_amount', 0))
+                    emp_previous = _num(src.get('previous_amount', 0))
             
-            # Force single row display
+            # Fallback to scraper data from rating_bolag (NOT SIE!)
+            if emp_current == 0 and emp_previous == 0:
+                emp_current = _num(company_data.get("employees", 0))
+                # If no explicit previous, assume same as current (same rule as preview)
+                emp_previous = _num(company_data.get("employees_previous", emp_current))
+            
+            # Force single row with canonical variable name
             items = [{
                 "row_id": 1,
                 "row_title": "Medelantalet anställda under året",
                 "current_amount": emp_current,
                 "previous_amount": emp_previous,
                 "style": "NORMAL",
-                "variable_name": "medelantal_anstallda_under_aret",
+                "variable_name": "ant_anstallda",
                 "always_show": True,
                 "toggle_show": False,
             }]

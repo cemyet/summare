@@ -6206,11 +6206,30 @@ interface NoterProps {
   fiscalYear?: number;
   previousYear?: number;
   companyData?: any; // Add companyData to access scraped data
+  onDataUpdate?: (patch: Partial<any>) => void; // NEW: callback to bubble changes up
 }
 
-export function Noter({ noterData, fiscalYear, previousYear, companyData }: NoterProps) {
-  const [blockToggles, setBlockToggles] = useState<Record<string, boolean>>({});
+export function Noter({ noterData, fiscalYear, previousYear, companyData, onDataUpdate }: NoterProps) {
+  const [blockToggles, setBlockToggles] = useState<Record<string, boolean>>(
+    companyData?.noterBlockToggles || {}
+  );
   const [selectedItem, setSelectedItem] = useState<NoterItem | null>(null);
+
+  // Helper to update block toggles and bubble up to parent
+  const updateBlockToggle = (block: string, checked: boolean) => {
+    const next = { ...blockToggles, [block]: checked };
+    setBlockToggles(next);
+    onDataUpdate?.({ noterBlockToggles: next });
+  };
+
+  // Wrapped setBlockToggles for sub-components that also bubbles changes up
+  const wrappedSetBlockToggles = (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => {
+    setBlockToggles(prev => {
+      const next = fn(prev);
+      onDataUpdate?.({ noterBlockToggles: next });
+      return next;
+    });
+  };
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat('sv-SE', {
@@ -6842,11 +6861,9 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                   blockToggles={blockToggles}
-                  setBlockToggles={setBlockToggles}
+                  setBlockToggles={wrappedSetBlockToggles}
                 />
               );
             }
@@ -6863,9 +6880,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -6881,9 +6896,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -6899,9 +6912,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -6917,9 +6928,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -6935,9 +6944,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -6953,9 +6960,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -6971,9 +6976,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -6989,9 +6992,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -7007,9 +7008,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -7025,9 +7024,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                 />
               );
             }
@@ -7043,11 +7040,9 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   previousYear={previousYear}
                   companyData={companyData}
                   toggleOn={blockToggles[block] || false}
-                  setToggle={(checked: boolean) =>
-                    setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  setToggle={(checked: boolean) => updateBlockToggle(block, checked)}
                   blockToggles={blockToggles}
-                  setBlockToggles={setBlockToggles}
+                  setBlockToggles={wrappedSetBlockToggles}
                 />
               );
             }
@@ -7066,9 +7061,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData }: Note
                   <Switch
                     id={`toggle-${block}`}
                   checked={blockToggles[block] || false}
-                  onCheckedChange={(checked) => 
-                      setBlockToggles(prev => ({ ...prev, [block]: checked }))
-                  }
+                  onCheckedChange={(checked) => updateBlockToggle(block, checked)}
                   />
                   </div>
                 </div>
