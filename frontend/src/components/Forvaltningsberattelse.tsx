@@ -456,7 +456,14 @@ export function Forvaltningsberattelse({
     setSavedValues(base);
     setDraftInputs(Object.fromEntries(Object.entries(base).map(([k, v]) => [k, toRaw(v as number)])));
     
-    // (Optional) Bubble up so parent/DB can persist variables & rows
+    // Bubble up so parent/DB can persist variables & rows
+    console.log('✅ [FB-SAVE] Calling onDataUpdate with:', {
+      fbVariablesCount: Object.keys(newSavedValues).length,
+      fbTableRows: recalculatedTable.length,
+      sampleVariable: Object.entries(newSavedValues)[0],
+      sampleRow: recalculatedTable[0],
+      hasOnDataUpdate: !!onDataUpdate
+    });
     onDataUpdate?.({ fbVariables: newSavedValues, fbTable: recalculatedTable });
     
     setIsEditMode(false);

@@ -554,15 +554,26 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # Scraped data (for Medeltal anställda, moderbolag, etc.)
     scraped_company_data = company_data.get('scraped_company_data', {})
     
-    # FB: Already uses fbTable and fbVariables from company_data (good!)
+    # FB: Extract and debug
+    fb_table = company_data.get('fbTable', [])
+    fb_variables = company_data.get('fbVariables', {})
     
-    print(f"[PDF-DEBUG] Using RR data source: {'edited' if company_data.get('rrData') or company_data.get('rrRows') else 'seFileData'}")
-    print(f"[PDF-DEBUG] Using BR data source: {'edited' if company_data.get('brData') or company_data.get('brRows') else 'seFileData'}")
-    print(f"[PDF-DEBUG] Noter data received: {len(noter_data)} items")
+    print(f"[PDF-DEBUG] ========== DATA SOURCES ==========")
+    print(f"[PDF-DEBUG] RR data source: {'edited' if company_data.get('rrData') or company_data.get('rrRows') else 'seFileData'}")
+    print(f"[PDF-DEBUG] BR data source: {'edited' if company_data.get('brData') or company_data.get('brRows') else 'seFileData'}")
+    print(f"[PDF-DEBUG] FB data: {len(fb_table)} table rows, {len(fb_variables)} variables")
+    if fb_table and len(fb_table) > 0:
+        sample_fb = fb_table[0]
+        print(f"[PDF-DEBUG] Sample FB row: label={sample_fb.get('label')}, aktiekapital={sample_fb.get('aktiekapital')}, total={sample_fb.get('total')}")
+    if fb_variables:
+        sample_vars = list(fb_variables.items())[:3]
+        print(f"[PDF-DEBUG] Sample FB variables: {sample_vars}")
+    print(f"[PDF-DEBUG] Noter data: {len(noter_data)} items")
     print(f"[PDF-DEBUG] Noter toggles: toggle_on={noter_toggle_on}, block_toggles={noter_block_toggles}")
     if noter_data and len(noter_data) > 0:
         sample = noter_data[0]
         print(f"[PDF-DEBUG] Sample note item: block={sample.get('block')}, title={sample.get('row_title')}, current={sample.get('current_amount')}, previous={sample.get('previous_amount')}")
+    print(f"[PDF-DEBUG] =====================================")
     
     # ===== 1. FÖRVALTNINGSBERÄTTELSE =====
     elems.append(Paragraph("Förvaltningsberättelse", H0))

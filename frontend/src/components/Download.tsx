@@ -73,6 +73,13 @@ export function Download({ companyData }: DownloadProps) {
         
         // Add cache buster to ensure fresh PDF generation
         console.log('🚀 [PDF-DOWNLOAD] Sending companyData to backend:', {
+          // FB (Förvaltningsberättelse)
+          hasFbTable: !!companyData.fbTable,
+          fbTableLength: companyData.fbTable?.length || 0,
+          hasFbVariables: !!companyData.fbVariables,
+          fbVariablesCount: Object.keys(companyData.fbVariables || {}).length,
+          sampleFbRow: companyData.fbTable?.[0],
+          // Noter
           hasNoterData: !!companyData.noterData,
           noterDataLength: companyData.noterData?.length || 0,
           noterToggleOn: companyData.noterToggleOn,

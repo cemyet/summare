@@ -131,8 +131,23 @@ export function AnnualReportChat() {
                 currentStep={companyData.currentStep || 0}
                 editableAmounts={false}
                 onDataUpdate={(updates) => {
+                  console.log('📡 [ANNUAL-REPORT-CHAT] onDataUpdate received:', {
+                    updateKeys: Object.keys(updates),
+                    hasFbTable: !!updates.fbTable,
+                    hasFbVariables: !!updates.fbVariables,
+                    hasNoterData: !!updates.noterData,
+                    fbTableLength: updates.fbTable?.length,
+                    fbVariablesCount: Object.keys(updates.fbVariables || {}).length,
+                    noterDataLength: updates.noterData?.length,
+                  });
+                  
                   setCompanyData(prev => {
                     const newData = { ...prev, ...updates };
+                    console.log('📡 [ANNUAL-REPORT-CHAT] companyData updated:', {
+                      newFbTableLength: newData.fbTable?.length,
+                      newFbVariablesCount: Object.keys(newData.fbVariables || {}).length,
+                      newNoterDataLength: newData.noterData?.length,
+                    });
                     return newData;
                   });
                 }}
