@@ -1568,8 +1568,14 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             for it in items:
                 it["always_show"] = True
         
+        # For EVENTUAL and SAKERHET blocks, use block-specific toggle instead of global toggle
+        effective_toggle = toggle_on
+        if is_eventual or is_sakerhet:
+            toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
+            effective_toggle = block_toggles.get(toggle_key, False)
+        
         # Apply visibility logic
-        visible = build_visible_with_headings_pdf(items, toggle_on=toggle_on)
+        visible = build_visible_with_headings_pdf(items, toggle_on=effective_toggle)
         
         # Skip rows before first heading (but not for NOT1/NOT2 which don't have headings)
         if block_name not in ['NOT1', 'NOT2']:
