@@ -1203,16 +1203,23 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         if (response.success) {
           setBrDataWithNotes(response.br_data || brData);
           setRrDataWithNotes(response.rr_data || rrData);
+          // Also update companyData with enriched data for PDF generation
+          onDataUpdate?.({ 
+            brData: response.br_data || brData,
+            rrData: response.rr_data || rrData
+          });
         } else {
           // Fallback to original data if API fails
           setBrDataWithNotes(brData);
           setRrDataWithNotes(rrData);
+          onDataUpdate?.({ brData, rrData });
         }
       } catch (error) {
         console.error('Error loading financial data with note numbers:', error);
         // Fallback to original data if API fails
         setBrDataWithNotes(brData);
         setRrDataWithNotes(rrData);
+        onDataUpdate?.({ brData, rrData });
       } finally {
         inFlightRef.current = false;
       }
@@ -1220,7 +1227,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
     const t = setTimeout(loadDataWithNotes, 200); // debounce
     return () => clearTimeout(t);
-  }, [brData, rrData, cd.noterData]);
+  }, [brData, rrData, cd.noterData, onDataUpdate]);
 
   // Enter/leave edit mode behavior
   useEffect(() => {
