@@ -1587,8 +1587,14 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         if not visible:
             continue
         
-        # Skip block if not force-always and has no non-zero content
-        if (not force_always) and (not _has_nonzero_content(visible)):
+        # For EVENTUAL and SAKERHET blocks, if toggle is enabled, don't skip even if all zeros
+        block_toggle_enabled = False
+        if is_eventual or is_sakerhet:
+            toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
+            block_toggle_enabled = block_toggles.get(toggle_key, False)
+        
+        # Skip block if not force-always, not toggle-enabled, and has no non-zero content
+        if (not force_always) and (not block_toggle_enabled) and (not _has_nonzero_content(visible)):
             continue
         
         collected.append((block_name, block_title, visible))
