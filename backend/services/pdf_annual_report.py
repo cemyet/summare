@@ -3,7 +3,7 @@
 from io import BytesIO
 from typing import Any, Dict, List, Tuple
 from reportlab.lib.pagesizes import A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
@@ -23,9 +23,14 @@ BR_H2_SPACE_BEFORE = 8     # extra air *before* an H2 row
 BR_H2_SPACE_AFTER = 12     # extra air *after* an H2 row
 BR_ROW_SPACING = 2         # spacing between normal rows
 
+# Noter styling
+THIN_GREY = colors.Color(0, 0, 0, alpha=0.20)  # 20% opacity for subtle lines
+
 def _num(v):
+    """Convert value to float, handling bools, None, empty strings"""
     try:
-        if v is None: return 0
+        if isinstance(v, bool): return 0.0
+        if v is None or v == "": return 0.0
         if isinstance(v, (int, float)): return float(v)
         s = str(v).replace(" ", "").replace("\u00A0", "").replace(",", ".")
         return float(s) if s else 0.0
@@ -1183,13 +1188,34 @@ def _is_heading_style(s):
     """Check if style is a heading (H0, H1, H2, H3)"""
     return (s or "NORMAL") in {"H0", "H1", "H2", "H3"}
 
+def _is_head(s):
+    """Alias for _is_heading_style"""
+    return _is_heading_style(s)
+
 def _is_sum_line(s):
     """Check if style is a sum line (S2, S3, TS2, TS3)"""
     return (s or "") in {"S2", "S3", "TS2", "TS3"}
 
+def _is_sum(s):
+    """Alias for _is_sum_line"""
+    return _is_sum_line(s)
+
 def _is_subtotal_trigger(s):
     """Check if style is a subtotal trigger (S2, TS2)"""
     return (s or "") in {"S2", "TS2"}
+
+def _sum_group_above(rows, idx, key):
+    """Sum content rows above current row until hitting a heading or subtotal"""
+    total = 0.0
+    j = idx - 1
+    while j >= 0:
+        r = rows[j]
+        st = r.get("style", "")
+        if _is_head(st) or _is_subtotal_trigger(st):  # stop at head or another subtotal
+            break
+        total += _num(r.get(key, 0))
+        j -= 1
+    return total
 
 def build_visible_with_headings_pdf(items, toggle_on=False):
     """
@@ -1293,30 +1319,44 @@ def _has_nonzero_content(rows):
             return True
     return False
 
-def _value_for_row(rows, idx, it, year_key):
+def _value_for_pdf_row(visible, idx, it, year_key, block_name):
     """Calculate value for a row - handles S2 subtotals and 'Redovisat värde' specially"""
-    # S2 rows: dynamic subtotal of preceding visible rows (exact Preview behavior)
-    if _is_subtotal_trigger(it.get("style")):
-        return subtotal_above(rows, idx, year_key)
-
-    # "Redovisat värde" rows: sum the S2 rows above (works for Bygg/Maskiner/Inv/etc.)
+    st = it.get("style", "")
     vn = (it.get("variable_name") or "").lower()
-    row_title_lower = (it.get("row_title") or "").lower()
-    if "red_varde" in vn or "redovisat" in row_title_lower:
-        # Sum all S2 subtotals until we hit a heading
-        total = 0
+    title = (it.get("row_title") or "").lower()
+
+    # Dynamic subtotals (S2/TS2) = sum of content rows immediately above
+    if _is_subtotal_trigger(st):
+        return _sum_group_above(visible, idx, year_key)
+
+    # "Redovisat värde" rows = sum of the three/four UB subtotals shown in UI
+    if "redovisat" in title or "red_varde" in vn:
+        # Find the S2 rows for UB within this mini-block:
+        # – Anskaffningsvärden UB
+        # – Avskrivningar UB
+        # – Nedskrivningar UB
+        # – (Bygg) Uppskrivningar UB
+        need_titles = ["utgående anskaffningsvärden", "utgaende anskaffningsvarden",
+                       "utgående avskrivningar", "utgaende avskrivningar",
+                       "utgående nedskrivningar", "utgaende nedskrivningar"]
+        if "bygg" in block_name.lower():
+            need_titles += ["utgående uppskrivningar", "utgaende uppskrivningar"]
+
+        total = 0.0
+        # scan up until previous heading; collect S2 rows whose label matches
         j = idx - 1
         while j >= 0:
-            rr = rows[j]
-            st = rr.get("style", "")
-            if _is_heading_style(st):
+            r = visible[j]
+            if _is_head(r.get("style", "")):
                 break
-            if _is_subtotal_trigger(st):
-                total += subtotal_above(rows, j, year_key)
+            if _is_subtotal_trigger(r.get("style", "")):
+                lbl = (r.get("row_title") or "").lower()
+                if any(lbl.startswith(nt) for nt in need_titles):
+                    total += _sum_group_above(visible, j, year_key)
             j -= 1
         return total
 
-    # Default: use stored value
+    # default: value from item
     return _num(it.get(year_key, 0))
 
 def _collect_visible_note_blocks(blocks, company_data):
@@ -1363,6 +1403,23 @@ def _collect_visible_note_blocks(blocks, company_data):
             
         items = blocks[block_name]
         block_title = block_title_map.get(block_name, block_name)
+        
+        # Special handling for NOT2 "Medeltal anställda" - force single row with employee count
+        if block_title.strip().lower() == "medeltal anställda" or block_name == "NOT2":
+            emp_val = (company_data.get("employees") or 
+                      (company_data.get("seFileData", {}).get("employees") or {}).get("count") or 
+                      0)
+            items = [{
+                "row_id": 10001,
+                "row_title": "Medelantalet anställda under året",
+                "current_amount": emp_val,
+                "previous_amount": 0,  # Can be updated if prev year data available
+                "variable_name": "medelantal_anstallda_under_aret",
+                "style": "NORMAL",
+                "always_show": True,
+                "toggle_show": False,
+                "block": block_title
+            }]
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
         block_name_lower = block_name.lower()
@@ -1430,17 +1487,22 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     fiscal_year = company_data.get('fiscal_year', 2024)
     prev_year = fiscal_year - 1
     
+    # Start building note flowables (will wrap in KeepTogether)
+    note_flow = []
+    
     # Format and render title
     title = _fmt_note_title(note_number, block_title)
-    elems.append(Paragraph(title, H1))
+    note_flow.append(Paragraph(title, H1))
+    note_flow.append(Spacer(1, 12))  # 12pt after heading
     
     # For NOT1 (text note), render as paragraphs
     if block_name == 'NOT1':
         for note in visible:
             text = note.get('variable_text', note.get('row_title', ''))
             if text:
-                elems.append(Paragraph(text, P))
-        elems.append(Spacer(1, 6))
+                note_flow.append(Paragraph(text, P))
+        note_flow.append(Spacer(1, 16))  # gap before next note
+        elems.append(KeepTogether(note_flow))
         return
     
     # Get period end dates from company_data
@@ -1449,54 +1511,69 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     
     # For other notes, render as table with style-aware formatting
     # Remove "Post" column header, use end dates for columns 2 & 3
-    table_data = [["", cur_end, prev_end]]
+    header_row = ["", cur_end, prev_end]
+    table_data = [header_row]
     
-    # Base style with minimal padding
-    base_style = [
-        ('ROWSPACING', (0,0), (-1,-1), 0),
-        ('TOPPADDING', (0,0), (-1,-1), 1.5),    # Restore minimal padding
-        ('BOTTOMPADDING', (0,0), (-1,-1), 1.5),
+    # Base style with vertical centering and consistent spacing
+    style_cmds = [
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),         # vertically center every cell
+        ('TOPPADDING', (0,0), (-1,-1), 3),            # restore minimal paddings
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 8),
-        ('ALIGN', (1,0), (2,0), 'RIGHT'),       # Right-align col headers 2 & 3
-        ('ALIGN', (1,1), (2,-1), 'RIGHT'),      # Right-align all numeric cells
+        ('ALIGN', (1,0), (2,0), 'RIGHT'),             # right-align col headers
+        ('ALIGN', (1,1), (2,-1), 'RIGHT'),            # right-align numbers
         ('FONT', (0,0), (-1,0), 'Roboto-Medium', 9),  # Header row
-        ('FONT', (0,1), (-1,-1), 'Roboto', 10),  # Data rows (default)
+        ('FONT', (0,1), (-1,-1), 'Roboto', 10),       # Data rows (default)
         ('LINEBELOW', (0,0), (-1,0), 0.5, colors.Color(0, 0, 0, alpha=0.7)),  # Header underline
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
     ]
-    table_cmds = []
     
+    # Build table rows and collect row-specific styling
     for i, note in enumerate(visible):
         style = note.get('style', '')
         row_title = note.get('row_title', '')
+        lbl = row_title.lower()
         
         # Check if this is a heading (no amounts)
         if _is_heading_style(style):
             curr_fmt = ''
             prev_fmt = ''
         else:
-            # Use _value_for_row to handle S2 and "Redovisat värde" specially
-            cur = _value_for_row(visible, i, note, 'current_amount')
-            prev = _value_for_row(visible, i, note, 'previous_amount')
+            # Use _value_for_pdf_row to handle S2 and "Redovisat värde" specially
+            cur = _value_for_pdf_row(visible, i, note, 'current_amount', block_name)
+            prev = _value_for_pdf_row(visible, i, note, 'previous_amount', block_name)
             curr_fmt = _fmt_int(cur)
             prev_fmt = _fmt_int(prev)
         
         table_data.append([row_title, curr_fmt, prev_fmt])
-        r = len(table_data) - 1  # Current row index
+        r_index = len(table_data) - 1  # Current row index in table (0 is header, data starts at 1)
         
         # Apply styling based on style field
         if _is_heading_style(style):
             # Headings: semibold
-            table_cmds.append(('FONT', (0,r), (0,r), 'Roboto-Medium', 10))
-        elif _is_subtotal_trigger(style):
-            # S2/TS2 rows: semibold + borders
-            table_cmds.append(('FONT', (0,r), (-1,r), 'Roboto-Medium', 10))
-            table_cmds.append(('LINEABOVE', (0,r), (-1,r), 0.5, colors.black))
-            table_cmds.append(('LINEBELOW', (0,r), (-1,r), 0.5, colors.black))
+            style_cmds.append(('FONT', (0,r_index), (0,r_index), 'Roboto-Medium', 10))
+        
+        # Draw thin lines at TOP+BOTTOM for:
+        # – S2/TS2 ("Utgående …")
+        # – "Redovisat värde"
+        is_sum_row = _is_subtotal_trigger(style)
+        is_redv = ("redovisat" in lbl) or ("red_varde" in (note.get('variable_name') or '').lower())
+        
+        if is_sum_row or is_redv:
+            style_cmds += [
+                ('FONT', (0,r_index), (-1,r_index), 'Roboto-Medium', 10),  # Semibold
+                ('LINEABOVE', (0,r_index), (-1,r_index), 0.5, THIN_GREY),
+                ('LINEBELOW', (0,r_index), (-1,r_index), 0.5, THIN_GREY),
+                ('BOTTOMPADDING', (0,r_index), (-1,r_index), 6),  # a little air inside the rule
+            ]
+            # add 12pt "mini-block" gap AFTER this row
+            style_cmds.append(('BOTTOMPADDING', (0,r_index), (-1,r_index), 12))
     
     if len(table_data) > 1:
         t = Table(table_data, hAlign='LEFT', colWidths=[None, 80, 80])
-        t.setStyle(TableStyle(base_style + table_cmds))
-        elems.append(t)
-        elems.append(Spacer(1, 6))
+        t.setStyle(TableStyle(style_cmds))
+        note_flow.append(t)
+        note_flow.append(Spacer(1, 16))  # gap before next note
+        
+        # Wrap entire note in KeepTogether to prevent page breaks mid-note
+        elems.append(KeepTogether(note_flow))
