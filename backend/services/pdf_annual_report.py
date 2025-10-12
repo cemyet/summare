@@ -1381,16 +1381,22 @@ def _collect_visible_note_blocks(blocks, company_data):
         
         # Special handling for NOT2 "Medeltal anställda" - force single row with employee count
         if block_title.strip().lower() == "medeltal anställda" or block_name == "NOT2":
-            emp = (
+            emp_current = (
                 company_data.get('employees') or
                 (company_data.get('seFileData', {}).get('employees') or {}).get('count') or
                 company_data.get('employeesAverage') or 0
             )
+            emp_previous = (
+                company_data.get('employeesPrevious') or
+                company_data.get('previousEmployees') or
+                (company_data.get('seFileData', {}).get('employees') or {}).get('previousCount') or
+                0
+            )
             items = [{
                 "row_id": 1,
                 "row_title": "Medelantalet anställda under året",
-                "current_amount": emp,
-                "previous_amount": 0,  # if you have previous, plug it
+                "current_amount": emp_current,
+                "previous_amount": emp_previous,
                 "style": "NORMAL",
                 "variable_name": "medelantal_anstallda_under_aret",
                 "always_show": True,
@@ -1494,8 +1500,8 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     # Clean style with only header line (no body lines) - mirrors RR
     note_style = [
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('TOPPADDING', (0,0), (-1,-1), 2.0),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 2.0),
+        ('TOPPADDING', (0,0), (-1,-1), 1.5),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1.5),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ('ALIGN', (1,0), (2,0), 'RIGHT'),
