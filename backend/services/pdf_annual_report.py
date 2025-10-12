@@ -546,9 +546,13 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
                company_data.get('brRows') or 
                company_data.get('seFileData', {}).get('br_data', []))
     
-    # Noter: Use edited data from database (already implemented)
+    # Noter: Use edited data from database + toggle states
     noter_data = company_data.get('noterData', [])
     noter_toggle_on = company_data.get('noterToggleOn', False)
+    noter_block_toggles = company_data.get('noterBlockToggles', {})
+    
+    # Scraped data (for Medeltal anställda, moderbolag, etc.)
+    scraped_company_data = company_data.get('scraped_company_data', {})
     
     # FB: Already uses fbTable and fbVariables from company_data (good!)
     
@@ -1167,7 +1171,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     print(f"[NOTER-PDF-DEBUG] Blocks found: {list(blocks.keys())}")
     
     # Collect and filter blocks, then assign note numbers
-    rendered_blocks = _collect_visible_note_blocks(blocks, company_data, noter_toggle_on)
+    rendered_blocks = _collect_visible_note_blocks(blocks, company_data, noter_toggle_on, noter_block_toggles, scraped_company_data)
     
     # Render each block with assigned note number
     for block_name, block_title, note_number, visible_items in rendered_blocks:
@@ -1260,6 +1264,8 @@ def compute_redovisat_varde(block_title, visible, key):
     if 'bygg' in bt:  # only for Byggnader och mark
         u = _s2_amount_by_label(visible, key, 'utgående uppskrivningar')
         total += u
+    
+    print(f"[REDOVISAT-DEBUG] {block_title} {key}: anskaffning={a}, avskrivningar={v}, nedskrivningar={n}, total={total}")
     return total
 
 def build_visible_with_headings_pdf(items, toggle_on=False):
@@ -1352,12 +1358,16 @@ def _has_nonzero_content(rows):
             return True
     return False
 
-def _collect_visible_note_blocks(blocks, company_data, toggle_on=False):
+def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_toggles=None, scraped_data=None):
     """
     Collect visible note blocks, apply visibility filters, and assign note numbers.
     Returns list of (block_name, block_title, note_number, visible_items)
-    toggle_on: If True, shows all rows including those with toggle_show=True (e.g., Eventualförpliktelser)
+    toggle_on: Global "visa alla rader" toggle (usually False for PDF)
+    block_toggles: Dict of per-block toggles (e.g., {'sakerhet-visibility': True, 'eventual-visibility': True})
+    scraped_data: Scraped company data (for Medeltal anställda, etc.)
     """
+    block_toggles = block_toggles or {}
+    scraped_data = scraped_data or {}
     
     # Block title mapping
     block_title_map = {
@@ -1422,9 +1432,16 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False):
             
             # Fallback to scraper data from rating_bolag (NOT SIE!)
             if emp_current == 0 and emp_previous == 0:
-                emp_current = _num(company_data.get("employees", 0))
-                # If no explicit previous, assume same as current (same rule as preview)
-                emp_previous = _num(company_data.get("employees_previous", emp_current))
+                # Try scraped data first (most reliable source)
+                emp_previous = _num(scraped_data.get('medeltal_anstallda') or 
+                                   scraped_data.get('medeltal_anstallda_prev') or
+                                   scraped_data.get('employees') or
+                                   company_data.get("employees", 0))
+                
+                # Current year = previous year (same as preview logic)
+                emp_current = _num(scraped_data.get('medeltal_anstallda_cur') or emp_previous)
+                
+                print(f"[NOTER-PDF-DEBUG] NOT2 from scraped: current={emp_current}, previous={emp_previous}")
             
             # Force single row with canonical variable name
             items = [{
@@ -1439,13 +1456,25 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False):
             }]
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
+        # These blocks require explicit toggle to be visible
         block_name_lower = block_name.lower()
         block_title_lower = block_title.lower()
-        if (block_name_lower in {"eventualförpliktelser", "eventual", "säkerheter", "säkerhet", "sakerhet"} or
-            block_title_lower in {"eventualförpliktelser", "eventual", "säkerheter", "säkerhet", "sakerhet"}):
-            if not toggle_on:
-                print(f"[NOTER-PDF-DEBUG] Block '{block_name}' hidden (toggle_on=False)")
+        
+        is_eventual = (block_name_lower in {"eventualförpliktelser", "eventual"} or
+                      block_title_lower in {"eventualförpliktelser", "eventual"})
+        is_sakerhet = (block_name_lower in {"säkerheter", "säkerhet", "sakerhet"} or
+                      block_title_lower in {"säkerheter", "säkerhet", "sakerhet"})
+        
+        if is_eventual or is_sakerhet:
+            # Check block-specific toggle (e.g., 'eventual-visibility', 'sakerhet-visibility')
+            toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
+            block_visible = block_toggles.get(toggle_key, False)
+            
+            if not block_visible:
+                print(f"[NOTER-PDF-DEBUG] Block '{block_name}' hidden (toggle '{toggle_key}' = {block_visible})")
                 continue
+            else:
+                print(f"[NOTER-PDF-DEBUG] Block '{block_name}' shown (toggle '{toggle_key}' = {block_visible})")
         
         # Force always_show for NOT1 and NOT2
         force_always = (block_name in ALWAYS_SHOW_NOTES or block_title in ALWAYS_SHOW_NOTES)
@@ -1565,10 +1594,11 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
             prev_fmt = ''
         else:
             # Detect Redovisat värde and calculate it specially
-            is_redv = 'redovisat värde' in lbl or 'redovisat varde' in lbl
+            is_redv = 'redovisat värde' in lbl or 'redovisat varde' in lbl or 'redovisat' in lbl
             if is_redv:
                 cur = compute_redovisat_varde(block_title, visible, 'current_amount')
                 prev = compute_redovisat_varde(block_title, visible, 'previous_amount')
+                print(f"[RENDER-DEBUG] Redovisat värde row: cur={cur}, prev={prev}")
             elif _is_s2(style):
                 cur = _sum_group_above(visible, i, 'current_amount')
                 prev = _sum_group_above(visible, i, 'previous_amount')
