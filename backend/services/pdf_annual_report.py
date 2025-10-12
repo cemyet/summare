@@ -1451,6 +1451,7 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         'FORDR_OVRIG': 'Övriga fordringar',
         'EVENTUAL': 'Eventualförpliktelser',
         'SAKERHET': 'Ställda säkerheter',
+        'OVRIGA': 'Övriga upplysningar',
     }
     
     collected = []
@@ -1551,6 +1552,19 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                 "always_show": True,
                 "toggle_show": False,
             }]
+        
+        # Special handling for OVRIGA - show if there's moderbolag data (mirrors frontend logic)
+        if block_name == 'OVRIGA':
+            moderbolag = scraped_data.get('moderbolag')
+            if not moderbolag:
+                # Check if block has any non-zero content
+                has_content = any(
+                    _num(it.get('current_amount', 0)) != 0 or 
+                    _num(it.get('previous_amount', 0)) != 0 
+                    for it in items
+                )
+                if not has_content:
+                    continue
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
         # These blocks require explicit toggle to be visible
