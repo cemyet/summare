@@ -5294,8 +5294,11 @@ const EventualNote: React.FC<{
 
   const approveEdit = () => {
     // No balance validation for EVENTUAL - just commit the values
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setIsEditing(false);
@@ -5304,8 +5307,8 @@ const EventualNote: React.FC<{
     // Update items with new values and bubble up to parent
     const updatedItems = items.map(item => {
       if (!item.variable_name) return item;
-      const newCurrent = committedValues[item.variable_name];
-      const newPrevious = committedPrevValues[item.variable_name];
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
       return {
         ...item,
         current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
@@ -5640,11 +5643,31 @@ const SakerhetNote: React.FC<{
 
   const approveEdit = () => {
     // No balance validation for SAKERHET - just commit the values
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setIsEditing(false);
+    
+    // Update items with new values and bubble up to parent
+    const updatedItems = items.map(item => {
+      if (!item.variable_name) return item;
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
+      return {
+        ...item,
+        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
+        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
+      };
+    });
+    
+    console.log('✅ [SAKERHET-APPROVE] Updating items with edits:', { 
+      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
+    });
+    onItemsUpdate?.(updatedItems);
   };
 
   // Helper functions

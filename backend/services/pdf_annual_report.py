@@ -1443,6 +1443,8 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         'FORDR_KONCERN': 'Fordringar hos koncernföretag',
         'FORDR_INTRESSE': 'Fordringar hos intresseföretag',
         'FORDR_OVRIG': 'Övriga fordringar',
+        'EVENTUAL': 'Eventualförpliktelser',
+        'SAKERHET': 'Ställda säkerheter',
     }
     
     collected = []
@@ -1751,7 +1753,8 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
                 note_style.append(('TOPPADDING', (0,r), (-1,r), 10))
         
         # Sums semibold + 10 pt before / 0 pt after "Redovisat värde"
-        is_sum_label = lbl.startswith('utgående ') or lbl.startswith('utgaende ')
+        is_sum_label = (lbl.startswith('utgående ') or lbl.startswith('utgaende ') or 
+                       lbl.startswith('summa ') or _is_s2(style))
         is_redv = ('redovisat värde' in lbl) or ('redovisat varde' in lbl)
         
         if is_sum_label or is_redv:
