@@ -2163,8 +2163,11 @@ const KoncernNote: React.FC<{
       return;
     }
 
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
@@ -2175,8 +2178,8 @@ const KoncernNote: React.FC<{
     // Update items with new values and bubble up to parent
     const updatedItems = items.map(item => {
       if (!item.variable_name) return item;
-      const newCurrent = committedValues[item.variable_name];
-      const newPrevious = committedPrevValues[item.variable_name];
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
       return {
         ...item,
         current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
@@ -2695,8 +2698,11 @@ const IntresseforetagNote: React.FC<{
       return;
     }
 
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
@@ -2707,8 +2713,8 @@ const IntresseforetagNote: React.FC<{
     // Update items with new values and bubble up to parent
     const updatedItems = items.map(item => {
       if (!item.variable_name) return item;
-      const newCurrent = committedValues[item.variable_name];
-      const newPrevious = committedPrevValues[item.variable_name];
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
       return {
         ...item,
         current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
@@ -3222,8 +3228,11 @@ const LangfristigaVardepapperNote: React.FC<{
       return;
     }
 
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
@@ -3234,8 +3243,8 @@ const LangfristigaVardepapperNote: React.FC<{
     // Update items with new values and bubble up to parent
     const updatedItems = items.map(item => {
       if (!item.variable_name) return item;
-      const newCurrent = committedValues[item.variable_name];
-      const newPrevious = committedPrevValues[item.variable_name];
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
       return {
         ...item,
         current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
@@ -3753,8 +3762,11 @@ const FordringarKoncernNote: React.FC<{
       return;
     }
 
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
@@ -3765,8 +3777,8 @@ const FordringarKoncernNote: React.FC<{
     // Update items with new values and bubble up to parent
     const updatedItems = items.map(item => {
       if (!item.variable_name) return item;
-      const newCurrent = committedValues[item.variable_name];
-      const newPrevious = committedPrevValues[item.variable_name];
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
       return {
         ...item,
         current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
@@ -4284,8 +4296,11 @@ const FordringarIntresseNote: React.FC<{
       return;
     }
 
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
@@ -4296,8 +4311,8 @@ const FordringarIntresseNote: React.FC<{
     // Update items with new values and bubble up to parent
     const updatedItems = items.map(item => {
       if (!item.variable_name) return item;
-      const newCurrent = committedValues[item.variable_name];
-      const newPrevious = committedPrevValues[item.variable_name];
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
       return {
         ...item,
         current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
@@ -4793,8 +4808,11 @@ const FordringarOvrigaNote: React.FC<{
       return;
     }
 
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
@@ -4805,8 +4823,8 @@ const FordringarOvrigaNote: React.FC<{
     // Update items with new values and bubble up to parent
     const updatedItems = items.map(item => {
       if (!item.variable_name) return item;
-      const newCurrent = committedValues[item.variable_name];
-      const newPrevious = committedPrevValues[item.variable_name];
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
       return {
         ...item,
         current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
@@ -6054,9 +6072,12 @@ const InventarierNote: React.FC<{
       return; // stay in edit mode
     }
 
-    // success path:
-    setCommittedValues(prev => ({ ...prev, ...editedValues }));
-    setCommittedPrevValues(prev => ({ ...prev, ...editedPrevValues }));
+    // success path: Capture new values BEFORE setState
+    const newCommittedValues = { ...committedValues, ...editedValues };
+    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    
+    setCommittedValues(newCommittedValues);
+    setCommittedPrevValues(newCommittedPrevValues);
     setEditedValues({});
     setEditedPrevValues({});
     setMismatch({ open: false, deltaCur: 0, deltaPrev: 0 });
@@ -6067,8 +6088,8 @@ const InventarierNote: React.FC<{
     // Update items with new values and bubble up to parent
     const updatedItems = items.map(item => {
       if (!item.variable_name) return item;
-      const newCurrent = committedValues[item.variable_name];
-      const newPrevious = committedPrevValues[item.variable_name];
+      const newCurrent = newCommittedValues[item.variable_name];
+      const newPrevious = newCommittedPrevValues[item.variable_name];
       return {
         ...item,
         current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
