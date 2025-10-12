@@ -1488,13 +1488,16 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
         elems.append(KeepTogether(note_flow))
         return
     
-    # Get period end dates from company_data
-    cur_end = company_data.get("currentPeriodEndDate") or f"{fiscal_year}-12-31"
-    prev_end = company_data.get("previousPeriodEndDate") or f"{prev_year}-12-31"
+    # Get period end dates from company_data (or years for NOT2)
+    if block_name == 'NOT2':
+        # NOT2 uses years instead of dates
+        header_row = ["", str(fiscal_year), str(prev_year)]
+    else:
+        cur_end = company_data.get("currentPeriodEndDate") or f"{fiscal_year}-12-31"
+        prev_end = company_data.get("previousPeriodEndDate") or f"{prev_year}-12-31"
+        header_row = ["", cur_end, prev_end]
     
     # For other notes, render as table with style-aware formatting
-    # Remove "Post" column header, use end dates for columns 2 & 3
-    header_row = ["", cur_end, prev_end]
     table_data = [header_row]
     
     # Clean style with only header line (no body lines) - mirrors RR
