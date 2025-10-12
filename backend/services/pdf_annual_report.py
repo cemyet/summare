@@ -1553,8 +1553,17 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                 "toggle_show": False,
             }]
         
-        # Special handling for OVRIGA - always show if there's moderbolag data (mirrors frontend logic)
+        # Check block type early for all subsequent logic
+        block_name_lower = block_name.lower()
+        block_title_lower = block_title.lower()
+        
         is_ovriga = (block_name == 'OVRIGA')
+        is_eventual = (block_name_lower in {"eventualförpliktelser", "eventual"} or
+                      block_title_lower in {"eventualförpliktelser", "eventual"})
+        is_sakerhet = (block_name_lower in {"säkerheter", "säkerhet", "sakerhet"} or
+                      block_title_lower in {"säkerheter", "säkerhet", "sakerhet"})
+        
+        # Special handling for OVRIGA - always show if there's moderbolag data (mirrors frontend logic)
         moderbolag = scraped_data.get('moderbolag')
         
         if is_ovriga:
@@ -1570,13 +1579,6 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
         # These blocks require explicit toggle to be visible
-        block_name_lower = block_name.lower()
-        block_title_lower = block_title.lower()
-        
-        is_eventual = (block_name_lower in {"eventualförpliktelser", "eventual"} or
-                      block_title_lower in {"eventualförpliktelser", "eventual"})
-        is_sakerhet = (block_name_lower in {"säkerheter", "säkerhet", "sakerhet"} or
-                      block_title_lower in {"säkerheter", "säkerhet", "sakerhet"})
         
         if is_eventual or is_sakerhet:
             # Check block-specific toggle (e.g., 'eventual-visibility', 'sakerhet-visibility')
