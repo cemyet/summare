@@ -2204,7 +2204,10 @@ async def pdf_annual_report(request: Request):
             content=pdf_bytes,
             media_type='application/pdf',
             headers={
-                'Content-Disposition': f'attachment; filename="{filename}"'
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
             }
         )
     except Exception as e:

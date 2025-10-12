@@ -252,9 +252,13 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL):
             bal_scraped = get_values(['Summa tillgångar', 'Balansomslutning'])
             sol_scraped = get_values(['Soliditet'])
             
-            # Calculate current year values from rr/br data
-            rr_data = company_data.get('seFileData', {}).get('rr_data', [])
-            br_data = company_data.get('seFileData', {}).get('br_data', [])
+            # Calculate current year values from rr/br data - use posted data if available
+            rr_data = (company_data.get('rrData') or 
+                       company_data.get('rrRows') or 
+                       company_data.get('seFileData', {}).get('rr_data', []))
+            br_data = (company_data.get('brData') or 
+                       company_data.get('brRows') or 
+                       company_data.get('seFileData', {}).get('br_data', []))
             
             # Find nettoomsättning (current year) in tkr
             netto_oms_fy = 0
@@ -531,14 +535,25 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     # Get year headers with end dates for BR
     current_year_header, previous_year_header = _get_year_headers(company_data, fiscal_year, prev_year)
     
-    # Extract data sections
-    se_data = company_data.get('seFileData', {})
-    rr_data = se_data.get('rr_data', [])
-    br_data = se_data.get('br_data', [])
-    # Use noter data from company_data (should be user's edited data from database)
+    # Extract data sections - PREFER posted/edited data over parsing
+    # RR: Check for edited data first, fallback to seFileData
+    rr_data = (company_data.get('rrData') or 
+               company_data.get('rrRows') or 
+               company_data.get('seFileData', {}).get('rr_data', []))
+    
+    # BR: Check for edited data first, fallback to seFileData  
+    br_data = (company_data.get('brData') or 
+               company_data.get('brRows') or 
+               company_data.get('seFileData', {}).get('br_data', []))
+    
+    # Noter: Use edited data from database (already implemented)
     noter_data = company_data.get('noterData', [])
-    # Get toggle state for showing all rows (default: False)
     noter_toggle_on = company_data.get('noterToggleOn', False)
+    
+    # FB: Already uses fbTable and fbVariables from company_data (good!)
+    
+    print(f"[PDF-DEBUG] Using RR data source: {'edited' if company_data.get('rrData') or company_data.get('rrRows') else 'seFileData'}")
+    print(f"[PDF-DEBUG] Using BR data source: {'edited' if company_data.get('brData') or company_data.get('brRows') else 'seFileData'}")
     
     # ===== 1. FÖRVALTNINGSBERÄTTELSE =====
     elems.append(Paragraph("Förvaltningsberättelse", H0))

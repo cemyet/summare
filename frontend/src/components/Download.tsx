@@ -71,10 +71,15 @@ export function Download({ companyData }: DownloadProps) {
         const API_BASE = import.meta.env.VITE_API_URL || 'https://api.summare.se';
         console.log('📄 Generating annual report PDF with ReportLab...');
         
+        // Add cache buster to ensure fresh PDF generation
         const response = await fetch(`${API_BASE}/api/pdf/annual-report`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ companyData }),
+          body: JSON.stringify({ 
+            companyData,
+            renderVersion: Date.now() // cache buster
+          }),
+          cache: 'no-store', // prevent browser caching
         });
         
         if (!response.ok) {
