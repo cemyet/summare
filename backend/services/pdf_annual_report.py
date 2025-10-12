@@ -1382,9 +1382,29 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False):
         items = blocks[block_name]
         block_title = block_title_map.get(block_name, block_name)
         
-        # NOTE: Do NOT reconstruct NOT2 data! 
-        # Frontend already sends correct employee counts from scraped data + user edits.
-        # Just use the noter data as-is.
+        # Special handling for NOT2 "Medeltal anställda" - ensure single row display
+        if block_title.strip().lower() == "medeltal anställda" or block_name == "NOT2":
+            # Get values from noter data (which has scraped + edited values)
+            emp_current = 0
+            emp_previous = 0
+            
+            if items and len(items) > 0:
+                # Use the first item from noter data
+                first_item = items[0]
+                emp_current = _num(first_item.get('current_amount', 0))
+                emp_previous = _num(first_item.get('previous_amount', 0))
+            
+            # Force single row display
+            items = [{
+                "row_id": 1,
+                "row_title": "Medelantalet anställda under året",
+                "current_amount": emp_current,
+                "previous_amount": emp_previous,
+                "style": "NORMAL",
+                "variable_name": "medelantal_anstallda_under_aret",
+                "always_show": True,
+                "toggle_show": False,
+            }]
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
         block_name_lower = block_name.lower()
