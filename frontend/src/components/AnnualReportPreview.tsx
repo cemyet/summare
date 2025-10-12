@@ -488,10 +488,18 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
             };
             
             const approveEditVerksamheten = () => {
-              // EXACT same as NOT1 - commit edits and close
-              setCommittedValues(prev => ({ ...prev, ...editedValues }));
+              // Capture new values BEFORE setState
+              const newCommittedValues = { ...committedValues, ...editedValues };
+              setCommittedValues(newCommittedValues);
               setEditedValues({});
               setIsEditingVerksamheten(false);
+              
+              // Bubble changes up to companyData
+              console.log('✅ [VERKSAMHETEN-APPROVE] Updating with edits:', newCommittedValues);
+              onDataUpdate?.({
+                verksamhetContent: newCommittedValues['allmant_om_verksamheten'],
+                vasentligaHandelser: newCommittedValues['vasentliga_handelser']
+              });
             };
             
             // Tab navigation function (like NOT1)
@@ -644,10 +652,15 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
             };
             
             const approveEditFlerars = () => {
-              // EXACT same as NOT1 - commit edits and close
-              setCommittedValues(prev => ({ ...prev, ...editedValues }));
+              // Capture new values BEFORE setState
+              const newCommittedValues = { ...committedValues, ...editedValues };
+              setCommittedValues(newCommittedValues);
               setEditedValues({});
               setIsEditingFlerars(false);
+              
+              // Bubble changes up to companyData
+              console.log('✅ [FLERARS-APPROVE] Updating with edits:', newCommittedValues);
+              onDataUpdate?.({ flerarsoversikt: newCommittedValues });
             };
             
             // Tab navigation function with row wrapping
