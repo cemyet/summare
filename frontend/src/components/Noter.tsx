@@ -6698,9 +6698,12 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               const [committedValues, setCommittedValues] = useState<Record<string, number | string>>({});
               const textareaRefNOT1 = React.useRef<HTMLTextAreaElement>(null);
               
-              // Track original baseline for proper undo (like other notes)
+              // Track original baseline for proper undo (like other notes) - only initialize once
               const originalBaselineNOT1 = React.useRef<Record<string, number | string>>({});
               React.useEffect(() => {
+                // Only initialize if not already set (preserve original values even after Godkänn)
+                if (Object.keys(originalBaselineNOT1.current).length > 0) return;
+                
                 originalBaselineNOT1.current = { 
                   'redovisning_principer': originalText,
                   'avskrtid_bygg': originalAvskrtidBygg,
@@ -6975,9 +6978,12 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               const [editedValues, setEditedValues] = useState<Record<string, number>>({});
               const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
               
-              // Track original baseline for proper undo (like other notes)
+              // Track original baseline for proper undo (like other notes) - only initialize once
               const originalBaselineNOT2 = React.useRef<Record<string, number>>({});
               React.useEffect(() => {
+                // Only initialize if not already set (preserve original values even after Godkänn)
+                if (Object.keys(originalBaselineNOT2.current).length > 0) return;
+                
                 originalBaselineNOT2.current = { 'ant_anstallda': currentValue };
               }, [currentValue]);
               
