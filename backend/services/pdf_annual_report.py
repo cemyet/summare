@@ -1557,16 +1557,8 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
             note_style.append(('TOPPADDING', (0,r), (-1,r), 6))
     
     if len(table_data) > 1:
-        # Column widths: make col 1 "140%" for Not 3+
-        avail_width = 520  # approximate available width
-        if note_number >= 3:
-            # 5.6fr:1fr:1fr (140% wider first column)
-            col_fr = [5.6, 1.0, 1.0]
-            unit = avail_width / sum(col_fr)
-            col_widths = [col_fr[0]*unit, col_fr[1]*unit, col_fr[2]*unit]
-        else:
-            # Keep Not 1-2 as-is
-            col_widths = [None, 80, 80]
+        # Column widths: mirror BR/RR (269, 80, 80) - no note number column
+        col_widths = [269, 80, 80]
         
         t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
         t.setStyle(TableStyle(note_style))
