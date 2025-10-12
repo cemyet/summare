@@ -241,7 +241,7 @@ def _render_flerarsoversikt(elems, company_data, fiscal_year, H1, SMALL):
         table_data.append(["Omsättning"] + [_fmt_int(v) for v in oms_vals])
         table_data.append(["Resultat efter finansiella poster"] + [_fmt_int(v) for v in ref_vals])
         table_data.append(["Balansomslutning"] + [_fmt_int(v) for v in bal_vals])
-        table_data.append(["Soliditet"] + [f"{int(round(v))}%" for v in sol_vals]])
+        table_data.append(["Soliditet"] + [f"{int(round(v))}%" for v in sol_vals])
     else:
         # Fallback: build from scraped data
         scraped = company_data.get('scraped_company_data', {})
