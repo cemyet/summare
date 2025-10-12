@@ -6693,9 +6693,33 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               
               const approveEditNOT1 = () => {
                 // EXACT same as NOT2 - commit edits and close
-                setCommittedValues(prev => ({ ...prev, ...editedValues }));
+                const newCommittedValues = { ...committedValues, ...editedValues };
+                setCommittedValues(newCommittedValues);
                 setEditedValues({});
                 setIsEditingNOT1(false);
+                
+                // Update noterData items and bubble up to parent
+                const updatedItems = blockItems.map(item => {
+                  if (item.row_id === 3 && item.variable_name === 'redovisning_principer') {
+                    return { ...item, variable_text: String(newCommittedValues['redovisning_principer'] || originalText) };
+                  }
+                  if (item.variable_name && newCommittedValues[item.variable_name] !== undefined) {
+                    return { ...item, current_amount: Number(newCommittedValues[item.variable_name]) };
+                  }
+                  return item;
+                });
+                
+                console.log('✅ [NOT1-APPROVE] Updating items with edits:', { 
+                  editedCount: Object.keys(editedValues).length,
+                  updatedItems: updatedItems.length
+                });
+                
+                // Merge updated items back into full noterData
+                const updatedNoterData = noterData.map(item => {
+                  const updated = updatedItems.find(u => u.row_id === item.row_id && u.block === 'NOT1');
+                  return updated || item;
+                });
+                onDataUpdate?.({ noterData: updatedNoterData });
               };
 
               // Tab navigation function (like other notes)
@@ -6925,9 +6949,30 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               
               const approveEditNOT2 = () => {
                 // EXACT same as SakerhetNote - commit edits and close
-                setCommittedValues(prev => ({ ...prev, ...editedValues }));
+                const newCommittedValues = { ...committedValues, ...editedValues };
+                setCommittedValues(newCommittedValues);
                 setEditedValues({});
                 setIsEditingNOT2(false);
+                
+                // Update noterData items and bubble up to parent
+                const updatedItems = blockItems.map(item => {
+                  if (item.variable_name && newCommittedValues[item.variable_name] !== undefined) {
+                    return { ...item, current_amount: Number(newCommittedValues[item.variable_name]) };
+                  }
+                  return item;
+                });
+                
+                console.log('✅ [NOT2-APPROVE] Updating items with edits:', { 
+                  editedCount: Object.keys(editedValues).length,
+                  updatedItems: updatedItems.length
+                });
+                
+                // Merge updated items back into full noterData
+                const updatedNoterData = noterData.map(item => {
+                  const updated = updatedItems.find(u => u.row_id === item.row_id && u.block === 'NOT2');
+                  return updated || item;
+                });
+                onDataUpdate?.({ noterData: updatedNoterData });
               };
               
               return (
