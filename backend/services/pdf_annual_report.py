@@ -936,9 +936,11 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         
         is_heading = is_h2_heading or is_h1_heading
         
-        # Block hiding logic
+        # Block hiding logic - but not for always_show headings
         if block_group and not block_has_content_br_assets(block_group):
-            continue
+            # If this is a heading with always_show=true, show it anyway
+            if not (is_heading and row.get('always_show')):
+                continue
         
         note = str(row.get('note_number', '')) if row.get('note_number') else ''
         
@@ -1100,9 +1102,12 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         is_heading = style in ['H0', 'H1', 'H2', 'H3']
         
         # For headings: hide entire block (including heading) if it has no content
+        # UNLESS the heading itself has always_show=true
         if is_heading:
             if block_group and not block_has_content_br_equity_liab(block_group):
-                return False
+                # Show anyway if always_show=true
+                if not item.get('always_show'):
+                    return False
             # Otherwise show the heading
             return True
         
