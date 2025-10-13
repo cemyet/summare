@@ -554,12 +554,16 @@ def _merge_br_data(se_br: list, overlay: list) -> list:
     for r in overlay:
         k = _key(r)
         if k in base:
-            # overlay values but keep row identity/style
+            # Overlay values but preserve ALL baseline fields (block_group, type, variable_name, etc.)
+            # Only update specific fields from overlay if they're present
             for fld in ('current_amount','previous_amount','note_number','always_show','style','label'):
                 if r.get(fld) is not None:
                     base[k][fld] = r.get(fld)
+            # Ensure block_group is NEVER overwritten (preserve from baseline)
+            # This is critical for block hiding logic to work correctly
         else:
-            base[k] = r
+            # New row from overlay - add it with all its fields
+            base[k] = dict(r)
     return list(base.values())
 
 def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
@@ -601,6 +605,12 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     se_br = (company_data.get('seFileData', {}) or {}).get('br_data', []) or []
     posted_br = company_data.get('brData') or company_data.get('brRows') or []
     br_data = _merge_br_data(se_br, posted_br)
+    
+    # Debug: Check if Kassa och bank rows are present
+    kassa_rows = [r for r in br_data if 'kassa' in (r.get('label') or '').lower() or r.get('block_group', '').startswith('Kassa')]
+    print(f"🔍 [PDF-BR-DEBUG] Found {len(kassa_rows)} Kassa och bank related rows after merge")
+    for r in kassa_rows:
+        print(f"  - {r.get('label')}: block_group={r.get('block_group')}, type={r.get('type')}, curr={r.get('current_amount')}, prev={r.get('previous_amount')}")
     
     # Noter: Use edited data from database + toggle states
     noter_data = company_data.get('noterData', [])
