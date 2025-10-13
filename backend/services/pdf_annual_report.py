@@ -877,9 +877,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         'Summa omsättningstillgångar', 'Summa tillgångar'  # Added Summa tillgångar
     ]
     
-    # Rows to hide (equity headings that belong in the second table)
+    # Rows to hide (equity headings that belong in the second table, and other rows to always hide)
     br_assets_rows_to_hide = [
-        'Eget kapital och skulder', 'Eget kapital', 'Bundet eget kapital', 'Fritt eget kapital'
+        'Eget kapital och skulder', 'Eget kapital', 'Bundet eget kapital', 'Fritt eget kapital',
+        'Tecknat men ej inbetalt kapital'  # Always hide this row
     ]
     
     # Helper function to check if a block_group has content (same as RR)
