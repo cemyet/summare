@@ -1618,7 +1618,15 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             ]
             block_visible = any(bool(block_toggles.get(k)) for k in alt_keys)
             
-            if not block_visible:
+            # Fallback: also show if there's any non-zero content (even if toggle is missing)
+            has_nonzero_content = any(
+                _num(it.get('current_amount', 0)) != 0 or
+                _num(it.get('previous_amount', 0)) != 0
+                for it in items
+            )
+            
+            # If neither toggle nor data says it should show, skip it
+            if not block_visible and not has_nonzero_content:
                 continue
         
         # Force always_show for NOT1 and NOT2
@@ -1646,13 +1654,14 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                 legacy_key,
                 legacy_key.lower(),
             ]
-            block_toggle_enabled = any(bool(block_toggles.get(k)) for k in alt_keys)
+            # Enable block if EITHER toggle is on OR there's non-zero content
+            block_toggle_enabled = any(bool(block_toggles.get(k)) for k in alt_keys) or has_nonzero_content
         
         # Apply visibility logic
         visible = build_visible_with_headings_pdf(items, toggle_on=effective_toggle)
         
-        # Skip rows before first heading (but not for NOT1/NOT2 which don't have headings)
-        if block_name not in ['NOT1', 'NOT2']:
+        # Skip rows before first heading (but not for NOT1/NOT2, SAKERHET, EVENTUAL which may not have headings)
+        if block_name not in ['NOT1', 'NOT2'] and not (is_eventual or is_sakerhet):
             pruned = []
             seen_heading = False
             for r in visible:
