@@ -5195,7 +5195,7 @@ const EventualNote: React.FC<{
   onItemsUpdate?: (updatedItems: NoterItem[]) => void;
   blockToggles: Record<string, boolean>;
   setBlockToggles: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, blockToggles, setBlockToggles }) => {
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate, blockToggles, setBlockToggles }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
@@ -5545,7 +5545,7 @@ const SakerhetNote: React.FC<{
   onItemsUpdate?: (updatedItems: NoterItem[]) => void;
   blockToggles: Record<string, boolean>;
   setBlockToggles: (fn: (prev: Record<string, boolean>) => Record<string, boolean>) => void;
-}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, blockToggles, setBlockToggles }) => {
+}> = ({ items, heading, fiscalYear, previousYear, companyData, toggleOn, setToggle, onItemsUpdate, blockToggles, setBlockToggles }) => {
   const gridCols = { gridTemplateColumns: "4fr 1fr 1fr" };
 
   const isFlowVar = (vn?: string) => {
