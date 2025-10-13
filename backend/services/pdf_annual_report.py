@@ -938,30 +938,15 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         if label in br_assets_rows_to_hide:
             continue
         
-        # Check if this is a heading or sum row
-        is_sum = False
-        is_h2_heading = False
-        is_h1_heading = False
-        
-        # Check sum rows first
-        for sum_label in br_assets_sum_rows:
-            if sum_label == label or (sum_label in label and label.startswith('Summa')):
-                is_sum = True
-                break
-        
-        # If not a sum, check headings
-        if not is_sum:
-            for heading in br_assets_h2_headings:
-                if heading == label:
-                    is_h2_heading = True
-                    break
-            if not is_h2_heading:
-                for heading in br_assets_h1_headings:
-                    if heading == label:
-                        is_h1_heading = True
-                        break
-        
+        # Check if this is a heading or sum row - use STYLE field to avoid false positives
+        # (e.g., "Kassa och bank" exists as both H3 heading and NORMAL data row)
+        style = row.get('style', '')
+        is_h2_heading = style == 'H2'
+        is_h1_heading = style in ['H1', 'H3']  # H1 and H3 are treated the same in BR
         is_heading = is_h2_heading or is_h1_heading
+        
+        # Check if this is a sum row
+        is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
         
         # Block hiding logic
         if block_group and not block_has_content_br_assets(block_group):
