@@ -782,8 +782,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             curr_fmt = ''
             prev_fmt = ''
         else:
-            # Filter zero rows (unless always_show or sum)
-            if not row.get('always_show') and not is_sum:
+            # Filter zero rows (unless always_show or sum or has note_number)
+            # Show rows with note_number even if amounts are 0 (note might have movements)
+            has_note = row.get('note_number') is not None and row.get('note_number') != ''
+            if not row.get('always_show') and not is_sum and not has_note:
                 curr = _num(row.get('current_amount', 0))
                 prev = _num(row.get('previous_amount', 0))
                 if curr == 0 and prev == 0:
@@ -960,8 +962,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             curr_fmt = ''
             prev_fmt = ''
         else:
-            # Filter zero rows (unless always_show or sum)
-            if not row.get('always_show') and not is_sum:
+            # Filter zero rows (unless always_show or sum or has note_number)
+            # Show rows with note_number even if amounts are 0 (note might have movements)
+            has_note = row.get('note_number') is not None and row.get('note_number') != ''
+            if not row.get('always_show') and not is_sum and not has_note:
                 curr = _num(row.get('current_amount', 0))
                 prev = _num(row.get('previous_amount', 0))
                 if curr == 0 and prev == 0:
