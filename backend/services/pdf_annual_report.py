@@ -606,12 +606,6 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     posted_br = company_data.get('brData') or company_data.get('brRows') or []
     br_data = _merge_br_data(se_br, posted_br)
     
-    # Debug: Check if Kassa och bank rows are present
-    kassa_rows = [r for r in br_data if 'kassa' in (r.get('label') or '').lower() or r.get('block_group', '').startswith('Kassa')]
-    print(f"🔍 [PDF-BR-DEBUG] Found {len(kassa_rows)} Kassa och bank related rows after merge")
-    for r in kassa_rows:
-        print(f"  - {r.get('label')}: block_group={r.get('block_group')}, type={r.get('type')}, curr={r.get('current_amount')}, prev={r.get('previous_amount')}")
-    
     # Noter: Use edited data from database + toggle states
     noter_data = company_data.get('noterData', [])
     noter_toggle_on = company_data.get('noterToggleOn', False)
@@ -900,14 +894,16 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             if row.get('block_group') != block_group:
                 continue
             label = row.get('label', '')
+            style = row.get('style', '')
             
             # Skip hidden rows
             if label in br_assets_rows_to_hide:
                 continue
             
-            # Skip headings and sums
-            row_is_heading = any(h == label for h in br_assets_headings)
-            row_is_sum = any(s == label or (s in label and label.startswith('Summa')) for s in br_assets_sum_rows)
+            # Skip headings and sums - check BOTH label and style to avoid false positives
+            # (e.g., "Kassa och bank" exists as both H3 heading and NORMAL data row)
+            row_is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
+            row_is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
             
             if row_is_heading or row_is_sum:
                 continue
