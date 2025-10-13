@@ -1490,7 +1490,7 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         'MAT',    # Not 6 - Övriga materiella
         'KONCERN', 'INTRESSEFTG', 'LVP',  # Financial assets
         'FORDRKONC', 'FORDRINTRE', 'FORDROVRFTG', 'OVRIGAFTG',  # Receivables
-        'EVENTUAL', 'SAKERHET',  # Contingencies
+        'SAKERHET', 'EVENTUAL',  # Contingencies (SAKERHET = Not 7, EVENTUAL = Not 8)
         'OVRIGA', 'OTHER'  # Other notes
     ]
     
@@ -1672,15 +1672,16 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                     pruned.append(r)
             visible = pruned
         
-        # Skip block if no visible items (UNLESS it's EVENTUAL/SAKERHET with toggle enabled or OVRIGA with moderbolag)
+        # Skip block if no visible items (UNLESS it's OVRIGA with moderbolag or forced blocks)
         ovriga_with_moderbolag = (is_ovriga and moderbolag)
         if not visible:
-            # Allow empty blocks for: EVENTUAL/SAKERHET with toggle, OVRIGA with moderbolag, or forced blocks
-            if not (block_toggle_enabled or ovriga_with_moderbolag or force_always):
+            # Allow empty blocks for: OVRIGA with moderbolag, or forced blocks
+            if not (ovriga_with_moderbolag or force_always):
                 continue
         
-        # Skip block if not force-always, not toggle-enabled, has no non-zero content, and not OVRIGA with moderbolag
-        if (not force_always) and (not block_toggle_enabled) and (not ovriga_with_moderbolag) and (not _has_nonzero_content(visible)):
+        # Skip block if it has no non-zero content (regardless of toggle state for PDF)
+        # Toggles are for editing in preview only, not for showing empty notes in final PDF
+        if (not force_always) and (not ovriga_with_moderbolag) and (not _has_nonzero_content(visible)):
             continue
         
         collected.append((block_name, block_title, visible))
