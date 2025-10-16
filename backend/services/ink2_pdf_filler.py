@@ -86,8 +86,20 @@ def build_widget_index(reader: PdfReader) -> Dict[str, List[Tuple[int, Any]]]:
     """
     by_name = {}
     for page_idx, page in enumerate(reader.pages):
-        annots = page.get("/Annots", None) or []
-        for annot_ref in list(annots):
+        annots = page.get("/Annots", None)
+        if not annots:
+            continue
+        
+        # Resolve indirect object if needed
+        if hasattr(annots, 'get_object'):
+            annots = annots.get_object()
+        
+        # Now annots should be a list/array
+        if not isinstance(annots, (list, tuple)):
+            print(f"⚠️  Unexpected annots type on page {page_idx}: {type(annots)}")
+            continue
+        
+        for annot_ref in annots:
             try:
                 obj = annot_ref.get_object()
                 name = obj.get("/T")
