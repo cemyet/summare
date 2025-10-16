@@ -8,6 +8,7 @@ import re
 from typing import Dict, Any, Optional, List, Tuple
 from io import BytesIO
 from PyPDF2 import PdfReader, PdfWriter
+from PyPDF2.generic import TextStringObject, NameObject
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from datetime import datetime
@@ -129,7 +130,14 @@ def set_pdf_value(widget_index: Dict[str, List[Tuple[int, Any]]], pdf_name: str,
         return False
     
     for _, widget in hits:
-        widget.update({"/V": value})
+        # Convert value to proper PDF object type
+        # For checkboxes, use NameObject; for text fields, use TextStringObject
+        if value in ['Yes', 'Off', 'On']:
+            pdf_value = NameObject(f"/{value}")
+        else:
+            pdf_value = TextStringObject(value)
+        
+        widget.update({NameObject("/V"): pdf_value})
     
     return True
 
