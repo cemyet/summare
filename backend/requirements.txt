@@ -10,4 +10,5 @@ supabase==2.0.2
 pydantic>=2.11.7
 aiofiles==23.2.1
 stripe==7.8.0
-PyPDF2==3.0.1 
+PyPDF2==3.0.1
+PyMuPDF==1.23.8 

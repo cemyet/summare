@@ -5,12 +5,19 @@ Populates the INK2_form.pdf with data from the database based on ink2_form table
 
 import os
 import re
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from io import BytesIO
 from PyPDF2 import PdfReader, PdfWriter
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from datetime import datetime
+
+try:
+    import fitz  # PyMuPDF for flattening
+    HAS_PYMUPDF = True
+except ImportError:
+    HAS_PYMUPDF = False
+    print("⚠️  PyMuPDF not available, PDF flattening will be skipped")
 
 # Load environment variables
 load_dotenv()
@@ -19,6 +26,100 @@ load_dotenv()
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_ANON_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
+
+# Regex to strip Acrobat suffixes like #0, #1, [0], [1]
+SUFFIX_RE = re.compile(r"(#\d+|\[\d+\])$")
+
+
+def to_pdf_field_name(form_field: str) -> str:
+    """
+    Convert logical names from ink2_form table to actual /T names in INK2_form.pdf.
+    
+    Page 1 (Balance sheet): '2.17' -> '2.17' (unchanged)
+    Page 2 (Income statement): '3.2' -> '2:', '3.23(+)' -> '23(+):'
+    Page 3 (Tax adjustments): '4.6d' -> '6d:', '4.23a' -> '23a'
+    
+    Args:
+        form_field: Logical field name from database (e.g., '3.12(+)', '4.6d')
+        
+    Returns:
+        Actual PDF widget name
+    """
+    s = (form_field or "").strip()
+    s = SUFFIX_RE.sub("", s)  # Strip any #0 or [0] suffixes
+    
+    # Page 2: Income statement fields (3.x) -> remove '3.' prefix, add ':'
+    if s.startswith("3."):
+        rest = s[2:]  # '2', '23(+)', '12(-)'
+        return f"{rest}:"
+    
+    # Page 3: Tax adjustment fields (4.x) -> remove '4.' prefix, add ':'
+    if s.startswith("4."):
+        rest = s[2:]  # '6d', '23a', '15'
+        # Checkbox fields (23a, 23b, 24a, 24b) don't have colon
+        if rest in ['23a', '23b', '24a', '24b']:
+            return rest
+        return f"{rest}:"
+    
+    # Page 1: Balance sheet fields (2.x), special fields (date, org_nr, etc.)
+    return s
+
+
+def format_number_swedish(value: float) -> str:
+    """
+    Format number with Swedish conventions: space for thousands, no decimals
+    Examples: 1234567 -> '1 234 567', 0 -> '0'
+    """
+    if value == 0:
+        return '0'
+    
+    # Format with thousands separator
+    return f"{int(round(value)):,}".replace(",", " ")
+
+
+def build_widget_index(reader: PdfReader) -> Dict[str, List[Tuple[int, Any]]]:
+    """
+    Build an index of all form widgets in the PDF by their /T (field name).
+    
+    Returns:
+        Dictionary mapping field names to list of (page_index, widget_object) tuples
+    """
+    by_name = {}
+    for page_idx, page in enumerate(reader.pages):
+        annots = page.get("/Annots", None) or []
+        for annot_ref in list(annots):
+            try:
+                obj = annot_ref.get_object()
+                name = obj.get("/T")
+                if not name:
+                    continue
+                by_name.setdefault(name, []).append((page_idx, obj))
+            except Exception as e:
+                print(f"⚠️  Error reading annotation on page {page_idx}: {e}")
+                continue
+    return by_name
+
+
+def set_pdf_value(widget_index: Dict[str, List[Tuple[int, Any]]], pdf_name: str, value: str) -> bool:
+    """
+    Set the value of a PDF form field by updating its widget /V property.
+    
+    Args:
+        widget_index: Widget index from build_widget_index
+        pdf_name: PDF field name (e.g., '12(+):')
+        value: Value to set
+        
+    Returns:
+        True if field was found and updated, False otherwise
+    """
+    hits = widget_index.get(pdf_name, [])
+    if not hits:
+        return False
+    
+    for _, widget in hits:
+        widget.update({"/V": value})
+    
+    return True
 
 
 class INK2PdfFiller:
@@ -166,13 +267,14 @@ class INK2PdfFiller:
         # Single variable
         return self._fetch_variable_value(mapping)
     
-    def _format_value_for_field(self, value: Optional[float], field_type: str = None) -> str:
+    def _format_value_for_field(self, value: Optional[float], field_type: str = None, form_field: str = None) -> str:
         """
         Format a value for insertion into a PDF form field
         
         Args:
             value: The numeric value
             field_type: Optional field type hint
+            form_field: Field name for checkbox detection
             
         Returns:
             Formatted string
@@ -180,12 +282,13 @@ class INK2PdfFiller:
         if value is None:
             return ''
         
-        # For numeric fields, format as integer (no decimals)
-        if field_type and 'Numeriskt' in field_type:
-            return str(int(round(value)))
+        # Checkbox fields (4.23a, 4.23b, 4.24a, 4.24b) expect Yes/Off
+        if form_field and any(form_field.endswith(x) for x in ['23a', '23b', '24a', '24b']):
+            # These are checkbox fields
+            return 'Yes' if value else 'Off'
         
-        # Default: format as integer
-        return str(int(round(value)))
+        # Numeric fields: format with Swedish thousands separator (space)
+        return format_number_swedish(value)
     
     def _get_special_values(self, company_data: Dict[str, Any]) -> Dict[str, str]:
         """
@@ -219,55 +322,17 @@ class INK2PdfFiller:
         
         return special_values
     
-    def _find_matching_pdf_field(self, form_field: str, available_fields: set) -> Optional[str]:
-        """
-        Find the matching PDF field name, handling Acrobat's suffix variations
-        Acrobat often appends #0, #1, [0], [1] to widget names
-        
-        Args:
-            form_field: Field name from database (e.g., "date#0", "2.1", "3.2(+)")
-            available_fields: Set of available field names in the PDF
-            
-        Returns:
-            The matching PDF field name, or None if not found
-        """
-        if not form_field:
-            return None
-        
-        # Try exact match first
-        if form_field in available_fields:
-            return form_field
-        
-        # Try common Acrobat suffix variations
-        # If the field from CSV has #0, try without it
-        # If the field from CSV doesn't have a suffix, try with #0, #1, [0], [1]
-        base_name = form_field.split('#')[0].split('[')[0]  # Strip any existing suffix
-        
-        variations = [
-            form_field,           # Original
-            base_name,            # Without suffix
-            f"{base_name}#0",     # With #0
-            f"{base_name}#1",     # With #1
-            f"{base_name}[0]",    # With [0]
-            f"{base_name}[1]",    # With [1]
-        ]
-        
-        for variation in variations:
-            if variation in available_fields:
-                return variation
-        
-        return None
     
     def fill_pdf_form(self, pdf_path: str, company_data: Dict[str, Any]) -> bytes:
         """
-        Fill the INK2 PDF form with data
+        Fill the INK2 PDF form with data using robust widget-based approach
         
         Args:
             pdf_path: Path to the INK2_form.pdf template
             company_data: Dictionary with company information
             
         Returns:
-            Bytes of the filled PDF
+            Bytes of the filled and flattened PDF
         """
         # Load form mappings
         self._load_form_mappings()
@@ -275,21 +340,27 @@ class INK2PdfFiller:
         # Get special values
         special_values = self._get_special_values(company_data)
         
-        # Read the PDF
+        # Read the PDF and build widget index
         reader = PdfReader(pdf_path)
-        writer = PdfWriter()
+        widget_index = build_widget_index(reader)
         
-        # Copy all pages
+        print(f"📄 PDF has {len(widget_index)} unique form fields")
+        
+        # Create writer and copy pages
+        writer = PdfWriter()
         for page in reader.pages:
             writer.add_page(page)
         
-        # Get available PDF fields for validation
-        pdf_fields = reader.get_fields()
-        available_field_names = set(pdf_fields.keys()) if pdf_fields else set()
-        print(f"📄 PDF has {len(available_field_names)} form fields")
+        # Carry AcroForm and set NeedAppearances
+        if "/Root" in reader.trailer and reader.trailer["/Root"].get("/AcroForm"):
+            acro = reader.trailer["/Root"].get("/AcroForm").get_object()
+            acro.update({"/NeedAppearances": True})
+            writer._root_object.update({"/AcroForm": acro})
         
-        # Prepare field updates
-        field_updates = {}
+        # Prepare assignments (logical name -> value)
+        assignments = {}
+        filled_count = 0
+        not_found_count = 0
         
         for mapping in self.form_mappings:
             form_field_raw = mapping.get('form_field')
@@ -299,58 +370,55 @@ class INK2PdfFiller:
             if not form_field_raw or not variable_map:
                 continue
             
-            # Find the matching PDF field name (handles suffix variations)
-            form_field = self._find_matching_pdf_field(form_field_raw, available_field_names)
-            
-            if not form_field:
-                print(f"⚠️  Field '{form_field_raw}' not found in PDF (tried variations)")
-                continue
-            
             # Check if this is a special value
             if variable_map in special_values:
-                field_updates[form_field] = special_values[variable_map]
-                print(f"✅ {form_field} = {special_values[variable_map]} (special)")
+                assignments[form_field_raw] = special_values[variable_map]
                 continue
             
             # Parse the variable mapping
             value = self._parse_variable_mapping(variable_map)
             
             if value is not None:
-                formatted_value = self._format_value_for_field(value, field_type)
-                field_updates[form_field] = formatted_value
-                print(f"✅ {form_field} = {formatted_value} (from {variable_map})")
-            else:
-                print(f"⚠️  {form_field} - no value found for {variable_map}")
+                formatted_value = self._format_value_for_field(value, field_type, form_field_raw)
+                assignments[form_field_raw] = formatted_value
         
-        # Update form fields
-        if field_updates:
-            writer.update_page_form_field_values(
-                writer.pages[0],  # Assuming form fields are on the first page (update all pages if needed)
-                field_updates
-            )
+        # Set values using widget index
+        for logical_name, text_value in assignments.items():
+            # Convert logical name to PDF field name
+            pdf_name = to_pdf_field_name(logical_name)
             
-            # Also try to update all pages if there are multiple
-            for i in range(len(writer.pages)):
-                try:
-                    writer.update_page_form_field_values(
-                        writer.pages[i],
-                        field_updates
-                    )
-                except Exception as e:
-                    print(f"⚠️  Could not update fields on page {i}: {e}")
-        
-        # Flatten the form (make it non-editable) - optional
-        # for page in writer.pages:
-        #     page.compress_content_streams()
+            # Set the value
+            ok = set_pdf_value(widget_index, pdf_name, str(text_value))
+            
+            if ok:
+                filled_count += 1
+                print(f"✅ {logical_name} → {pdf_name} = {text_value}")
+            else:
+                not_found_count += 1
+                print(f"⚠️  Field '{logical_name}' → '{pdf_name}' not found in PDF")
         
         # Write to bytes
         output = BytesIO()
         writer.write(output)
-        output.seek(0)
+        raw_pdf = output.getvalue()
         
-        print(f"✅ PDF form filled successfully with {len(field_updates)} fields")
-        
-        return output.getvalue()
+        # Flatten with PyMuPDF if available
+        if HAS_PYMUPDF:
+            try:
+                doc = fitz.open(stream=raw_pdf, filetype="pdf")
+                for page in doc:
+                    page.flatten_annots()
+                flattened = doc.write()
+                doc.close()
+                print(f"✅ PDF form filled successfully: {filled_count} fields set, {not_found_count} not found, flattened")
+                return flattened
+            except Exception as e:
+                print(f"⚠️  Could not flatten PDF: {e}")
+                print(f"✅ PDF form filled successfully: {filled_count} fields set, {not_found_count} not found (not flattened)")
+                return raw_pdf
+        else:
+            print(f"✅ PDF form filled successfully: {filled_count} fields set, {not_found_count} not found (not flattened)")
+            return raw_pdf
 
 
 def generate_filled_ink2_pdf(organization_number: str, fiscal_year: int, company_data: Dict[str, Any]) -> bytes:
