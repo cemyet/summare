@@ -31,6 +31,62 @@ supabase: Client = create_client(supabase_url, supabase_key)
 # Regex to strip Acrobat suffixes like #0, #1, [0], [1]
 SUFFIX_RE = re.compile(r"(#\d+|\[\d+\])$")
 
+# Regex for conditional expressions (space before parenthesis required)
+COND_RE = re.compile(r"^\s*(?P<name>.+?)\s+\((?P<cond>IF[<>]=?0|IF[<>]0)\)\s*$", re.I)
+
+# Variable name aliases for DB lookup
+ALIASES = {
+    # Meta fields
+    "organization_number": ["org_nr", "orgnr", "PersOrgNr"],
+    "start_date": ["fiscal_year_start", "period_from"],
+    "end_date": ["fiscal_year_end", "period_to"],
+    "DatFramst": ["date", "framstallningsdatum"],
+    "TidFramst": ["time", "framstallningstid"],
+    "SystemInfo": ["system_info"],
+    
+    # Periodiseringsfonder (both ways for compatibility)
+    "aterforing_periodiseringsfond_current_year": ["INK4.9(+)", "ink4_9_plus"],
+    "avsattning_periodiseringsfond_current_year": ["INK4.10(-)", "ink4_10_minus"],
+    "INK4.9(+)": ["aterforing_periodiseringsfond_current_year", "ink4_9_plus"],
+    "INK4.10(-)": ["avsattning_periodiseringsfond_current_year", "ink4_10_minus"],
+    
+    # Överavskrivningar
+    "INK4.13(+)": ["aterforing_overavskrivningar_current_year", "ink4_13_plus"],
+    "INK4.13(-)": ["avsattning_overavskrivningar_current_year", "ink4_13_minus"],
+}
+
+
+def split_top_level_plus(expr: str) -> List[str]:
+    """
+    Split expression on '+' but only at top level (not inside parentheses).
+    This keeps variable names like INK4.9(+) intact.
+    
+    Args:
+        expr: Expression to split (e.g., "A+B", "INK4.9(+)+INK4.10(-)")
+        
+    Returns:
+        List of parts
+    """
+    parts, buf, depth = [], [], 0
+    for ch in expr or "":
+        if ch == "(":
+            depth += 1
+            buf.append(ch)
+        elif ch == ")":
+            depth = max(0, depth - 1)
+            buf.append(ch)
+        elif ch == "+" and depth == 0:
+            # Top-level plus - split here
+            parts.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+    
+    if buf:
+        parts.append("".join(buf).strip())
+    
+    return [p for p in parts if p]
+
 
 def to_pdf_field_name(form_field: str) -> str:
     """
@@ -85,8 +141,10 @@ def format_number_swedish(value: float) -> str:
 
 
 def normalize_field_name(name: str) -> str:
-    """Normalize field name for case-insensitive matching"""
-    return SUFFIX_RE.sub("", (name or "").strip()).lower()
+    """Normalize field name for case-insensitive matching (strip #0, trailing :)"""
+    s = SUFFIX_RE.sub("", (name or "").strip())
+    s = s.rstrip(":")
+    return s.lower()
 
 
 def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> bytes:
@@ -114,10 +172,13 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> byt
             if not raw:
                 continue
             
-            # Create key variants (with/without trailing colon)
+            # Create key variants (with/without trailing colon, #0 suffix)
+            # Normalize handles #0 and : removal
+            base = normalize_field_name(raw)
             key_variants = {
-                normalize_field_name(raw),
-                normalize_field_name(raw[:-1] if raw.endswith(":") else raw + ":"),
+                base,
+                normalize_field_name(raw + ":"),
+                normalize_field_name(raw[:-1] if raw.endswith(":") else raw),
             }
             
             for key in key_variants:
@@ -208,7 +269,7 @@ class INK2PdfFiller:
     
     def _fetch_variable_value(self, variable_name: str) -> Optional[float]:
         """
-        Fetch the value of a variable from pre-loaded data
+        Fetch the value of a variable from pre-loaded data with alias resolution.
         Checks RR, BR, and INK2 data
         
         Args:
@@ -221,48 +282,57 @@ class INK2PdfFiller:
         if variable_name in self.variable_values:
             return self.variable_values[variable_name]
         
-        # Search in RR data
-        for item in self.rr_data:
-            if item.get('variable_name') == variable_name:
-                value = item.get('current_amount')
-                if value is not None:
-                    try:
-                        float_value = float(value)
-                        self.variable_values[variable_name] = float_value
-                        return float_value
-                    except (ValueError, TypeError):
-                        pass
+        # Try exact name first, then aliases
+        names_to_try = [variable_name] + ALIASES.get(variable_name, [])
         
-        # Search in BR data
-        for item in self.br_data:
-            if item.get('variable_name') == variable_name:
-                value = item.get('current_amount')
-                if value is not None:
-                    try:
-                        float_value = float(value)
-                        self.variable_values[variable_name] = float_value
-                        return float_value
-                    except (ValueError, TypeError):
-                        pass
+        for name in names_to_try:
+            # Search in RR data
+            for item in self.rr_data:
+                if item.get('variable_name') == name:
+                    value = item.get('current_amount')
+                    if value is not None:
+                        try:
+                            float_value = float(value)
+                            self.variable_values[variable_name] = float_value
+                            return float_value
+                        except (ValueError, TypeError):
+                            pass
+            
+            # Search in BR data
+            for item in self.br_data:
+                if item.get('variable_name') == name:
+                    value = item.get('current_amount')
+                    if value is not None:
+                        try:
+                            float_value = float(value)
+                            self.variable_values[variable_name] = float_value
+                            return float_value
+                        except (ValueError, TypeError):
+                            pass
+            
+            # Search in INK2 data
+            for item in self.ink2_data:
+                if item.get('variable_name') == name:
+                    value = item.get('amount')
+                    if value is not None:
+                        try:
+                            float_value = float(value)
+                            self.variable_values[variable_name] = float_value
+                            return float_value
+                        except (ValueError, TypeError):
+                            pass
         
-        # Search in INK2 data
-        for item in self.ink2_data:
-            if item.get('variable_name') == variable_name:
-                value = item.get('amount')
-                if value is not None:
-                    try:
-                        float_value = float(value)
-                        self.variable_values[variable_name] = float_value
-                        return float_value
-                    except (ValueError, TypeError):
-                        pass
-        
-        print(f"⚠️  Variable {variable_name} not found in any data")
+        # Not found even with aliases
+        if len(names_to_try) > 1:
+            print(f"⚠️  Variable {variable_name} (tried aliases: {names_to_try[1:]}) not found in any data")
+        else:
+            print(f"⚠️  Variable {variable_name} not found in any data")
         return None
     
     def _parse_variable_mapping(self, mapping: str) -> Optional[float]:
         """
-        Parse a variable mapping and return the computed value
+        Parse a variable mapping and return the computed value.
+        Uses parenthesis-aware splitting to preserve names like INK4.9(+).
         
         Handles:
         - Single variable: "Nettoomsattning" or "INK4.10(-)"
@@ -280,43 +350,61 @@ class INK2PdfFiller:
         
         mapping = mapping.strip()
         
-        # Check for conditional (IF>0) or (IF<0) - ONLY if there's whitespace before '('
-        # This avoids splitting variable names like INK4.10(-) or INK4.10(+)
-        conditional_match = re.search(r'(.+?)\s+\(IF([><])0\)', mapping)
-        if conditional_match:
-            variable_expr = conditional_match.group(1).strip()
-            condition = conditional_match.group(2)  # '>' or '<'
-            
-            # Get the value
-            value = self._parse_variable_mapping(variable_expr)
-            
-            if value is None:
-                return None
-            
-            # Apply condition
-            if condition == '>' and value > 0:
-                return value
-            elif condition == '<' and value < 0:
-                return abs(value)  # Return absolute value for negative display
-            else:
-                return None  # Condition not met
+        # Parse into tokens (handles conditionals and sums)
+        # Split on top-level '+' only (preserves INK4.9(+) as single token)
+        parts = split_top_level_plus(mapping)
         
-        # Check for sum of variables (contains +)
-        if '+' in mapping:
-            parts = [part.strip() for part in mapping.split('+')]
+        if len(parts) == 0:
+            return None
+        
+        # If multiple parts, it's a sum
+        if len(parts) > 1:
             total = 0.0
             found_any = False
             
             for part in parts:
-                value = self._fetch_variable_value(part)
+                value = self._parse_single_token(part)
                 if value is not None:
                     total += value
                     found_any = True
             
             return total if found_any else None
         
-        # Single variable (including names with (+) or (-) like INK4.10(-))
-        return self._fetch_variable_value(mapping)
+        # Single token (may have condition)
+        return self._parse_single_token(parts[0])
+    
+    def _parse_single_token(self, token: str) -> Optional[float]:
+        """
+        Parse a single token (variable name with optional condition).
+        
+        Args:
+            token: Single token like "Nettoomsattning", "INK4.9(+)", or "ForandringLager (IF>0)"
+            
+        Returns:
+            Computed value or None
+        """
+        # Check for conditional (IF>0) or (IF<0) - ONLY if there's whitespace before '('
+        match = COND_RE.match(token)
+        if match:
+            variable_name = match.group("name").strip()
+            condition = match.group("cond").upper()
+            
+            # Get the value
+            value = self._fetch_variable_value(variable_name)
+            
+            if value is None:
+                return None
+            
+            # Apply condition
+            if condition in ("IF>0", "IF>=0") and value > 0:
+                return value
+            elif condition in ("IF<0", "IF<=0") and value < 0:
+                return abs(value)  # Return absolute value for negative display
+            else:
+                return None  # Condition not met
+        
+        # No condition - just fetch the variable (including names with (+) or (-))
+        return self._fetch_variable_value(token)
     
     def _format_value_for_field(self, value: Optional[float], field_type: str = None, form_field: str = None) -> str:
         """
