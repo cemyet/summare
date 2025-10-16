@@ -8,7 +8,7 @@ import re
 from typing import Dict, Any, Optional, List, Tuple
 from io import BytesIO
 from PyPDF2 import PdfReader, PdfWriter
-from PyPDF2.generic import TextStringObject, NameObject
+from PyPDF2.generic import TextStringObject, NameObject, BooleanObject
 from supabase import create_client, Client
 from dotenv import load_dotenv
 from datetime import datetime
@@ -36,18 +36,24 @@ def to_pdf_field_name(form_field: str) -> str:
     """
     Convert logical names from ink2_form table to actual /T names in INK2_form.pdf.
     
-    Page 1 (Balance sheet): '2.17' -> '2.17' (unchanged)
-    Page 2 (Income statement): '3.2' -> '2:', '3.23(+)' -> '23(+):'
-    Page 3 (Tax adjustments): '4.6d' -> '6d:', '4.23a' -> '23a'
+    All pages use numeric field names with colons:
+    - Page 1 (Balance sheet): '2.17' -> '17:'
+    - Page 2 (Income statement): '3.2' -> '2:', '3.23(+)' -> '23(+):'
+    - Page 3 (Tax adjustments): '4.6d' -> '6d:', '4.23a' -> '23a' (checkboxes)
     
     Args:
-        form_field: Logical field name from database (e.g., '3.12(+)', '4.6d')
+        form_field: Logical field name from database (e.g., '2.17', '3.12(+)', '4.6d')
         
     Returns:
         Actual PDF widget name
     """
     s = (form_field or "").strip()
     s = SUFFIX_RE.sub("", s)  # Strip any #0 or [0] suffixes
+    
+    # Page 1: Balance sheet fields (2.x) -> remove '2.' prefix, add ':'
+    if s.startswith("2."):
+        rest = s[2:]  # '17', '18', '50'
+        return f"{rest}:"
     
     # Page 2: Income statement fields (3.x) -> remove '3.' prefix, add ':'
     if s.startswith("3."):
@@ -62,7 +68,7 @@ def to_pdf_field_name(form_field: str) -> str:
             return rest
         return f"{rest}:"
     
-    # Page 1: Balance sheet fields (2.x), special fields (date, org_nr, etc.)
+    # Special fields (date, org_nr, fiscal_year_start, fiscal_year_end) - unchanged
     return s
 
 
@@ -371,11 +377,11 @@ class INK2PdfFiller:
         for page in reader.pages:
             writer.add_page(page)
         
-        # Carry AcroForm and set NeedAppearances
+        # Carry AcroForm and set NeedAppearances with proper PDF object types
         if "/Root" in reader.trailer and reader.trailer["/Root"].get("/AcroForm"):
             acro = reader.trailer["/Root"].get("/AcroForm").get_object()
-            acro.update({"/NeedAppearances": True})
-            writer._root_object.update({"/AcroForm": acro})
+            acro.update({NameObject("/NeedAppearances"): BooleanObject(True)})
+            writer._root_object.update({NameObject("/AcroForm"): acro})
         
         # Prepare assignments (logical name -> value)
         assignments = {}
