@@ -87,6 +87,7 @@ def format_number_swedish(value: float) -> str:
 def build_widget_index(reader: PdfReader) -> Dict[str, List[Tuple[int, Any]]]:
     """
     Build an index of all form widgets in the PDF by their /T (field name).
+    Also checks /Parent when /T is missing on the widget itself.
     
     Returns:
         Dictionary mapping field names to list of (page_index, widget_object) tuples
@@ -110,9 +111,30 @@ def build_widget_index(reader: PdfReader) -> Dict[str, List[Tuple[int, Any]]]:
             try:
                 obj = annot_ref.get_object()
                 name = obj.get("/T")
+                
+                # If no /T on widget, check /Parent (common in this PDF)
+                if not name:
+                    parent = obj.get("/Parent")
+                    if parent:
+                        try:
+                            name = parent.get_object().get("/T")
+                        except:
+                            pass
+                
                 if not name:
                     continue
-                by_name.setdefault(name, []).append((page_idx, obj))
+                
+                # Index both with and without trailing colon to be forgiving
+                # (e.g., both "17:" and "17" will work)
+                names = {name}
+                if name.endswith(":"):
+                    names.add(name[:-1])
+                else:
+                    names.add(name + ":")
+                
+                for n in names:
+                    by_name.setdefault(n, []).append((page_idx, obj))
+                    
             except Exception as e:
                 print(f"⚠️  Error reading annotation on page {page_idx}: {e}")
                 continue
@@ -241,9 +263,9 @@ class INK2PdfFiller:
         Parse a variable mapping and return the computed value
         
         Handles:
-        - Single variable: "Nettoomsattning"
+        - Single variable: "Nettoomsattning" or "INK4.10(-)"
         - Sum of variables: "MaskinerAndraTekniskaAnlagg+InventarierVerktyg+OvrMatAnlTillgangar"
-        - Conditional: "ForandringLager (IF>0)" or "ForandringLager (IF<0)"
+        - Conditional: "ForandringLager (IF>0)" or "ForandringLager (IF<0)" (space before parenthesis)
         
         Args:
             mapping: The variable mapping string from variable_map column
@@ -256,8 +278,9 @@ class INK2PdfFiller:
         
         mapping = mapping.strip()
         
-        # Check for conditional (IF>0) or (IF<0)
-        conditional_match = re.search(r'(.+?)\s*\(IF([><])0\)', mapping)
+        # Check for conditional (IF>0) or (IF<0) - ONLY if there's whitespace before '('
+        # This avoids splitting variable names like INK4.10(-) or INK4.10(+)
+        conditional_match = re.search(r'(.+?)\s+\(IF([><])0\)', mapping)
         if conditional_match:
             variable_expr = conditional_match.group(1).strip()
             condition = conditional_match.group(2)  # '>' or '<'
@@ -290,7 +313,7 @@ class INK2PdfFiller:
             
             return total if found_any else None
         
-        # Single variable
+        # Single variable (including names with (+) or (-) like INK4.10(-))
         return self._fetch_variable_value(mapping)
     
     def _format_value_for_field(self, value: Optional[float], field_type: str = None, form_field: str = None) -> str:
@@ -431,13 +454,12 @@ class INK2PdfFiller:
         # Flatten with PyMuPDF if available
         if HAS_PYMUPDF:
             try:
+                # Open the PDF and flatten using convert_to_pdf (renders pages → flattens widgets/annots)
                 doc = fitz.open(stream=raw_pdf, filetype="pdf")
-                for page in doc:
-                    page.flatten_annots()
-                flattened = doc.write()
+                flat_bytes = fitz.open("pdf", doc.convert_to_pdf()).write()
                 doc.close()
                 print(f"✅ PDF form filled successfully: {filled_count} fields set, {not_found_count} not found, flattened")
-                return flattened
+                return flat_bytes
             except Exception as e:
                 print(f"⚠️  Could not flatten PDF: {e}")
                 print(f"✅ PDF form filled successfully: {filled_count} fields set, {not_found_count} not found (not flattened)")
