@@ -2216,6 +2216,59 @@ async def pdf_annual_report(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
 
+@app.post("/api/pdf/ink2-form")
+async def pdf_ink2_form(request: Request):
+    """
+    Generate filled INK2 tax declaration PDF form
+    Populates INK2_form.pdf with data from database based on ink2_form table mappings
+    """
+    try:
+        from services.ink2_pdf_filler import generate_filled_ink2_pdf
+        from fastapi.responses import Response
+        
+        payload = await request.json()
+        company_data = payload.get('companyData', {})
+        
+        # Extract session_id and organization_number
+        session_id = company_data.get('session_id') or company_data.get('sessionId')
+        organization_number = (company_data.get('organization_number') 
+                              or company_data.get('organizationNumber')
+                              or (company_data.get('seFileData') or {}).get('company_info', {}).get('organization_number'))
+        
+        if not session_id:
+            raise HTTPException(status_code=400, detail="session_id is required")
+        if not organization_number:
+            raise HTTPException(status_code=400, detail="organization_number is required")
+        
+        # Generate filled PDF
+        pdf_bytes = generate_filled_ink2_pdf(session_id, organization_number, company_data)
+        
+        # Extract name and fiscal year for filename
+        name = (company_data.get('company_name') 
+                or (company_data.get('seFileData') or {}).get('company_info', {}).get('company_name') 
+                or 'bolag')
+        fy = (company_data.get('fiscalYear') 
+              or (company_data.get('seFileData') or {}).get('company_info', {}).get('fiscal_year') 
+              or '')
+        
+        filename = f'INK2_inkomstdeklaration_{name}_{fy}.pdf'
+        
+        return Response(
+            content=pdf_bytes,
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+    except Exception as e:
+        print(f"Error generating INK2 PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating INK2 PDF: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     import os

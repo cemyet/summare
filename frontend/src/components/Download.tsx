@@ -31,7 +31,7 @@ export function Download({ companyData }: DownloadProps) {
       id: 'inkomstdeklaration-pdf',
       title: 'Inkomstdeklaration',
       subtitle: 'Ladda ner pdf',
-      filename: 'Test.pdf',
+      filename: 'INK2_inkomstdeklaration.pdf',
       icon: <FileText className="w-5 h-5" />,
       downloaded: false
     },
@@ -128,6 +128,42 @@ export function Download({ companyData }: DownloadProps) {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Annual report PDF error:', errorText);
+          throw new Error(`Server responded with ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        a.remove();
+      } else if (fileId === 'inkomstdeklaration-pdf') {
+        // Handle INK2 form with server-side PDF form filling
+        if (!companyData) {
+          alert('Företagsdata saknas. Vänligen ladda upp en SIE-fil först.');
+          setIsGenerating(null);
+          return;
+        }
+        
+        const API_BASE = import.meta.env.VITE_API_URL || 'https://api.summare.se';
+        console.log('📄 Generating INK2 form PDF...');
+        
+        const response = await fetch(`${API_BASE}/api/pdf/ink2-form`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            companyData,
+            renderVersion: Date.now() // cache buster
+          }),
+          cache: 'no-store', // prevent browser caching
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('INK2 form PDF error:', errorText);
           throw new Error(`Server responded with ${response.status}`);
         }
         

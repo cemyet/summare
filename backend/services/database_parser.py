@@ -1569,8 +1569,15 @@ class DatabaseParser:
 
     def extract_company_info(self, se_content: str) -> Dict[str, Any]:
         """Extract company information from SE file headers"""
+        from datetime import datetime
+        
         company_info = {}
         lines = se_content.split('\n')
+        
+        # Add report creation date and time (Framställningsdatum)
+        now = datetime.now()
+        company_info['DatFramst'] = now.strftime('%Y%m%d')  # YYYYMMDD format
+        company_info['TidFramst'] = now.strftime('%H%M%S')  # HHMMSS format
         
         for line in lines:
             line = line.strip()
@@ -1598,6 +1605,13 @@ class DatabaseParser:
                     elif parts[1] == '-1':  # Previous year
                         company_info['previous_start_date'] = parts[2]
                         company_info['previous_end_date'] = parts[3]
+                        
+            elif line.startswith('#PROGRAM'):
+                # System info: #PROGRAM iOrdning 7.6.39
+                # Extract everything after #PROGRAM
+                system_info_text = line[len('#PROGRAM'):].strip()
+                if system_info_text:
+                    company_info['system_info'] = system_info_text
         
         return company_info
     
@@ -2054,6 +2068,99 @@ class DatabaseParser:
                         total_tax += account_tax
             
             return total_tax
+        
+        if variable_name == 'aterforing_periodiseringsfond_current_year':
+            # Återföring av periodiseringsfonder - AMOUNT (not tax) reversed in current year
+            # This sums ALL återföring amounts across multiple historical years/accounts
+            total_aterforing = 0.0
+            
+            # If no previous_accounts available (e.g., during recalculation), 
+            # check if we have a manual amount to preserve stickiness
+            if not previous_accounts:
+                # During recalculation, preserve existing calculated value if available
+                if ink_values and 'aterforing_periodiseringsfond_current_year' in ink_values:
+                    return float(ink_values['aterforing_periodiseringsfond_current_year'])
+                return 0.0
+            
+            # Check each periodiseringsfond account for återföring
+            for account_id in range(2110, 2150):
+                account_str = str(account_id)
+                current_balance = float(accounts.get(account_str, 0.0))
+                previous_balance = float(previous_accounts.get(account_str, 0.0))
+                
+                # Calculate återföring: if balance becomes less negative, that's återföring
+                # Example: -500,000 → -300,000 = 200,000 återförd
+                if previous_balance < 0 and current_balance > previous_balance:
+                    aterforing_amount = current_balance - previous_balance  # Positive amount
+                    total_aterforing += aterforing_amount
+            
+            return total_aterforing
+        
+        if variable_name == 'avsattning_periodiseringsfond':
+            # Avsättning till periodiseringsfond - new allocations to periodization funds
+            # This detects when balance becomes MORE negative (opposite of återföring)
+            total_avsattning = 0.0
+            
+            # If no previous_accounts available (e.g., during recalculation), 
+            # check if we have a manual amount to preserve stickiness
+            if not previous_accounts:
+                # During recalculation, preserve existing calculated value if available
+                if ink_values and 'avsattning_periodiseringsfond' in ink_values:
+                    return float(ink_values['avsattning_periodiseringsfond'])
+                return 0.0
+            
+            # Check each periodiseringsfond account for avsättning
+            for account_id in range(2110, 2150):
+                account_str = str(account_id)
+                current_balance = float(accounts.get(account_str, 0.0))
+                previous_balance = float(previous_accounts.get(account_str, 0.0))
+                
+                # Calculate avsättning: if balance becomes more negative, that's avsättning
+                # Example: -300,000 → -500,000 = 200,000 avsatt
+                if current_balance < previous_balance:  # More negative = allocation
+                    avsattning_amount = previous_balance - current_balance  # Positive amount
+                    total_avsattning += avsattning_amount
+            
+            return total_avsattning
+        
+        if variable_name == 'avsattning_periodiseringsfond_current_year':
+            # Avsättning till periodiseringsfond för innevarande räkenskapsår
+            # Detects allocation to CURRENT fiscal year's periodization fund only
+            
+            # If no previous_accounts or fiscal_year available, return 0
+            if not previous_accounts or not fiscal_year:
+                if ink_values and 'avsattning_periodiseringsfond_current_year' in ink_values:
+                    return float(ink_values['avsattning_periodiseringsfond_current_year'])
+                return 0.0
+            
+            # Map fiscal year to account number
+            # Typically: 2121=2023, 2122=2022, 2123=2021, 2124=2020, 2125=2019
+            # For current year, we need to determine the correct account
+            # Assuming fiscal_year is 2024, we check accounts for a match
+            
+            # Check all periodization fund accounts for the current year
+            for account_id in range(2110, 2150):
+                account_str = str(account_id)
+                account_text = self._get_account_text(account_id)
+                
+                # Check if this account corresponds to the current fiscal year
+                import re
+                year_match = re.search(r'(\d{4})', account_text)
+                if year_match:
+                    account_year = int(year_match.group(1))
+                    if account_year == fiscal_year:
+                        # Found the current year's account
+                        current_balance = float(accounts.get(account_str, 0.0))
+                        previous_balance = float(previous_accounts.get(account_str, 0.0))
+                        
+                        # Calculate avsättning: if balance becomes more negative, that's avsättning
+                        # Example: 0 → -500,000 = 500,000 avsatt
+                        # Or: -300,000 → -800,000 = 500,000 avsatt
+                        if current_balance < previous_balance:  # More negative = allocation
+                            avsattning_amount = previous_balance - current_balance  # Positive amount
+                            return avsattning_amount
+            
+            return 0.0
         
         # New pension tax variables
         if variable_name == 'pension_premier':
