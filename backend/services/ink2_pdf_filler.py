@@ -84,90 +84,92 @@ def format_number_swedish(value: float) -> str:
     return f"{int(round(value)):,}".replace(",", " ")
 
 
-def build_widget_index(reader: PdfReader) -> Dict[str, List[Tuple[int, Any]]]:
-    """
-    Build an index of all form widgets in the PDF by their /T (field name).
-    Also checks /Parent when /T is missing on the widget itself.
-    
-    Returns:
-        Dictionary mapping field names to list of (page_index, widget_object) tuples
-    """
-    by_name = {}
-    for page_idx, page in enumerate(reader.pages):
-        annots = page.get("/Annots", None)
-        if not annots:
-            continue
-        
-        # Resolve indirect object if needed
-        if hasattr(annots, 'get_object'):
-            annots = annots.get_object()
-        
-        # Now annots should be a list/array
-        if not isinstance(annots, (list, tuple)):
-            print(f"⚠️  Unexpected annots type on page {page_idx}: {type(annots)}")
-            continue
-        
-        for annot_ref in annots:
-            try:
-                obj = annot_ref.get_object()
-                name = obj.get("/T")
-                
-                # If no /T on widget, check /Parent (common in this PDF)
-                if not name:
-                    parent = obj.get("/Parent")
-                    if parent:
-                        try:
-                            name = parent.get_object().get("/T")
-                        except:
-                            pass
-                
-                if not name:
-                    continue
-                
-                # Index both with and without trailing colon to be forgiving
-                # (e.g., both "17:" and "17" will work)
-                names = {name}
-                if name.endswith(":"):
-                    names.add(name[:-1])
-                else:
-                    names.add(name + ":")
-                
-                for n in names:
-                    by_name.setdefault(n, []).append((page_idx, obj))
-                    
-            except Exception as e:
-                print(f"⚠️  Error reading annotation on page {page_idx}: {e}")
-                continue
-    return by_name
+def normalize_field_name(name: str) -> str:
+    """Normalize field name for case-insensitive matching"""
+    return SUFFIX_RE.sub("", (name or "").strip()).lower()
 
 
-def set_pdf_value(widget_index: Dict[str, List[Tuple[int, Any]]], pdf_name: str, value: str) -> bool:
+def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> bytes:
     """
-    Set the value of a PDF form field by updating its widget /V property.
+    Fill INK2 PDF form using PyMuPDF (generates appearance streams + flattens).
     
     Args:
-        widget_index: Widget index from build_widget_index
-        pdf_name: PDF field name (e.g., '12(+):')
-        value: Value to set
+        pdf_bytes: Template PDF bytes
+        assignments: Dict mapping logical names ('2.17', '3.12(+)', etc.) to values
         
     Returns:
-        True if field was found and updated, False otherwise
+        Filled and flattened PDF bytes
     """
-    hits = widget_index.get(pdf_name, [])
-    if not hits:
-        return False
+    if not HAS_PYMUPDF:
+        raise RuntimeError("PyMuPDF is required for INK2 PDF filling")
     
-    for _, widget in hits:
-        # Convert value to proper PDF object type
-        # For checkboxes, use NameObject; for text fields, use TextStringObject
-        if value in ['Yes', 'Off', 'On']:
-            pdf_value = NameObject(f"/{value}")
-        else:
-            pdf_value = TextStringObject(value)
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    
+    # Build a fast index of widgets by normalized name
+    widgets_by_name = {}
+    for page in doc:
+        for widget in page.widgets():
+            # PyMuPDF exposes widget.field_name (widget /T) and widget.field_label (parent /T)
+            raw = widget.field_name or widget.field_label or ""
+            if not raw:
+                continue
+            
+            # Create key variants (with/without trailing colon)
+            key_variants = {
+                normalize_field_name(raw),
+                normalize_field_name(raw[:-1] if raw.endswith(":") else raw + ":"),
+            }
+            
+            for key in key_variants:
+                widgets_by_name.setdefault(key, []).append((page, widget))
+    
+    print(f"📄 PyMuPDF found {len(widgets_by_name)} unique form fields")
+    
+    # Assign all values
+    filled_count = 0
+    not_found_count = 0
+    
+    for logical_name, value in assignments.items():
+        # Convert logical name to PDF field name
+        pdf_name = to_pdf_field_name(logical_name)
+        normalized = normalize_field_name(pdf_name)
+        hits = widgets_by_name.get(normalized, [])
         
-        widget.update({NameObject("/V"): pdf_value})
+        # Special-case the four checkboxes on page 4
+        is_checkbox = pdf_name in ("23a", "23b", "24a", "24b")
+        
+        if not hits:
+            not_found_count += 1
+            print(f"⚠️  {logical_name} → {pdf_name} not found")
+            continue
+        
+        for page, widget in hits:
+            try:
+                if is_checkbox:
+                    # Set checkbox state
+                    widget.button_set(bool(value in (True, 1, "Yes", "/Yes", "On")))
+                else:
+                    # Set text value; PyMuPDF will create the appearance stream
+                    widget.field_value = str(value)
+                
+                widget.update()  # Force appearance generation for this widget
+                page.reload()    # Refresh the page form cache
+                
+            except Exception as e:
+                print(f"⚠️  Error setting {logical_name}: {e}")
+                continue
+        
+        filled_count += 1
+        print(f"✅ {logical_name} → {pdf_name} = {value}")
     
-    return True
+    # Flatten so values are baked into page content for any viewer
+    flat = fitz.open("pdf", doc.convert_to_pdf())
+    out_bytes = flat.write()
+    flat.close()
+    doc.close()
+    
+    print(f"✅ PDF form filled with PyMuPDF: {filled_count} fields set, {not_found_count} not found, flattened")
+    return out_bytes
 
 
 class INK2PdfFiller:
@@ -374,7 +376,7 @@ class INK2PdfFiller:
     
     def fill_pdf_form(self, pdf_path: str, company_data: Dict[str, Any]) -> bytes:
         """
-        Fill the INK2 PDF form with data using robust widget-based approach
+        Fill the INK2 PDF form with data using PyMuPDF (generates appearance streams)
         
         Args:
             pdf_path: Path to the INK2_form.pdf template
@@ -389,27 +391,8 @@ class INK2PdfFiller:
         # Get special values
         special_values = self._get_special_values(company_data)
         
-        # Read the PDF and build widget index
-        reader = PdfReader(pdf_path)
-        widget_index = build_widget_index(reader)
-        
-        print(f"📄 PDF has {len(widget_index)} unique form fields")
-        
-        # Create writer and copy pages
-        writer = PdfWriter()
-        for page in reader.pages:
-            writer.add_page(page)
-        
-        # Carry AcroForm and set NeedAppearances with proper PDF object types
-        if "/Root" in reader.trailer and reader.trailer["/Root"].get("/AcroForm"):
-            acro = reader.trailer["/Root"].get("/AcroForm").get_object()
-            acro.update({NameObject("/NeedAppearances"): BooleanObject(True)})
-            writer._root_object.update({NameObject("/AcroForm"): acro})
-        
         # Prepare assignments (logical name -> value)
         assignments = {}
-        filled_count = 0
-        not_found_count = 0
         
         for mapping in self.form_mappings:
             form_field_raw = mapping.get('form_field')
@@ -431,42 +414,14 @@ class INK2PdfFiller:
                 formatted_value = self._format_value_for_field(value, field_type, form_field_raw)
                 assignments[form_field_raw] = formatted_value
         
-        # Set values using widget index
-        for logical_name, text_value in assignments.items():
-            # Convert logical name to PDF field name
-            pdf_name = to_pdf_field_name(logical_name)
-            
-            # Set the value
-            ok = set_pdf_value(widget_index, pdf_name, str(text_value))
-            
-            if ok:
-                filled_count += 1
-                print(f"✅ {logical_name} → {pdf_name} = {text_value}")
-            else:
-                not_found_count += 1
-                print(f"⚠️  Field '{logical_name}' → '{pdf_name}' not found in PDF")
+        # Load template PDF
+        with open(pdf_path, 'rb') as f:
+            template_bytes = f.read()
         
-        # Write to bytes
-        output = BytesIO()
-        writer.write(output)
-        raw_pdf = output.getvalue()
+        # Fill using PyMuPDF (generates appearance streams + flattens)
+        filled_pdf = fill_ink2_with_pymupdf(template_bytes, assignments)
         
-        # Flatten with PyMuPDF if available
-        if HAS_PYMUPDF:
-            try:
-                # Open the PDF and flatten using convert_to_pdf (renders pages → flattens widgets/annots)
-                doc = fitz.open(stream=raw_pdf, filetype="pdf")
-                flat_bytes = fitz.open("pdf", doc.convert_to_pdf()).write()
-                doc.close()
-                print(f"✅ PDF form filled successfully: {filled_count} fields set, {not_found_count} not found, flattened")
-                return flat_bytes
-            except Exception as e:
-                print(f"⚠️  Could not flatten PDF: {e}")
-                print(f"✅ PDF form filled successfully: {filled_count} fields set, {not_found_count} not found (not flattened)")
-                return raw_pdf
-        else:
-            print(f"✅ PDF form filled successfully: {filled_count} fields set, {not_found_count} not found (not flattened)")
-            return raw_pdf
+        return filled_pdf
 
 
 def generate_filled_ink2_pdf(organization_number: str, fiscal_year: int, company_data: Dict[str, Any]) -> bytes:
