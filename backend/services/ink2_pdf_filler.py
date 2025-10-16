@@ -48,7 +48,7 @@ class INK2PdfFiller:
     def _load_form_mappings(self):
         """Load form field mappings from ink2_form table"""
         try:
-            response = supabase.table('ink2_form').select('*').order('id').execute()
+            response = supabase.table('ink2_form').select('*').order('Id').execute()
             self.form_mappings = response.data
             print(f"✅ Loaded {len(self.form_mappings)} form field mappings")
         except Exception as e:
