@@ -24,18 +24,26 @@ supabase: Client = create_client(supabase_url, supabase_key)
 class INK2PdfFiller:
     """Service to fill INK2 PDF form with data from database"""
     
-    def __init__(self, session_id: str, organization_number: str):
+    def __init__(self, organization_number: str, fiscal_year: int, rr_data: List[Dict] = None, br_data: List[Dict] = None, ink2_data: List[Dict] = None):
         """
         Initialize the PDF filler
         
         Args:
-            session_id: Session ID to fetch data for
             organization_number: Organization number for the company
+            fiscal_year: Fiscal year for the data
+            rr_data: Pre-loaded RR data (optional, will fetch from DB if not provided)
+            br_data: Pre-loaded BR data (optional, will fetch from DB if not provided)
+            ink2_data: Pre-loaded INK2 data (optional, will fetch from DB if not provided)
         """
-        self.session_id = session_id
         self.organization_number = organization_number
+        self.fiscal_year = fiscal_year
         self.form_mappings = []
         self.variable_values = {}
+        
+        # Store pre-loaded data or prepare to fetch from DB
+        self.rr_data = rr_data or []
+        self.br_data = br_data or []
+        self.ink2_data = ink2_data or []
         
     def _load_form_mappings(self):
         """Load form field mappings from ink2_form table"""
@@ -49,8 +57,8 @@ class INK2PdfFiller:
     
     def _fetch_variable_value(self, variable_name: str) -> Optional[float]:
         """
-        Fetch the last stored value of a variable from the database
-        Checks RR, BR, and INK2 tables
+        Fetch the value of a variable from pre-loaded data
+        Checks RR, BR, and INK2 data
         
         Args:
             variable_name: Name of the variable to fetch
@@ -62,39 +70,43 @@ class INK2PdfFiller:
         if variable_name in self.variable_values:
             return self.variable_values[variable_name]
         
-        # Check each table for the variable
-        tables_to_check = [
-            ('rr_data', 'variable_name'),
-            ('br_data', 'variable_name'),
-            ('ink2_data', 'variable_name')
-        ]
+        # Search in RR data
+        for item in self.rr_data:
+            if item.get('variable_name') == variable_name:
+                value = item.get('current_amount')
+                if value is not None:
+                    try:
+                        float_value = float(value)
+                        self.variable_values[variable_name] = float_value
+                        return float_value
+                    except (ValueError, TypeError):
+                        pass
         
-        for table_name, column_name in tables_to_check:
-            try:
-                response = supabase.table(table_name)\
-                    .select('value')\
-                    .eq('session_id', self.session_id)\
-                    .eq(column_name, variable_name)\
-                    .order('updated_at', desc=True)\
-                    .limit(1)\
-                    .execute()
-                
-                if response.data and len(response.data) > 0:
-                    value = response.data[0].get('value')
-                    if value is not None:
-                        # Convert to float
-                        try:
-                            float_value = float(value)
-                            self.variable_values[variable_name] = float_value
-                            return float_value
-                        except (ValueError, TypeError):
-                            print(f"⚠️  Could not convert value to float for {variable_name}: {value}")
-                            return None
-            except Exception as e:
-                print(f"⚠️  Error checking table {table_name} for {variable_name}: {e}")
-                continue
+        # Search in BR data
+        for item in self.br_data:
+            if item.get('variable_name') == variable_name:
+                value = item.get('current_amount')
+                if value is not None:
+                    try:
+                        float_value = float(value)
+                        self.variable_values[variable_name] = float_value
+                        return float_value
+                    except (ValueError, TypeError):
+                        pass
         
-        print(f"⚠️  Variable {variable_name} not found in any table")
+        # Search in INK2 data
+        for item in self.ink2_data:
+            if item.get('variable_name') == variable_name:
+                value = item.get('amount')
+                if value is not None:
+                    try:
+                        float_value = float(value)
+                        self.variable_values[variable_name] = float_value
+                        return float_value
+                    except (ValueError, TypeError):
+                        pass
+        
+        print(f"⚠️  Variable {variable_name} not found in any data")
         return None
     
     def _parse_variable_mapping(self, mapping: str) -> Optional[float]:
@@ -327,14 +339,14 @@ class INK2PdfFiller:
         return output.getvalue()
 
 
-def generate_filled_ink2_pdf(session_id: str, organization_number: str, company_data: Dict[str, Any]) -> bytes:
+def generate_filled_ink2_pdf(organization_number: str, fiscal_year: int, company_data: Dict[str, Any]) -> bytes:
     """
     Main function to generate a filled INK2 PDF
     
     Args:
-        session_id: Session ID for data retrieval
         organization_number: Company organization number
-        company_data: Dictionary with company information
+        fiscal_year: Fiscal year for the data
+        company_data: Dictionary with company information including rr_data, br_data, ink2_data
         
     Returns:
         Bytes of the filled PDF
@@ -352,8 +364,15 @@ def generate_filled_ink2_pdf(session_id: str, organization_number: str, company_
     if not os.path.exists(pdf_template_path):
         raise FileNotFoundError(f"INK2 form template not found at {pdf_template_path}")
     
+    # Extract data from company_data
+    rr_data = company_data.get('seFileData', {}).get('rr_data', [])
+    br_data = company_data.get('seFileData', {}).get('br_data', [])
+    ink2_data = company_data.get('seFileData', {}).get('ink2_data', []) or company_data.get('ink2Data', [])
+    
+    print(f"📊 INK2 PDF Filler - RR items: {len(rr_data)}, BR items: {len(br_data)}, INK2 items: {len(ink2_data)}")
+    
     # Create filler and fill the form
-    filler = INK2PdfFiller(session_id, organization_number)
+    filler = INK2PdfFiller(organization_number, fiscal_year, rr_data, br_data, ink2_data)
     filled_pdf = filler.fill_pdf_form(pdf_template_path, company_data)
     
     return filled_pdf

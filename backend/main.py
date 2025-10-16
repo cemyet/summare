@@ -2229,29 +2229,30 @@ async def pdf_ink2_form(request: Request):
         payload = await request.json()
         company_data = payload.get('companyData', {})
         
-        # Extract session_id and organization_number
-        session_id = company_data.get('session_id') or company_data.get('sessionId')
+        # Extract organization_number and fiscal_year
         organization_number = (company_data.get('organization_number') 
                               or company_data.get('organizationNumber')
                               or (company_data.get('seFileData') or {}).get('company_info', {}).get('organization_number'))
         
-        if not session_id:
-            raise HTTPException(status_code=400, detail="session_id is required")
+        fiscal_year = (company_data.get('fiscalYear')
+                      or company_data.get('fiscal_year')
+                      or (company_data.get('seFileData') or {}).get('company_info', {}).get('fiscal_year'))
+        
         if not organization_number:
             raise HTTPException(status_code=400, detail="organization_number is required")
+        if not fiscal_year:
+            raise HTTPException(status_code=400, detail="fiscal_year is required")
         
         # Generate filled PDF
-        pdf_bytes = generate_filled_ink2_pdf(session_id, organization_number, company_data)
+        pdf_bytes = generate_filled_ink2_pdf(organization_number, fiscal_year, company_data)
         
-        # Extract name and fiscal year for filename
+        # Extract name for filename
         name = (company_data.get('company_name') 
+                or company_data.get('companyName')
                 or (company_data.get('seFileData') or {}).get('company_info', {}).get('company_name') 
                 or 'bolag')
-        fy = (company_data.get('fiscalYear') 
-              or (company_data.get('seFileData') or {}).get('company_info', {}).get('fiscal_year') 
-              or '')
         
-        filename = f'INK2_inkomstdeklaration_{name}_{fy}.pdf'
+        filename = f'INK2_inkomstdeklaration_{name}_{fiscal_year}.pdf'
         
         return Response(
             content=pdf_bytes,
