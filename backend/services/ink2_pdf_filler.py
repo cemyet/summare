@@ -36,12 +36,12 @@ COND_RE = re.compile(r"^\s*(?P<name>.+?)\s+\((?P<cond>IF[<>]=?0|IF[<>]0)\)\s*$",
 
 # Variable name aliases for DB lookup
 ALIASES = {
-    # Meta fields
-    "organization_number": ["org_nr", "orgnr", "PersOrgNr"],
-    "start_date": ["fiscal_year_start", "period_from"],
-    "end_date": ["fiscal_year_end", "period_to"],
-    "DatFramst": ["date", "framstallningsdatum"],
-    "TidFramst": ["time", "framstallningstid"],
+    # Meta fields (expanded with more variants)
+    "organization_number": ["org_nr", "orgnr", "PersOrgNr", "orgNumber", "organisationsnummer"],
+    "start_date": ["fiscal_year_start", "period_from", "from_date", "startDate"],
+    "end_date": ["fiscal_year_end", "period_to", "to_date", "endDate"],
+    "DatFramst": ["date", "framstallningsdatum", "current_date"],
+    "TidFramst": ["time", "framstallningstid", "current_time"],
     "SystemInfo": ["system_info"],
     
     # Periodiseringsfonder (both ways for compatibility)
@@ -54,6 +54,37 @@ ALIASES = {
     "INK4.13(+)": ["aterforing_overavskrivningar_current_year", "ink4_13_plus"],
     "INK4.13(-)": ["avsattning_overavskrivningar_current_year", "ink4_13_minus"],
 }
+
+
+def get_meta_value(company_data: Dict[str, Any], key: str) -> str:
+    """
+    Get a meta value from company_data with alias fallback.
+    
+    Args:
+        company_data: Company data dictionary
+        key: Key to look up
+        
+    Returns:
+        Value or empty string
+    """
+    # Try exact key first
+    if key in company_data and company_data[key]:
+        return str(company_data[key])
+    
+    # Try nested seFileData
+    se_data = company_data.get('seFileData', {})
+    company_info = se_data.get('company_info', {})
+    if key in company_info and company_info[key]:
+        return str(company_info[key])
+    
+    # Try aliases
+    for alias in ALIASES.get(key, []):
+        if alias in company_data and company_data[alias]:
+            return str(company_data[alias])
+        if alias in company_info and company_info[alias]:
+            return str(company_info[alias])
+    
+    return ""
 
 
 def split_top_level_plus(expr: str) -> List[str]:
@@ -88,17 +119,35 @@ def split_top_level_plus(expr: str) -> List[str]:
     return [p for p in parts if p]
 
 
-def to_pdf_field_name(form_field: str) -> str:
+def detect_name_style(widget_names: set) -> str:
+    """
+    Detect the naming style used by the PDF form.
+    
+    Args:
+        widget_names: Set of raw field names from the PDF
+        
+    Returns:
+        'prefixed' if names like '2.1', '3.12(+)' are used
+        'colon' if names like '1:', '12(+):' are used
+        'raw' otherwise
+    """
+    # If we see names like '2.1', '3.12(+)', etc., use them as-is
+    if any(n.startswith("2.") or n.startswith("3.") or n.startswith("4.") for n in widget_names):
+        return "prefixed"
+    # If we see '12:' / '12(+):' style, use colon mapping
+    if any(n.endswith(":") for n in widget_names):
+        return "colon"
+    return "raw"
+
+
+def to_pdf_field_name(form_field: str, style: str = "prefixed") -> str:
     """
     Convert logical names from ink2_form table to actual /T names in INK2_form.pdf.
-    
-    All pages use numeric field names with colons:
-    - Page 1 (Balance sheet): '2.17' -> '17:'
-    - Page 2 (Income statement): '3.2' -> '2:', '3.23(+)' -> '23(+):'
-    - Page 3 (Tax adjustments): '4.6d' -> '6d:', '4.23a' -> '23a' (checkboxes)
+    Adapts based on the detected PDF naming style.
     
     Args:
         form_field: Logical field name from database (e.g., '2.17', '3.12(+)', '4.6d')
+        style: Naming style ('prefixed', 'colon', or 'raw')
         
     Returns:
         Actual PDF widget name
@@ -106,25 +155,20 @@ def to_pdf_field_name(form_field: str) -> str:
     s = (form_field or "").strip()
     s = SUFFIX_RE.sub("", s)  # Strip any #0 or [0] suffixes
     
-    # Page 1: Balance sheet fields (2.x) -> remove '2.' prefix, add ':'
-    if s.startswith("2."):
-        rest = s[2:]  # '17', '18', '50'
-        return f"{rest}:"
+    if style == "prefixed":
+        # Keep '2.17', '3.12(+)', '4.6d' exactly as-is
+        return s
     
-    # Page 2: Income statement fields (3.x) -> remove '3.' prefix, add ':'
-    if s.startswith("3."):
-        rest = s[2:]  # '2', '23(+)', '12(-)'
-        return f"{rest}:"
+    if style == "colon":
+        # Map to colon style: '2.17' -> '17:', '3.12(+)' -> '12(+):'
+        if s.startswith(("2.", "3.", "4.")):
+            rest = s[2:]
+            # Checkboxes on p.4 have plain names like 23a/23b (no colon)
+            if rest in {"23a", "23b", "24a", "24b"}:
+                return rest
+            return f"{rest}:"
     
-    # Page 3: Tax adjustment fields (4.x) -> remove '4.' prefix, add ':'
-    if s.startswith("4."):
-        rest = s[2:]  # '6d', '23a', '15'
-        # Checkbox fields (23a, 23b, 24a, 24b) don't have colon
-        if rest in ['23a', '23b', '24a', '24b']:
-            return rest
-        return f"{rest}:"
-    
-    # Special fields (date, org_nr, fiscal_year_start, fiscal_year_end) - unchanged
+    # raw style: return as-is
     return s
 
 
@@ -163,14 +207,18 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> byt
     
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     
-    # Build a fast index of widgets by normalized name
+    # Build set of raw field names to detect the naming style
+    raw_names = set()
     widgets_by_name = {}
+    
     for page in doc:
         for widget in page.widgets():
             # PyMuPDF exposes widget.field_name (widget /T) and widget.field_label (parent /T)
             raw = widget.field_name or widget.field_label or ""
             if not raw:
                 continue
+            
+            raw_names.add(raw.strip())
             
             # Create key variants (with/without trailing colon, #0 suffix)
             # Normalize handles #0 and : removal
@@ -184,9 +232,12 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> byt
             for key in key_variants:
                 widgets_by_name.setdefault(key, []).append((page, widget))
     
-    print(f"📄 PyMuPDF found {len(widgets_by_name)} unique form fields")
-    # Debug: show first 20 field names
-    sample_keys = sorted(list(widgets_by_name.keys()))[:20]
+    # Detect naming style from raw field names
+    style = detect_name_style(raw_names)
+    print(f"📄 PyMuPDF found {len(widgets_by_name)} unique form fields, style: {style}")
+    
+    # Debug: show first 30 field names
+    sample_keys = sorted(list(widgets_by_name.keys()))[:30]
     print(f"📋 Sample field names in index: {sample_keys}")
     
     # Assign all values
@@ -194,8 +245,8 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> byt
     not_found_count = 0
     
     for logical_name, value in assignments.items():
-        # Convert logical name to PDF field name
-        pdf_name = to_pdf_field_name(logical_name)
+        # Convert logical name to PDF field name using detected style
+        pdf_name = to_pdf_field_name(logical_name, style)
         normalized = normalize_field_name(pdf_name)
         hits = widgets_by_name.get(normalized, [])
         
@@ -221,7 +272,7 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> byt
                     widget.field_value = str(value)
                 
                 widget.update()  # Force appearance generation for this widget
-                page.reload()    # Refresh the page form cache
+                # NOTE: page.reload() removed - doesn't exist in this PyMuPDF version
                 
             except Exception as e:
                 print(f"⚠️  Error setting {logical_name}: {e}")
@@ -231,9 +282,9 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> byt
         print(f"✅ {logical_name} → {pdf_name} = {value}")
     
     # Flatten so values are baked into page content for any viewer
-    flat = fitz.open("pdf", doc.convert_to_pdf())
-    out_bytes = flat.write()
-    flat.close()
+    flat_doc = fitz.open("pdf", doc.convert_to_pdf())
+    out_bytes = flat_doc.write()
+    flat_doc.close()
     doc.close()
     
     print(f"✅ PDF form filled with PyMuPDF: {filled_count} fields set, {not_found_count} not found, flattened")
@@ -439,6 +490,7 @@ class INK2PdfFiller:
     def _get_special_values(self, company_data: Dict[str, Any]) -> Dict[str, str]:
         """
         Get special values that need custom logic (dates, org number, etc.)
+        Uses get_meta_value for robust lookup with aliases.
         
         Args:
             company_data: Company data dictionary
@@ -452,19 +504,30 @@ class INK2PdfFiller:
         now = datetime.now()
         special_values['DatFramst'] = now.strftime('%Y-%m-%d')
         special_values['TidFramst'] = now.strftime('%H:%M')
+        special_values['date'] = now.strftime('%Y-%m-%d')
         
         # System info
         special_values['SystemInfo'] = 'Summare AI - Årsredovisningssystem'
         
-        # Organization number
-        if self.organization_number:
-            special_values['organization_number'] = self.organization_number.replace('-', '')
+        # Organization number with alias fallback
+        org_nr = get_meta_value(company_data, 'organization_number')
+        if not org_nr and self.organization_number:
+            org_nr = self.organization_number
+        if org_nr:
+            special_values['organization_number'] = org_nr.replace('-', '')
+            special_values['org_nr'] = org_nr.replace('-', '')
+            special_values['PersOrgNr'] = org_nr.replace('-', '')
         
-        # Fiscal year dates
-        if company_data.get('start_date'):
-            special_values['start_date'] = company_data['start_date']
-        if company_data.get('end_date'):
-            special_values['end_date'] = company_data['end_date']
+        # Fiscal year dates with alias fallback
+        start = get_meta_value(company_data, 'start_date')
+        if start:
+            special_values['start_date'] = start
+            special_values['fiscal_year_start'] = start
+        
+        end = get_meta_value(company_data, 'end_date')
+        if end:
+            special_values['end_date'] = end
+            special_values['fiscal_year_end'] = end
         
         return special_values
     
