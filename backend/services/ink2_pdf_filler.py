@@ -185,6 +185,9 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> byt
                 widgets_by_name.setdefault(key, []).append((page, widget))
     
     print(f"📄 PyMuPDF found {len(widgets_by_name)} unique form fields")
+    # Debug: show first 20 field names
+    sample_keys = sorted(list(widgets_by_name.keys()))[:20]
+    print(f"📋 Sample field names in index: {sample_keys}")
     
     # Assign all values
     filled_count = 0
@@ -195,6 +198,10 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> byt
         pdf_name = to_pdf_field_name(logical_name)
         normalized = normalize_field_name(pdf_name)
         hits = widgets_by_name.get(normalized, [])
+        
+        # Debug first few lookups
+        if filled_count + not_found_count < 5:
+            print(f"🔍 DEBUG: {logical_name} → {pdf_name} → normalized: '{normalized}' → hits: {len(hits)}")
         
         # Special-case the four checkboxes on page 4
         is_checkbox = pdf_name in ("23a", "23b", "24a", "24b")
