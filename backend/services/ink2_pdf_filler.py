@@ -219,26 +219,44 @@ class INK2PdfFiller:
         
         return special_values
     
-    def _normalize_form_field_name(self, form_field: str) -> str:
+    def _find_matching_pdf_field(self, form_field: str, available_fields: set) -> Optional[str]:
         """
-        Normalize form field name - simply strips #0 suffix if present
-        The form_field column already matches the exact PDF field names
+        Find the matching PDF field name, handling Acrobat's suffix variations
+        Acrobat often appends #0, #1, [0], [1] to widget names
         
         Args:
             form_field: Field name from database (e.g., "date#0", "2.1", "3.2(+)")
+            available_fields: Set of available field names in the PDF
             
         Returns:
-            Normalized field name for PDF
+            The matching PDF field name, or None if not found
         """
         if not form_field:
-            return ""
+            return None
         
-        # Strip #0 or #1 suffix (e.g., "date#0" → "date", "org_nr#0" → "org_nr")
-        # The rest of the field name (like "2.1", "3.2(+)", "4.3a") is already correct
-        if '#' in form_field:
-            form_field = form_field.split('#')[0]
+        # Try exact match first
+        if form_field in available_fields:
+            return form_field
         
-        return form_field
+        # Try common Acrobat suffix variations
+        # If the field from CSV has #0, try without it
+        # If the field from CSV doesn't have a suffix, try with #0, #1, [0], [1]
+        base_name = form_field.split('#')[0].split('[')[0]  # Strip any existing suffix
+        
+        variations = [
+            form_field,           # Original
+            base_name,            # Without suffix
+            f"{base_name}#0",     # With #0
+            f"{base_name}#1",     # With #1
+            f"{base_name}[0]",    # With [0]
+            f"{base_name}[1]",    # With [1]
+        ]
+        
+        for variation in variations:
+            if variation in available_fields:
+                return variation
+        
+        return None
     
     def fill_pdf_form(self, pdf_path: str, company_data: Dict[str, Any]) -> bytes:
         """
@@ -281,15 +299,11 @@ class INK2PdfFiller:
             if not form_field_raw or not variable_map:
                 continue
             
-            # Normalize the field name (just strips #0 suffix, everything else is exact)
-            form_field = self._normalize_form_field_name(form_field_raw)
+            # Find the matching PDF field name (handles suffix variations)
+            form_field = self._find_matching_pdf_field(form_field_raw, available_field_names)
             
             if not form_field:
-                continue
-            
-            # Check if field exists in PDF
-            if form_field not in available_field_names:
-                print(f"⚠️  Field '{form_field}' (from '{form_field_raw}') not found in PDF")
+                print(f"⚠️  Field '{form_field_raw}' not found in PDF (tried variations)")
                 continue
             
             # Check if this is a special value
