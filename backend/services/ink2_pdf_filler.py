@@ -618,15 +618,34 @@ class INK2PdfFiller:
             if not form_field_raw or not variable_map:
                 continue
             
-            # Check if this is a special value (case-insensitive)
-            variable_map_lower = variable_map.lower()
+            # Check if this is a special value (exact match first)
             if variable_map in special_values:
                 assignments[form_field_raw] = special_values[variable_map]
                 print(f"✅ Special value: {form_field_raw} = {variable_map} = {special_values[variable_map]}")
                 continue
-            elif variable_map_lower in special_values_lower:
+            
+            # Check case-insensitive
+            variable_map_lower = variable_map.lower()
+            if variable_map_lower in special_values_lower:
                 assignments[form_field_raw] = special_values_lower[variable_map_lower]
                 print(f"✅ Special value (case-insensitive): {form_field_raw} = {variable_map} = {special_values_lower[variable_map_lower]}")
+                continue
+            
+            # Check if any alias of this variable_map exists in special_values
+            found_in_special = False
+            for alias in ALIASES.get(variable_map, []):
+                if alias in special_values:
+                    assignments[form_field_raw] = special_values[alias]
+                    print(f"✅ Special value (via alias): {form_field_raw} = {variable_map} → {alias} = {special_values[alias]}")
+                    found_in_special = True
+                    break
+                elif alias.lower() in special_values_lower:
+                    assignments[form_field_raw] = special_values_lower[alias.lower()]
+                    print(f"✅ Special value (via alias, case-insensitive): {form_field_raw} = {variable_map} → {alias} = {special_values_lower[alias.lower()]}")
+                    found_in_special = True
+                    break
+            
+            if found_in_special:
                 continue
             
             # Parse the variable mapping (looks in RR/BR/INK2 data)
