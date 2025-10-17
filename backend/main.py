@@ -2154,16 +2154,6 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         else:
             print("⚠️  BR row 382 (SumEgetKapital) not found - cannot update")
 
-        # --- BR: update total balance sheet (417) by the delta in equity ---
-        br_sum_total = _get(br, id=417) or _get(br, name="SumEgetKapitalOchSkulder")
-        if br_sum_total:
-            old_total = float(br_sum_total.get("current_amount") or 0)
-            new_total = old_total + d_br_result
-            _set(br_sum_total, new_total)
-            print(f"Updated BR SumEgetKapitalOchSkulder: {old_total} -> {new_total} (delta={d_br_result})")
-        else:
-            print("⚠️  BR row 417 (SumEgetKapitalOchSkulder) not found - cannot update")
-
         # --- BR: update Skatteskulder (413) by the tax DIFF, then roll up short-term debts (416) ---
         br_tax_liab = _get(br, id=413) or _get(br, name="Skatteskulder")
         if not br_tax_liab:
@@ -2178,8 +2168,19 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             _add(br_sum_short, d_tax_liab)
             print(f"Updated BR SumKortfristigaSkulder by tax delta: +{d_tax_liab}")
 
-        # --- BR: total liabilities + equity (417). Recalculate conservatively via deltas. ---
-        # Avoid accumulating 417 here; let BR recompute totals downstream if needed
+        # --- BR: update total balance sheet (417) by BOTH equity and liability deltas ---
+        # Balance sheet equation: Assets = Equity + Liabilities
+        # When tax changes: Equity decreases (d_br_result < 0), Liabilities increase (d_tax_liab > 0)
+        # Net change to row 417 = d_br_result + d_tax_liab
+        br_sum_total = _get(br, id=417) or _get(br, name="SumEgetKapitalOchSkulder")
+        if br_sum_total:
+            old_total = float(br_sum_total.get("current_amount") or 0)
+            total_delta = d_br_result + d_tax_liab
+            new_total = old_total + total_delta
+            _set(br_sum_total, new_total)
+            print(f"Updated BR SumEgetKapitalOchSkulder: {old_total} -> {new_total} (equity_delta={d_br_result}, liability_delta={d_tax_liab}, total_delta={total_delta})")
+        else:
+            print("⚠️  BR row 417 (SumEgetKapitalOchSkulder) not found - cannot update")
 
         # return updated arrays
         return {
