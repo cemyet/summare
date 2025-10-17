@@ -2134,7 +2134,35 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_br_result = _delta_set(br_result, rr_result_new)  # returns delta vs old
         print(f"Updated BR AretsResultat: {br_result.get('current_amount', 0)} -> {rr_result_new}")
 
-        # Note: Let 381/382/417 be recomputed by your BR formula pass; avoid accumulating here
+        # --- BR: update SumFrittEgetKapital (381) by the delta in AretsResultat ---
+        br_sum_fritt = _get(br, id=381) or _get(br, name="SumFrittEgetKapital")
+        if br_sum_fritt:
+            old_fritt = float(br_sum_fritt.get("current_amount") or 0)
+            new_fritt = old_fritt + d_br_result
+            _set(br_sum_fritt, new_fritt)
+            print(f"Updated BR SumFrittEgetKapital: {old_fritt} -> {new_fritt} (delta={d_br_result})")
+        else:
+            print("⚠️  BR row 381 (SumFrittEgetKapital) not found - cannot update")
+
+        # --- BR: update SumEgetKapital (382) by the delta in SumFrittEgetKapital ---
+        br_sum_eget = _get(br, id=382) or _get(br, name="SumEgetKapital")
+        if br_sum_eget:
+            old_eget = float(br_sum_eget.get("current_amount") or 0)
+            new_eget = old_eget + d_br_result
+            _set(br_sum_eget, new_eget)
+            print(f"Updated BR SumEgetKapital: {old_eget} -> {new_eget} (delta={d_br_result})")
+        else:
+            print("⚠️  BR row 382 (SumEgetKapital) not found - cannot update")
+
+        # --- BR: update total balance sheet (417) by the delta in equity ---
+        br_sum_total = _get(br, id=417) or _get(br, name="SumEgetKapitalOchSkulder")
+        if br_sum_total:
+            old_total = float(br_sum_total.get("current_amount") or 0)
+            new_total = old_total + d_br_result
+            _set(br_sum_total, new_total)
+            print(f"Updated BR SumEgetKapitalOchSkulder: {old_total} -> {new_total} (delta={d_br_result})")
+        else:
+            print("⚠️  BR row 417 (SumEgetKapitalOchSkulder) not found - cannot update")
 
         # --- BR: update Skatteskulder (413) by the tax DIFF, then roll up short-term debts (416) ---
         br_tax_liab = _get(br, id=413) or _get(br, name="Skatteskulder")
