@@ -254,13 +254,13 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], compan
         digits = re.sub(r"\D", "", str(raw_org))  # '5566103643'
         dashed = f"{digits[:6]}-{digits[6:]}" if len(digits) == 10 else raw_org
         
-        # Add org number to assignments under all common aliases
+        # Add org number to assignments under all common aliases (use dashed format)
         org_specials = {
-            "org_nr": digits,
-            "org_nr#0": digits,
-            "organization_number": digits,
-            "organisationsnummer": digits,
-            "orgnr": digits,
+            "org_nr": dashed,
+            "org_nr#0": dashed,
+            "organization_number": dashed,
+            "organisationsnummer": dashed,
+            "orgnr": dashed,
             "PersOrgNr": dashed,
             "PersOrgNr#0": dashed,
         }
@@ -282,18 +282,18 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], compan
                 except Exception as e:
                     print(f"⚠️  Error setting org {logical_name}: {e}")
         
-        # Safety net: auto-probe any field with "org" in name and set to digits
-        if digits:
+        # Safety net: auto-probe any field with "org" in name and set to dashed format
+        if dashed:
             print(f"🔍 Safety net: Probing all fields containing 'org'...")
             org_count = 0
             for key, widgets in widgets_by_name.items():
                 if "org" in key:
                     for page, widget in widgets:
                         try:
-                            widget.field_value = digits
+                            widget.field_value = dashed
                             widget.update()
                             org_count += 1
-                            print(f"✅ Safety net: {key} = {digits}")
+                            print(f"✅ Safety net: {key} = {dashed}")
                         except Exception as e:
                             print(f"⚠️  Safety net error on {key}: {e}")
             print(f"🔍 Safety net wrote org number to {org_count} fields")
@@ -611,14 +611,17 @@ class INK2PdfFiller:
             print(f"🔍 DEBUG: Using self.organization_number = {org_nr}")
         
         if org_nr:
-            # Store both with and without dashes for maximum compatibility
-            org_nr_clean = str(org_nr).replace('-', '').replace(' ', '')
-            special_values['organization_number'] = org_nr_clean
-            special_values['org_nr'] = org_nr_clean
-            special_values['PersOrgNr'] = org_nr_clean
-            special_values['orgnr'] = org_nr_clean
-            special_values['organisationsnummer'] = org_nr_clean
-            print(f"✅ Organization number set: {org_nr_clean}")
+            # Format with dash (556610-3643) for display in PDF
+            import re
+            org_digits = re.sub(r"\D", "", str(org_nr))
+            org_formatted = f"{org_digits[:6]}-{org_digits[6:]}" if len(org_digits) == 10 else str(org_nr)
+            
+            special_values['organization_number'] = org_formatted
+            special_values['org_nr'] = org_formatted
+            special_values['PersOrgNr'] = org_formatted
+            special_values['orgnr'] = org_formatted
+            special_values['organisationsnummer'] = org_formatted
+            print(f"✅ Organization number set: {org_formatted}")
         else:
             print("❌ Organization number not found in company_data or self.organization_number")
         
