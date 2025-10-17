@@ -36,8 +36,9 @@ COND_RE = re.compile(r"^\s*(?P<name>.+?)\s+\((?P<cond>IF[<>]=?0|IF[<>]0)\)\s*$",
 
 # Variable name aliases for DB lookup
 ALIASES = {
-    # Meta fields (expanded with more variants)
-    "organization_number": ["org_nr", "orgnr", "PersOrgNr", "orgNumber", "organisationsnummer"],
+    # Meta fields (expanded with more variants - includes both camelCase and snake_case)
+    "organization_number": ["organizationNumber", "org_nr", "orgnr", "PersOrgNr", "orgNumber", "organisationsnummer"],
+    "organizationNumber": ["organization_number", "org_nr", "orgnr", "PersOrgNr", "orgNumber", "organisationsnummer"],
     "start_date": ["fiscal_year_start", "period_from", "from_date", "startDate"],
     "end_date": ["fiscal_year_end", "period_to", "to_date", "endDate"],
     "DatFramst": ["date", "framstallningsdatum", "current_date"],
@@ -59,6 +60,7 @@ ALIASES = {
 def get_meta_value(company_data: Dict[str, Any], key: str) -> str:
     """
     Get a meta value from company_data with alias fallback.
+    Checks multiple locations: top-level, seFileData.company_info, and aliases.
     
     Args:
         company_data: Company data dictionary
@@ -67,20 +69,23 @@ def get_meta_value(company_data: Dict[str, Any], key: str) -> str:
     Returns:
         Value or empty string
     """
-    # Try exact key first
+    # Try exact key first at top level (handles both camelCase and snake_case)
     if key in company_data and company_data[key]:
         return str(company_data[key])
     
-    # Try nested seFileData
+    # Try nested seFileData.company_info
     se_data = company_data.get('seFileData', {})
     company_info = se_data.get('company_info', {})
     if key in company_info and company_info[key]:
         return str(company_info[key])
     
-    # Try aliases
+    # Try aliases at top level first
     for alias in ALIASES.get(key, []):
         if alias in company_data and company_data[alias]:
             return str(company_data[alias])
+    
+    # Try aliases in nested company_info
+    for alias in ALIASES.get(key, []):
         if alias in company_info and company_info[alias]:
             return str(company_info[alias])
     
@@ -484,6 +489,10 @@ class INK2PdfFiller:
             # These are checkbox fields
             return 'Yes' if value else 'Off'
         
+        # Rule: Don't inject 0 values - leave field empty instead
+        if value == 0:
+            return ''
+        
         # Numeric fields: format with Swedish thousands separator (space)
         return format_number_swedish(value)
     
@@ -500,34 +509,80 @@ class INK2PdfFiller:
         """
         special_values = {}
         
+        # Debug: Show top-level keys in company_data
+        print(f"🔍 DEBUG: company_data keys: {list(company_data.keys())}")
+        if 'seFileData' in company_data:
+            se_data = company_data['seFileData']
+            print(f"🔍 DEBUG: seFileData keys: {list(se_data.keys())}")
+            if 'company_info' in se_data:
+                company_info = se_data['company_info']
+                print(f"🔍 DEBUG: company_info keys: {list(company_info.keys())}")
+                print(f"🔍 DEBUG: company_info values: {company_info}")
+        
         # Current date and time for framställning
         now = datetime.now()
-        special_values['DatFramst'] = now.strftime('%Y-%m-%d')
-        special_values['TidFramst'] = now.strftime('%H:%M')
-        special_values['date'] = now.strftime('%Y-%m-%d')
+        special_values['DatFramst'] = now.strftime('%Y%m%d')  # YYYYMMDD format
+        special_values['TidFramst'] = now.strftime('%H%M%S')  # HHMMSS format
+        special_values['date'] = now.strftime('%Y%m%d')
         
         # System info
-        special_values['SystemInfo'] = 'Summare AI - Årsredovisningssystem'
+        system_info = get_meta_value(company_data, 'system_info')
+        if not system_info:
+            system_info = get_meta_value(company_data, 'SystemInfo')
+        if not system_info:
+            system_info = 'Summare AI - Årsredovisningssystem'
+        special_values['SystemInfo'] = system_info
+        special_values['system_info'] = system_info
         
-        # Organization number with alias fallback
+        # Organization number with alias fallback (multiple lookup attempts)
+        # Try snake_case first
         org_nr = get_meta_value(company_data, 'organization_number')
+        print(f"🔍 DEBUG: get_meta_value('organization_number') = {org_nr}")
+        
+        # Try camelCase (frontend format)
+        if not org_nr:
+            org_nr = get_meta_value(company_data, 'organizationNumber')
+            print(f"🔍 DEBUG: get_meta_value('organizationNumber') = {org_nr}")
+        
+        # Try other variants
+        if not org_nr:
+            org_nr = get_meta_value(company_data, 'org_nr')
+            print(f"🔍 DEBUG: get_meta_value('org_nr') = {org_nr}")
+        if not org_nr:
+            org_nr = get_meta_value(company_data, 'PersOrgNr')
+            print(f"🔍 DEBUG: get_meta_value('PersOrgNr') = {org_nr}")
+        
+        # Fallback to constructor parameter
         if not org_nr and self.organization_number:
             org_nr = self.organization_number
+            print(f"🔍 DEBUG: Using self.organization_number = {org_nr}")
+        
         if org_nr:
-            special_values['organization_number'] = org_nr.replace('-', '')
-            special_values['org_nr'] = org_nr.replace('-', '')
-            special_values['PersOrgNr'] = org_nr.replace('-', '')
+            # Store both with and without dashes for maximum compatibility
+            org_nr_clean = str(org_nr).replace('-', '').replace(' ', '')
+            special_values['organization_number'] = org_nr_clean
+            special_values['org_nr'] = org_nr_clean
+            special_values['PersOrgNr'] = org_nr_clean
+            special_values['orgnr'] = org_nr_clean
+            special_values['organisationsnummer'] = org_nr_clean
+            print(f"✅ Organization number set: {org_nr_clean}")
+        else:
+            print("❌ Organization number not found in company_data or self.organization_number")
         
         # Fiscal year dates with alias fallback
         start = get_meta_value(company_data, 'start_date')
         if start:
             special_values['start_date'] = start
             special_values['fiscal_year_start'] = start
+            print(f"✅ Start date set: {start}")
         
         end = get_meta_value(company_data, 'end_date')
         if end:
             special_values['end_date'] = end
             special_values['fiscal_year_end'] = end
+            print(f"✅ End date set: {end}")
+        
+        print(f"📋 Special values created: {list(special_values.keys())}")
         
         return special_values
     
@@ -549,6 +604,9 @@ class INK2PdfFiller:
         # Get special values
         special_values = self._get_special_values(company_data)
         
+        # Create case-insensitive lookup for special values
+        special_values_lower = {k.lower(): v for k, v in special_values.items()}
+        
         # Prepare assignments (logical name -> value)
         assignments = {}
         
@@ -560,17 +618,24 @@ class INK2PdfFiller:
             if not form_field_raw or not variable_map:
                 continue
             
-            # Check if this is a special value
+            # Check if this is a special value (case-insensitive)
+            variable_map_lower = variable_map.lower()
             if variable_map in special_values:
                 assignments[form_field_raw] = special_values[variable_map]
+                print(f"✅ Special value: {form_field_raw} = {variable_map} = {special_values[variable_map]}")
+                continue
+            elif variable_map_lower in special_values_lower:
+                assignments[form_field_raw] = special_values_lower[variable_map_lower]
+                print(f"✅ Special value (case-insensitive): {form_field_raw} = {variable_map} = {special_values_lower[variable_map_lower]}")
                 continue
             
-            # Parse the variable mapping
+            # Parse the variable mapping (looks in RR/BR/INK2 data)
             value = self._parse_variable_mapping(variable_map)
             
             if value is not None:
                 formatted_value = self._format_value_for_field(value, field_type, form_field_raw)
-                assignments[form_field_raw] = formatted_value
+                if formatted_value:  # Only assign non-empty values
+                    assignments[form_field_raw] = formatted_value
         
         # Load template PDF
         with open(pdf_path, 'rb') as f:
