@@ -13,6 +13,103 @@ from supabase import create_client, Client
 from dotenv import load_dotenv
 from datetime import datetime
 
+# --- Normalization helpers ---
+def norm_var(s: str) -> str:
+    """Normalize variable name for case-insensitive lookup"""
+    if not s:
+        return ""
+    s = s.strip()
+    s = s.replace(" ", "").replace("-", "_")
+    s = re.sub(r"\u00A0", " ", s)  # non-breaking space
+    return s.lower()
+
+def sv_num(x):
+    """Accept numbers or Swedish formatted strings like '205 253'"""
+    if x is None:
+        return None
+    if isinstance(x, (int, float)):
+        return float(x)
+    s = str(x).strip().replace(" ", "").replace("\u00A0", "")
+    try:
+        return float(s.replace(",", "."))
+    except:
+        return None
+
+def extract_overrides_from_companydata(company_data: dict) -> Dict[str, float]:
+    """
+    Flattens the freshest values from the UI into a single lookup table.
+    Precedence: acceptedInk2Manuals > ink2Data > rr/br (current_amount) > noterData > fbVariables > misc tax fields.
+    """
+    M: Dict[str, float] = {}
+
+    # --- meta/header (orgnr, dates) ---
+    ci = (company_data.get("seFileData") or {}).get("company_info") or {}
+    org = (ci.get("organization_number")
+           or company_data.get("organizationNumber") or "")
+    org_digits = re.sub(r"\D", "", str(org or ""))
+    if org_digits:
+        M["organization_number"] = org_digits
+        M["org_nr"] = org_digits
+        M["orgnr"] = org_digits
+        M["organisationsnummer"] = org_digits
+        M["persorgnr"] = org_digits
+
+    # fiscal dates
+    if ci.get("start_date"):
+        M["start_date"] = ci["start_date"]
+    if ci.get("end_date"):
+        M["end_date"] = ci["end_date"]
+
+    # --- INK2 table (manuals & calculated) ---
+    for k, v in (company_data.get("acceptedInk2Manuals") or {}).items():
+        n = norm_var(k)
+        val = sv_num(v)
+        if val is not None:
+            M[n] = val
+    
+    for it in (company_data.get("seFileData") or {}).get("ink2_data", []) or []:
+        k = it.get("variable_name")
+        val = sv_num(it.get("amount"))
+        if k and val is not None:
+            M[norm_var(k)] = val
+
+    # --- RR/BR current values (affects many INK2 sums) ---
+    for it in (company_data.get("seFileData") or {}).get("rr_data", []) or []:
+        k = it.get("variable_name")
+        val = sv_num(it.get("current_amount"))
+        if k and val is not None:
+            M[norm_var(k)] = val
+    
+    for it in (company_data.get("seFileData") or {}).get("br_data", []) or []:
+        k = it.get("variable_name")
+        val = sv_num(it.get("current_amount"))
+        if k and val is not None:
+            M[norm_var(k)] = val
+
+    # --- Noter edits (current_amount) ---
+    for it in (company_data.get("noterData") or []):
+        k = it.get("variable_name")
+        val = sv_num(it.get("current_amount"))
+        if k and val is not None:
+            M[norm_var(k)] = val
+
+    # --- FB variables (owner's equity notes) ---
+    for k, v in (company_data.get("fbVariables") or {}).items():
+        val = sv_num(v)
+        if val is not None:
+            M[norm_var(k)] = val
+
+    # --- misc tax fields used in mappings ---
+    for k in ["inkBeraknadSkatt", "inkBokfordSkatt",
+              "justeringSarskildLoneskatt", "pensionPremier",
+              "sarskildLoneskattPension", "sarskildLoneskattPensionCalculated"]:
+        if k in company_data:
+            val = sv_num(company_data[k])
+            if val is not None:
+                M[norm_var(k)] = val
+
+    return M
+
 try:
     import fitz  # PyMuPDF for flattening
     HAS_PYMUPDF = True
@@ -352,7 +449,7 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], compan
 class INK2PdfFiller:
     """Service to fill INK2 PDF form with data from database"""
     
-    def __init__(self, organization_number: str, fiscal_year: int, rr_data: List[Dict] = None, br_data: List[Dict] = None, ink2_data: List[Dict] = None):
+    def __init__(self, organization_number: str, fiscal_year: int, rr_data: List[Dict] = None, br_data: List[Dict] = None, ink2_data: List[Dict] = None, company_data: Dict = None):
         """
         Initialize the PDF filler
         
@@ -362,6 +459,7 @@ class INK2PdfFiller:
             rr_data: Pre-loaded RR data (optional, will fetch from DB if not provided)
             br_data: Pre-loaded BR data (optional, will fetch from DB if not provided)
             ink2_data: Pre-loaded INK2 data (optional, will fetch from DB if not provided)
+            company_data: Live company data from client (overrides DB values)
         """
         self.organization_number = organization_number
         self.fiscal_year = fiscal_year
@@ -372,6 +470,16 @@ class INK2PdfFiller:
         self.rr_data = rr_data or []
         self.br_data = br_data or []
         self.ink2_data = ink2_data or []
+        
+        # Extract overrides from client state (freshest values)
+        self.overrides = extract_overrides_from_companydata(company_data or {})
+        
+        # Log a sample of overrides for validation
+        if self.overrides:
+            sample = {k: self.overrides[k] for k in list(self.overrides.keys())[:8]}
+            print(f"🔎 OVERRIDE SAMPLE: {sample}")
+        else:
+            print("⚠️  No overrides found in company_data")
         
     def _load_form_mappings(self):
         """Load form field mappings from ink2_form table"""
@@ -385,8 +493,8 @@ class INK2PdfFiller:
     
     def _fetch_variable_value(self, variable_name: str) -> Optional[float]:
         """
-        Fetch the value of a variable from pre-loaded data with alias resolution.
-        Checks RR, BR, and INK2 data
+        Fetch the value of a variable with override-first lookup.
+        Precedence: client overrides > cached values > RR/BR/INK2 data
         
         Args:
             variable_name: Name of the variable to fetch
@@ -394,13 +502,22 @@ class INK2PdfFiller:
         Returns:
             The value as a float, or None if not found
         """
-        # Try to get from cached values first
+        # Try to get from cached values first (already resolved)
         if variable_name in self.variable_values:
             return self.variable_values[variable_name]
         
         # Try exact name first, then aliases
         names_to_try = [variable_name] + ALIASES.get(variable_name, [])
         
+        # 1. Check client overrides first (freshest values from UI)
+        for name in names_to_try:
+            key = norm_var(name)
+            if key in self.overrides:
+                float_value = float(self.overrides[key])
+                self.variable_values[variable_name] = float_value
+                return float_value
+        
+        # 2. Fall back to pre-loaded data
         for name in names_to_try:
             # Search in RR data
             for item in self.rr_data:
@@ -754,8 +871,8 @@ def generate_filled_ink2_pdf(organization_number: str, fiscal_year: int, company
     
     print(f"📊 INK2 PDF Filler - RR items: {len(rr_data)}, BR items: {len(br_data)}, INK2 items: {len(ink2_data)}")
     
-    # Create filler and fill the form
-    filler = INK2PdfFiller(organization_number, fiscal_year, rr_data, br_data, ink2_data)
+    # Create filler and fill the form (pass company_data for overrides)
+    filler = INK2PdfFiller(organization_number, fiscal_year, rr_data, br_data, ink2_data, company_data)
     filled_pdf = filler.fill_pdf_form(pdf_template_path, company_data)
     
     return filled_pdf
