@@ -14,99 +14,69 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 # --- Normalization helpers ---
-def norm_var(s: str) -> str:
+def _norm(s: str) -> str:
     """Normalize variable name for case-insensitive lookup"""
     if not s:
         return ""
-    s = s.strip()
-    s = s.replace(" ", "").replace("-", "_")
-    s = re.sub(r"\u00A0", " ", s)  # non-breaking space
-    return s.lower()
+    s = s.strip().replace(" ", "").replace("-", "_")
+    return re.sub(r"\u00A0", " ", s).lower()
 
-def sv_num(x):
+def _sv_num(x):
     """Accept numbers or Swedish formatted strings like '205 253'"""
     if x is None:
         return None
     if isinstance(x, (int, float)):
         return float(x)
-    s = str(x).strip().replace(" ", "").replace("\u00A0", "")
+    s = str(x).strip().replace("\u00A0", " ").replace(" ", "").replace(",", ".")
     try:
-        return float(s.replace(",", "."))
+        return float(s)
     except:
         return None
 
-def extract_overrides_from_companydata(company_data: dict) -> Dict[str, float]:
-    """
-    Flattens the freshest values from the UI into a single lookup table.
-    Precedence: acceptedInk2Manuals > ink2Data > rr/br (current_amount) > noterData > fbVariables > misc tax fields.
-    """
-    M: Dict[str, float] = {}
+def build_override_map(company_data: dict) -> dict:
+    """Freshest values from the UI across INK2, RR, BR, Noter, FB."""
+    M: dict = {}
 
-    # --- meta/header (orgnr, dates) ---
-    ci = (company_data.get("seFileData") or {}).get("company_info") or {}
-    org = (ci.get("organization_number")
-           or company_data.get("organizationNumber") or "")
-    org_digits = re.sub(r"\D", "", str(org or ""))
-    if org_digits:
-        M["organization_number"] = org_digits
-        M["org_nr"] = org_digits
-        M["orgnr"] = org_digits
-        M["organisationsnummer"] = org_digits
-        M["persorgnr"] = org_digits
-
-    # fiscal dates
-    if ci.get("start_date"):
-        M["start_date"] = ci["start_date"]
-    if ci.get("end_date"):
-        M["end_date"] = ci["end_date"]
-
-    # --- INK2 table (manuals & calculated) ---
+    # 1) Manual overrides made by the user inside INK2 (highest priority)
     for k, v in (company_data.get("acceptedInk2Manuals") or {}).items():
-        n = norm_var(k)
-        val = sv_num(v)
+        val = _sv_num(v)
         if val is not None:
-            M[n] = val
-    
-    for it in (company_data.get("seFileData") or {}).get("ink2_data", []) or []:
-        k = it.get("variable_name")
-        val = sv_num(it.get("amount"))
-        if k and val is not None:
-            M[norm_var(k)] = val
+            M[_norm(k)] = val
 
-    # --- RR/BR current values (affects many INK2 sums) ---
-    for it in (company_data.get("seFileData") or {}).get("rr_data", []) or []:
-        k = it.get("variable_name")
-        val = sv_num(it.get("current_amount"))
-        if k and val is not None:
-            M[norm_var(k)] = val
-    
-    for it in (company_data.get("seFileData") or {}).get("br_data", []) or []:
-        k = it.get("variable_name")
-        val = sv_num(it.get("current_amount"))
-        if k and val is not None:
-            M[norm_var(k)] = val
+    # 2) INK2 current values (if your UI computes them)
+    for row in (company_data.get("seFileData") or {}).get("ink2_data", []) or []:
+        k, v = row.get("variable_name"), _sv_num(row.get("amount"))
+        if k and v is not None:
+            M[_norm(k)] = v
 
-    # --- Noter edits (current_amount) ---
-    for it in (company_data.get("noterData") or []):
-        k = it.get("variable_name")
-        val = sv_num(it.get("current_amount"))
-        if k and val is not None:
-            M[norm_var(k)] = val
+    # 3) RR/BR current values (affects many sums used by INK2)
+    se = (company_data.get("seFileData") or {})
+    for row in se.get("rr_data", []) or []:
+        k, v = row.get("variable_name"), _sv_num(row.get("current_amount"))
+        if k and v is not None:
+            M[_norm(k)] = v
+    for row in se.get("br_data", []) or []:
+        k, v = row.get("variable_name"), _sv_num(row.get("current_amount"))
+        if k and v is not None:
+            M[_norm(k)] = v
 
-    # --- FB variables (owner's equity notes) ---
+    # 4) Noter + FB variables (frequently feed tax/ink2)
+    for row in (company_data.get("noterData") or []):
+        k, v = row.get("variable_name"), _sv_num(row.get("current_amount"))
+        if k and v is not None:
+            M[_norm(k)] = v
     for k, v in (company_data.get("fbVariables") or {}).items():
-        val = sv_num(v)
-        if val is not None:
-            M[norm_var(k)] = val
+        vv = _sv_num(v)
+        if vv is not None:
+            M[_norm(k)] = vv
 
-    # --- misc tax fields used in mappings ---
-    for k in ["inkBeraknadSkatt", "inkBokfordSkatt",
-              "justeringSarskildLoneskatt", "pensionPremier",
+    # 5) Misc tax singletons sometimes used in mappings
+    for k in ["inkBeraknadSkatt", "inkBokfordSkatt", "pensionPremier",
               "sarskildLoneskattPension", "sarskildLoneskattPensionCalculated"]:
         if k in company_data:
-            val = sv_num(company_data[k])
-            if val is not None:
-                M[norm_var(k)] = val
+            v = _sv_num(company_data[k])
+            if v is not None:
+                M[_norm(k)] = v
 
     return M
 
@@ -133,24 +103,16 @@ COND_RE = re.compile(r"^\s*(?P<name>.+?)\s+\((?P<cond>IF[<>]=?0|IF[<>]0)\)\s*$",
 
 # Variable name aliases for DB lookup
 ALIASES = {
-    # Meta fields (expanded with more variants - includes both camelCase and snake_case)
-    "organization_number": ["organizationNumber", "org_nr", "orgnr", "PersOrgNr", "orgNumber", "organisationsnummer"],
-    "organizationNumber": ["organization_number", "org_nr", "orgnr", "PersOrgNr", "orgNumber", "organisationsnummer"],
-    "start_date": ["fiscal_year_start", "period_from", "from_date", "startDate"],
-    "end_date": ["fiscal_year_end", "period_to", "to_date", "endDate"],
-    "DatFramst": ["date", "framstallningsdatum", "current_date"],
-    "TidFramst": ["time", "framstallningstid", "current_time"],
-    "SystemInfo": ["system_info"],
+    # Meta fields
+    "organization_number": ["org_nr", "orgnr", "organisationsnummer", "orgNumber", "PersOrgNr"],
+    "start_date": ["fiscal_year_start", "period_from", "from_date"],
+    "end_date": ["fiscal_year_end", "period_to", "to_date"],
     
-    # Periodiseringsfonder (both ways for compatibility)
-    "aterforing_periodiseringsfond_current_year": ["INK4.9(+)", "ink4_9_plus"],
-    "avsattning_periodiseringsfond_current_year": ["INK4.10(-)", "ink4_10_minus"],
-    "INK4.9(+)": ["aterforing_periodiseringsfond_current_year", "ink4_9_plus"],
-    "INK4.10(-)": ["avsattning_periodiseringsfond_current_year", "ink4_10_minus"],
-    
-    # Överavskrivningar
-    "INK4.13(+)": ["aterforing_overavskrivningar_current_year", "ink4_13_plus"],
-    "INK4.13(-)": ["avsattning_overavskrivningar_current_year", "ink4_13_minus"],
+    # Tax aliases
+    "INK4.9(+)": ["ink4_9_plus", "aterforing_periodiseringsfond_current_year"],
+    "INK4.10(-)": ["ink4_10_minus", "avsattning_periodiseringsfond_current_year"],
+    "INK4.13(+)": ["ink4_13_plus"],
+    "INK4.13(-)": ["ink4_13_minus"],
 }
 
 
@@ -219,6 +181,135 @@ def split_top_level_plus(expr: str) -> List[str]:
         parts.append("".join(buf).strip())
     
     return [p for p in parts if p]
+
+
+class VarResolver:
+    """Universal variable resolver that prefers client overrides, then DB values."""
+    
+    def __init__(self, rr_data: List[Dict], br_data: List[Dict], ink2_data: List[Dict], company_data: Dict):
+        """
+        Args:
+            rr_data: Pre-loaded RR data from DB
+            br_data: Pre-loaded BR data from DB
+            ink2_data: Pre-loaded INK2 data from DB
+            company_data: Live company data from client (for overrides)
+        """
+        self.rr_data = rr_data
+        self.br_data = br_data
+        self.ink2_data = ink2_data
+        self.ov = build_override_map(company_data)  # freshest stuff from UI
+        self.cache = {}
+        
+    def get(self, name: str) -> Optional[float]:
+        """
+        Get variable value with override-first precedence.
+        
+        Args:
+            name: Variable name
+            
+        Returns:
+            Value as float or None
+        """
+        # Check cache first
+        if name in self.cache:
+            return self.cache[name]
+        
+        # 1) UI override map (freshest)
+        key = _norm(name)
+        if key in self.ov:
+            val = self.ov[key]
+            self.cache[name] = val
+            return val
+        
+        for alt in ALIASES.get(name, []):
+            k2 = _norm(alt)
+            if k2 in self.ov:
+                val = self.ov[k2]
+                self.cache[name] = val
+                return val
+        
+        # 2) DB fallback (last stored in RR/BR/INK2)
+        names_to_try = [name] + ALIASES.get(name, [])
+        
+        for n in names_to_try:
+            # Search in RR data
+            for item in self.rr_data:
+                if item.get('variable_name') == n:
+                    value = item.get('current_amount')
+                    if value is not None:
+                        try:
+                            float_value = float(value)
+                            self.cache[name] = float_value
+                            return float_value
+                        except (ValueError, TypeError):
+                            pass
+            
+            # Search in BR data
+            for item in self.br_data:
+                if item.get('variable_name') == n:
+                    value = item.get('current_amount')
+                    if value is not None:
+                        try:
+                            float_value = float(value)
+                            self.cache[name] = float_value
+                            return float_value
+                        except (ValueError, TypeError):
+                            pass
+            
+            # Search in INK2 data
+            for item in self.ink2_data:
+                if item.get('variable_name') == n:
+                    value = item.get('amount')
+                    if value is not None:
+                        try:
+                            float_value = float(value)
+                            self.cache[name] = float_value
+                            return float_value
+                        except (ValueError, TypeError):
+                            pass
+        
+        return None
+
+
+def eval_mapping(expr: str, R: VarResolver) -> Optional[float]:
+    """
+    Evaluate a variable mapping expression with conditional support.
+    Supports: A + B + INK4.9(+)
+              X (IF>0)   Y (IF<0)   (conditions only when there's a space before '(')
+    
+    Args:
+        expr: Expression to evaluate
+        R: VarResolver instance
+        
+    Returns:
+        Computed value or None
+    """
+    parts = split_top_level_plus(expr)
+    if not parts:
+        return None
+    
+    total, seen = 0.0, False
+    for piece in parts:
+        m = COND_RE.match(piece)
+        if m:
+            name, cond = m.group("name").strip(), m.group("cond").upper()
+            v = R.get(name)
+            if v is None:
+                continue
+            if cond in ("IF>0", "IF>=0") and v > 0:
+                total += v
+                seen = True
+            elif cond in ("IF<0", "IF<=0") and v < 0:
+                total += abs(v)
+                seen = True
+        else:
+            v = R.get(piece.strip())  # keeps INK4.9(+) intact
+            if v is None:
+                continue
+            total += v
+            seen = True
+    
+    return total if seen else None
 
 
 def detect_name_style(widget_names: set) -> str:
@@ -464,19 +555,19 @@ class INK2PdfFiller:
         self.organization_number = organization_number
         self.fiscal_year = fiscal_year
         self.form_mappings = []
-        self.variable_values = {}
+        self.company_data = company_data or {}
         
-        # Store pre-loaded data or prepare to fetch from DB
-        self.rr_data = rr_data or []
-        self.br_data = br_data or []
-        self.ink2_data = ink2_data or []
-        
-        # Extract overrides from client state (freshest values)
-        self.overrides = extract_overrides_from_companydata(company_data or {})
+        # Create universal resolver (override-first, then DB)
+        self.resolver = VarResolver(
+            rr_data or [],
+            br_data or [],
+            ink2_data or [],
+            self.company_data
+        )
         
         # Log a sample of overrides for validation
-        if self.overrides:
-            sample = {k: self.overrides[k] for k in list(self.overrides.keys())[:8]}
+        if self.resolver.ov:
+            sample = {k: self.resolver.ov[k] for k in list(self.resolver.ov.keys())[:8]}
             print(f"🔎 OVERRIDE SAMPLE: {sample}")
         else:
             print("⚠️  No overrides found in company_data")
@@ -493,8 +584,8 @@ class INK2PdfFiller:
     
     def _fetch_variable_value(self, variable_name: str) -> Optional[float]:
         """
-        Fetch the value of a variable with override-first lookup.
-        Precedence: client overrides > cached values > RR/BR/INK2 data
+        Fetch the value of a variable using the universal resolver.
+        Precedence: client overrides > DB values
         
         Args:
             variable_name: Name of the variable to fetch
@@ -502,70 +593,12 @@ class INK2PdfFiller:
         Returns:
             The value as a float, or None if not found
         """
-        # Try to get from cached values first (already resolved)
-        if variable_name in self.variable_values:
-            return self.variable_values[variable_name]
-        
-        # Try exact name first, then aliases
-        names_to_try = [variable_name] + ALIASES.get(variable_name, [])
-        
-        # 1. Check client overrides first (freshest values from UI)
-        for name in names_to_try:
-            key = norm_var(name)
-            if key in self.overrides:
-                float_value = float(self.overrides[key])
-                self.variable_values[variable_name] = float_value
-                return float_value
-        
-        # 2. Fall back to pre-loaded data
-        for name in names_to_try:
-            # Search in RR data
-            for item in self.rr_data:
-                if item.get('variable_name') == name:
-                    value = item.get('current_amount')
-                    if value is not None:
-                        try:
-                            float_value = float(value)
-                            self.variable_values[variable_name] = float_value
-                            return float_value
-                        except (ValueError, TypeError):
-                            pass
-            
-            # Search in BR data
-            for item in self.br_data:
-                if item.get('variable_name') == name:
-                    value = item.get('current_amount')
-                    if value is not None:
-                        try:
-                            float_value = float(value)
-                            self.variable_values[variable_name] = float_value
-                            return float_value
-                        except (ValueError, TypeError):
-                            pass
-            
-            # Search in INK2 data
-            for item in self.ink2_data:
-                if item.get('variable_name') == name:
-                    value = item.get('amount')
-                    if value is not None:
-                        try:
-                            float_value = float(value)
-                            self.variable_values[variable_name] = float_value
-                            return float_value
-                        except (ValueError, TypeError):
-                            pass
-        
-        # Not found even with aliases
-        if len(names_to_try) > 1:
-            print(f"⚠️  Variable {variable_name} (tried aliases: {names_to_try[1:]}) not found in any data")
-        else:
-            print(f"⚠️  Variable {variable_name} not found in any data")
-        return None
+        return self.resolver.get(variable_name)
     
     def _parse_variable_mapping(self, mapping: str) -> Optional[float]:
         """
-        Parse a variable mapping and return the computed value.
-        Uses parenthesis-aware splitting to preserve names like INK4.9(+).
+        Parse a variable mapping and return the computed value using universal resolver.
+        Uses eval_mapping with override-first lookup.
         
         Handles:
         - Single variable: "Nettoomsattning" or "INK4.10(-)"
@@ -581,63 +614,7 @@ class INK2PdfFiller:
         if not mapping or mapping.strip() == '':
             return None
         
-        mapping = mapping.strip()
-        
-        # Parse into tokens (handles conditionals and sums)
-        # Split on top-level '+' only (preserves INK4.9(+) as single token)
-        parts = split_top_level_plus(mapping)
-        
-        if len(parts) == 0:
-            return None
-        
-        # If multiple parts, it's a sum
-        if len(parts) > 1:
-            total = 0.0
-            found_any = False
-            
-            for part in parts:
-                value = self._parse_single_token(part)
-                if value is not None:
-                    total += value
-                    found_any = True
-            
-            return total if found_any else None
-        
-        # Single token (may have condition)
-        return self._parse_single_token(parts[0])
-    
-    def _parse_single_token(self, token: str) -> Optional[float]:
-        """
-        Parse a single token (variable name with optional condition).
-        
-        Args:
-            token: Single token like "Nettoomsattning", "INK4.9(+)", or "ForandringLager (IF>0)"
-            
-        Returns:
-            Computed value or None
-        """
-        # Check for conditional (IF>0) or (IF<0) - ONLY if there's whitespace before '('
-        match = COND_RE.match(token)
-        if match:
-            variable_name = match.group("name").strip()
-            condition = match.group("cond").upper()
-            
-            # Get the value
-            value = self._fetch_variable_value(variable_name)
-            
-            if value is None:
-                return None
-            
-            # Apply condition
-            if condition in ("IF>0", "IF>=0") and value > 0:
-                return value
-            elif condition in ("IF<0", "IF<=0") and value < 0:
-                return abs(value)  # Return absolute value for negative display
-            else:
-                return None  # Condition not met
-        
-        # No condition - just fetch the variable (including names with (+) or (-))
-        return self._fetch_variable_value(token)
+        return eval_mapping(mapping.strip(), self.resolver)
     
     def _format_value_for_field(self, value: Optional[float], field_type: str = None, form_field: str = None) -> str:
         """
