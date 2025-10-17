@@ -1483,6 +1483,7 @@ const handleTaxCalculationClick = () => {
   const handleTaxUpdateLogic = async (acceptedManuals: any) => {
     try {
       console.log('🔍 Starting handleTaxUpdateLogic...');
+      console.log('🔍 Accepted manuals:', acceptedManuals);
       
       // Get current INK2 data with accepted manual edits
       const currentInk2Data = recalculatedData.length > 0 ? recalculatedData : ink2Data;
@@ -1497,6 +1498,22 @@ const handleTaxCalculationClick = () => {
       // Debug: Log all variable names in the data
       const variableNames = currentInk2Data.map((item: any) => item.variable_name).filter(Boolean);
       console.log('📋 Available variable names:', variableNames);
+      
+      // Helper function to get value with manual override
+      const getValueWithOverride = (variableName: string): number => {
+        // Check if there's a manual override first
+        if (acceptedManuals && acceptedManuals[variableName] !== undefined) {
+          const value = Number(acceptedManuals[variableName]);
+          console.log(`🔧 Using manual override for ${variableName}: ${value}`);
+          return value;
+        }
+        
+        // Otherwise get from INK2 data
+        const item = currentInk2Data.find((item: any) => item.variable_name === variableName);
+        const value = item?.amount || 0;
+        console.log(`📊 Using INK2 data for ${variableName}: ${value}`);
+        return value;
+      };
       
       // Find INK_beraknad_skatt and INK_bokford_skatt values
       const beraknadSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_beraknad_skatt');
@@ -1520,8 +1537,9 @@ const handleTaxCalculationClick = () => {
         return;
       }
 
-      const inkBeraknadSkatt = beraknadSkattItem.amount || 0;
-      const inkBokfordSkatt = bokfordSkattItem.amount || 0;
+      // Get values with manual overrides applied
+      const inkBeraknadSkatt = getValueWithOverride('INK_beraknad_skatt');
+      const inkBokfordSkatt = getValueWithOverride('INK_bokford_skatt');
       
       console.log('💰 Tax comparison:', { inkBeraknadSkatt, inkBokfordSkatt });
       
