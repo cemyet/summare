@@ -1425,9 +1425,20 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       ? { ...manualEdits }                      // approve only current session edits
       : { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
 
-    // Update accepted edits and mark the button as clicked
+    // Get current INK2 data and update it with the accepted manual values
+    const currentInk2 = companyData.ink2Data || [];
+    const updatedInk2Data = currentInk2.map((item: any) => {
+      // If there's a manual value for this variable, use it
+      if (nextAccepted[item.variable_name] !== undefined) {
+        return { ...item, amount: nextAccepted[item.variable_name] };
+      }
+      return item;
+    });
+
+    // Update accepted edits, ink2Data, and mark the button as clicked
     onDataUpdate({ 
       acceptedInk2Manuals: nextAccepted,
+      ink2Data: updatedInk2Data,
       taxButtonClickedBefore: true
     });
 
@@ -1438,7 +1449,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
 
     // Check if we need to update RR/BR data based on tax differences
-    await handleTaxUpdateLogic(nextAccepted);
+    // Pass the updated INK2 data directly to ensure we use the latest values
+    await handleTaxUpdateLogic(nextAccepted, updatedInk2Data);
 
     // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
     clearAcceptedOnNextApproveRef.current = false;
@@ -1480,13 +1492,14 @@ const handleTaxCalculationClick = () => {
 };
 
   // Handle tax update logic when approving changes
-  const handleTaxUpdateLogic = async (acceptedManuals: any) => {
+  const handleTaxUpdateLogic = async (acceptedManuals: any, updatedInk2Data?: any[]) => {
     try {
       console.log('🔍 Starting handleTaxUpdateLogic...');
       console.log('🔍 Accepted manuals:', acceptedManuals);
       
       // Get current INK2 data with accepted manual edits
-      const currentInk2Data = recalculatedData.length > 0 ? recalculatedData : ink2Data;
+      // Use provided updatedInk2Data if available (for immediate use after approval)
+      const currentInk2Data = updatedInk2Data || (recalculatedData.length > 0 ? recalculatedData : ink2Data);
       
       console.log('📊 Current INK2 data:', {
         recalculatedDataLength: recalculatedData.length,
