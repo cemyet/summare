@@ -196,13 +196,14 @@ def normalize_field_name(name: str) -> str:
     return s.lower()
 
 
-def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> bytes:
+def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], company_data: Dict[str, Any] = None) -> bytes:
     """
     Fill INK2 PDF form using PyMuPDF (generates appearance streams + flattens).
     
     Args:
         pdf_bytes: Template PDF bytes
         assignments: Dict mapping logical names ('2.17', '3.12(+)', etc.) to values
+        company_data: Optional company data for extracting org number
         
     Returns:
         Filled and flattened PDF bytes
@@ -244,6 +245,58 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str]) -> byt
     # Debug: show first 30 field names
     sample_keys = sorted(list(widgets_by_name.keys()))[:30]
     print(f"📋 Sample field names in index: {sample_keys}")
+    
+    # Extract organization number variants if company_data provided
+    if company_data:
+        import re
+        ci = (company_data.get("seFileData") or {}).get("company_info") or {}
+        raw_org = ci.get("organization_number") or company_data.get("organizationNumber") or ""
+        digits = re.sub(r"\D", "", str(raw_org))  # '5566103643'
+        dashed = f"{digits[:6]}-{digits[6:]}" if len(digits) == 10 else raw_org
+        
+        # Add org number to assignments under all common aliases
+        org_specials = {
+            "org_nr": digits,
+            "org_nr#0": digits,
+            "organization_number": digits,
+            "organisationsnummer": digits,
+            "orgnr": digits,
+            "PersOrgNr": dashed,
+            "PersOrgNr#0": dashed,
+        }
+        
+        # Write org number specials directly
+        print(f"🔍 Writing org number: digits={digits}, dashed={dashed}")
+        for logical_name, value in org_specials.items():
+            if not value:
+                continue
+            pdf_name = to_pdf_field_name(logical_name, style)
+            key = normalize_field_name(pdf_name)
+            hits = widgets_by_name.get(key, [])
+            print(f"🔍 org debug: {logical_name} → {pdf_name} → '{key}' → hits: {len(hits)}")
+            for page, widget in hits:
+                try:
+                    widget.field_value = str(value)
+                    widget.update()
+                    print(f"✅ org_nr → {logical_name} = {value}")
+                except Exception as e:
+                    print(f"⚠️  Error setting org {logical_name}: {e}")
+        
+        # Safety net: auto-probe any field with "org" in name and set to digits
+        if digits:
+            print(f"🔍 Safety net: Probing all fields containing 'org'...")
+            org_count = 0
+            for key, widgets in widgets_by_name.items():
+                if "org" in key:
+                    for page, widget in widgets:
+                        try:
+                            widget.field_value = digits
+                            widget.update()
+                            org_count += 1
+                            print(f"✅ Safety net: {key} = {digits}")
+                        except Exception as e:
+                            print(f"⚠️  Safety net error on {key}: {e}")
+            print(f"🔍 Safety net wrote org number to {org_count} fields")
     
     # Assign all values
     filled_count = 0
@@ -661,7 +714,7 @@ class INK2PdfFiller:
             template_bytes = f.read()
         
         # Fill using PyMuPDF (generates appearance streams + flattens)
-        filled_pdf = fill_ink2_with_pymupdf(template_bytes, assignments)
+        filled_pdf = fill_ink2_with_pymupdf(template_bytes, assignments, company_data)
         
         return filled_pdf
 
