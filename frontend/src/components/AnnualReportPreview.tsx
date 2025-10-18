@@ -1554,22 +1554,33 @@ const handleTaxCalculationClick = () => {
       const inkBeraknadSkatt = getValueWithOverride('INK_beraknad_skatt');
       const inkBokfordSkatt = getValueWithOverride('INK_bokford_skatt');
       
-      console.log('💰 Tax comparison:', { inkBeraknadSkatt, inkBokfordSkatt });
+      // Get SLP value (check if it changed)
+      const inkSarskildLoneskatt = getAcceptedSLP(currentInk2Data, companyData);
       
-      // Only proceed if there's a difference
-      if (inkBeraknadSkatt === inkBokfordSkatt) {
-        console.log('✅ No tax difference, skipping RR/BR updates');
+      console.log('💰 Tax and SLP comparison:', { 
+        inkBeraknadSkatt, 
+        inkBokfordSkatt, 
+        inkSarskildLoneskatt 
+      });
+      
+      const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
+      
+      // Only proceed if there's a tax difference OR an SLP value
+      // This allows updates for tax-only changes, SLP-only changes, or both
+      if (taxDifference === 0 && inkSarskildLoneskatt === 0) {
+        console.log('✅ No tax difference and no SLP, skipping RR/BR updates');
         return;
       }
 
-      const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
-      console.log('🚨 Tax difference detected:', taxDifference);
+      if (taxDifference !== 0) {
+        console.log('🚨 Tax difference detected:', taxDifference);
+      }
+      if (inkSarskildLoneskatt !== 0) {
+        console.log('🚨 SLP value detected:', inkSarskildLoneskatt);
+      }
 
       // Call API to update RR/BR data
       console.log('🌐 Calling API to update RR/BR data...');
-      
-      // Accepted SLP (positive) via helper
-      const inkSarskildLoneskatt = getAcceptedSLP(currentInk2Data, companyData);
 
       const requestData = {
         inkBeraknadSkatt,

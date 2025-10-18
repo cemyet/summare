@@ -2083,20 +2083,38 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                         r["current_amount"] = cur + float(d)
                         return float(d)
 
-                    # --- SLP booked as extra cost ---
-                    # sums must move in the SAME direction as the cost (down)
-                    add(row(rr, 256, var="SumRorelsekostnader", label="Summa rörelsekostnader"), -applied_slp)
+                    # --- SLP booked as extra cost - apply idempotently using base tracking ---
+                    # Helper to apply SLP delta idempotently to RR rows
+                    def apply_slp_to_row(rr_list, rid, var=None, label=None, slp_delta=0.0):
+                        r = row(rr_list, rid, var=var, label=label)
+                        if not r:
+                            return
+                        # Establish base once
+                        slp_already_applied = _num(r.get("slp_applied_to_row"))
+                        if f"__base_row_{rid}" not in r:
+                            r[f"__base_row_{rid}"] = _num(r.get("current_amount")) + slp_already_applied  # Remove old SLP to get base
+                        base = _num(r.get(f"__base_row_{rid}"))
+                        # Apply new SLP to base
+                        new_val = base - slp_delta  # Negative because SLP is a cost
+                        r["current_amount"] = new_val
+                        r["slp_applied_to_row"] = slp_delta
+                        return new_val - base  # Return actual delta applied
 
-                    # SumRorelseresultat must DECREASE by the cost
-                    add(row(rr, 257, var="SumRorelseresultat", label="Summa rörelseresultat"), -applied_slp)
-
-                    # Rörelseresultat must DECREASE by the cost
-                    add(row(rr, 260, var="Rorelseresultat", label="Rörelseresultat"), -applied_slp)
-
-                    # Keep existing ripples (down) for these:
-                    add(row(rr, 267, var="SumResultatEfterFinansiellaPoster", label="Resultat efter finansiella poster"), -applied_slp)
-                    add(row(rr, 275, var="SumResultatForeSkatt", label="Resultat före skatt"), -applied_slp)
-                    add(row(rr, 279, var="SumAretsResultat", label="Årets resultat"), -applied_slp)
+                    # Apply SLP to all affected RR rows idempotently
+                    apply_slp_to_row(rr, 256, var="SumRorelsekostnader", label="Summa rörelsekostnader", slp_delta=applied_slp)
+                    apply_slp_to_row(rr, 257, var="SumRorelseresultat", label="Summa rörelseresultat", slp_delta=applied_slp)
+                    apply_slp_to_row(rr, 260, var="Rorelseresultat", label="Rörelseresultat", slp_delta=applied_slp)
+                    apply_slp_to_row(rr, 267, var="SumResultatEfterFinansiellaPoster", label="Resultat efter finansiella poster", slp_delta=applied_slp)
+                    apply_slp_to_row(rr, 275, var="SumResultatForeSkatt", label="Resultat före skatt", slp_delta=applied_slp)
+                    
+                    # Track SLP effect on RR 279 separately (it also gets tax adjustments)
+                    rr_result_for_slp = row(rr, 279, var="SumAretsResultat", label="Årets resultat")
+                    if rr_result_for_slp:
+                        slp_already_on_result = _num(rr_result_for_slp.get("slp_on_arets_resultat"))
+                        if "__base_arets_resultat" not in rr_result_for_slp:
+                            rr_result_for_slp["__base_arets_resultat"] = _num(rr_result_for_slp.get("current_amount")) + slp_already_on_result
+                        # Don't set it yet - will be set after tax calculation below
+                        rr_result_for_slp["slp_on_arets_resultat"] = applied_slp
 
                     # --- SLP also affects BR Skatteskulder (it's a tax liability) ---
                     # Find BR Skatteskulder (row 413)
@@ -2104,26 +2122,28 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                     if br_tax_liab_for_slp:
                         # Establish stable base for SLP in Skatteskulder (idempotent)
                         slp_already_in_skatteskulder = _num(br_tax_liab_for_slp.get("slp_injected_skatteskulder"))
+                        tax_calc_in_skatteskulder = _num(br_tax_liab_for_slp.get("tax_calc_amount"))
+                        
                         if "__base_skatteskulder" not in br_tax_liab_for_slp and "_base_skatteskulder" in br_tax_liab_for_slp:
                             br_tax_liab_for_slp["__base_skatteskulder"] = _num(br_tax_liab_for_slp.get("_base_skatteskulder"))
                         if "__base_skatteskulder" not in br_tax_liab_for_slp:
-                            br_tax_liab_for_slp["__base_skatteskulder"] = _num(br_tax_liab_for_slp.get("current_amount")) - slp_already_in_skatteskulder
+                            # Remove SLP and tax to get base
+                            br_tax_liab_for_slp["__base_skatteskulder"] = _num(br_tax_liab_for_slp.get("current_amount")) - slp_already_in_skatteskulder - tax_calc_in_skatteskulder
                         
                         base_skatteskulder = _num(br_tax_liab_for_slp.get("__base_skatteskulder"))
                         before_skatteskulder = _num(br_tax_liab_for_slp.get("current_amount"))
-                        # Add SLP to base Skatteskulder
-                        new_skatteskulder = base_skatteskulder + slp_accepted
-                        delta_skatteskulder = _set_current(br_tax_liab_for_slp, new_skatteskulder)
+                        
+                        # Set Skatteskulder = base + SLP + tax (preserve tax portion)
+                        new_skatteskulder = base_skatteskulder + slp_accepted + tax_calc_in_skatteskulder
+                        _set_current(br_tax_liab_for_slp, new_skatteskulder)
                         after_skatteskulder = _num(br_tax_liab_for_slp.get("current_amount"))
                         br_tax_liab_for_slp["slp_injected_skatteskulder"] = slp_accepted
-                        d_slp = delta_skatteskulder  # Track SLP delta for reporting
-                        print(f"BR 413 Skatteskulder (SLP): {before_skatteskulder} -> {after_skatteskulder} (base {base_skatteskulder}, SLP {slp_accepted}, delta {delta_skatteskulder})")
                         
-                        # Ripple SLP increase through BR short-term debts (row 416)
-                        br_sum_short_for_slp = _get(br, id=416) or _get(br, name="SumKortfristigaSkulder")
-                        if br_sum_short_for_slp:
-                            _add(br_sum_short_for_slp, delta_skatteskulder)
-                            print(f"BR 416 SumKortfristigaSkulder (SLP): +{delta_skatteskulder}")
+                        # Calculate only the SLP delta (not total delta) for reporting
+                        d_slp = slp_accepted - slp_already_in_skatteskulder
+                        print(f"BR 413 Skatteskulder (SLP): {before_skatteskulder} -> {after_skatteskulder} (base {base_skatteskulder}, SLP {slp_accepted}, tax {tax_calc_in_skatteskulder}, slp_delta {d_slp})")
+                        
+                        # Note: BR 416 (SumKortfristigaSkulder) will be updated later in tax section with total delta
                         
                         # Note: BR total (417) will be updated later with both equity and liability changes
                     else:
@@ -2152,10 +2172,17 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         if not rr_result:
             raise HTTPException(400, "RR row 279 (SumAretsResultat) missing")
 
-        # Safe delta update for RR 279 (only tax changed at this step):
-        rr_result_new = float(rr_result.get("current_amount") or 0) + d_rr_tax
+        # Calculate RR 279 using base, SLP, and tax (idempotent)
+        # Establish base if not set yet
+        slp_on_result = _num(rr_result.get("slp_on_arets_resultat"))
+        if "__base_arets_resultat" not in rr_result:
+            rr_result["__base_arets_resultat"] = _num(rr_result.get("current_amount")) + slp_on_result - d_rr_tax
+        
+        base_arets_resultat = _num(rr_result.get("__base_arets_resultat"))
+        # RR 279 = base - SLP + tax_delta (tax is negative, so adding makes result lower)
+        rr_result_new = base_arets_resultat - slp_on_result + d_rr_tax
         _ = _delta_set(rr_result, rr_result_new)
-        print(f"Updated RR SumAretsResultat by tax delta: +{d_rr_tax}; new={rr_result_new}")
+        print(f"Updated RR SumAretsResultat: base={base_arets_resultat}, SLP={slp_on_result}, tax_delta={d_rr_tax}, new={rr_result_new}")
 
         # --- BR: sync Årets resultat (380) to RR result, update equity sums ---
         br_result = _get(br, id=380) or _get(br, name="AretsResultat")
@@ -2190,9 +2217,31 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         if not br_tax_liab:
             raise HTTPException(400, "BR row 413 (Skatteskulder) missing")
 
-        # Idempotent liabilities update: apply only the change in calculated tax
-        d_tax_liab = _add(br_tax_liab, d_calc)
-        print(f"Updated BR Skatteskulder by tax delta: +{d_calc}; total={br_tax_liab.get('current_amount', 0)}")
+        # Track tax portion separately (idempotent calculation)
+        # BR 413 should be: base + SLP + calculated_tax
+        # The base and SLP were already set in the SLP section above
+        # Now we need to add the calculated tax portion
+        old_tax_calc = _num(br_tax_liab.get("tax_calc_amount", 0))
+        br_tax_liab["tax_calc_amount"] = ink_calc  # Store current calculated tax
+        
+        # Recalculate BR 413 from base + SLP + tax
+        base_skatteskulder = _num(br_tax_liab.get("__base_skatteskulder"))
+        slp_in_skatteskulder = _num(br_tax_liab.get("slp_injected_skatteskulder"))
+        
+        # If base not set yet, establish it now (should have been set by SLP section, but handle edge case)
+        if "__base_skatteskulder" not in br_tax_liab:
+            br_tax_liab["__base_skatteskulder"] = _num(br_tax_liab.get("current_amount")) - slp_in_skatteskulder - old_tax_calc
+            base_skatteskulder = br_tax_liab["__base_skatteskulder"]
+        
+        old_skatteskulder = _num(br_tax_liab.get("current_amount"))
+        new_skatteskulder = base_skatteskulder + slp_in_skatteskulder + ink_calc
+        _set_current(br_tax_liab, new_skatteskulder)
+        
+        # Calculate only the tax delta (not including SLP) - just the change in tax
+        d_tax_only = ink_calc - old_tax_calc
+        # Calculate total delta for BR 416 ripple
+        d_tax_liab = new_skatteskulder - old_skatteskulder
+        print(f"Updated BR Skatteskulder: base={base_skatteskulder}, SLP={slp_in_skatteskulder}, tax={ink_calc}, new={new_skatteskulder} (tax_delta={d_tax_only}, total_delta={d_tax_liab})")
 
         br_sum_short = _get(br, id=416) or _get(br, name="SumKortfristigaSkulder")
         if br_sum_short:
@@ -2201,16 +2250,17 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
 
         # --- BR: update total balance sheet (417) by equity and liability deltas ---
         # Balance sheet equation: Assets = Equity + Liabilities
-        # When tax changes: Equity decreases (d_br_result < 0), Liabilities increase (d_tax_liab > 0)
-        # When SLP is applied: Equity decreases (included in d_br_result), Liabilities increase (d_slp > 0)
-        # Net change to row 417 = d_br_result + d_tax_liab + d_slp
+        # d_br_result: Change in equity (includes both SLP and tax effects from RR 279)
+        # d_tax_liab: Total change in liabilities (includes both SLP and tax effects in BR 413)
+        # Net change to row 417 = d_br_result + d_tax_liab
+        # Note: d_slp is already included in d_tax_liab, so we don't add it separately
         br_sum_total = _get(br, id=417) or _get(br, name="SumEgetKapitalOchSkulder")
         if br_sum_total:
             old_total = float(br_sum_total.get("current_amount") or 0)
-            total_delta = d_br_result + d_tax_liab + d_slp
+            total_delta = d_br_result + d_tax_liab
             new_total = old_total + total_delta
             _set(br_sum_total, new_total)
-            print(f"Updated BR SumEgetKapitalOchSkulder: {old_total} -> {new_total} (equity_delta={d_br_result}, tax_liab_delta={d_tax_liab}, slp_liab_delta={d_slp}, total_delta={total_delta})")
+            print(f"Updated BR SumEgetKapitalOchSkulder: {old_total} -> {new_total} (equity_delta={d_br_result}, liability_delta={d_tax_liab}, total_delta={total_delta})")
         else:
             print("⚠️  BR row 417 (SumEgetKapitalOchSkulder) not found - cannot update")
 
