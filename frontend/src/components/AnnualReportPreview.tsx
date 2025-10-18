@@ -1442,13 +1442,30 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       : { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
 
     // Get current INK2 data and update it with the accepted manual values
-    const currentInk2 = companyData.ink2Data || [];
+    // Use recalculatedData if available (has latest values from manual edits), otherwise fall back to companyData.ink2Data
+    const currentInk2 = recalculatedData.length > 0 ? recalculatedData : (companyData.ink2Data || []);
+    console.log('🔍 handleApproveChanges - using data source:', {
+      usingRecalculated: recalculatedData.length > 0,
+      recalculatedDataLength: recalculatedData.length,
+      companyDataInk2Length: (companyData.ink2Data || []).length,
+      currentInk2Length: currentInk2.length
+    });
+    
     const updatedInk2Data = currentInk2.map((item: any) => {
       // If there's a manual value for this variable, use it
       if (nextAccepted[item.variable_name] !== undefined) {
         return { ...item, amount: nextAccepted[item.variable_name] };
       }
       return item;
+    });
+    
+    // Log key values for debugging
+    const beraknadInUpdated = updatedInk2Data.find((i: any) => i.variable_name === 'INK_beraknad_skatt');
+    const bokfordInUpdated = updatedInk2Data.find((i: any) => i.variable_name === 'INK_bokford_skatt');
+    console.log('🔍 Updated INK2 data key values:', {
+      beraknadSkatt: beraknadInUpdated?.amount,
+      bokfordSkatt: bokfordInUpdated?.amount,
+      difference: (beraknadInUpdated?.amount || 0) - (bokfordInUpdated?.amount || 0)
     });
 
     // Update accepted edits, ink2Data, and mark the button as clicked
@@ -1472,6 +1489,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
     clearAcceptedOnNextApproveRef.current = false;
     setManualEdits({});
+    setRecalculatedData([]); // Clear recalculated data now that it's been approved
     setIsInk2ManualEdit(false);
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false, showTaxPreview: true });
     setShowAllTax(false);
