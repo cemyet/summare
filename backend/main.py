@@ -2108,8 +2108,8 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                     apply_slp_to_row(rr, 260, var="Rorelseresultat", label="Rörelseresultat", slp_delta=applied_slp)
                     apply_slp_to_row(rr, 267, var="SumResultatEfterFinansiellaPoster", label="Resultat efter finansiella poster", slp_delta=applied_slp)
                     apply_slp_to_row(rr, 275, var="SumResultatForeSkatt", label="Resultat före skatt", slp_delta=applied_slp)
-                    apply_slp_to_row(rr, 279, var="SumAretsResultat", label="Årets resultat", slp_delta=applied_slp)
-                    # Note: RR 279 will also get tax delta applied in the tax section below
+                    # NOTE: RR 279 (Årets resultat) is handled separately in tax section with combined SLP+tax formula
+                    # Skip it here to avoid double-update
 
                     # --- SLP also affects BR Skatteskulder (it's a tax liability) ---
                     # Find BR Skatteskulder (row 413)
@@ -2167,12 +2167,17 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         if not rr_result:
             raise HTTPException(400, "RR row 279 (SumAretsResultat) missing")
 
-        # Simple delta update for RR 279 (tax changes only at this step)
-        # SLP was already applied to all rows above (256, 257, 260, 267, 275)
-        # So we only need to apply the tax delta here
-        rr_result_new = float(rr_result.get("current_amount") or 0) + d_rr_tax
-        _ = _delta_set(rr_result, rr_result_new)
-        print(f"Updated RR SumAretsResultat by tax delta: +{d_rr_tax}; new={rr_result_new}")
+        # Simple formula: RR 279 = RR 275 (Resultat före skatt) + tax (negative)
+        # RR 275 already has SLP applied idempotently, so we just add tax
+        rr_result_before_skatt = _find_by_row_id(rr, 275, varname="SumResultatForeSkatt", label="Resultat före skatt")
+        if not rr_result_before_skatt:
+            raise HTTPException(400, "RR row 275 (Resultat före skatt) missing")
+        
+        resultat_fore_skatt = _num(rr_result_before_skatt.get("current_amount"))
+        rr_result_new = resultat_fore_skatt + rr_tax_new  # tax is negative
+        _set_current(rr_result, rr_result_new)
+        
+        print(f"Updated RR SumAretsResultat: RR275={resultat_fore_skatt} + tax={rr_tax_new} = {rr_result_new}")
 
         # --- BR: sync Årets resultat (380) to RR result, update equity sums ---
         br_result = _get(br, id=380) or _get(br, name="AretsResultat")
