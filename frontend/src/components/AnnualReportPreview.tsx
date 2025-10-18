@@ -1589,13 +1589,23 @@ const handleTaxCalculationClick = () => {
       const inkBeraknadSkatt = getValueWithOverride('INK_beraknad_skatt');
       const inkBokfordSkatt = getValueWithOverride('INK_bokford_skatt');
       
-      // Get SLP value (check if it changed)
-      const inkSarskildLoneskatt = getAcceptedSLP(currentInk2Data, companyData);
+      // Get SLP value with manual override applied
+      // First check if there's a manual edit to justering_sarskild_loneskatt
+      const justeringSLP = getValueWithOverride('justering_sarskild_loneskatt');
+      const inkSarskildLoneskattCalculated = getValueWithOverride('INK_sarskild_loneskatt');
+      
+      // Use manual adjustment if present, otherwise use the calculated INK value
+      const inkSarskildLoneskatt = justeringSLP !== 0 
+        ? Math.abs(justeringSLP) 
+        : Math.abs(inkSarskildLoneskattCalculated);
       
       console.log('💰 Tax and SLP comparison:', { 
         inkBeraknadSkatt, 
         inkBokfordSkatt, 
-        inkSarskildLoneskatt 
+        justeringSLP,
+        inkSarskildLoneskattCalculated,
+        inkSarskildLoneskatt,
+        usingManualSLP: justeringSLP !== 0
       });
       
       const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
