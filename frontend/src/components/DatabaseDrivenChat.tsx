@@ -1531,12 +1531,95 @@ const selectiveMergeInk2 = (
       setGlobalInk2Data?.(merged);
       setGlobalInkBeraknadSkatt?.(skatt);
       
+      // If SLP was injected, immediately update RR/BR with the SLP changes
+      if (typeof sarskild === 'number' && sarskild !== 0) {
+        console.log('🔄 SLP injected via chat, updating RR/BR immediately...');
+        await updateRrBrWithSlp(merged);
+      }
+      
       // Return the updated values for immediate use
       return { ink2Data: merged, inkBeraknadSkatt: skatt };
     }
     
     // Return null if no response
     return null;
+  };
+
+  // Helper function to update RR/BR with SLP changes immediately
+  const updateRrBrWithSlp = async (ink2Data: any[]) => {
+    try {
+      console.log('🔍 Starting updateRrBrWithSlp...');
+      
+      // Get INK_beraknad_skatt and INK_bokford_skatt values
+      const beraknadSkattItem = ink2Data.find((item: any) => item.variable_name === 'INK_beraknad_skatt');
+      const bokfordSkattItem = ink2Data.find((item: any) => item.variable_name === 'INK_bokford_skatt');
+      
+      if (!beraknadSkattItem || !bokfordSkattItem) {
+        console.log('❌ Could not find tax items for SLP update');
+        return;
+      }
+
+      const inkBeraknadSkatt = beraknadSkattItem.amount || 0;
+      const inkBokfordSkatt = bokfordSkattItem.amount || 0;
+      const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
+      
+      // Get SLP amount
+      const inkSarskildLoneskatt = getAcceptedSLP(ink2Data, companyData);
+      
+      console.log('💰 Updating RR/BR with SLP:', { inkSarskildLoneskatt, inkBeraknadSkatt, inkBokfordSkatt, taxDifference });
+      
+      const requestData = {
+        inkBeraknadSkatt,
+        inkBokfordSkatt,
+        taxDifference,
+        rr_data: companyData.seFileData?.rr_data || [],
+        br_data: companyData.seFileData?.br_data || [],
+        organizationNumber: companyData.organizationNumber,
+        fiscalYear: companyData.fiscalYear,
+        inkSarskildLoneskatt,
+      };
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API error response:', errorText);
+        
+        if (response.status === 404) {
+          console.log('⚠️ Tax update endpoint not available yet');
+          return;
+        }
+        
+        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ SLP update result:', result);
+      
+      if (result.success) {
+        console.log('🎉 Successfully updated RR/BR data with SLP changes');
+        
+        // Update company data with new RR/BR data
+        onDataUpdate({
+          seFileData: {
+            ...companyData.seFileData,
+            rr_data: result.rr_data,
+            br_data: result.br_data,
+          }
+        });
+      } else {
+        console.error('❌ Failed to update RR/BR data:', result.error);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error in updateRrBrWithSlp:', error);
+    }
   };
 
   // Handle API calls triggered by chat actions
