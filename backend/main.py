@@ -2038,7 +2038,8 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_slp = 0.0
         print(f"🧾 SLP accepted (positive): {slp_accepted}; rr items: {len(rr)}; br items: {len(br)}")
 
-        if slp_accepted > 0:
+        # Always run SLP section, even when 0 (to reset values to base)
+        if slp_accepted >= 0:
             rr_personal = _find_rr_personalkostnader(rr)
             if not rr_personal:
                 print("WARN: RR PersonalKostnader not found by var/label/row_id/id.")
@@ -2059,9 +2060,10 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                 rr_personal["slp_injected"] = slp_accepted
                 print(f"RR 252 Personalkostnader: {before} -> {after} (base {base}, SLP {slp_accepted}, delta {delta_rr252})")
 
-                # Ripple only by the applied magnitude
-                applied_slp = abs(delta_rr252)
-                if applied_slp > 0:
+                # Use current SLP level (not delta magnitude) for idempotent ripples
+                applied_slp = slp_accepted
+                # Always ripple, even when 0 (to reset dependent rows to base)
+                if applied_slp >= 0:
                     def row(rr_list, rid, var=None, label=None):
                         for r in rr_list:
                             if str(r.get("row_id")) == str(rid):
