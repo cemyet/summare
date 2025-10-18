@@ -2098,6 +2098,37 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                     add(row(rr, 275, var="SumResultatForeSkatt", label="Resultat före skatt"), -applied_slp)
                     add(row(rr, 279, var="SumAretsResultat", label="Årets resultat"), -applied_slp)
 
+                    # --- SLP also affects BR Skatteskulder (it's a tax liability) ---
+                    # Find BR Skatteskulder (row 413)
+                    br_tax_liab_for_slp = _get(br, id=413) or _get(br, name="Skatteskulder")
+                    if br_tax_liab_for_slp:
+                        # Establish stable base for SLP in Skatteskulder (idempotent)
+                        slp_already_in_skatteskulder = _num(br_tax_liab_for_slp.get("slp_injected_skatteskulder"))
+                        if "__base_skatteskulder" not in br_tax_liab_for_slp and "_base_skatteskulder" in br_tax_liab_for_slp:
+                            br_tax_liab_for_slp["__base_skatteskulder"] = _num(br_tax_liab_for_slp.get("_base_skatteskulder"))
+                        if "__base_skatteskulder" not in br_tax_liab_for_slp:
+                            br_tax_liab_for_slp["__base_skatteskulder"] = _num(br_tax_liab_for_slp.get("current_amount")) - slp_already_in_skatteskulder
+                        
+                        base_skatteskulder = _num(br_tax_liab_for_slp.get("__base_skatteskulder"))
+                        before_skatteskulder = _num(br_tax_liab_for_slp.get("current_amount"))
+                        # Add SLP to base Skatteskulder
+                        new_skatteskulder = base_skatteskulder + slp_accepted
+                        delta_skatteskulder = _set_current(br_tax_liab_for_slp, new_skatteskulder)
+                        after_skatteskulder = _num(br_tax_liab_for_slp.get("current_amount"))
+                        br_tax_liab_for_slp["slp_injected_skatteskulder"] = slp_accepted
+                        d_slp = delta_skatteskulder  # Track SLP delta for reporting
+                        print(f"BR 413 Skatteskulder (SLP): {before_skatteskulder} -> {after_skatteskulder} (base {base_skatteskulder}, SLP {slp_accepted}, delta {delta_skatteskulder})")
+                        
+                        # Ripple SLP increase through BR short-term debts (row 416)
+                        br_sum_short_for_slp = _get(br, id=416) or _get(br, name="SumKortfristigaSkulder")
+                        if br_sum_short_for_slp:
+                            _add(br_sum_short_for_slp, delta_skatteskulder)
+                            print(f"BR 416 SumKortfristigaSkulder (SLP): +{delta_skatteskulder}")
+                        
+                        # Note: BR total (417) will be updated later with both equity and liability changes
+                    else:
+                        print("⚠️  BR row 413 (Skatteskulder) not found - cannot update with SLP")
+
         # ------------------------------
         # 2) (existing) CORPORATE TAX LOGIC
         #     - set RR 277 to NEGATIVE inkBeraknadSkatt
@@ -2168,17 +2199,18 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             _add(br_sum_short, d_tax_liab)
             print(f"Updated BR SumKortfristigaSkulder by tax delta: +{d_tax_liab}")
 
-        # --- BR: update total balance sheet (417) by BOTH equity and liability deltas ---
+        # --- BR: update total balance sheet (417) by equity and liability deltas ---
         # Balance sheet equation: Assets = Equity + Liabilities
         # When tax changes: Equity decreases (d_br_result < 0), Liabilities increase (d_tax_liab > 0)
-        # Net change to row 417 = d_br_result + d_tax_liab
+        # When SLP is applied: Equity decreases (included in d_br_result), Liabilities increase (d_slp > 0)
+        # Net change to row 417 = d_br_result + d_tax_liab + d_slp
         br_sum_total = _get(br, id=417) or _get(br, name="SumEgetKapitalOchSkulder")
         if br_sum_total:
             old_total = float(br_sum_total.get("current_amount") or 0)
-            total_delta = d_br_result + d_tax_liab
+            total_delta = d_br_result + d_tax_liab + d_slp
             new_total = old_total + total_delta
             _set(br_sum_total, new_total)
-            print(f"Updated BR SumEgetKapitalOchSkulder: {old_total} -> {new_total} (equity_delta={d_br_result}, liability_delta={d_tax_liab}, total_delta={total_delta})")
+            print(f"Updated BR SumEgetKapitalOchSkulder: {old_total} -> {new_total} (equity_delta={d_br_result}, tax_liab_delta={d_tax_liab}, slp_liab_delta={d_slp}, total_delta={total_delta})")
         else:
             print("⚠️  BR row 417 (SumEgetKapitalOchSkulder) not found - cannot update")
 

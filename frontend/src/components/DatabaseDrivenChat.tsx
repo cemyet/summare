@@ -1545,38 +1545,43 @@ const selectiveMergeInk2 = (
     return null;
   };
 
-  // Helper function to update RR/BR with SLP changes immediately
+  // Helper function to update RR/BR with SLP changes immediately (SLP only, no tax changes)
   const updateRrBrWithSlp = async (ink2Data: any[]) => {
     try {
-      console.log('🔍 Starting updateRrBrWithSlp...');
+      console.log('🔍 Starting updateRrBrWithSlp (SLP only, no tax injection)...');
       
-      // Get INK_beraknad_skatt and INK_bokford_skatt values
-      const beraknadSkattItem = ink2Data.find((item: any) => item.variable_name === 'INK_beraknad_skatt');
+      // Get INK_bokford_skatt value - we'll use this for both beraknad and bokford
+      // so that taxDifference = 0 (only SLP will be injected, not tax changes)
       const bokfordSkattItem = ink2Data.find((item: any) => item.variable_name === 'INK_bokford_skatt');
       
-      if (!beraknadSkattItem || !bokfordSkattItem) {
-        console.log('❌ Could not find tax items for SLP update');
+      if (!bokfordSkattItem) {
+        console.log('❌ Could not find INK_bokford_skatt for SLP update');
         return;
       }
 
-      const inkBeraknadSkatt = beraknadSkattItem.amount || 0;
       const inkBokfordSkatt = bokfordSkattItem.amount || 0;
-      const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
       
       // Get SLP amount
       const inkSarskildLoneskatt = getAcceptedSLP(ink2Data, companyData);
       
-      console.log('💰 Updating RR/BR with SLP:', { inkSarskildLoneskatt, inkBeraknadSkatt, inkBokfordSkatt, taxDifference });
-      
-      const requestData = {
-        inkBeraknadSkatt,
+      console.log('💰 Updating RR/BR with SLP only (no tax change):', { 
+        inkSarskildLoneskatt, 
         inkBokfordSkatt,
-        taxDifference,
+        note: 'Setting inkBeraknadSkatt = inkBokfordSkatt to avoid tax injection' 
+      });
+      
+      // IMPORTANT: Set inkBeraknadSkatt = inkBokfordSkatt so taxDifference = 0
+      // This ensures ONLY SLP is injected, not the calculated tax changes
+      const requestData = {
+        inkBeraknadSkatt: inkBokfordSkatt,  // Same as booked, so no tax change
+        inkBokfordSkatt,
+        taxDifference: 0,  // Explicitly 0 - only SLP should be applied
         rr_data: companyData.seFileData?.rr_data || [],
         br_data: companyData.seFileData?.br_data || [],
         organizationNumber: companyData.organizationNumber,
         fiscalYear: companyData.fiscalYear,
         inkSarskildLoneskatt,
+        slpOnly: true,  // Flag to indicate this is SLP-only injection
       };
       
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
