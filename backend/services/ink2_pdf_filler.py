@@ -72,11 +72,20 @@ def build_override_map(company_data: dict) -> dict:
 
     # 5) Misc tax singletons sometimes used in mappings
     for k in ["inkBeraknadSkatt", "inkBokfordSkatt", "pensionPremier",
-              "sarskildLoneskattPension", "sarskildLoneskattPensionCalculated"]:
+              "sarskildLoneskattPension", "sarskildLoneskattPensionCalculated",
+              "unusedTaxLossAmount", "justeringSarskildLoneskatt"]:
         if k in company_data:
             v = _sv_num(company_data[k])
             if v is not None:
                 M[_norm(k)] = v
+    
+    # 6) Map chat-injected values to their INK2 variable names
+    # unusedTaxLossAmount -> INK4.14a
+    if "unusedTaxLossAmount" in company_data:
+        v = _sv_num(company_data["unusedTaxLossAmount"])
+        if v is not None:
+            M[_norm("INK4.14a")] = v
+            print(f"✅ Mapped unusedTaxLossAmount to INK4.14a: {v}")
 
     return M
 
@@ -640,6 +649,10 @@ class INK2PdfFiller:
         if value == 0:
             return ''
         
+        # IMPORTANT: All values in INK2 form should be positive (absolute values)
+        # The form itself handles signs with +/- indicators
+        value = abs(value)
+        
         # Numeric fields: format with Swedish thousands separator (space)
         return format_number_swedish(value)
     
@@ -806,6 +819,16 @@ class INK2PdfFiller:
                 if formatted_value:  # Only assign non-empty values
                     assignments[form_field_raw] = formatted_value
         
+        # OVERRIDE: 4.3a should always equal Skatt på årets resultat from RR (row 277)
+        # This is the calculated tax that should be reported
+        skatt_arets_resultat = self.resolver.get('SkattAretsResultat')
+        if skatt_arets_resultat is not None:
+            # Skatt på årets resultat is stored as negative in RR, but we want positive in form
+            formatted_skatt = self._format_value_for_field(skatt_arets_resultat, 'number', '4.3a')
+            if formatted_skatt:
+                assignments['4.3a'] = formatted_skatt
+                print(f"✅ OVERRIDE: 4.3a (Skatt på årets resultat) = {formatted_skatt} (from RR SkattAretsResultat)")
+        
         # Load template PDF
         with open(pdf_path, 'rb') as f:
             template_bytes = f.read()
@@ -844,9 +867,11 @@ def generate_filled_ink2_pdf(organization_number: str, fiscal_year: int, company
     # Extract data from company_data
     rr_data = company_data.get('seFileData', {}).get('rr_data', [])
     br_data = company_data.get('seFileData', {}).get('br_data', [])
-    ink2_data = company_data.get('seFileData', {}).get('ink2_data', []) or company_data.get('ink2Data', [])
+    # IMPORTANT: Try ink2Data first (has latest manual edits), then fall back to seFileData.ink2_data
+    ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
     
     print(f"📊 INK2 PDF Filler - RR items: {len(rr_data)}, BR items: {len(br_data)}, INK2 items: {len(ink2_data)}")
+    print(f"📊 INK2 data source: {'ink2Data (with manual edits)' if company_data.get('ink2Data') else 'seFileData.ink2_data (original)'}")
     
     # Create filler and fill the form (pass company_data for overrides)
     filler = INK2PdfFiller(organization_number, fiscal_year, rr_data, br_data, ink2_data, company_data)
