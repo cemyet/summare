@@ -2192,51 +2192,23 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_br_result = _delta_set(br_result, rr_result_new)  # returns delta vs old
         print(f"Updated BR AretsResultat: {br_result.get('current_amount', 0)} -> {rr_result_new}")
 
-        # --- BR: update SumFrittEgetKapital (381) idempotently ---
-        # This includes Årets resultat (BR 380) and other components
-        new_fritt = 0.0  # Initialize
+        # --- BR: update SumFrittEgetKapital (381) by the delta in AretsResultat ---
         br_sum_fritt = _get(br, id=381) or _get(br, name="SumFrittEgetKapital")
         if br_sum_fritt:
-            # Track Årets resultat contribution separately
-            old_arets_resultat_contrib = _num(br_sum_fritt.get("arets_resultat_contrib", 0))
-            
-            # Establish base if not set
-            if "__base_sum_fritt" not in br_sum_fritt:
-                br_sum_fritt["__base_sum_fritt"] = _num(br_sum_fritt.get("current_amount")) - old_arets_resultat_contrib
-            
-            base_fritt = _num(br_sum_fritt.get("__base_sum_fritt"))
-            old_fritt = _num(br_sum_fritt.get("current_amount"))
-            
-            # Calculate new value: base + current Årets resultat
-            new_fritt = base_fritt + rr_result_new
+            old_fritt = float(br_sum_fritt.get("current_amount") or 0)
+            new_fritt = old_fritt + d_br_result
             _set(br_sum_fritt, new_fritt)
-            br_sum_fritt["arets_resultat_contrib"] = rr_result_new
-            
-            print(f"Updated BR SumFrittEgetKapital: base={base_fritt}, arets_resultat={rr_result_new}, new={new_fritt}")
+            print(f"Updated BR SumFrittEgetKapital: {old_fritt} -> {new_fritt} (delta={d_br_result})")
         else:
             print("⚠️  BR row 381 (SumFrittEgetKapital) not found - cannot update")
 
-        # --- BR: update SumEgetKapital (382) idempotently ---
-        # This includes SumFrittEgetKapital (BR 381) and other components
-        new_eget = 0.0  # Initialize
+        # --- BR: update SumEgetKapital (382) by the delta in SumFrittEgetKapital ---
         br_sum_eget = _get(br, id=382) or _get(br, name="SumEgetKapital")
         if br_sum_eget:
-            # Track Årets resultat contribution separately
-            old_arets_resultat_contrib_eget = _num(br_sum_eget.get("arets_resultat_contrib", 0))
-            
-            # Establish base if not set
-            if "__base_sum_eget" not in br_sum_eget:
-                br_sum_eget["__base_sum_eget"] = _num(br_sum_eget.get("current_amount")) - old_arets_resultat_contrib_eget
-            
-            base_eget = _num(br_sum_eget.get("__base_sum_eget"))
-            old_eget = _num(br_sum_eget.get("current_amount"))
-            
-            # Calculate new value: base + current Årets resultat
-            new_eget = base_eget + rr_result_new
+            old_eget = float(br_sum_eget.get("current_amount") or 0)
+            new_eget = old_eget + d_br_result
             _set(br_sum_eget, new_eget)
-            br_sum_eget["arets_resultat_contrib"] = rr_result_new
-            
-            print(f"Updated BR SumEgetKapital: base={base_eget}, arets_resultat={rr_result_new}, new={new_eget}")
+            print(f"Updated BR SumEgetKapital: {old_eget} -> {new_eget} (delta={d_br_result})")
         else:
             print("⚠️  BR row 382 (SumEgetKapital) not found - cannot update")
 
@@ -2297,33 +2269,17 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         else:
             print("⚠️  BR row 416 (SumKortfristigaSkulder) not found")
 
-        # --- BR: update total balance sheet (417) idempotently ---
+        # --- BR: update total balance sheet (417) by BOTH equity and liability deltas ---
         # Balance sheet equation: Assets = Equity + Liabilities
-        # This should track the contributions from equity (BR 382) and liabilities (BR 416) separately
+        # When tax/SLP changes: Equity changes (d_br_result) and Liabilities change (d_sum_short)
+        # Net change to row 417 = d_br_result + d_sum_short
         br_sum_total = _get(br, id=417) or _get(br, name="SumEgetKapitalOchSkulder")
         if br_sum_total:
-            # Track both equity and liability contributions
-            old_equity_contrib = _num(br_sum_total.get("equity_contrib", 0))
-            old_liability_contrib = _num(br_sum_total.get("liability_contrib", 0))
-            
-            # Establish base if not set
-            if "__base_sum_total" not in br_sum_total:
-                br_sum_total["__base_sum_total"] = _num(br_sum_total.get("current_amount")) - old_equity_contrib - old_liability_contrib
-            
-            base_total = _num(br_sum_total.get("__base_sum_total"))
-            old_total = _num(br_sum_total.get("current_amount"))
-            
-            # Calculate new value: base + equity (from BR 382) + liabilities (from BR 416)
-            # Use the actual values from BR 382 and BR 416
-            current_eget = new_eget if br_sum_eget else 0
-            current_short = new_sum_short if br_sum_short else 0
-            
-            new_total = base_total + current_eget + current_short
+            old_total = float(br_sum_total.get("current_amount") or 0)
+            total_delta = d_br_result + d_sum_short
+            new_total = old_total + total_delta
             _set(br_sum_total, new_total)
-            br_sum_total["equity_contrib"] = current_eget
-            br_sum_total["liability_contrib"] = current_short
-            
-            print(f"Updated BR SumEgetKapitalOchSkulder: base={base_total}, equity={current_eget}, liability={current_short}, new={new_total}")
+            print(f"Updated BR SumEgetKapitalOchSkulder: {old_total} -> {new_total} (equity_delta={d_br_result}, liability_delta={d_sum_short}, total_delta={total_delta})")
         else:
             print("⚠️  BR row 417 (SumEgetKapitalOchSkulder) not found - cannot update")
 
