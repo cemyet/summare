@@ -1466,7 +1466,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
     // Check if we need to update RR/BR data based on tax differences
     // Pass the updated INK2 data directly to ensure we use the latest values
-    await handleTaxUpdateLogic(nextAccepted, updatedInk2Data);
+    // Always update when user manually approves (forceUpdate = true)
+    await handleTaxUpdateLogic(nextAccepted, updatedInk2Data, true);
 
     // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
     clearAcceptedOnNextApproveRef.current = false;
@@ -1508,9 +1509,9 @@ const handleTaxCalculationClick = () => {
 };
 
   // Handle tax update logic when approving changes
-  const handleTaxUpdateLogic = async (acceptedManuals: any, updatedInk2Data?: any[]) => {
+  const handleTaxUpdateLogic = async (acceptedManuals: any, updatedInk2Data?: any[], forceUpdate = false) => {
     try {
-      console.log('🔍 Starting handleTaxUpdateLogic...');
+      console.log('🔍 Starting handleTaxUpdateLogic...', { forceUpdate });
       console.log('🔍 Accepted manuals:', acceptedManuals);
       
       // Get current INK2 data with accepted manual edits
@@ -1581,13 +1582,17 @@ const handleTaxCalculationClick = () => {
       
       const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
       
-      // Only proceed if there's a tax difference OR an SLP value
-      // This allows updates for tax-only changes, SLP-only changes, or both
-      if (taxDifference === 0 && inkSarskildLoneskatt === 0) {
+      // Only proceed if there's a tax difference OR an SLP value OR forceUpdate is true
+      // forceUpdate = true when user manually approves changes (always update RR/BR)
+      // This allows updates for tax-only changes, SLP-only changes, both, or manual approval
+      if (!forceUpdate && taxDifference === 0 && inkSarskildLoneskatt === 0) {
         console.log('✅ No tax difference and no SLP, skipping RR/BR updates');
         return;
       }
 
+      if (forceUpdate) {
+        console.log('🔧 Force update enabled - proceeding with RR/BR update from manual approval');
+      }
       if (taxDifference !== 0) {
         console.log('🚨 Tax difference detected:', taxDifference);
       }
