@@ -1531,9 +1531,10 @@ const selectiveMergeInk2 = (
       setGlobalInk2Data?.(merged);
       setGlobalInkBeraknadSkatt?.(skatt);
       
-      // If SLP was injected, immediately update RR/BR with the SLP changes
-      if (typeof sarskild === 'number' && sarskild !== 0) {
-        console.log('🔄 SLP injected via chat, updating RR/BR immediately...');
+      // If SLP was injected (including when set to 0), immediately update RR/BR with the SLP changes
+      // This ensures previous SLP effects are reversed when SLP becomes 0
+      if (typeof sarskild === 'number') {
+        console.log('🔄 SLP injected via chat, updating RR/BR immediately...', { sarskild });
         await updateRrBrWithSlp(merged);
       }
       

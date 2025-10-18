@@ -688,9 +688,9 @@ class INK2PdfFiller:
         
         # Current date and time for framställning
         now = datetime.now()
-        special_values['DatFramst'] = now.strftime('%Y%m%d')  # YYYYMMDD format
-        special_values['TidFramst'] = now.strftime('%H%M%S')  # HHMMSS format
-        special_values['date'] = now.strftime('%Y%m%d')
+        special_values['DatFramst'] = now.strftime('%Y-%m-%d')  # YYYY-MM-DD format
+        special_values['TidFramst'] = now.strftime('%H:%M:%S')  # HH:MM:SS format
+        special_values['date'] = now.strftime('%Y-%m-%d')  # YYYY-MM-DD format
         
         # System info
         system_info = get_meta_value(company_data, 'system_info')

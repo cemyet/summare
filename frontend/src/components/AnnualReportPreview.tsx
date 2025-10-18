@@ -1539,9 +1539,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       }
     }, 100);
 
-  // DON'T recalculate INK2 after approval - keep the approved manual edits stable
-  // The INK2 data should remain exactly as the user approved it
-};
+    // ALWAYS recalc derived rows (4.15, 4.16, skattemässigt resultat, beräknad skatt, etc.)
+    // Preserve manual edits via acceptedInk2Manuals, but keep derived rows live.
+    // This ensures INK4.15 and INK4.16 are always up-to-date with the latest manual changes
+    await recalcWithManuals(nextAccepted, { includeAccepted: false, baselineSource: 'current' });
+  };
 
 // Handle click on SKATTEBERÄKNING button in RR row 276
 const handleTaxCalculationClick = () => {
