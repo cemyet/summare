@@ -2106,15 +2106,8 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                     apply_slp_to_row(rr, 260, var="Rorelseresultat", label="Rörelseresultat", slp_delta=applied_slp)
                     apply_slp_to_row(rr, 267, var="SumResultatEfterFinansiellaPoster", label="Resultat efter finansiella poster", slp_delta=applied_slp)
                     apply_slp_to_row(rr, 275, var="SumResultatForeSkatt", label="Resultat före skatt", slp_delta=applied_slp)
-                    
-                    # Track SLP effect on RR 279 separately (it also gets tax adjustments)
-                    rr_result_for_slp = row(rr, 279, var="SumAretsResultat", label="Årets resultat")
-                    if rr_result_for_slp:
-                        slp_already_on_result = _num(rr_result_for_slp.get("slp_on_arets_resultat"))
-                        if "__base_arets_resultat" not in rr_result_for_slp:
-                            rr_result_for_slp["__base_arets_resultat"] = _num(rr_result_for_slp.get("current_amount")) + slp_already_on_result
-                        # Don't set it yet - will be set after tax calculation below
-                        rr_result_for_slp["slp_on_arets_resultat"] = applied_slp
+                    apply_slp_to_row(rr, 279, var="SumAretsResultat", label="Årets resultat", slp_delta=applied_slp)
+                    # Note: RR 279 will also get tax delta applied in the tax section below
 
                     # --- SLP also affects BR Skatteskulder (it's a tax liability) ---
                     # Find BR Skatteskulder (row 413)
@@ -2172,17 +2165,12 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         if not rr_result:
             raise HTTPException(400, "RR row 279 (SumAretsResultat) missing")
 
-        # Calculate RR 279 using base, SLP, and tax (idempotent)
-        # Establish base if not set yet
-        slp_on_result = _num(rr_result.get("slp_on_arets_resultat"))
-        if "__base_arets_resultat" not in rr_result:
-            rr_result["__base_arets_resultat"] = _num(rr_result.get("current_amount")) + slp_on_result - d_rr_tax
-        
-        base_arets_resultat = _num(rr_result.get("__base_arets_resultat"))
-        # RR 279 = base - SLP + tax_delta (tax is negative, so adding makes result lower)
-        rr_result_new = base_arets_resultat - slp_on_result + d_rr_tax
+        # Simple delta update for RR 279 (tax changes only at this step)
+        # SLP was already applied to all rows above (256, 257, 260, 267, 275)
+        # So we only need to apply the tax delta here
+        rr_result_new = float(rr_result.get("current_amount") or 0) + d_rr_tax
         _ = _delta_set(rr_result, rr_result_new)
-        print(f"Updated RR SumAretsResultat: base={base_arets_resultat}, SLP={slp_on_result}, tax_delta={d_rr_tax}, new={rr_result_new}")
+        print(f"Updated RR SumAretsResultat by tax delta: +{d_rr_tax}; new={rr_result_new}")
 
         # --- BR: sync Årets resultat (380) to RR result, update equity sums ---
         br_result = _get(br, id=380) or _get(br, name="AretsResultat")
