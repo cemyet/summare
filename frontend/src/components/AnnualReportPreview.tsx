@@ -1233,8 +1233,13 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   useEffect(() => {
     if (isEditing) {
       // Start session from accepted manuals (get fresh value from companyData)
-      const currentAccepted = companyData.acceptedInk2Manuals || {};
-      setManualEdits({ ...currentAccepted });
+      const currentAccepted = { ...(companyData.acceptedInk2Manuals || {}) };
+      // Do NOT seed SLP with 0; only carry it if explicitly present to avoid
+      // wiping chat-injected SLP when entering edit mode.
+      if (currentAccepted['INK_sarskild_loneskatt'] === 0) {
+        delete currentAccepted['INK_sarskild_loneskatt'];
+      }
+      setManualEdits(currentAccepted);
       clearAcceptedOnNextApproveRef.current = false; // fresh session
     } else {
       // Clear session edits when leaving edit mode
