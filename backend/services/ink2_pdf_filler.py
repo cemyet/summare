@@ -43,8 +43,15 @@ def build_override_map(company_data: dict) -> dict:
         if val is not None:
             M[_norm(k)] = val
 
-    # 2) INK2 current values (if your UI computes them)
+    # 2) INK2 current values from seFileData (original baseline)
     for row in (company_data.get("seFileData") or {}).get("ink2_data", []) or []:
+        k, v = row.get("variable_name"), _sv_num(row.get("amount"))
+        if k and v is not None:
+            M[_norm(k)] = v
+    
+    # 2b) INK2 top-level ink2Data (latest calculated values including INK4.15, INK4.16)
+    # This has higher priority than seFileData.ink2_data
+    for row in (company_data.get("ink2Data") or []):
         k, v = row.get("variable_name"), _sv_num(row.get("amount"))
         if k and v is not None:
             M[_norm(k)] = v
