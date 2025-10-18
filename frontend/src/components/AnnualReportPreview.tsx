@@ -1552,14 +1552,14 @@ const handleTaxCalculationClick = () => {
         // Check if there's a manual override first
         if (acceptedManuals && acceptedManuals[variableName] !== undefined) {
           const value = Number(acceptedManuals[variableName]);
-          console.log(`🔧 Using manual override for ${variableName}: ${value}`);
+          console.log(`🔧 Using manual override for ${variableName}: ${value} (from acceptedManuals)`);
           return value;
         }
         
         // Otherwise get from INK2 data
         const item = currentInk2Data.find((item: any) => item.variable_name === variableName);
         const value = item?.amount || 0;
-        console.log(`📊 Using INK2 data for ${variableName}: ${value}`);
+        console.log(`📊 Using INK2 data for ${variableName}: ${value} (item found: ${!!item})`);
         return value;
       };
       
@@ -1590,22 +1590,24 @@ const handleTaxCalculationClick = () => {
       const inkBokfordSkatt = getValueWithOverride('INK_bokford_skatt');
       
       // Get SLP value with manual override applied
-      // First check if there's a manual edit to justering_sarskild_loneskatt
-      const justeringSLP = getValueWithOverride('justering_sarskild_loneskatt');
-      const inkSarskildLoneskattCalculated = getValueWithOverride('INK_sarskild_loneskatt');
+      // The UI stores manual edits under 'INK_sarskild_loneskatt', not 'justering_sarskild_loneskatt'
+      const inkSarskildLoneskattValue = getValueWithOverride('INK_sarskild_loneskatt');
+      const inkSarskildLoneskatt = Math.abs(inkSarskildLoneskattValue);
       
-      // Use manual adjustment if present, otherwise use the calculated INK value
-      const inkSarskildLoneskatt = justeringSLP !== 0 
-        ? Math.abs(justeringSLP) 
-        : Math.abs(inkSarskildLoneskattCalculated);
+      // Extra debugging for SLP
+      console.log('🔍 SLP Debug Info:', {
+        acceptedManuals_INK_sarskild_loneskatt: acceptedManuals ? acceptedManuals['INK_sarskild_loneskatt'] : 'no acceptedManuals',
+        allAcceptedManualKeys: acceptedManuals ? Object.keys(acceptedManuals) : [],
+        currentInk2DataLength: currentInk2Data.length,
+        slpItemInData: currentInk2Data.find((i: any) => i.variable_name === 'INK_sarskild_loneskatt')
+      });
       
       console.log('💰 Tax and SLP comparison:', { 
         inkBeraknadSkatt, 
         inkBokfordSkatt, 
-        justeringSLP,
-        inkSarskildLoneskattCalculated,
+        inkSarskildLoneskattValue,
         inkSarskildLoneskatt,
-        usingManualSLP: justeringSLP !== 0
+        hasManualSLP: acceptedManuals && acceptedManuals['INK_sarskild_loneskatt'] !== undefined
       });
       
       const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
