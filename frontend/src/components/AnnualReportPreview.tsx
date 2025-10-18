@@ -1436,13 +1436,18 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Check if this is the first time the button is clicked
     const isFirstTimeClick = !companyData.taxButtonClickedBefore;
     
+    // IMPORTANT: Include chat overrides (especially SLP) when approving changes
+    // Chat overrides need to be preserved across manual edit sessions
+    const chatOverrides = getChatOverrides();
+    
     // If Undo was used this session, drop previously accepted edits
     const nextAccepted = clearAcceptedOnNextApproveRef.current
-      ? { ...manualEdits }                      // approve only current session edits
-      : { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
+      ? { ...chatOverrides, ...manualEdits }                      // approve chat overrides + current session edits
+      : { ...(companyData.acceptedInk2Manuals || {}), ...chatOverrides, ...manualEdits };  // preserve previous + chat + session
 
     // Debug SLP in manual edits
     console.log('🔍 handleApproveChanges - SLP Debug:', {
+      chatOverrides_SLP: chatOverrides['INK_sarskild_loneskatt'],
       manualEdits_SLP: manualEdits['INK_sarskild_loneskatt'],
       manualEdits_keys: Object.keys(manualEdits),
       acceptedInk2Manuals_SLP: (companyData.acceptedInk2Manuals || {})['INK_sarskild_loneskatt'],
