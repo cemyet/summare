@@ -1301,12 +1301,28 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     const result = await apiService.recalculateInk2(payload);
     if (result?.success) {
       const merged = selectiveMergeInk2(prev, result.ink2_data, manualComposite);
-      onDataUpdate({
-        ink2Data: merged,
-        inkBeraknadSkatt:
-          merged.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount
-          ?? companyData.inkBeraknadSkatt
-      });
+      
+      // Store recalculated data in state for display purposes
+      setRecalculatedData(merged);
+      
+      // Only update ink2Data in companyData if not in manual edit mode
+      // During manual edit, the recalculatedData state will be used for display
+      // This prevents flickering when user is typing
+      if (!isInk2ManualEdit) {
+        onDataUpdate({
+          ink2Data: merged,
+          inkBeraknadSkatt:
+            merged.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount
+            ?? companyData.inkBeraknadSkatt
+        });
+      } else {
+        // In edit mode, only update the calculated tax value
+        onDataUpdate({
+          inkBeraknadSkatt:
+            merged.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount
+            ?? companyData.inkBeraknadSkatt
+        });
+      }
     }
   };
 
