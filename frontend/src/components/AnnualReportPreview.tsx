@@ -314,6 +314,7 @@ interface CompanyData {
   // Tax button tracking
   taxButtonClickedBefore?: boolean; // Track if tax approve button has been clicked before
   triggerChatStep?: number | null; // Trigger navigation to a specific chat step
+  chatApplied?: Record<string, boolean>; // Track which chat overrides have been applied once
 }
 
 interface AnnualReportPreviewProps {
@@ -995,17 +996,26 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // Manuals the user has approved previously (persisted in companyData)
   const acceptedManuals: Record<string, number> = companyData.acceptedInk2Manuals || {};
 
-  // Two chat overrides (only ones allowed to come from chat)
+  // One-time chat overrides: only if NOT already accepted and NOT previously applied
   const getChatOverrides = (): Record<string, number> => {
     const o: Record<string, number> = {};
+    const accepted = companyData.acceptedInk2Manuals || {};
+    const applied = companyData.chatApplied || {}; // { [varName]: true } after first apply
+
+    // Unused tax loss (INK4.14a)
     const underskott = Number(companyData.unusedTaxLossAmount || 0);
+    if (Number.isFinite(underskott) && underskott !== 0 &&
+        accepted['INK4.14a'] === undefined && !applied['INK4.14a']) {
+      o['INK4.14a'] = underskott;
+    }
+
+    // SLP (INK_sarskild_loneskatt) – negative in UI
     const sarskild = Number(companyData.justeringSarskildLoneskatt || 0);
-    if (Number.isFinite(underskott) && underskott !== 0) {
-      o['INK4.14a'] = underskott; // UI key
+    if (Number.isFinite(sarskild) && sarskild !== 0 &&
+        accepted['INK_sarskild_loneskatt'] === undefined && !applied['INK_sarskild_loneskatt']) {
+      o['INK_sarskild_loneskatt'] = -Math.abs(sarskild);
     }
-    if (Number.isFinite(sarskild) && sarskild !== 0) {
-      o['INK_sarskild_loneskatt'] = -Math.abs(sarskild); // UI row shows negative
-    }
+
     return o;
   };
 
@@ -1487,11 +1497,19 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       difference: (beraknadInUpdated?.amount || 0) - (bokfordInUpdated?.amount || 0)
     });
 
-    // Update accepted edits, ink2Data, and mark the button as clicked
+    // Mark any chat keys that were applied this time
+    const appliedChatKeys = Object.keys(chatOverrides);
+    
+    // Update accepted edits, ink2Data, mark button as clicked, and track applied chat keys
     onDataUpdate({ 
       acceptedInk2Manuals: nextAccepted,
       ink2Data: updatedInk2Data,
-      taxButtonClickedBefore: true
+      taxButtonClickedBefore: true,
+      // Mark chat keys as "applied once"
+      chatApplied: {
+        ...(companyData.chatApplied || {}),
+        ...Object.fromEntries(appliedChatKeys.map(k => [k, true])),
+      },
     });
 
     // If this is the first time clicking the button, trigger navigation to step 405
