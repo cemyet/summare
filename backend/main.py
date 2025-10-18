@@ -2167,17 +2167,21 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         if not rr_result:
             raise HTTPException(400, "RR row 279 (SumAretsResultat) missing")
 
-        # Simple formula: RR 279 = RR 275 (Resultat före skatt) + tax (negative)
-        # RR 275 already has SLP applied idempotently, so we just add tax
+        # Correct formula: RR 279 = RR 275 + RR 277 (SkattAretsResultat) + RR 278 (OvrigaSkatter)
+        # RR 275 already has SLP applied idempotently
         rr_result_before_skatt = _find_by_row_id(rr, 275, varname="SumResultatForeSkatt", label="Resultat före skatt")
         if not rr_result_before_skatt:
             raise HTTPException(400, "RR row 275 (Resultat före skatt) missing")
         
+        # Get Övriga skatter (row 278) if it exists
+        rr_ovriga_skatter = _find_by_row_id(rr, 278, varname="OvrigaSkatter", label="Övriga skatter")
+        ovriga_skatter = _num(rr_ovriga_skatter.get("current_amount")) if rr_ovriga_skatter else 0
+        
         resultat_fore_skatt = _num(rr_result_before_skatt.get("current_amount"))
-        rr_result_new = resultat_fore_skatt + rr_tax_new  # tax is negative
+        rr_result_new = resultat_fore_skatt + rr_tax_new + ovriga_skatter
         _set_current(rr_result, rr_result_new)
         
-        print(f"Updated RR SumAretsResultat: RR275={resultat_fore_skatt} + tax={rr_tax_new} = {rr_result_new}")
+        print(f"Updated RR SumAretsResultat: RR275={resultat_fore_skatt} + tax={rr_tax_new} + ovriga={ovriga_skatter} = {rr_result_new}")
 
         # --- BR: sync Årets resultat (380) to RR result, update equity sums ---
         br_result = _get(br, id=380) or _get(br, name="AretsResultat")
