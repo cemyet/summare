@@ -1441,6 +1441,15 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       ? { ...manualEdits }                      // approve only current session edits
       : { ...(companyData.acceptedInk2Manuals || {}), ...manualEdits };
 
+    // Debug SLP in manual edits
+    console.log('🔍 handleApproveChanges - SLP Debug:', {
+      manualEdits_SLP: manualEdits['INK_sarskild_loneskatt'],
+      manualEdits_keys: Object.keys(manualEdits),
+      acceptedInk2Manuals_SLP: (companyData.acceptedInk2Manuals || {})['INK_sarskild_loneskatt'],
+      nextAccepted_SLP: nextAccepted['INK_sarskild_loneskatt'],
+      nextAccepted_keys: Object.keys(nextAccepted)
+    });
+
     // Get current INK2 data and update it with the accepted manual values
     // Use recalculatedData if available (has latest values from manual edits), otherwise fall back to companyData.ink2Data
     const currentInk2 = recalculatedData.length > 0 ? recalculatedData : (companyData.ink2Data || []);
