@@ -739,18 +739,30 @@ class INK2PdfFiller:
         else:
             print("❌ Organization number not found in company_data or self.organization_number")
         
-        # Fiscal year dates with alias fallback
+        # Fiscal year dates with alias fallback - convert YYYYMMDD to YYYY-MM-DD
         start = get_meta_value(company_data, 'start_date')
         if start:
-            special_values['start_date'] = start
-            special_values['fiscal_year_start'] = start
-            print(f"✅ Start date set: {start}")
+            # Convert YYYYMMDD to YYYY-MM-DD format
+            start_str = str(start)
+            if len(start_str) == 8 and start_str.isdigit():
+                start_formatted = f"{start_str[:4]}-{start_str[4:6]}-{start_str[6:8]}"
+            else:
+                start_formatted = start_str  # Already formatted or invalid
+            special_values['start_date'] = start_formatted
+            special_values['fiscal_year_start'] = start_formatted
+            print(f"✅ Start date set: {start_formatted}")
         
         end = get_meta_value(company_data, 'end_date')
         if end:
-            special_values['end_date'] = end
-            special_values['fiscal_year_end'] = end
-            print(f"✅ End date set: {end}")
+            # Convert YYYYMMDD to YYYY-MM-DD format
+            end_str = str(end)
+            if len(end_str) == 8 and end_str.isdigit():
+                end_formatted = f"{end_str[:4]}-{end_str[4:6]}-{end_str[6:8]}"
+            else:
+                end_formatted = end_str  # Already formatted or invalid
+            special_values['end_date'] = end_formatted
+            special_values['fiscal_year_end'] = end_formatted
+            print(f"✅ End date set: {end_formatted}")
         
         print(f"📋 Special values created: {list(special_values.keys())}")
         
