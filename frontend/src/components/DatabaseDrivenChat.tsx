@@ -1219,6 +1219,16 @@ interface ChatFlowResponse {
 
         // Navigate to next step
         console.log('🔍 General navigation check:', { next_step, action_type });
+        
+        // IMPORTANT: Prevent re-navigation to step 405 after first time
+        // After user has seen step 405 once, manual edits should update silently
+        if (next_step === 405 && companyData.taxButtonClickedBefore) {
+          console.log('✅ Skipping navigation to step 405 - already shown before (taxButtonClickedBefore=true)');
+          console.log('📊 Manual tax edits will be applied silently without chat message');
+          // Don't navigate, just stay at current step
+          return;
+        }
+        
         if (next_step && !interceptedExternalRedirect) {
           console.log('🚀 Navigating to step:', next_step);
           
