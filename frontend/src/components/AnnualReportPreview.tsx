@@ -1,5 +1,5 @@
 'use client';
-// Force Vercel deployment - reverted to stable commit a3b33fa
+// Force Vercel deployment - reverted to stable commit 131875b
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
