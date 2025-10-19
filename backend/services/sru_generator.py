@@ -44,7 +44,24 @@ def get_supabase_client():
 
 # ---------- Helpers --------------------------------------------------------
 def today_dates():
-    now = dt.datetime.now()
+    """Get current date and time in Swedish timezone (Europe/Stockholm)"""
+    try:
+        from zoneinfo import ZoneInfo
+        swedish_tz = ZoneInfo("Europe/Stockholm")
+        now = dt.datetime.now(swedish_tz)
+    except ImportError:
+        # Fallback for Python < 3.9 or if zoneinfo not available
+        try:
+            import pytz
+            swedish_tz = pytz.timezone("Europe/Stockholm")
+            now = dt.datetime.now(swedish_tz)
+        except ImportError:
+            # Last resort: use UTC and add 1 hour (CET) or 2 hours (CEST)
+            # This is approximate - better to have zoneinfo or pytz
+            now = dt.datetime.utcnow()
+            # Simple heuristic: add 2 hours (CEST is more common in business months)
+            now = now + dt.timedelta(hours=2)
+    
     return now.strftime("%Y%m%d"), now.strftime("%H%M%S")
 
 def only_digits(s: str) -> str:
