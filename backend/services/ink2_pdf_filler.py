@@ -94,11 +94,17 @@ def build_override_map(company_data: dict) -> dict:
     
     # 6) Map chat-injected values to their INK2 variable names
     # unusedTaxLossAmount -> INK4.14a
-    if "unusedTaxLossAmount" in company_data:
+    # IMPORTANT: Only map if INK4.14a doesn't have a manual override in acceptedInk2Manuals
+    accepted_manuals = company_data.get("acceptedInk2Manuals") or {}
+    ink4_14a_has_manual = "INK4.14a" in accepted_manuals or "ink4.14a" in accepted_manuals
+    
+    if "unusedTaxLossAmount" in company_data and not ink4_14a_has_manual:
         v = _sv_num(company_data["unusedTaxLossAmount"])
         if v is not None:
             M[_norm("INK4.14a")] = v
-            print(f"✅ Mapped unusedTaxLossAmount to INK4.14a: {v}")
+            print(f"✅ Mapped unusedTaxLossAmount to INK4.14a: {v} (no manual override)")
+    elif ink4_14a_has_manual:
+        print(f"ℹ️ Skipping unusedTaxLossAmount mapping - INK4.14a has manual override in acceptedInk2Manuals")
 
     return M
 
