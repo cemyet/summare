@@ -235,9 +235,11 @@ def _resolve_company_info(company_data: Dict[str, Any]) -> Dict[str, str]:
     return {"start": start or f"{year}0101", "end": end or f"{year}1231", "year": year}
 
 def _system_info(company_data: Dict[str, Any]) -> str:
+    """Get system_info from company data (bokföringsprogram from SIE file)"""
     return (company_data.get("system_info")
             or (company_data.get("seFileData") or {}).get("system_info")
-            or "Summare 1.0")
+            or (company_data.get("seFileData") or {}).get("company_info", {}).get("system_info")
+            or "iOrdning 8.0.5")
 
 def _org_digits(company_data: Dict[str, Any]) -> str:
     org = (company_data.get("organizationNumber")
@@ -292,6 +294,10 @@ def build_sru_text(company_data: Dict[str, Any], mappings: Optional[List[Dict[st
     # keep numeric SRU only
     rows = [r for r in rows if _is_numeric_sru(r.get("sru"))]
     print(f"  - Valid SRU mappings: {len(rows)}")
+    
+    # Sort by Id column (form order) instead of SRU number
+    # This maintains the order as they appear in the INK2 form top-to-bottom
+    rows.sort(key=lambda r: int(r.get('Id') or r.get('id') or 0))
 
     lines_r: List[str] = []
     lines_s: List[str] = []
@@ -305,7 +311,15 @@ def build_sru_text(company_data: Dict[str, Any], mappings: Optional[List[Dict[st
         # SRU expects integers (Skatteverket will reject decimals)
         if abs(v) < 0.5:
             return
-        dst.append(f"#UPPGIFT {int(sru_code)} {int(round(v))}")
+        
+        # Special handling for checkbox fields (8040, 8041, 8044, 8045) - use "X" instead of 1
+        if sru_code in (8040, 8041, 8044, 8045):
+            # These are checkbox fields - if value is 1, use "X"
+            if abs(v) >= 0.5:
+                dst.append(f"#UPPGIFT {int(sru_code)} X")
+        else:
+            # Regular numeric fields - use absolute value (no negatives in SRU)
+            dst.append(f"#UPPGIFT {int(sru_code)} {int(round(abs(v)))}")
 
     for r in rows:
         sru = int(r["sru"])
@@ -325,10 +339,8 @@ def build_sru_text(company_data: Dict[str, Any], mappings: Optional[List[Dict[st
     print(f"\n📋 SRU lines generated:")
     print(f"  - INK2R lines: {len(lines_r)}")
     print(f"  - INK2S lines: {len(lines_s)}")
-
-    # Sort SRU lines numerically for readability
-    lines_r.sort(key=lambda x: int(x.split()[1]))
-    lines_s.sort(key=lambda x: int(x.split()[1]))
+    
+    # Lines are already in form order (sorted by Id column), no need to re-sort
 
     # build file
     out: List[str] = []
