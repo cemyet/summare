@@ -860,6 +860,26 @@ class INK2PdfFiller:
                 assignments['4.3a'] = formatted_skatt
                 print(f"✅ OVERRIDE: 4.3a (Skatt på årets resultat) = {formatted_skatt} (from RR SkattAretsResultat)")
         
+        # SPECIAL HANDLING: INK4.23a is now a radio button (Ja=1, Nej=0)
+        # Map to PDF checkboxes: 23a (Ja) and 23b (Nej)
+        ink4_23a_value = self.resolver.get('INK4.23a')
+        if ink4_23a_value is not None:
+            # If value is 1, check "Ja" (23a), uncheck "Nej" (23b)
+            # If value is 0 or anything else, uncheck "Ja" (23a), check "Nej" (23b)
+            if ink4_23a_value == 1:
+                assignments['23a'] = 'Yes'
+                assignments['23b'] = 'Off'
+                print(f"✅ INK4.23a radio: Ja selected (23a=Yes, 23b=Off)")
+            else:
+                assignments['23a'] = 'Off'
+                assignments['23b'] = 'Yes'
+                print(f"✅ INK4.23a radio: Nej selected (23a=Off, 23b=Yes)")
+        else:
+            # Default to "Nej" (23b checked)
+            assignments['23a'] = 'Off'
+            assignments['23b'] = 'Yes'
+            print(f"✅ INK4.23a radio: Default to Nej (23a=Off, 23b=Yes)")
+        
         # Load template PDF
         with open(pdf_path, 'rb') as f:
             template_bytes = f.read()

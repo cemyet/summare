@@ -2136,6 +2136,9 @@ const handleTaxCalculationClick = () => {
               };
               
               const filteredData = allData.filter((item: any) => {
+                // Always exclude INK4.23b (combined into INK4.23a as radio buttons)
+                if (item.variable_name === 'INK4.23b') return false;
+                
                 // Always exclude rows explicitly marked to never show
                 if (item.show_amount === 'NEVER') return false;
 
@@ -2455,7 +2458,49 @@ const handleTaxCalculationClick = () => {
                   )}
                 </div>
                  <span className="text-right font-medium">
-                  {item.show_amount === 'NEVER' || item.header ? '' :
+                  {/* Special handling for INK4.23a - Radio buttons for Ja/Nej */}
+                  {item.variable_name === 'INK4.23a' ? (
+                    <div className="flex gap-4 items-center">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="ink4-23a"
+                          value="ja"
+                          checked={(manualEdits[item.variable_name] ?? item.amount ?? 0) === 1}
+                          onChange={() => {
+                            if (!canEdit) return;
+                            setManualEdits(prev => {
+                              const updated = { ...prev, [item.variable_name]: 1 };
+                              recalcWithManuals(updated);
+                              return updated;
+                            });
+                          }}
+                          disabled={!canEdit}
+                          className="w-4 h-4 text-blue-600 cursor-pointer"
+                        />
+                        <span className="text-sm">Ja</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="ink4-23a"
+                          value="nej"
+                          checked={(manualEdits[item.variable_name] ?? item.amount ?? 0) === 0}
+                          onChange={() => {
+                            if (!canEdit) return;
+                            setManualEdits(prev => {
+                              const updated = { ...prev, [item.variable_name]: 0 };
+                              recalcWithManuals(updated);
+                              return updated;
+                            });
+                          }}
+                          disabled={!canEdit}
+                          className="w-4 h-4 text-blue-600 cursor-pointer"
+                        />
+                        <span className="text-sm">Nej</span>
+                      </label>
+                    </div>
+                  ) : item.show_amount === 'NEVER' || item.header ? '' :
                     (canEdit && isEditableCell(item.variable_name) && item.show_amount) ? (
                   <Ink2AmountInput
                         value={manualEdits[item.variable_name] ?? item.amount ?? 0}
