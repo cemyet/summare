@@ -206,14 +206,30 @@ interface ChatFlowResponse {
           console.log('🎉 Successfully updated RR/BR data with tax changes from chat');
           console.log('📊 Changes made from chat:', result.changes);
           
-          // Update company data with new RR/BR data
+          // Set default radio button values if not already set
+          const currentAccepted = companyData.acceptedInk2Manuals || {};
+          const needsDefaults = !currentAccepted['INK4.23a'] && !currentAccepted['INK4.23b'] && 
+                                !currentAccepted['INK4.24a'] && !currentAccepted['INK4.24b'];
+          
+          const updatedAccepted = needsDefaults ? {
+            ...currentAccepted,
+            'INK4.23a': 0,
+            'INK4.23b': 1,  // Default to "Nej"
+            'INK4.24a': 0,
+            'INK4.24b': 1   // Default to "Nej"
+          } : currentAccepted;
+          
+          // Update company data with new RR/BR data and radio button defaults
           onDataUpdate({
             seFileData: {
               ...companyData.seFileData,
               rr_data: result.rr_data,
               br_data: result.br_data,
-            }
+            },
+            acceptedInk2Manuals: updatedAccepted
           });
+          
+          console.log('✅ Set default radio button values (Nej) for INK4.23a/b and INK4.24a/b');
         } else {
           console.error('❌ Failed to update RR/BR data from chat:', result.error);
         }
@@ -870,7 +886,29 @@ interface ChatFlowResponse {
       if (option.option_value === 'approve_tax') {
         // Hide tax preview and go to next step based on SQL or fallback
         console.log('🏛️ APPROVE_TAX clicked - hiding tax preview and navigating to step 420');
-        onDataUpdate({ showTaxPreview: false });
+        
+        // Set default radio button values if not already set
+        const currentAccepted = companyData.acceptedInk2Manuals || {};
+        const needsDefaults = !currentAccepted['INK4.23a'] && !currentAccepted['INK4.23b'] && 
+                              !currentAccepted['INK4.24a'] && !currentAccepted['INK4.24b'];
+        
+        const updatedAccepted = needsDefaults ? {
+          ...currentAccepted,
+          'INK4.23a': 0,
+          'INK4.23b': 1,  // Default to "Nej"
+          'INK4.24a': 0,
+          'INK4.24b': 1   // Default to "Nej"
+        } : currentAccepted;
+        
+        onDataUpdate({ 
+          showTaxPreview: false,
+          acceptedInk2Manuals: updatedAccepted
+        });
+        
+        if (needsDefaults) {
+          console.log('✅ Set default radio button values (Nej) for INK4.23a/b and INK4.24a/b');
+        }
+        
         const nextStep = option.next_step || 420; // Use SQL next_step or fallback to 420
         console.log('🚀 APPROVE_TAX will navigate to step:', nextStep);
         
