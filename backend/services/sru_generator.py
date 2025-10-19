@@ -115,9 +115,26 @@ def build_sru_text(company_data: dict) -> str:
     rr_rows  = company_data.get("rr_data") or (company_data.get("seFileData") or {}).get("rr_data") or []
     br_rows  = company_data.get("br_data") or (company_data.get("seFileData") or {}).get("br_data") or []
 
+    print(f"📊 SRU Generator - Data sources:")
+    print(f"  - INK2 rows: {len(ink2_rows)}")
+    print(f"  - RR rows: {len(rr_rows)}")
+    print(f"  - BR rows: {len(br_rows)}")
+    print(f"  - Accepted manuals: {len(accepted)}")
+    print(f"  - Mappings fetched: {len(mappings)}")
+    
+    # Debug: show sample INK2 data
+    if ink2_rows:
+        sample = ink2_rows[0]
+        print(f"  - Sample INK2 row: {sample}")
+
     ink2_idx = build_index_from_rows(ink2_rows)
     rr_idx   = build_index_from_rows(rr_rows)
     br_idx   = build_index_from_rows(br_rows)
+    
+    print(f"📊 SRU Generator - Indexes built:")
+    print(f"  - INK2 index keys: {len(ink2_idx)}")
+    print(f"  - RR index keys: {len(rr_idx)}")
+    print(f"  - BR index keys: {len(br_idx)}")
 
     def resolve_token(tok: str):
         import re
@@ -155,10 +172,12 @@ def build_sru_text(company_data: dict) -> str:
         for p in parts:
             val = resolve_token(p)
             if val is None: 
+                print(f"  ⚠️ Could not resolve token: {p}")
                 continue
             total += float(val)
             found = True
         if not found:
+            print(f"  ❌ No values found for variable_map: {vmap}")
             return None
         if cond == ">0":
             return total if total > 0 else None
@@ -176,10 +195,20 @@ def build_sru_text(company_data: dict) -> str:
         dst.append(f"#UPPGIFT {int(sru_code)} {int(round(val))}")
 
     lines_r, lines_s = [], []
-    for mapping in mappings:
+    print(f"\n📋 Processing {len(mappings)} SRU mappings...")
+    for i, mapping in enumerate(mappings):
         sru = int(mapping['sru'])
         form_field = str(mapping.get("form_field") or "")
-        v = resolve_variable_map(str(mapping.get("variable_map") or ""))
+        variable_map = str(mapping.get("variable_map") or "")
+        
+        if i < 5:  # Show first 5 mappings
+            print(f"  Mapping {i+1}: SRU={sru}, field={form_field}, var_map={variable_map}")
+        
+        v = resolve_variable_map(variable_map)
+        
+        if v is not None and i < 5:
+            print(f"    ✅ Resolved to: {v}")
+        
         target = "R"
         if form_field.strip().startswith("4."):
             target = "S"
@@ -189,6 +218,10 @@ def build_sru_text(company_data: dict) -> str:
             add_line(lines_r, sru, v)
         else:
             add_line(lines_s, sru, v)
+    
+    print(f"\n📊 SRU lines generated:")
+    print(f"  - INK2R lines: {len(lines_r)}")
+    print(f"  - INK2S lines: {len(lines_s)}")
 
     out = []
     out.append(f"#BLANKETT INK2R-{fy_year}P4")
