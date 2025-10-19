@@ -974,8 +974,14 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
             prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
         
-        # Add row as plain strings
-        br_assets_table.append([label, note, curr_fmt, prev_fmt])
+        # Wrap label in Paragraph for text wrapping
+        if is_heading or is_sum:
+            label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
+            label_para = Paragraph(label, label_style)
+        else:
+            label_para = Paragraph(label, P)
+        
+        br_assets_table.append([label_para, note, curr_fmt, prev_fmt])
         r = len(br_assets_table) - 1  # Current row index
         
         # Default row padding
@@ -1164,8 +1170,14 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
             curr_fmt = _fmt_int(_num(row.get('current_amount', 0)))
             prev_fmt = _fmt_int(_num(row.get('previous_amount', 0)))
         
-        # Add row as plain strings
-        br_eq_table.append([label, note, curr_fmt, prev_fmt])
+        # Wrap label in Paragraph for text wrapping
+        if is_heading or is_sum:
+            label_style = ParagraphStyle('SemiboldLabel', parent=P, fontName='Roboto-Medium')
+            label_para = Paragraph(label, label_style)
+        else:
+            label_para = Paragraph(label, P)
+        
+        br_eq_table.append([label_para, note, curr_fmt, prev_fmt])
         r = len(br_eq_table) - 1  # Current row index
         
         # Default row padding
@@ -1203,8 +1215,10 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
         # Insert "Skulder" header after "Summa eget kapital"
         if label == 'Summa eget kapital' and not skulder_header_added:
             skulder_header_added = True
-            # Add "Skulder" as H2 heading (no amounts)
-            br_eq_table.append(['Skulder', '', '', ''])
+            # Add "Skulder" as H2 heading (no amounts) with Paragraph wrapping
+            skulder_style = ParagraphStyle('SkulderLabel', parent=P, fontName='Roboto-Medium')
+            skulder_para = Paragraph('Skulder', skulder_style)
+            br_eq_table.append([skulder_para, '', '', ''])
             r_skulder = len(br_eq_table) - 1
             
             # Apply H2 styling to "Skulder" header
