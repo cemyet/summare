@@ -644,8 +644,48 @@ Before merging changes that touch these areas:
 
 ---
 
+## 🔘 Radio Button Fields (INK4.23a/23b, INK4.24a/24b)
+
+**Special Handling:** These fields are rendered as radio buttons instead of amount inputs.
+
+**Implementation:**
+- **INK4.23a/23b** - "Uppdragstagare har biträtt vid upprättandet av årsredovisningen"
+- **INK4.24a/24b** - "Årsredovisningen har varit föremål för revision"
+
+**Data Model:**
+```typescript
+// When "Ja" selected:
+{ INK4.23a: 1, INK4.23b: 0 }
+
+// When "Nej" selected:
+{ INK4.23a: 0, INK4.23b: 1 }
+```
+
+**Frontend Logic:**
+- Both fields are stored in `manualEdits` during editing
+- Both fields are stored in `acceptedInk2Manuals` after approval
+- INK4.23b and INK4.24b are filtered out from display (combined into 23a/24a)
+- `getCurrentValue()` helper reads from: manualEdits → acceptedManuals → item data
+
+**Backend PDF Mapping:**
+```python
+# INK4.23a=1 → PDF checkbox 23a=Yes, 23b=Off
+# INK4.23b=1 → PDF checkbox 23a=Off, 23b=Yes
+# INK4.24a=1 → PDF checkbox 24a=Yes, 24b=Off
+# INK4.24b=1 → PDF checkbox 24a=Off, 24b=Yes
+```
+
+**Critical Rules:**
+- ✅ Both fields follow standard manual edit flow
+- ✅ Both fields stored in `acceptedInk2Manuals` (highest priority)
+- ✅ Changes trigger `recalcWithManuals()` like other fields
+- ✅ Values sync to INK2 PDF correctly
+- ✅ No interference with step 405 guards
+
+---
+
 ## ✅ Last Known Good State
-**Commit:** `238f6ed` - "Fix: Prevent unusedTaxLossAmount from overwriting manual INK4.14a edits"
+**Commit:** `774d93d` - "Fix radio button state display in read-only mode"
 **Date:** 2025-01-19
 **Status:** All critical flows working correctly
 
@@ -656,6 +696,7 @@ Before merging changes that touch these areas:
 ✅ Download module stays visible after payment
 ✅ Payment never triggers again after success
 ✅ Chat-injected values respect manual overrides
+✅ Radio button fields (23a/23b, 24a/24b) work correctly
 
 ---
 
