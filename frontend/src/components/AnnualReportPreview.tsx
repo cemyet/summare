@@ -2136,8 +2136,8 @@ const handleTaxCalculationClick = () => {
               };
               
               const filteredData = allData.filter((item: any) => {
-                // Always exclude INK4.23b (combined into INK4.23a as radio buttons)
-                if (item.variable_name === 'INK4.23b') return false;
+                // Always exclude INK4.23b and INK4.24b (combined into INK4.23a and INK4.24a as radio buttons)
+                if (item.variable_name === 'INK4.23b' || item.variable_name === 'INK4.24b') return false;
                 
                 // Always exclude rows explicitly marked to never show
                 if (item.show_amount === 'NEVER') return false;
@@ -2458,19 +2458,25 @@ const handleTaxCalculationClick = () => {
                   )}
                 </div>
                  <span className="text-right font-medium">
-                  {/* Special handling for INK4.23a - Radio buttons for Ja/Nej */}
-                  {item.variable_name === 'INK4.23a' ? (
-                    <div className="flex gap-4 items-center">
+                  {/* Special handling for INK4.23a and INK4.24a - Radio buttons for Ja/Nej */}
+                  {(item.variable_name === 'INK4.23a' || item.variable_name === 'INK4.24a') ? (
+                    <div className="flex gap-6 items-center justify-end mr-8">
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="radio"
-                          name="ink4-23a"
+                          name={item.variable_name}
                           value="ja"
                           checked={(manualEdits[item.variable_name] ?? item.amount ?? 0) === 1}
                           onChange={() => {
                             if (!canEdit) return;
+                            const fieldA = item.variable_name;
+                            const fieldB = item.variable_name === 'INK4.23a' ? 'INK4.23b' : 'INK4.24b';
                             setManualEdits(prev => {
-                              const updated = { ...prev, [item.variable_name]: 1 };
+                              const updated = { 
+                                ...prev, 
+                                [fieldA]: 1,
+                                [fieldB]: 0
+                              };
                               recalcWithManuals(updated);
                               return updated;
                             });
@@ -2478,18 +2484,24 @@ const handleTaxCalculationClick = () => {
                           disabled={!canEdit}
                           className="w-4 h-4 text-blue-600 cursor-pointer"
                         />
-                        <span className="text-sm">Ja</span>
+                        <span className="text-sm font-medium">Ja</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
                           type="radio"
-                          name="ink4-23a"
+                          name={item.variable_name}
                           value="nej"
-                          checked={(manualEdits[item.variable_name] ?? item.amount ?? 0) === 0}
+                          checked={(manualEdits[item.variable_name === 'INK4.23a' ? 'INK4.23b' : 'INK4.24b'] ?? 0) === 1}
                           onChange={() => {
                             if (!canEdit) return;
+                            const fieldA = item.variable_name;
+                            const fieldB = item.variable_name === 'INK4.23a' ? 'INK4.23b' : 'INK4.24b';
                             setManualEdits(prev => {
-                              const updated = { ...prev, [item.variable_name]: 0 };
+                              const updated = { 
+                                ...prev, 
+                                [fieldA]: 0,
+                                [fieldB]: 1
+                              };
                               recalcWithManuals(updated);
                               return updated;
                             });
@@ -2497,7 +2509,7 @@ const handleTaxCalculationClick = () => {
                           disabled={!canEdit}
                           className="w-4 h-4 text-blue-600 cursor-pointer"
                         />
-                        <span className="text-sm">Nej</span>
+                        <span className="text-sm font-medium">Nej</span>
                       </label>
                     </div>
                   ) : item.show_amount === 'NEVER' || item.header ? '' :
@@ -2537,7 +2549,7 @@ const handleTaxCalculationClick = () => {
             
             {/* Tax Action Buttons */}
             {canEdit && (
-              <div className="pt-4 border-t border-gray-200 flex justify-between">
+              <div className="pt-8 mt-6 border-t border-gray-200 flex justify-between">
                 {/* Undo Button - Left */}
                 <Button 
                   onClick={handleUndo}
