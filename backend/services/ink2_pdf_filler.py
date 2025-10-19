@@ -57,14 +57,10 @@ def build_override_map(company_data: dict) -> dict:
             M[_norm(k)] = v
 
     # 3) Manual overrides made by the user inside INK2 (HIGHEST PRIORITY - applied last)
-    accepted_manuals = company_data.get("acceptedInk2Manuals") or {}
-    print(f"🔍 DEBUG acceptedInk2Manuals keys: {list(accepted_manuals.keys())}")
-    for k, v in accepted_manuals.items():
+    for k, v in (company_data.get("acceptedInk2Manuals") or {}).items():
         val = _sv_num(v)
         if val is not None:
             M[_norm(k)] = val
-            if 'INK4.23' in k or 'INK4.24' in k:
-                print(f"🔍 DEBUG Radio button in override map: {k}={val}")
 
     # 3) RR/BR current values (affects many sums used by INK2)
     se = (company_data.get("seFileData") or {})
@@ -870,8 +866,6 @@ class INK2PdfFiller:
         ink4_23a_value = self.resolver.get('INK4.23a')
         ink4_23b_value = self.resolver.get('INK4.23b')
         
-        print(f"🔍 DEBUG INK4.23a/b values: 23a={ink4_23a_value}, 23b={ink4_23b_value}")
-        
         if ink4_23a_value == 1:
             # Ja selected
             assignments['23a'] = 'Yes'
@@ -893,8 +887,6 @@ class INK2PdfFiller:
         # When Nej selected: INK4.24a=0, INK4.24b=1 → PDF: 24a=Off, 24b=Yes
         ink4_24a_value = self.resolver.get('INK4.24a')
         ink4_24b_value = self.resolver.get('INK4.24b')
-        
-        print(f"🔍 DEBUG INK4.24a/b values: 24a={ink4_24a_value}, 24b={ink4_24b_value}")
         
         if ink4_24a_value == 1:
             # Ja selected

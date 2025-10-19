@@ -228,8 +228,6 @@ interface ChatFlowResponse {
             },
             acceptedInk2Manuals: updatedAccepted
           });
-          
-          console.log('✅ Set default radio button values (Nej) for INK4.23a/b and INK4.24a/b');
         } else {
           console.error('❌ Failed to update RR/BR data from chat:', result.error);
         }
@@ -904,10 +902,6 @@ interface ChatFlowResponse {
           showTaxPreview: false,
           acceptedInk2Manuals: updatedAccepted
         });
-        
-        if (needsDefaults) {
-          console.log('✅ Set default radio button values (Nej) for INK4.23a/b and INK4.24a/b');
-        }
         
         const nextStep = option.next_step || 420; // Use SQL next_step or fallback to 420
         console.log('🚀 APPROVE_TAX will navigate to step:', nextStep);
