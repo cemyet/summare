@@ -21,9 +21,11 @@ Mapping source (SRU and variable_map per row):
 """
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import os, re, json, datetime as dt
 from dataclasses import dataclass
+import io
+import zipfile
 
 # ---------- Optional: Supabase client (only if env is configured) ----------
 def get_supabase_client():
@@ -382,6 +384,30 @@ def build_sru_text(company_data: Dict[str, Any], mappings: Optional[List[Dict[st
     out.append("#FIL_SLUT")
     return "\n".join(out)
 
+def build_info_sru_text(company_data: Dict[str, Any], sru_filename: str) -> str:
+    """Build INFO.SRU file content"""
+    today, now_time = today_dates()
+    system_info = _system_info(company_data)
+    org = _org_digits(company_data)
+    
+    # Format: YYYYMMDD HHMMSS
+    skapad = f"{today} {now_time}"
+    
+    lines = [
+        "#DATABESKRIVNING_START",
+        "#PRODUKT  SRU",
+        f"#SKAPAD {skapad}",
+        f"#PROGRAM {system_info}",
+        f"#FILNAMN {sru_filename}",
+        "#DATABESKRIVNING_SLUT",
+        "#MEDIELEV_START",
+        f"#ORGNR {org}",
+        "#MEDIELEV_SLUT",
+        ""  # Empty line at end
+    ]
+    
+    return "\n".join(lines)
+
 def write_sru(company_data: Dict[str, Any], out_path: str = "BLANKETTER.SRU",
               mappings: Optional[List[Dict[str, Any]]] = None) -> str:
     """Write SRU file to disk"""
@@ -391,6 +417,39 @@ def write_sru(company_data: Dict[str, Any], out_path: str = "BLANKETTER.SRU",
     return out_path
 
 def generate_sru_file(company_data: Dict[str, Any]) -> bytes:
-    """Generate SRU file and return as bytes"""
-    text = build_sru_text(company_data)
-    return text.encode('utf-8')
+    """
+    Generate SRU files (main SRU + INFO.SRU) and return as ZIP archive bytes.
+    Returns a ZIP file containing both BLANKETTER.SRU and INFO.SRU.
+    """
+    # Generate main SRU file content
+    sru_text = build_sru_text(company_data)
+    
+    # Extract name for filename
+    name = (company_data.get('company_name') 
+            or company_data.get('companyName')
+            or (company_data.get('seFileData') or {}).get('company_info', {}).get('company_name') 
+            or 'bolag')
+    
+    fiscal_year = (company_data.get('fiscalYear')
+                  or company_data.get('fiscal_year')
+                  or (company_data.get('seFileData') or {}).get('company_info', {}).get('fiscal_year')
+                  or dt.datetime.now().year)
+    
+    # Clean filename
+    import re
+    name_clean = re.sub(r'[^\w\s-]', '', name).strip().replace(' ', '_')
+    sru_filename = f'INK2_{name_clean}_{fiscal_year}.sru'
+    
+    # Generate INFO.SRU content
+    info_text = build_info_sru_text(company_data, sru_filename)
+    
+    # Create ZIP file in memory
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # Add main SRU file
+        zip_file.writestr(sru_filename, sru_text.encode('utf-8'))
+        # Add INFO.SRU file
+        zip_file.writestr('INFO.SRU', info_text.encode('utf-8'))
+    
+    zip_buffer.seek(0)
+    return zip_buffer.getvalue()

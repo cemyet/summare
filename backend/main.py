@@ -2402,8 +2402,8 @@ async def pdf_ink2_form(request: Request):
 @app.post("/api/sru/generate")
 async def generate_sru(request: Request):
     """
-    Generate SRU file for INK2 tax declaration
-    Returns SRU format file (INK2R and INK2S) for Swedish tax authorities
+    Generate SRU files for INK2 tax declaration
+    Returns ZIP archive containing main SRU file and INFO.SRU for Swedish tax authorities
     """
     try:
         from services.sru_generator import generate_sru_file
@@ -2412,7 +2412,7 @@ async def generate_sru(request: Request):
         payload = await request.json()
         company_data = payload.get('companyData', {})
         
-        # Extract organization_number and fiscal_year for filename
+        # Extract organization_number and fiscal_year for validation
         organization_number = (company_data.get('organization_number') 
                               or company_data.get('organizationNumber')
                               or (company_data.get('seFileData') or {}).get('company_info', {}).get('organization_number'))
@@ -2426,10 +2426,10 @@ async def generate_sru(request: Request):
         if not fiscal_year:
             raise HTTPException(status_code=400, detail="fiscal_year is required")
         
-        # Generate SRU file
-        sru_bytes = generate_sru_file(company_data)
+        # Generate SRU files (returns ZIP with main SRU + INFO.SRU)
+        zip_bytes = generate_sru_file(company_data)
         
-        # Extract name for filename
+        # Extract name for ZIP filename
         name = (company_data.get('company_name') 
                 or company_data.get('companyName')
                 or (company_data.get('seFileData') or {}).get('company_info', {}).get('company_name') 
@@ -2438,23 +2438,23 @@ async def generate_sru(request: Request):
         # Remove spaces and special characters from filename
         import re
         name_clean = re.sub(r'[^\w\s-]', '', name).strip().replace(' ', '_')
-        filename = f'INK2_{name_clean}_{fiscal_year}.sru'
+        zip_filename = f'INK2_{name_clean}_{fiscal_year}.zip'
         
         return Response(
-            content=sru_bytes,
-            media_type='text/plain',
+            content=zip_bytes,
+            media_type='application/zip',
             headers={
-                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Content-Disposition': f'attachment; filename="{zip_filename}"',
                 'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
                 'Pragma': 'no-cache',
                 'Expires': '0'
             }
         )
     except Exception as e:
-        print(f"Error generating SRU file: {str(e)}")
+        print(f"Error generating SRU files: {str(e)}")
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error generating SRU file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating SRU files: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

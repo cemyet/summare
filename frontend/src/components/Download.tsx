@@ -39,7 +39,7 @@ export function Download({ companyData }: DownloadProps) {
       id: 'inkomstdeklaration-sru',
       title: 'Inkomstdeklaration',
       subtitle: 'Ladda ner SRU-fil',
-      filename: 'INK2.sru',
+      filename: 'INK2.zip',
       icon: <FileText className="w-5 h-5" />,
       downloaded: false
     },
