@@ -1459,6 +1459,17 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     const nextAccepted = clearAcceptedOnNextApproveRef.current
       ? { ...chatOverrides, ...manualEdits }                      // approve chat overrides + current session edits
       : { ...(companyData.acceptedInk2Manuals || {}), ...chatOverrides, ...manualEdits };  // preserve previous + chat + session
+    
+    // Set default values for radio button fields if not already set
+    // Default to "Nej" (field b = 1, field a = 0) for both 23a/23b and 24a/24b
+    if (nextAccepted['INK4.23a'] === undefined && nextAccepted['INK4.23b'] === undefined) {
+      nextAccepted['INK4.23a'] = 0;
+      nextAccepted['INK4.23b'] = 1;
+    }
+    if (nextAccepted['INK4.24a'] === undefined && nextAccepted['INK4.24b'] === undefined) {
+      nextAccepted['INK4.24a'] = 0;
+      nextAccepted['INK4.24b'] = 1;
+    }
 
     // Debug SLP in manual edits
     console.log('🔍 handleApproveChanges - SLP Debug:', {
@@ -2475,8 +2486,11 @@ const handleTaxCalculationClick = () => {
                       
                       const valueA = getCurrentValue(fieldA);
                       const valueB = getCurrentValue(fieldB);
+                      
+                      // Default to "Nej" if neither field has been set
+                      const hasBeenSet = valueA === 1 || valueB === 1;
                       const isJaChecked = valueA === 1;
-                      const isNejChecked = valueB === 1;
+                      const isNejChecked = hasBeenSet ? (valueB === 1) : true; // Default to Nej
                       
                       return (
                         <div className="flex gap-6 items-center justify-end mr-8">
