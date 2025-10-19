@@ -379,7 +379,7 @@ def _render_forandringar_i_eget_kapital(elems, company_data, fiscal_year, prev_y
     col_labels = [
         'Aktie\nkapital', 
         'Reserv\nfond', 
-        'Uppskrivnings\nfond', 
+        'Uppskr.\nfond', 
         'Balanserat\nresultat', 
         'Årets\nresultat', 
         'Totalt'
