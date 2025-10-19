@@ -11,10 +11,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Initialize Supabase client
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+def get_supabase_client() -> Client:
+    """Get or create Supabase client"""
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in environment")
+    
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def is_numeric_sru(x):
     try:
@@ -67,10 +72,13 @@ def lookup_amount(idx, name):
 def fetch_ink2_form_mappings() -> List[Dict[str, Any]]:
     """Fetch INK2 form mappings from Supabase"""
     try:
+        supabase = get_supabase_client()
         response = supabase.table('ink2_form').select('*').execute()
         return response.data
     except Exception as e:
         print(f"❌ Error fetching ink2_form mappings: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 def build_sru_text(company_data: dict) -> str:
