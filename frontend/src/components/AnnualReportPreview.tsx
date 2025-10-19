@@ -2460,58 +2460,75 @@ const handleTaxCalculationClick = () => {
                  <span className="text-right font-medium">
                   {/* Special handling for INK4.23a and INK4.24a - Radio buttons for Ja/Nej */}
                   {(item.variable_name === 'INK4.23a' || item.variable_name === 'INK4.24a') ? (
-                    <div className="flex gap-6 items-center justify-end mr-8">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name={item.variable_name}
-                          value="ja"
-                          checked={(manualEdits[item.variable_name] ?? item.amount ?? 0) === 1}
-                          onChange={() => {
-                            if (!canEdit) return;
-                            const fieldA = item.variable_name;
-                            const fieldB = item.variable_name === 'INK4.23a' ? 'INK4.23b' : 'INK4.24b';
-                            setManualEdits(prev => {
-                              const updated = { 
-                                ...prev, 
-                                [fieldA]: 1,
-                                [fieldB]: 0
-                              };
-                              recalcWithManuals(updated);
-                              return updated;
-                            });
-                          }}
-                          disabled={!canEdit}
-                          className="w-4 h-4 text-blue-600 cursor-pointer"
-                        />
-                        <span className="text-sm font-medium">Ja</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name={item.variable_name}
-                          value="nej"
-                          checked={(manualEdits[item.variable_name === 'INK4.23a' ? 'INK4.23b' : 'INK4.24b'] ?? 0) === 1}
-                          onChange={() => {
-                            if (!canEdit) return;
-                            const fieldA = item.variable_name;
-                            const fieldB = item.variable_name === 'INK4.23a' ? 'INK4.23b' : 'INK4.24b';
-                            setManualEdits(prev => {
-                              const updated = { 
-                                ...prev, 
-                                [fieldA]: 0,
-                                [fieldB]: 1
-                              };
-                              recalcWithManuals(updated);
-                              return updated;
-                            });
-                          }}
-                          disabled={!canEdit}
-                          className="w-4 h-4 text-blue-600 cursor-pointer"
-                        />
-                        <span className="text-sm font-medium">Nej</span>
-                      </label>
-                    </div>
+                    (() => {
+                      const fieldA = item.variable_name;
+                      const fieldB = item.variable_name === 'INK4.23a' ? 'INK4.23b' : 'INK4.24b';
+                      
+                      // Get current values from manualEdits (during editing) or acceptedManuals (after approval) or item data
+                      const getCurrentValue = (fieldName: string) => {
+                        if (manualEdits[fieldName] !== undefined) return manualEdits[fieldName];
+                        if (acceptedManuals[fieldName] !== undefined) return acceptedManuals[fieldName];
+                        // Find the item in the data
+                        const foundItem = (recalculatedData || companyData.ink2Data || []).find((i: any) => i.variable_name === fieldName);
+                        return foundItem?.amount ?? 0;
+                      };
+                      
+                      const valueA = getCurrentValue(fieldA);
+                      const valueB = getCurrentValue(fieldB);
+                      const isJaChecked = valueA === 1;
+                      const isNejChecked = valueB === 1;
+                      
+                      return (
+                        <div className="flex gap-6 items-center justify-end mr-8">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={item.variable_name}
+                              value="ja"
+                              checked={isJaChecked}
+                              onChange={() => {
+                                if (!canEdit) return;
+                                setManualEdits(prev => {
+                                  const updated = { 
+                                    ...prev, 
+                                    [fieldA]: 1,
+                                    [fieldB]: 0
+                                  };
+                                  recalcWithManuals(updated);
+                                  return updated;
+                                });
+                              }}
+                              disabled={!canEdit}
+                              className="w-4 h-4 text-blue-600 cursor-pointer"
+                            />
+                            <span className="text-sm font-medium">Ja</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={item.variable_name}
+                              value="nej"
+                              checked={isNejChecked}
+                              onChange={() => {
+                                if (!canEdit) return;
+                                setManualEdits(prev => {
+                                  const updated = { 
+                                    ...prev, 
+                                    [fieldA]: 0,
+                                    [fieldB]: 1
+                                  };
+                                  recalcWithManuals(updated);
+                                  return updated;
+                                });
+                              }}
+                              disabled={!canEdit}
+                              className="w-4 h-4 text-blue-600 cursor-pointer"
+                            />
+                            <span className="text-sm font-medium">Nej</span>
+                          </label>
+                        </div>
+                      );
+                    })()
                   ) : item.show_amount === 'NEVER' || item.header ? '' :
                     (canEdit && isEditableCell(item.variable_name) && item.show_amount) ? (
                   <Ink2AmountInput
