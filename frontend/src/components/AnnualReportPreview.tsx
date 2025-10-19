@@ -1499,6 +1499,21 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       return item;
     });
     
+    // Ensure radio button fields (23b, 24b) exist in the data array
+    // These might not be in the original data since they're hidden fields
+    const radioButtonFields = ['INK4.23b', 'INK4.24b'];
+    radioButtonFields.forEach(fieldName => {
+      const exists = updatedInk2Data.some((item: any) => item.variable_name === fieldName);
+      if (!exists && nextAccepted[fieldName] !== undefined) {
+        // Add the field to the array
+        updatedInk2Data.push({
+          variable_name: fieldName,
+          amount: nextAccepted[fieldName],
+          row_title: fieldName === 'INK4.23b' ? 'Uppdragstagare: Nej' : 'Revision: Nej'
+        });
+      }
+    });
+    
     // Log key values for debugging
     const beraknadInUpdated = updatedInk2Data.find((i: any) => i.variable_name === 'INK_beraknad_skatt');
     const bokfordInUpdated = updatedInk2Data.find((i: any) => i.variable_name === 'INK_bokford_skatt');
