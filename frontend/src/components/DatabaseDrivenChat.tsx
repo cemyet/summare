@@ -2190,6 +2190,15 @@ const selectiveMergeInk2 = (
   // Watch for triggerChatStep requests from components
   useEffect(() => {
     if (companyData.triggerChatStep && companyData.triggerChatStep > 0) {
+      // CRITICAL: Prevent re-navigation to step 405 after first time
+      if (companyData.triggerChatStep === 405 && companyData.taxButtonClickedBefore) {
+        console.log('✅ Skipping triggerChatStep to 405 - already shown before (taxButtonClickedBefore=true)');
+        console.log('📊 Manual tax edits applied silently without chat message');
+        // Clear the trigger
+        onDataUpdate({ triggerChatStep: null });
+        return;
+      }
+      
       console.log('🎯 Triggering navigation to step:', companyData.triggerChatStep);
       loadChatStep(companyData.triggerChatStep);
       // Clear the trigger to prevent repeated navigation

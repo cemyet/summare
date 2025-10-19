@@ -1506,12 +1506,17 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       willTriggerStep405: isFirstTimeClick
     });
     
-    // Update accepted edits, ink2Data, mark button as clicked, and track applied chat keys
+    // CRITICAL: Set taxButtonClickedBefore FIRST in a separate update
+    // This ensures the flag is set BEFORE we potentially trigger step 405
+    if (isFirstTimeClick) {
+      onDataUpdate({ taxButtonClickedBefore: true });
+    }
+    
+    // Update accepted edits, ink2Data, and track applied chat keys
     // IMPORTANT: Always update ink2Data so INK2 PDF reflects manual edits
     onDataUpdate({ 
       acceptedInk2Manuals: nextAccepted,
       ink2Data: updatedInk2Data,
-      taxButtonClickedBefore: true,
       // Mark chat keys as "applied once"
       chatApplied: {
         ...(companyData.chatApplied || {}),
