@@ -39,7 +39,7 @@ export function Download({ companyData }: DownloadProps) {
       id: 'inkomstdeklaration-sru',
       title: 'Inkomstdeklaration',
       subtitle: 'Ladda ner SRU-fil',
-      filename: 'Test.pdf',
+      filename: 'INK2.sru',
       icon: <FileText className="w-5 h-5" />,
       downloaded: false
     },
@@ -164,6 +164,41 @@ export function Download({ companyData }: DownloadProps) {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('INK2 form PDF error:', errorText);
+          throw new Error(`Server responded with ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        a.remove();
+      } else if (fileId === 'inkomstdeklaration-sru') {
+        // Handle SRU file generation
+        if (!companyData) {
+          alert('Företagsdata saknas. Vänligen ladda upp en SIE-fil först.');
+          setIsGenerating(null);
+          return;
+        }
+        
+        const API_BASE = import.meta.env.VITE_API_URL || 'https://api.summare.se';
+        console.log('📄 Generating SRU file...');
+        
+        const response = await fetch(`${API_BASE}/api/sru/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            companyData
+          }),
+          cache: 'no-store',
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('SRU file error:', errorText);
           throw new Error(`Server responded with ${response.status}`);
         }
         

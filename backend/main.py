@@ -2399,6 +2399,63 @@ async def pdf_ink2_form(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error generating INK2 PDF: {str(e)}")
 
+@app.post("/api/sru/generate")
+async def generate_sru(request: Request):
+    """
+    Generate SRU file for INK2 tax declaration
+    Returns SRU format file (INK2R and INK2S) for Swedish tax authorities
+    """
+    try:
+        from services.sru_generator import generate_sru_file
+        from fastapi.responses import Response
+        
+        payload = await request.json()
+        company_data = payload.get('companyData', {})
+        
+        # Extract organization_number and fiscal_year for filename
+        organization_number = (company_data.get('organization_number') 
+                              or company_data.get('organizationNumber')
+                              or (company_data.get('seFileData') or {}).get('company_info', {}).get('organization_number'))
+        
+        fiscal_year = (company_data.get('fiscalYear')
+                      or company_data.get('fiscal_year')
+                      or (company_data.get('seFileData') or {}).get('company_info', {}).get('fiscal_year'))
+        
+        if not organization_number:
+            raise HTTPException(status_code=400, detail="organization_number is required")
+        if not fiscal_year:
+            raise HTTPException(status_code=400, detail="fiscal_year is required")
+        
+        # Generate SRU file
+        sru_bytes = generate_sru_file(company_data)
+        
+        # Extract name for filename
+        name = (company_data.get('company_name') 
+                or company_data.get('companyName')
+                or (company_data.get('seFileData') or {}).get('company_info', {}).get('company_name') 
+                or 'bolag')
+        
+        # Remove spaces and special characters from filename
+        import re
+        name_clean = re.sub(r'[^\w\s-]', '', name).strip().replace(' ', '_')
+        filename = f'INK2_{name_clean}_{fiscal_year}.sru'
+        
+        return Response(
+            content=sru_bytes,
+            media_type='text/plain',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+    except Exception as e:
+        print(f"Error generating SRU file: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating SRU file: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     import os
