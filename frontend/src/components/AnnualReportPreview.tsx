@@ -1500,7 +1500,14 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Mark any chat keys that were applied this time
     const appliedChatKeys = Object.keys(chatOverrides);
     
+    console.log('🔍 handleApproveChanges - Before update:', {
+      isFirstTimeClick,
+      taxButtonClickedBefore: companyData.taxButtonClickedBefore,
+      willTriggerStep405: isFirstTimeClick
+    });
+    
     // Update accepted edits, ink2Data, mark button as clicked, and track applied chat keys
+    // IMPORTANT: Always update ink2Data so INK2 PDF reflects manual edits
     onDataUpdate({ 
       acceptedInk2Manuals: nextAccepted,
       ink2Data: updatedInk2Data,
@@ -1513,9 +1520,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     });
 
     // If this is the first time clicking the button, trigger navigation to step 405
+    // After first time, manual edits should NOT trigger step 405 again
     if (isFirstTimeClick && onDataUpdate) {
       console.log('🎯 First time clicking tax approve button - triggering step 405');
       onDataUpdate({ triggerChatStep: 405 });
+    } else {
+      console.log('✅ Subsequent tax approve - NOT triggering step 405 (taxButtonClickedBefore was already true)');
     }
 
     // Check if we need to update RR/BR data based on tax differences

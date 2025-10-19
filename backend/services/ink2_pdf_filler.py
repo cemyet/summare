@@ -34,27 +34,33 @@ def _sv_num(x):
         return None
 
 def build_override_map(company_data: dict) -> dict:
-    """Freshest values from the UI across INK2, RR, BR, Noter, FB."""
+    """Freshest values from the UI across INK2, RR, BR, Noter, FB.
+    
+    Priority order (later overwrites earlier):
+    1. seFileData.ink2_data (original baseline)
+    2. ink2Data (latest calculated values including INK4.15, INK4.16)
+    3. acceptedInk2Manuals (user manual edits - HIGHEST PRIORITY)
+    """
     M: dict = {}
 
-    # 1) Manual overrides made by the user inside INK2 (highest priority)
-    for k, v in (company_data.get("acceptedInk2Manuals") or {}).items():
-        val = _sv_num(v)
-        if val is not None:
-            M[_norm(k)] = val
-
-    # 2) INK2 current values from seFileData (original baseline)
+    # 1) INK2 current values from seFileData (original baseline)
     for row in (company_data.get("seFileData") or {}).get("ink2_data", []) or []:
         k, v = row.get("variable_name"), _sv_num(row.get("amount"))
         if k and v is not None:
             M[_norm(k)] = v
     
-    # 2b) INK2 top-level ink2Data (latest calculated values including INK4.15, INK4.16)
+    # 2) INK2 top-level ink2Data (latest calculated values including INK4.15, INK4.16)
     # This has higher priority than seFileData.ink2_data
     for row in (company_data.get("ink2Data") or []):
         k, v = row.get("variable_name"), _sv_num(row.get("amount"))
         if k and v is not None:
             M[_norm(k)] = v
+
+    # 3) Manual overrides made by the user inside INK2 (HIGHEST PRIORITY - applied last)
+    for k, v in (company_data.get("acceptedInk2Manuals") or {}).items():
+        val = _sv_num(v)
+        if val is not None:
+            M[_norm(k)] = val
 
     # 3) RR/BR current values (affects many sums used by INK2)
     se = (company_data.get("seFileData") or {})
