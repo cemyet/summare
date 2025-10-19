@@ -77,7 +77,253 @@ if "unusedTaxLossAmount" in company_data and not ink4_14a_has_manual:
 
 ---
 
-### 3. Data Ripple Flow - Changes Must Propagate Everywhere
+### 3. INK2 Update Flow and RR/BR Linking
+**Location:** `frontend/src/components/AnnualReportPreview.tsx`
+
+**Rule:** INK2 module is the source of truth for tax calculations. Changes in INK2 must automatically flow to RR (Resultaträkning) and BR (Balansräkning), and all three outputs (Preview, Annual Report PDF, INK2 PDF) must always mirror the same values.
+
+#### 3.1 How INK2 is Updated
+
+**Three Ways to Update INK2:**
+
+1. **Chat Injection** (e.g., SLP, unused tax loss)
+   ```
+   Chat → onDataUpdate({ unusedTaxLossAmount: 340000 })
+   → Triggers recalculation
+   → Updates ink2Data
+   → Updates RR/BR via updateRrBrWithSlp()
+   ```
+
+2. **Manual Edit by User**
+   ```
+   User edits field → onChange in Ink2AmountInput
+   → Updates manualEdits state
+   → Triggers recalcWithManuals()
+   → Updates recalculatedData (preview)
+   ```
+
+3. **Automatic Recalculation** (derived fields like INK4.15, INK4.16)
+   ```
+   Any change → recalcWithManuals()
+   → Backend calculates derived fields
+   → Returns updated ink2Data
+   → Selective merge (CALC_ONLY fields always updated)
+   ```
+
+#### 3.2 INK2 → RR/BR Linking
+
+**When INK2 Changes, RR/BR Must Update:**
+
+```
+INK2 Change (tax or SLP)
+    ↓
+handleTaxUpdateLogic() in AnnualReportPreview.tsx
+    ↓
+Calculate differences:
+    - taxDifference = inkBeraknadSkatt - inkBokfordSkatt
+    - slpDelta = current SLP - previous SLP
+    ↓
+API: POST /api/update-tax-in-financial-data
+    ↓
+Backend updates RR:
+    - Row 277: Skatt på årets resultat = inkBeraknadSkatt
+    - Row 279: Årets resultat (adjusted for tax)
+    - Row 252: Personalkostnader (if SLP changed)
+    - Rows 256, 257, 260, 267, 275: Ripple SLP effects
+    ↓
+Backend updates BR:
+    - Row 413: Skatteskulder (tax + SLP liabilities)
+    - Row 416: Summa kortfristiga skulder
+    - Row 418: Summa skulder
+    - Row 420: Summa skulder och eget kapital
+    - Row 366: Balanserat resultat
+    - Row 368: Årets resultat
+    ↓
+Response: { rr_data, br_data, changes }
+    ↓
+onDataUpdate({ rr_data, br_data, seFileData })
+    ↓
+Preview updates immediately ✓
+```
+
+**Key Fields That Link INK2 to RR/BR:**
+- `INK_beraknad_skatt` → RR row 277 "Skatt på årets resultat"
+- `INK_sarskild_loneskatt` → RR row 252 "Personalkostnader" (adds to costs)
+- Tax difference → BR row 413 "Skatteskulder"
+- SLP → BR row 413 "Skatteskulder" (tax liability)
+- Adjusted result → RR row 279 "Årets resultat" → BR row 368 "Årets resultat"
+
+#### 3.3 "Godkänn" Button Behavior
+
+**Location:** `handleApproveChanges()` in `AnnualReportPreview.tsx`
+
+**What Happens When User Clicks "Godkänn och uppdatera skatt":**
+
+```typescript
+1. Capture Current State
+   - Get all manualEdits from current session
+   - Get chatOverrides (SLP, unused tax loss)
+   - Merge with previous acceptedInk2Manuals
+
+2. Set Flag (if first time)
+   if (isFirstTimeClick) {
+     onDataUpdate({ taxButtonClickedBefore: true });
+   }
+
+3. Update Company Data
+   onDataUpdate({
+     acceptedInk2Manuals: nextAccepted,  // Store manual edits permanently
+     ink2Data: updatedInk2Data,          // Update with new amounts
+     chatApplied: { ...appliedKeys }     // Mark chat keys as applied
+   });
+
+4. Trigger Step 405 (first time only)
+   if (isFirstTimeClick) {
+     onDataUpdate({ triggerChatStep: 405 });
+   }
+
+5. Update RR/BR
+   await handleTaxUpdateLogic(nextAccepted, updatedInk2Data, true);
+   // forceUpdate=true ensures RR/BR always update
+
+6. Clean Up
+   - Clear manualEdits state (now in acceptedInk2Manuals)
+   - Clear recalculatedData
+   - Close edit mode
+   - Auto-scroll to tax module
+
+7. Recalculate Derived Fields
+   await recalcWithManuals(nextAccepted, { 
+     includeAccepted: false, 
+     baselineSource: 'current' 
+   });
+   // Ensures INK4.15, INK4.16 always up-to-date
+```
+
+**Critical: Godkänn Must:**
+- ✅ Store manual edits in `acceptedInk2Manuals` (permanent)
+- ✅ Update `ink2Data` with new amounts
+- ✅ Trigger RR/BR update via `handleTaxUpdateLogic()`
+- ✅ Recalculate derived fields (INK4.15, INK4.16)
+- ✅ Only trigger step 405 on FIRST click
+- ✅ Close edit mode and clear temporary state
+
+#### 3.4 "Ångra" Button Behavior
+
+**Location:** `handleUndo()` in `AnnualReportPreview.tsx`
+
+**What Happens When User Clicks "Ångra":**
+
+```typescript
+1. Discard Session Edits
+   setManualEdits({});  // Clear all edits from current session
+
+2. Mark for Reset
+   clearAcceptedOnNextApproveRef.current = true;
+   // Next approve will clear old acceptedInk2Manuals
+
+3. Restore Original Values
+   await recalcWithManuals({}, { 
+     includeAccepted: false,      // Don't include previous accepted edits
+     baselineSource: 'original'   // Use original baseline from SIE file
+   });
+   // This restores INK2 to original state from SIE file
+```
+
+**Critical: Ångra Must:**
+- ✅ Clear current session edits (`manualEdits`)
+- ✅ Restore original values from baseline (`originalInk2BaselineRef`)
+- ✅ NOT clear `acceptedInk2Manuals` immediately (only on next approve)
+- ✅ Recalculate with original baseline
+- ✅ Update preview to show original values
+
+**Ångra vs Godkänn Interaction:**
+```
+Session 1:
+  Edit INK4.5c: 212 → 0
+  Click Godkänn → Stored in acceptedInk2Manuals ✓
+
+Session 2:
+  Click "Redigera manuellt" (edit mode opens)
+  Edit INK4.6a: 100000 → 50000
+  Click Ångra → INK4.6a reverts to 100000 ✓
+              → INK4.5c stays at 0 (from session 1) ✓
+```
+
+#### 3.5 Preview ↔ PDF Mirroring
+
+**CRITICAL RULE:** All three outputs must show EXACTLY the same values at all times.
+
+**Three Outputs:**
+1. **Preview** (on screen)
+   - Source: `recalculatedData` (during edit) or `ink2Data` (read-only)
+   - Applies: `manualEdits` (current session) + `acceptedInk2Manuals` (previous sessions)
+
+2. **Annual Report PDF** (Årsredovisning)
+   - Source: `rr_data` and `br_data` from `companyData`
+   - Generated: Backend combines RR + BR + Noter + FB
+   - Tax values: From RR row 277 (linked to INK2)
+
+3. **INK2 PDF** (Inkomstdeklaration 2)
+   - Source: `build_override_map()` in backend
+   - Priority: acceptedInk2Manuals > ink2Data > seFileData
+   - Generated: Fills INK2_form.pdf template
+
+**How Mirroring Works:**
+
+```
+User makes edit in INK2 module
+    ↓
+Preview updates immediately (via recalculatedData)
+    ↓
+User clicks Godkänn
+    ↓
+acceptedInk2Manuals updated ✓
+ink2Data updated ✓
+    ↓
+handleTaxUpdateLogic() called
+    ↓
+RR/BR updated via API ✓
+    ↓
+onDataUpdate({ rr_data, br_data, ink2Data, acceptedInk2Manuals })
+    ↓
+ALL THREE SOURCES NOW IN SYNC:
+    1. Preview: Uses ink2Data + acceptedInk2Manuals ✓
+    2. Annual Report PDF: Uses updated rr_data/br_data ✓
+    3. INK2 PDF: Uses acceptedInk2Manuals (highest priority) ✓
+```
+
+**Verification Checklist:**
+```
+After any INK2 change:
+□ Preview shows new value
+□ Download Annual Report PDF → RR/BR reflect change
+□ Download INK2 PDF → field shows new value
+
+Example - Change INK4.14a from 340000 to 1340000:
+□ Preview: INK4.14a shows 1340000 ✓
+□ Preview: INK4.16 (Underskott) shows 1340000 ✓
+□ Preview: RR "Årets resultat" updated (tax changed) ✓
+□ Annual Report PDF: RR shows updated result ✓
+□ INK2 PDF: Field 4.14a shows 1340000 ✓
+```
+
+**Common Mirroring Bugs:**
+1. **Preview shows X, PDF shows Y**
+   - Cause: `acceptedInk2Manuals` not being used in PDF generation
+   - Fix: Ensure `build_override_map()` applies manual edits last
+
+2. **RR/BR not updating**
+   - Cause: `handleTaxUpdateLogic()` not called or empty rr_data/br_data
+   - Fix: Always call after approve, use actual rendered data
+
+3. **Chat-injected value overwrites manual edit**
+   - Cause: Mapping (e.g., unusedTaxLossAmount → INK4.14a) applied after manual edits
+   - Fix: Check for manual override before applying mapping
+
+---
+
+### 4. Data Ripple Flow - Changes Must Propagate Everywhere
 **Rule:** When user makes changes in INK2 module, they must ripple through to ALL outputs.
 
 **Data Flow:**
