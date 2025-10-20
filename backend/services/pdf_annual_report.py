@@ -1528,10 +1528,23 @@ def build_visible_with_headings_pdf(items, toggle_on=False):
         if _is_subtotal_trigger(sty):
             show = False
             j = i - 1
+            found_section_heading = False
             while j >= 0:
                 prv = items[j]
+                prv_title = (prv.get("row_title") or "").strip().lower()
+                
+                # Check if we hit a section boundary (heading or another S2)
                 if _is_heading_style(prv.get("style")) or _is_subtotal_trigger(prv.get("style")):
+                    # Also treat sub-headings like "Nedskrivningar", "Avskrivningar" as boundaries
+                    # even if they're not marked as H2/H3 (common in KONCERN block)
+                    found_section_heading = True
                     break
+                
+                # For rows with specific sub-heading titles, treat them as section boundaries
+                if prv_title in ["nedskrivningar", "avskrivningar", "uppskrivningar", "anskaffningsvärden"]:
+                    found_section_heading = True
+                    break
+                    
                 if prv.get("row_id") in trigger_ids:
                     show = True
                     break
