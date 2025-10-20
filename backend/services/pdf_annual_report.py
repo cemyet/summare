@@ -1573,8 +1573,9 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         'INV': 'Inventarier, verktyg och installationer',  # Fixed order: INV before MASKIN
         'MASKIN': 'Maskiner och andra tekniska anläggningar',  # Fixed title
         'MAT': 'Övriga materiella anläggningstillgångar',  # Fixed title
-        'LVP': 'Långfristiga fordringar',
+        'LVP': 'Andra långfristiga värdepappersinnehav',
         'FORDR_KONCERN': 'Fordringar hos koncernföretag',
+        'FORDRKONC': 'Fordringar hos koncernföretag',  # Alternative block name
         'FORDR_INTRESSE': 'Fordringar hos intresseföretag',
         'FORDR_OVRIG': 'Övriga fordringar',
         'EVENTUAL': 'Eventualförpliktelser',
@@ -1591,9 +1592,11 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         'MASKIN', # Not 4 - Maskiner och andra tekniska anläggningar (BEFORE INV in preview!)
         'INV',    # Not 5 - Inventarier, verktyg och installationer (AFTER MASKIN in preview!)
         'MAT',    # Not 6 - Övriga materiella
-        'KONCERN', 'INTRESSEFTG', 'LVP',  # Financial assets
-        'FORDRKONC', 'FORDRINTRE', 'FORDROVRFTG', 'OVRIGAFTG',  # Receivables
-        'SAKERHET', 'EVENTUAL',  # Contingencies (SAKERHET = Not 7, EVENTUAL = Not 8)
+        'KONCERN', 'INTRESSEFTG',  # Not 7 - Andelar i koncernföretag, Andelar i intresseföretag
+        'FORDR_KONCERN', 'FORDRKONC',  # Not 8 - Fordringar hos koncernföretag (support both names)
+        'LVP',    # Not 9 - Andra långfristiga värdepappersinnehav
+        'FORDR_INTRESSE', 'FORDR_OVRIG',  # Other receivables
+        'SAKERHET', 'EVENTUAL',  # Contingencies
         'OVRIGA', 'OTHER'  # Other notes
     ]
     
