@@ -1410,33 +1410,34 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     for block_name, block_title, note_number, visible_items in rendered_blocks:
         _render_note_block(elems, block_name, block_title, note_number, visible_items, company_data, H1, P)
     
-    # Build PDF with footer - use two-pass approach to get total page count
-    # First pass: count total pages
-    total_pages = [0]  # Use list to allow modification in closure
+    # Build PDF with footer using canvasmaker approach
+    # Store total pages count
+    total_pages = [0]
     
-    def count_pages(canvas_obj, doc):
-        total_pages[0] = max(total_pages[0], canvas_obj.getPageNumber())
+    class FooterCanvas(canvas.Canvas):
+        """Custom canvas that adds footer to each page"""
+        def __init__(self, *args, **kwargs):
+            canvas.Canvas.__init__(self, *args, **kwargs)
+            self._saved_page_states = []
+            
+        def showPage(self):
+            self._saved_page_states.append(dict(self.__dict__))
+            self._startPage()
+            
+        def save(self):
+            """Add footers to all pages and save"""
+            num_pages = len(self._saved_page_states)
+            total_pages[0] = num_pages
+            
+            for page_num, state in enumerate(self._saved_page_states, start=1):
+                self.__dict__.update(state)
+                _add_footer(self, doc, name, page_num, num_pages)
+                canvas.Canvas.showPage(self)
+                
+            canvas.Canvas.save(self)
     
-    doc.build(elems, onFirstPage=count_pages, onLaterPages=count_pages)
-    
-    # Second pass: build with correct page numbers in footer
-    buf_final = BytesIO()
-    doc_final = SimpleDocTemplate(
-        buf_final, 
-        pagesize=A4, 
-        leftMargin=68,
-        rightMargin=68, 
-        topMargin=54,
-        bottomMargin=68
-    )
-    
-    def add_footer_with_total(canvas_obj, doc):
-        page_num = canvas_obj.getPageNumber()
-        _add_footer(canvas_obj, doc, name, page_num, total_pages[0])
-    
-    doc_final.build(elems, onFirstPage=add_footer_with_total, onLaterPages=add_footer_with_total)
-    
-    return buf_final.getvalue()
+    doc.build(elems, canvasmaker=FooterCanvas)
+    return buf.getvalue()
 
 # ---- Noter visibility logic (mirror of Noter.tsx) ----
 # Notes that must always show
