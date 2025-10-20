@@ -659,8 +659,7 @@ def _merge_br_data(se_br: list, overlay: list) -> list:
 
 def _add_footer(canvas_obj, doc, company_name: str, page_num: int, total_pages: int):
     """
-    Draw footer: compute text baseline first, then draw rule exactly 2pt above it.
-    Horizontal alignment: use content frame width (doc.leftMargin to doc.leftMargin + doc.width)
+    Add footer to page with thin line, company name (left), and page number (right).
     Skip footer on page 1 (cover page).
     """
     # Skip footer on cover page (page 1)
@@ -669,40 +668,30 @@ def _add_footer(canvas_obj, doc, company_name: str, page_num: int, total_pages: 
     
     canvas_obj.saveState()
     
-    # Constants
-    FOOTER_FONT = 'Roboto'
-    FOOTER_SIZE = 10
-    FOOTER_GAP_PT = 2       # gap between line and text (text is BELOW the line)
-    FOOTER_NUDGE_X_PT = 4   # nudge text to the right
+    # Get page dimensions
+    page_width, page_height = A4
     
-    # --- horizontal coordinates tied to the page margins / content frame ---
-    x_left = doc.leftMargin
-    x_right = doc.leftMargin + doc.width
+    # Footer position (24mm = 68pt from bottom, same as margin)
+    footer_y = 68 - 20  # Position footer 20pt below margin line
     
-    # --- vertical coordinates ---
-    # baseline for the footer text (keep inside bottom margin so it won't clip)
-    text_y = doc.bottomMargin - 8  # 8pt up from bottom edge; adjust if you prefer
-    # rule exactly 2pt above the text baseline
-    line_y = text_y + FOOTER_GAP_PT
-    
-    # Draw thin grey line
+    # Draw thin grey line within content area (between margins)
     line_color = colors.Color(0, 0, 0, alpha=0.20)  # 20% opacity
     canvas_obj.setStrokeColor(line_color)
     canvas_obj.setLineWidth(0.5)
-    canvas_obj.line(x_left, line_y, x_right, line_y)
+    # Line from left margin to right margin
+    canvas_obj.line(68, footer_y + 10, page_width - 68, footer_y + 10)  # 10pt above text
     
-    # Footer text, nudged right, with 2pt gap below the rule
+    # Set font for footer text (10pt normal Roboto)
+    canvas_obj.setFont('Roboto', 10)
+    canvas_obj.setFillColor(colors.black)
     
-    # Set text color to grey (#A9A9A9) and font
-    canvas_obj.setFillColor(colors.HexColor('#A9A9A9'))
-    canvas_obj.setFont(FOOTER_FONT, FOOTER_SIZE)
+    # Company name on the left
+    canvas_obj.drawString(68, footer_y, company_name)
     
-    # Left string (company name)
-    canvas_obj.drawString(x_left + FOOTER_NUDGE_X_PT, text_y, company_name or "")
-    
-    # Right string (page X (Y)) - use drawRightString for right alignment
+    # Page number on the right (format: "X (Y)")
     page_text = f"{page_num} ({total_pages})"
-    canvas_obj.drawRightString(x_right - FOOTER_NUDGE_X_PT, text_y, page_text)
+    text_width = canvas_obj.stringWidth(page_text, 'Roboto', 10)
+    canvas_obj.drawString(page_width - 68 - text_width, footer_y, page_text)
     
     canvas_obj.restoreState()
 
