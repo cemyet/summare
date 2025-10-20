@@ -220,11 +220,11 @@ def _render_cover_page(elems, company_data):
     
     # Organization number - 16pt normal
     elems.append(Paragraph(orgnr, cover_normal_16pt_style))
-    elems.append(Spacer(1, 20))  # 20pt space after
+    elems.append(Spacer(1, 24))  # 24pt space after
     
     # "avseende perioden" - 12pt normal
     elems.append(Paragraph("avseende perioden", cover_normal_12pt_style))
-    elems.append(Spacer(1, 2))  # 2pt space after
+    elems.append(Spacer(1, 3))  # 3pt space after
     
     # Fiscal period - 14pt normal
     period_text = f"{start_date_formatted} - {end_date_formatted}"
