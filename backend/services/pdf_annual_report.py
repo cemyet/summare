@@ -8,6 +8,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfgen import canvas
 import os
 
 # Register Roboto fonts
@@ -655,6 +656,43 @@ def _merge_br_data(se_br: list, overlay: list) -> list:
             # New row from overlay - add it with all its fields
             base[k] = dict(r)
     return list(base.values())
+
+def _add_footer(canvas_obj, doc, company_name: str, page_num: int, total_pages: int):
+    """
+    Add footer to page with thin line, company name (left), and page number (right).
+    Skip footer on page 1 (cover page).
+    """
+    # Skip footer on cover page (page 1)
+    if page_num == 1:
+        return
+    
+    canvas_obj.saveState()
+    
+    # Get page dimensions
+    page_width, page_height = A4
+    
+    # Footer position (24mm = 68pt from bottom, same as margin)
+    footer_y = 68 - 20  # Position footer 20pt below margin line
+    
+    # Draw thin grey line across full width (same style as noter headings)
+    line_color = colors.Color(0, 0, 0, alpha=0.20)  # 20% opacity
+    canvas_obj.setStrokeColor(line_color)
+    canvas_obj.setLineWidth(0.5)
+    canvas_obj.line(68, footer_y + 10, page_width - 68, footer_y + 10)  # 10pt above text
+    
+    # Set font for footer text (10pt normal Roboto)
+    canvas_obj.setFont('Roboto', 10)
+    canvas_obj.setFillColor(colors.black)
+    
+    # Company name on the left
+    canvas_obj.drawString(68, footer_y, company_name)
+    
+    # Page number on the right (format: "X (Y)")
+    page_text = f"{page_num} ({total_pages})"
+    text_width = canvas_obj.stringWidth(page_text, 'Roboto', 10)
+    canvas_obj.drawString(page_width - 68 - text_width, footer_y, page_text)
+    
+    canvas_obj.restoreState()
 
 def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     """
@@ -1372,9 +1410,33 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     for block_name, block_title, note_number, visible_items in rendered_blocks:
         _render_note_block(elems, block_name, block_title, note_number, visible_items, company_data, H1, P)
     
-    # Build PDF
-    doc.build(elems)
-    return buf.getvalue()
+    # Build PDF with footer - use two-pass approach to get total page count
+    # First pass: count total pages
+    total_pages = [0]  # Use list to allow modification in closure
+    
+    def count_pages(canvas_obj, doc):
+        total_pages[0] = max(total_pages[0], canvas_obj.getPageNumber())
+    
+    doc.build(elems, onFirstPage=count_pages, onLaterPages=count_pages)
+    
+    # Second pass: build with correct page numbers in footer
+    buf_final = BytesIO()
+    doc_final = SimpleDocTemplate(
+        buf_final, 
+        pagesize=A4, 
+        leftMargin=68,
+        rightMargin=68, 
+        topMargin=54,
+        bottomMargin=68
+    )
+    
+    def add_footer_with_total(canvas_obj, doc):
+        page_num = canvas_obj.getPageNumber()
+        _add_footer(canvas_obj, doc, name, page_num, total_pages[0])
+    
+    doc_final.build(elems, onFirstPage=add_footer_with_total, onLaterPages=add_footer_with_total)
+    
+    return buf_final.getvalue()
 
 # ---- Noter visibility logic (mirror of Noter.tsx) ----
 # Notes that must always show
