@@ -160,40 +160,22 @@ def _render_cover_page(elems, company_data):
     start_date_formatted = _format_date(start_date) if start_date else ""
     end_date_formatted = _format_date(end_date) if end_date else ""
     
-    # Create centered styles with tight spacing (no extra space between lines)
+    # Create centered styles with tight leading
     cover_title_style = ParagraphStyle(
         'CoverTitle',
         fontName='Roboto-Medium',  # Semibold
         fontSize=18,
         alignment=1,  # CENTER
-        leading=18,  # Tight leading (same as font size)
+        leading=18,
         spaceAfter=0
     )
     
-    cover_semibold_18pt_style = ParagraphStyle(
-        'CoverSemibold18',
+    cover_semibold_16pt_style = ParagraphStyle(
+        'CoverSemibold16',
         fontName='Roboto-Medium',  # Semibold
-        fontSize=18,
+        fontSize=16,
         alignment=1,  # CENTER
-        leading=18,  # Tight leading
-        spaceAfter=0
-    )
-    
-    cover_normal_18pt_style = ParagraphStyle(
-        'CoverNormal18',
-        fontName='Roboto',
-        fontSize=18,
-        alignment=1,  # CENTER
-        leading=18,  # Tight leading
-        spaceAfter=0
-    )
-    
-    cover_normal_12pt_style = ParagraphStyle(
-        'CoverNormal12',
-        fontName='Roboto',
-        fontSize=12,
-        alignment=1,  # CENTER
-        leading=12,  # Tight leading
+        leading=16,
         spaceAfter=0
     )
     
@@ -202,7 +184,16 @@ def _render_cover_page(elems, company_data):
         fontName='Roboto',
         fontSize=16,
         alignment=1,  # CENTER
-        leading=16,  # Tight leading
+        leading=16,
+        spaceAfter=0
+    )
+    
+    cover_normal_12pt_style = ParagraphStyle(
+        'CoverNormal12',
+        fontName='Roboto',
+        fontSize=12,
+        alignment=1,  # CENTER
+        leading=12,
         spaceAfter=0
     )
     
@@ -212,17 +203,21 @@ def _render_cover_page(elems, company_data):
     
     # "Årsredovisning" - 18pt semibold
     elems.append(Paragraph("Årsredovisning", cover_title_style))
+    elems.append(Spacer(1, 2))  # 2pt space after
     
-    # Company name - 18pt semibold (no space before)
-    elems.append(Paragraph(name, cover_semibold_18pt_style))
+    # Company name - 16pt semibold
+    elems.append(Paragraph(name, cover_semibold_16pt_style))
+    elems.append(Spacer(1, 2))  # 2pt space after
     
-    # Organization number - 18pt normal (no space before)
-    elems.append(Paragraph(orgnr, cover_normal_18pt_style))
+    # Organization number - 16pt normal
+    elems.append(Paragraph(orgnr, cover_normal_16pt_style))
+    elems.append(Spacer(1, 20))  # 20pt space after
     
-    # "avseende perioden" - 12pt normal (no space before)
+    # "avseende perioden" - 12pt normal
     elems.append(Paragraph("avseende perioden", cover_normal_12pt_style))
+    elems.append(Spacer(1, 2))  # 2pt space after
     
-    # Fiscal period - 16pt normal (no space before)
+    # Fiscal period - 16pt normal
     period_text = f"{start_date_formatted} - {end_date_formatted}"
     elems.append(Paragraph(period_text, cover_normal_16pt_style))
     
