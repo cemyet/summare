@@ -69,7 +69,6 @@ export function Download({ companyData }: DownloadProps) {
         }
         
         const API_BASE = import.meta.env.VITE_API_URL || 'https://api.summare.se';
-        console.log('📄 Generating annual report PDF with ReportLab...');
         
         // Add cache buster to ensure fresh PDF generation
         // Debug INV specifically before sending
@@ -80,40 +79,6 @@ export function Download({ companyData }: DownloadProps) {
         
         // Debug NOT2 specifically
         const not2Items = (companyData.noterData || []).filter((item: any) => item.block === 'NOT2');
-        
-        console.log('🚀 [PDF-DOWNLOAD] Sending companyData to backend:', {
-          // FB (Förvaltningsberättelse)
-          hasFbTable: !!companyData.fbTable,
-          fbTableLength: companyData.fbTable?.length || 0,
-          hasFbVariables: !!companyData.fbVariables,
-          fbVariablesCount: Object.keys(companyData.fbVariables || {}).length,
-          sampleFbRow: companyData.fbTable?.[0],
-          // Noter
-          hasNoterData: !!companyData.noterData,
-          noterDataLength: companyData.noterData?.length || 0,
-          noterToggleOn: companyData.noterToggleOn,
-          noterBlockToggles: companyData.noterBlockToggles,
-          sampleNote: companyData.noterData?.[0],
-          // INV specific debug
-          invItemsCount: invItems.length,
-          invNedskrivningar: invNedskr.map((item: any) => ({
-            title: item.row_title,
-            current: item.current_amount,
-            previous: item.previous_amount
-          })),
-          // NOT2 specific debug
-          not2ItemsCount: not2Items.length,
-          not2Items: not2Items.map((item: any) => ({
-            title: item.row_title,
-            current: item.current_amount,
-            previous: item.previous_amount
-          })),
-          // Text fields
-          hasVerksamhetContent: !!companyData.verksamhetContent,
-          verksamhetContent: companyData.verksamhetContent?.substring(0, 50) + '...',
-          hasVasentligaHandelser: !!companyData.vasentligaHandelser,
-          hasFlerarsoversikt: !!companyData.flerarsoversikt
-        });
         
         const response = await fetch(`${API_BASE}/api/pdf/annual-report`, {
           method: 'POST',
@@ -149,7 +114,6 @@ export function Download({ companyData }: DownloadProps) {
         }
         
         const API_BASE = import.meta.env.VITE_API_URL || 'https://api.summare.se';
-        console.log('📄 Generating INK2 form PDF...');
         
         const response = await fetch(`${API_BASE}/api/pdf/ink2-form`, {
           method: 'POST',
@@ -185,7 +149,6 @@ export function Download({ companyData }: DownloadProps) {
         }
         
         const API_BASE = import.meta.env.VITE_API_URL || 'https://api.summare.se';
-        console.log('📄 Generating SRU file...');
         
         const response = await fetch(`${API_BASE}/api/sru/generate`, {
           method: 'POST',

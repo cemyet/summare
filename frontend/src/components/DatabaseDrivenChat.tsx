@@ -7,17 +7,6 @@ import { FileUpload } from './FileUpload';
 import { USE_EMBED } from '@/utils/flags';
 // Force Vercel deployment - trigger
 
-// Debug logging
-console.log('🔧 USE_EMBED:', USE_EMBED);
-console.log('🔧 NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT:', process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT);
-console.log('🔧 VITE_USE_EMBEDDED_CHECKOUT:', (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_USE_EMBEDDED_CHECKOUT));
-console.log('🔧 All NEXT_PUBLIC env vars:', Object.keys(process.env || {}).filter(key => key.startsWith('NEXT_PUBLIC')));
-console.log('🔧 Environment check:', {
-  'process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT': process.env.NEXT_PUBLIC_USE_EMBEDDED_CHECKOUT,
-  'import.meta.env.VITE_USE_EMBEDDED_CHECKOUT': (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_USE_EMBEDDED_CHECKOUT),
-  'USE_EMBED result': USE_EMBED
-});
-
 interface ChatStep {
   step_number: number;
   block?: string;
@@ -86,69 +75,28 @@ interface ChatFlowResponse {
     // Handle tax update logic when approving calculated tax in chat flow
     const handleTaxUpdateForApproval = async () => {
       try {
-        console.log('🔍 Starting handleTaxUpdateForApproval in chat flow...');
-        
         // Get current INK2 data
         const currentInk2Data = companyData.ink2Data || [];
-        
-        console.log('📊 Current INK2 data in chat:', {
-          ink2DataLength: currentInk2Data.length
-        });
-        
-        // Debug: Log all variable names in the data
-        const variableNames = currentInk2Data.map((item: any) => item.variable_name).filter(Boolean);
-        console.log('📋 Available variable names in chat:', variableNames);
         
         // Find INK_beraknad_skatt and INK_bokford_skatt values
         const beraknadSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_beraknad_skatt');
         const bokfordSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_bokford_skatt');
         
-        console.log('🔍 Tax items found in chat:', {
-          beraknadSkattItem: beraknadSkattItem ? {
-            variable_name: beraknadSkattItem.variable_name,
-            amount: beraknadSkattItem.amount,
-            row_title: beraknadSkattItem.row_title
-          } : null,
-          bokfordSkattItem: bokfordSkattItem ? {
-            variable_name: bokfordSkattItem.variable_name,
-            amount: bokfordSkattItem.amount,
-            row_title: bokfordSkattItem.row_title
-          } : null
-        });
-        
         if (!beraknadSkattItem || !bokfordSkattItem) {
-          console.log('❌ Could not find INK_beraknad_skatt or INK_bokford_skatt items in chat');
           return;
         }
 
         const inkBeraknadSkatt = beraknadSkattItem.amount || 0;
         const inkBokfordSkatt = bokfordSkattItem.amount || 0;
         
-        console.log('💰 Tax comparison in chat:', { inkBeraknadSkatt, inkBokfordSkatt });
-        
         // Only proceed if there's a difference
         if (inkBeraknadSkatt === inkBokfordSkatt) {
-          console.log('✅ No tax difference in chat, skipping RR/BR updates');
           return;
         }
 
         const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
-        console.log('🚨 Tax difference detected in chat:', taxDifference);
 
         // Call API to update RR/BR data
-        console.log('🌐 Calling API to update RR/BR data from chat...');
-        
-        // First test if the endpoint is available
-        try {
-          const testResponse = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/test-tax-endpoint`);
-          console.log('🧪 Test endpoint response:', testResponse.status);
-          if (testResponse.ok) {
-            const testResult = await testResponse.json();
-            console.log('✅ Test endpoint working:', testResult);
-          }
-        } catch (testError) {
-          console.log('❌ Test endpoint failed:', testError);
-        }
         
         // Accepted SLP (positive) via helper
         const inkSarskildLoneskatt = getAcceptedSLP(currentInk2Data, companyData);
@@ -165,17 +113,6 @@ interface ChatFlowResponse {
           inkSarskildLoneskatt,
         };
         
-        console.log('📤 API request data from chat:', {
-          inkBeraknadSkatt,
-          inkBokfordSkatt,
-          taxDifference,
-          inkSarskildLoneskatt,
-          rr_data_length: requestData.rr_data.length,
-          br_data_length: requestData.br_data.length,
-          organizationNumber: companyData.organizationNumber,
-          fiscalYear: companyData.fiscalYear
-        });
-        
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
           method: 'POST',
           headers: {
@@ -184,14 +121,11 @@ interface ChatFlowResponse {
           body: JSON.stringify(requestData),
         });
 
-        console.log('📥 API response status from chat:', response.status);
-
         if (!response.ok) {
           const errorText = await response.text();
           console.error('❌ API error response from chat:', errorText);
           
           if (response.status === 404) {
-            console.log('⚠️ Tax update endpoint not available yet - deployment in progress');
             // Don't throw error for 404, just log and continue
             return;
           }
@@ -200,11 +134,8 @@ interface ChatFlowResponse {
         }
 
         const result = await response.json();
-        console.log('✅ API response result from chat:', result);
         
         if (result.success) {
-          console.log('🎉 Successfully updated RR/BR data with tax changes from chat');
-          console.log('📊 Changes made from chat:', result.changes);
           
           // Set default radio button values if not already set
           const currentAccepted = companyData.acceptedInk2Manuals || {};
@@ -382,7 +313,6 @@ interface ChatFlowResponse {
   const addMessage = (text: string, isBot: boolean = true, icon?: string, onDone?: () => void) => {
     // Prevent adding empty messages
     if (!text || text.trim() === '') {
-      console.log('🚫 Skipping empty message');
       return;
     }
     
@@ -425,7 +355,6 @@ interface ChatFlowResponse {
   // Load a chat step
   const loadChatStep = async (stepNumber: number, updatedInk2Data?: any[], tempCompanyData?: any) => {
     try {
-      console.log(`🔄 Loading step ${stepNumber}...`);
       setIsLoading(true);
       setIsWaitingForUser(false);
       
@@ -443,7 +372,6 @@ interface ChatFlowResponse {
       
       // Debug logging for step 506
       if (stepNumber === 506) {
-        console.log('🔍 Step 506 loaded from database:', response.question_text);
       }
       
       if (response.success) {
@@ -453,8 +381,6 @@ interface ChatFlowResponse {
         // Handle no_option automatically if it exists
         const noOption = response.options.find(opt => opt.option_order === 0);
         if (noOption) {
-          console.log('🚀 Auto-executing no_option:', noOption);
-          console.log('No option details:', {
             option_value: noOption.option_value,
             next_step: noOption.next_step,
             action_type: noOption.action_type,
@@ -471,15 +397,11 @@ interface ChatFlowResponse {
               );
               if (inkBeraknadSkattItem && inkBeraknadSkattItem.amount !== undefined) {
                 mostRecentInkBeraknadSkatt = inkBeraknadSkattItem.amount;
-                console.log('💰 Using most recent inkBeraknadSkatt from INK2 data for message step:', mostRecentInkBeraknadSkatt);
               }
             }
             
             // Substitute variables in question text (use temp data if available)
             const dataToUseForMessage = tempCompanyData || companyData;
-            console.log('🔍 Message step dataToUseForMessage:', dataToUseForMessage);
-            console.log('🔍 Message step tempCompanyData:', tempCompanyData);
-            console.log('🔍 Message step companyData:', companyData);
             const questionText = substituteVariables(response.question_text, {
               SumAretsResultat: dataToUseForMessage.sumAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.sumAretsResultat) : '0',
               SkattAretsResultat: dataToUseForMessage.skattAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.skattAretsResultat) : '0',
@@ -515,7 +437,6 @@ interface ChatFlowResponse {
                           top: scrollTop,
                           behavior: 'smooth'
                         });
-                        console.log('🎯 Auto-scrolled to Stripe payment content as soon as rendered');
                       }
                     }, 150); // Slightly longer delay for Stripe to fully render
                     return true; // Stop checking
@@ -550,11 +471,9 @@ interface ChatFlowResponse {
           
           // Special handling for step 420: auto-scroll before no_option execution
           if (stepNumber === 420) {
-            console.log('🔥 STEP 420 NO_OPTION - Auto-scrolling to Noter before continuing');
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
               const scrollContainer = document.querySelector('.overflow-auto');
-              console.log('🔍 No-option scroll elements found:', {
                 noterModule: !!noterModule,
                 scrollContainer: !!scrollContainer
               });
@@ -564,7 +483,6 @@ interface ChatFlowResponse {
                 const noterRect = noterModule.getBoundingClientRect();
                 const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
                 
-                console.log('📍 No-option scroll calculation:', {
                   currentScrollTop: scrollContainer.scrollTop,
                   targetScrollTop: scrollTop
                 });
@@ -574,7 +492,6 @@ interface ChatFlowResponse {
                   behavior: 'smooth'
                 });
               } else {
-                console.log('❌ No-option auto-scroll failed: Missing elements');
               }
             }, 200); // Shorter delay since we're about to navigate away
           }
@@ -594,7 +511,6 @@ interface ChatFlowResponse {
           );
           if (inkBeraknadSkattItem && inkBeraknadSkattItem.amount !== undefined) {
             mostRecentInkBeraknadSkatt = inkBeraknadSkattItem.amount;
-            console.log('💰 Using most recent inkBeraknadSkatt from INK2 data:', mostRecentInkBeraknadSkatt);
           }
         }
         
@@ -636,9 +552,7 @@ interface ChatFlowResponse {
         // - Suppress chat options to avoid accidental auto-selection
         // - Scroll the preview into view so inputs are visible
         if (stepNumber === 402) {
-          console.log('🔥 STEP 402 TRIGGERED - Calling onDataUpdate with flags');
           onDataUpdate({ taxEditingEnabled: true, editableAmounts: true, showTaxPreview: true });
-          console.log('🔥 STEP 402 onDataUpdate called successfully');
           setCurrentOptions([]);
           setTimeout(() => {
             const taxModule = document.querySelector('[data-section="tax-calculation"]');
@@ -649,11 +563,9 @@ interface ChatFlowResponse {
         } 
         // Auto-scroll to Noter section for step 420
         else if (stepNumber === 420) {
-          console.log('🔥 STEP 420 TRIGGERED - Auto-scrolling to Noter');
           setTimeout(() => {
             const noterModule = document.querySelector('[data-section="noter"]');
             const scrollContainer = document.querySelector('.overflow-auto');
-            console.log('🔍 Scroll elements found:', {
               noterModule: !!noterModule,
               scrollContainer: !!scrollContainer,
               noterModuleRect: noterModule?.getBoundingClientRect(),
@@ -665,7 +577,6 @@ interface ChatFlowResponse {
               const noterRect = noterModule.getBoundingClientRect();
               const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
               
-              console.log('📍 Scroll calculation:', {
                 currentScrollTop: scrollContainer.scrollTop,
                 targetScrollTop: scrollTop,
                 noterTop: noterRect.top,
@@ -677,17 +588,14 @@ interface ChatFlowResponse {
                 behavior: 'smooth'
               });
             } else {
-              console.log('❌ Auto-scroll failed: Missing elements');
             }
           }, 500);
         }
         // Auto-scroll to Resultatdisposition section for step 501
         else if (stepNumber === 501) {
-          console.log('🔥 STEP 501 TRIGGERED - Auto-scrolling to Resultatdisposition');
           setTimeout(() => {
             const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]');
             const scrollContainer = document.querySelector('.overflow-auto');
-            console.log('🔍 Resultatdisposition scroll elements found:', {
               fbModule: !!fbModule,
               scrollContainer: !!scrollContainer
             });
@@ -699,7 +607,6 @@ interface ChatFlowResponse {
               const fbHeight = fbModule.scrollHeight || fbRect.height;
               const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top + fbHeight - containerRect.height + 50;
               
-              console.log('📍 Resultatdisposition scroll calculation:', {
                 currentScrollTop: scrollContainer.scrollTop,
                 targetScrollTop: scrollTop,
                 fbHeight: fbHeight,
@@ -711,7 +618,6 @@ interface ChatFlowResponse {
                 behavior: 'smooth'
               });
             } else {
-              console.log('❌ Resultatdisposition auto-scroll failed: Missing elements');
             }
           }, 500);
         }
@@ -757,7 +663,6 @@ interface ChatFlowResponse {
         (document.querySelector('[data-scroll-container="chat"]') as HTMLElement | null);
 
       if (!downloadModule || !scrollContainer) {
-        console.log('❌ Scroll to Download failed: Missing elements');
         return;
       }
 
@@ -765,7 +670,6 @@ interface ChatFlowResponse {
       const downloadRect = downloadModule.getBoundingClientRect();
       const scrollTop = scrollContainer.scrollTop + downloadRect.top - containerRect.top - 24;
 
-      console.log('📍 Scrolling to Download:', {
         currentScrollTop: scrollContainer.scrollTop,
         targetScrollTop: scrollTop
       });
@@ -789,7 +693,6 @@ interface ChatFlowResponse {
         (document.querySelector('[data-scroll-container="chat"]') as HTMLElement | null);
 
       if (!signeringModule || !scrollContainer) {
-        console.log('❌ Scroll to Signering failed: Missing elements');
         return;
       }
 
@@ -797,7 +700,6 @@ interface ChatFlowResponse {
       const signeringRect = signeringModule.getBoundingClientRect();
       const scrollTop = scrollContainer.scrollTop + signeringRect.top - containerRect.top - 24;
 
-      console.log('📍 Scrolling to Signering:', {
         currentScrollTop: scrollContainer.scrollTop,
         targetScrollTop: scrollTop
       });
@@ -827,14 +729,9 @@ interface ChatFlowResponse {
         const sarskildLoneskattPension = companyData.sarskildLoneskattPension || 0;
         const sarskildLoneskattPensionCalculated = companyData.sarskildLoneskattPensionCalculated || 0;
         
-        console.log('🔍 Step 201 condition debug:');
-        console.log('📊 pension_premier:', pensionPremier);
-        console.log('📊 sarskild_loneskatt_pension (booked):', sarskildLoneskattPension);
-        console.log('📊 sarskild_loneskatt_pension_calculated:', sarskildLoneskattPensionCalculated);
         
         // Show step 201 if there are pension premiums AND calculated tax > booked tax
         const shouldShow = pensionPremier > 0 && sarskildLoneskattPensionCalculated > sarskildLoneskattPension;
-        console.log('💡 Should show step 201?', shouldShow);
         
         return shouldShow;
       }
@@ -864,7 +761,6 @@ interface ChatFlowResponse {
   // Handle option selection
   const handleOptionSelect = async (option: ChatOption, explicitStepNumber?: number, updatedInk2Data?: any[]) => {
     try {
-      console.log('🚀 handleOptionSelect called with option:', option.option_value);
       setIsWaitingForUser(false); // User took action, stop waiting
       
       // Add user message only if there's actual text
@@ -875,7 +771,6 @@ interface ChatFlowResponse {
 
       // Immediate scroll to Signering when clicking "Fortsätt till signering" at step 510
       if (currentStep === 510 && option.option_value === 'continue' && option.next_step === 515) {
-        console.log('🖊️ Triggering immediate scroll to Signering from step 510');
         scrollToSignering();
       }
 
@@ -883,7 +778,6 @@ interface ChatFlowResponse {
       // Handle custom tax options to bypass API call
       if (option.option_value === 'approve_tax') {
         // Hide tax preview and go to next step based on SQL or fallback
-        console.log('🏛️ APPROVE_TAX clicked - hiding tax preview and navigating to step 420');
         
         // Set default radio button values if not already set
         const currentAccepted = companyData.acceptedInk2Manuals || {};
@@ -904,15 +798,12 @@ interface ChatFlowResponse {
         });
         
         const nextStep = option.next_step || 420; // Use SQL next_step or fallback to 420
-        console.log('🚀 APPROVE_TAX will navigate to step:', nextStep);
         
         // Auto-scroll to Noter section when going to step 420
         if (nextStep === 420) {
-          console.log('🔥 APPROVE_TAX - Auto-scrolling to Noter section');
           setTimeout(() => {
             const noterModule = document.querySelector('[data-section="noter"]');
             const scrollContainer = document.querySelector('.overflow-auto');
-            console.log('🔍 APPROVE_TAX scroll elements found:', {
               noterModule: !!noterModule,
               scrollContainer: !!scrollContainer
             });
@@ -922,7 +813,6 @@ interface ChatFlowResponse {
               const noterRect = noterModule.getBoundingClientRect();
               const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 10pt padding from top
               
-              console.log('📍 APPROVE_TAX scroll calculation:', {
                 currentScrollTop: scrollContainer.scrollTop,
                 targetScrollTop: scrollTop,
                 noterTop: noterRect.top,
@@ -934,13 +824,11 @@ interface ChatFlowResponse {
                 behavior: 'smooth'
               });
             } else {
-              console.log('❌ APPROVE_TAX auto-scroll failed: Missing elements');
             }
           }, 200);
         }
         
         setTimeout(() => {
-          console.log('🚀 APPROVE_TAX calling loadChatStep with step:', nextStep);
           loadChatStep(nextStep);
         }, 1000);
         return;
@@ -948,11 +836,8 @@ interface ChatFlowResponse {
       
       // Handle approve_calculated - trigger tax update logic
       if (option.option_value === 'approve_calculated') {
-        console.log('🎯 Processing approve_calculated - triggering tax update logic');
-        console.log('🎯 About to call handleTaxUpdateForApproval...');
         try {
           await handleTaxUpdateForApproval();
-          console.log('🎯 handleTaxUpdateForApproval completed successfully');
         } catch (error) {
           console.error('🎯 Error calling handleTaxUpdateForApproval:', error);
         }
@@ -983,13 +868,11 @@ interface ChatFlowResponse {
             const step201Response = await apiService.getChatFlowStep(201) as ChatFlowResponse;
             if (step201Response.success && step201Response.show_conditions) {
               const shouldShow = evaluateConditions(step201Response.show_conditions);
-              console.log('🔍 Step 201 condition evaluation:', shouldShow);
               
               if (shouldShow) {
                 loadChatStep(201);
               } else {
                 // Skip to step 301 if condition not met
-                console.log('⏭️ Skipping step 201, going to 301');
                 loadChatStep(301);
               }
             } else {
@@ -1051,7 +934,6 @@ interface ChatFlowResponse {
         );
         if (inkBeraknadSkattItem && inkBeraknadSkattItem.amount !== undefined) {
           mostRecentInkBeraknadSkatt = inkBeraknadSkattItem.amount;
-          console.log('💰 Using most recent inkBeraknadSkatt from INK2 data for context:', mostRecentInkBeraknadSkatt);
         }
       }
       
@@ -1064,7 +946,6 @@ interface ChatFlowResponse {
         SkattAretsResultat: companyData.skattAretsResultat || 0
       };
       
-      console.log('🔍 Processing choice with context:', context);
 
       const response = await apiService.processChatChoice({
         step_number: explicitStepNumber || currentStep,
@@ -1075,16 +956,12 @@ interface ChatFlowResponse {
       if (response.success) {
         const { action_type, action_data, next_step } = response.result;
         
-        console.log('🔍 API Response:', { action_type, action_data, next_step });
-        console.log('🔍 Full response.result:', response.result);
 
         // Embedded checkout interception logic
         const isPaymentChoice = option?.option_value === "stripe_payment";
         let interceptedExternalRedirect = false;
 
         // Process the action
-        console.log('🔍 Processing action:', action_type, 'with data:', action_data);
-        console.log('🔍 About to enter switch statement with action_type:', action_type);
         
         // Special option handling moved to earlier section
         
@@ -1092,7 +969,6 @@ interface ChatFlowResponse {
           case 'set_variable':
             // Handle variable setting while preserving existing data
             if (action_data?.variable && action_data?.value !== undefined) {
-              console.log('🔧 Setting variable:', action_data.variable, 'to:', action_data.value);
               // Preserve existing ink2Data when setting variables to prevent data loss
               const updateData: any = { [action_data.variable]: action_data.value };
               if (companyData.ink2Data && companyData.ink2Data.length > 0) {
@@ -1108,7 +984,6 @@ interface ChatFlowResponse {
                 const maxDividend = companyData.sumFrittEgetKapital || 0;
                 const balancerasAmount = maxDividend - dividendAmount;
                 
-                console.log('💰 Dividend set via option:', {
                   arets_utdelning: dividendAmount,
                   sumFrittEgetKapital: maxDividend,
                   arets_balanseras_nyrakning: balancerasAmount
@@ -1120,7 +995,6 @@ interface ChatFlowResponse {
                 // Special navigation for dividend with temp data
                 if (next_step) {
                   onDataUpdate(updateData);
-                  console.log('🚀 Dividend option navigating to step:', next_step);
                   // Pass temporary data with calculated values for immediate substitution
                   const tempData = {
                     ...companyData,
@@ -1142,9 +1016,7 @@ interface ChatFlowResponse {
             
           case 'enable_editing':
             // Enable tax editing mode immediately
-            console.log('🔧 ENABLE_EDITING ACTION TRIGGERED - Setting editableAmounts to true');
             onDataUpdate({ taxEditingEnabled: true, editableAmounts: true, showTaxPreview: true });
-            console.log('🔧 onDataUpdate called with:', { taxEditingEnabled: true, editableAmounts: true, showTaxPreview: true });
             // Ensure we land on the manual editing step 402
             const targetStep = next_step || 402;
             setTimeout(() => loadChatStep(targetStep), 200);
@@ -1153,7 +1025,6 @@ interface ChatFlowResponse {
           case 'show_input':
             // Prefer explicit navigation to the input step if provided
             if (next_step) {
-              console.log('🧭 show_input: navigating to input step', next_step);
               setTimeout(() => loadChatStep(next_step, updatedInk2Data), 300);
               return; // Avoid double-navigation by skipping general nav below
             }
@@ -1178,7 +1049,6 @@ interface ChatFlowResponse {
             break;
 
           case "show_payment_module":
-            console.log("💳 Showing payment module");
             window.dispatchEvent(new Event("summare:showPayment"));
             // Auto-scroll is now handled by step 506 watcher for better timing
             break;
@@ -1187,14 +1057,12 @@ interface ChatFlowResponse {
             const forceEmbed = (explicitStepNumber || currentStep) === 505 && isPaymentChoice;
 
             if (forceEmbed) {
-              console.log("💳 FORCE embedded checkout (step 505) — ignoring external_redirect, loading step 506");
               loadChatStep(506); // Load payment loading message from database
               // IMPORTANT: return here so we don't fall through to general navigation
               return;
             }
 
             if (action_data?.url) {
-              console.log("🔗 Redirecting to external URL:", action_data.url);
               window.open(action_data.url, action_data.target || "_blank");
             }
             break;
@@ -1220,12 +1088,10 @@ interface ChatFlowResponse {
             
           case 'generate_pdf':
             // Handle PDF generation
-            console.log('PDF generation requested');
             break;
             
           case 'complete_session':
             // Handle session completion
-            console.log('Session completion requested');
             break;
             
           case 'show_periodiseringsfonder':
@@ -1250,27 +1116,21 @@ interface ChatFlowResponse {
         }
 
         // Navigate to next step
-        console.log('🔍 General navigation check:', { next_step, action_type });
         
         // IMPORTANT: Prevent re-navigation to step 405 after first time
         // After user has seen step 405 once, manual edits should update silently
         if (next_step === 405 && companyData.taxButtonClickedBefore) {
-          console.log('✅ Skipping navigation to step 405 - already shown before (taxButtonClickedBefore=true)');
-          console.log('📊 Manual tax edits will be applied silently without chat message');
           // Don't navigate, just stay at current step
           return;
         }
         
         if (next_step && !interceptedExternalRedirect) {
-          console.log('🚀 Navigating to step:', next_step);
           
           // Auto-scroll to noter section for step 420
           if (next_step === 420) {
-            console.log('🔥 NAVIGATION TO STEP 420 - Auto-scrolling to Noter');
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
               const scrollContainer = document.querySelector('.overflow-auto');
-              console.log('🔍 Navigation scroll elements found:', {
                 noterModule: !!noterModule,
                 scrollContainer: !!scrollContainer
               });
@@ -1280,7 +1140,6 @@ interface ChatFlowResponse {
                 const noterRect = noterModule.getBoundingClientRect();
                 const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
                 
-                console.log('📍 Navigation scroll calculation:', {
                   currentScrollTop: scrollContainer.scrollTop,
                   targetScrollTop: scrollTop
                 });
@@ -1290,7 +1149,6 @@ interface ChatFlowResponse {
                   behavior: 'smooth'
                 });
               } else {
-                console.log('❌ Navigation auto-scroll failed: Missing elements');
               }
             }, 500);
           }
@@ -1331,7 +1189,6 @@ interface ChatFlowResponse {
                   top: scrollTop,
                   behavior: 'smooth'
                 });
-                console.log('📍 Scrolled to bottom of Förvaltningsberättelse');
               }
             }, 500);
           }
@@ -1354,7 +1211,6 @@ interface ChatFlowResponse {
                   top: scrollTop,
                   behavior: 'smooth'
                 });
-                console.log('📍 Scrolled to show Styrelsen text after dividend');
               }
             }, 800);
           }
@@ -1371,9 +1227,7 @@ interface ChatFlowResponse {
           
           setTimeout(() => loadChatStep(next_step, updatedInk2Data), 1000);
         } else if (interceptedExternalRedirect) {
-          console.log('🧭 Skipping navigation because embedded checkout is shown');
         } else {
-          console.log('❌ No next_step specified');
         }
       }
     } catch (error) {
@@ -1576,7 +1430,6 @@ const selectiveMergeInk2 = (
       // If SLP was injected (including when set to 0), immediately update RR/BR with the SLP changes
       // This ensures previous SLP effects are reversed when SLP becomes 0
       if (typeof sarskild === 'number') {
-        console.log('🔄 SLP injected via chat, updating RR/BR immediately...', { sarskild });
         await updateRrBrWithSlp(merged);
       }
       
@@ -1591,14 +1444,12 @@ const selectiveMergeInk2 = (
   // Helper function to update RR/BR with SLP changes immediately (SLP only, no tax changes)
   const updateRrBrWithSlp = async (ink2Data: any[]) => {
     try {
-      console.log('🔍 Starting updateRrBrWithSlp (SLP only, no tax injection)...');
       
       // Get INK_bokford_skatt value - we'll use this for both beraknad and bokford
       // so that taxDifference = 0 (only SLP will be injected, not tax changes)
       const bokfordSkattItem = ink2Data.find((item: any) => item.variable_name === 'INK_bokford_skatt');
       
       if (!bokfordSkattItem) {
-        console.log('❌ Could not find INK_bokford_skatt for SLP update');
         return;
       }
 
@@ -1607,7 +1458,6 @@ const selectiveMergeInk2 = (
       // Get SLP amount
       const inkSarskildLoneskatt = getAcceptedSLP(ink2Data, companyData);
       
-      console.log('💰 Updating RR/BR with SLP only (no tax change):', { 
         inkSarskildLoneskatt, 
         inkBokfordSkatt,
         note: 'Setting inkBeraknadSkatt = inkBokfordSkatt to avoid tax injection' 
@@ -1640,7 +1490,6 @@ const selectiveMergeInk2 = (
         console.error('❌ API error response:', errorText);
         
         if (response.status === 404) {
-          console.log('⚠️ Tax update endpoint not available yet');
           return;
         }
         
@@ -1648,10 +1497,8 @@ const selectiveMergeInk2 = (
       }
 
       const result = await response.json();
-      console.log('✅ SLP update result:', result);
       
       if (result.success) {
-        console.log('🎉 Successfully updated RR/BR data with SLP changes');
         
         // Update company data with new RR/BR data
         onDataUpdate({
@@ -1725,7 +1572,6 @@ const selectiveMergeInk2 = (
       }
     } else if (actionData?.endpoint === 'send_for_digital_signing') {
       try {
-        console.log('🖊️ Triggering digital signing from chat...', companyData.signeringData);
         
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/send-for-digital-signing`, {
           method: 'POST',
@@ -1745,7 +1591,6 @@ const selectiveMergeInk2 = (
         const result = await response.json();
         
         if (result.success) {
-          console.log('✅ Digital signing initiated successfully:', result);
           addMessage('Signering-invitationer har skickats! Du kommer att få bekräftelse via e-post när alla har signerat.', true, '✅');
         } else {
           throw new Error(result.message || 'Failed to send signing invitations');
@@ -1765,7 +1610,6 @@ const selectiveMergeInk2 = (
       ? parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0
       : inputValue.trim();
     
-    console.log('📤 Input submit - Current step:', currentStep, 'Options:', currentOptions);
     
     // Find the submit option to check if this is dividend input
     const submitOption = lastLoadedOptions?.find(opt => opt.option_value === 'submit');
@@ -1804,7 +1648,6 @@ const selectiveMergeInk2 = (
         // Store the input value based on action data
         if (submitOption.action_data?.variable) {
           
-          console.log('💾 Storing input value:', {
             variable: submitOption.action_data.variable,
             value: value,
             inputValue: inputValue,
@@ -1818,7 +1661,6 @@ const selectiveMergeInk2 = (
             const maxDividend = companyData.sumFrittEgetKapital || 0;
             const balancerasAmount = maxDividend - dividendAmount;
             
-            console.log('💰 Dividend calculation:', {
               sumFrittEgetKapital: maxDividend,
               arets_utdelning: dividendAmount,
               balanseras_amount: balancerasAmount
@@ -1829,7 +1671,6 @@ const selectiveMergeInk2 = (
             
             // Special handling for dividend: pass temp data for immediate substitution
             if (submitOption.next_step) {
-              console.log('🚀 Navigating to dividend next step:', submitOption.next_step);
               setShowInput(false);
               setInputValue('');
               // Pass temporary data with calculated balanseras amount for substitution
@@ -1913,7 +1754,6 @@ const selectiveMergeInk2 = (
       }
 
       // Navigate to next step (unless we're handling special cases)
-      console.log('🔍 Navigation check:', {
         hasNextStep: !!submitOption.next_step,
         nextStep: submitOption.next_step,
         variable: submitOption.action_data?.variable,
@@ -1922,20 +1762,16 @@ const selectiveMergeInk2 = (
       
       if (submitOption.next_step && 
           submitOption.action_data?.variable !== 'sarskildLoneskattCustom') {
-        console.log('🚀 Navigating to step:', submitOption.next_step);
         setShowInput(false);
         setInputValue('');
         setTimeout(() => loadChatStep(submitOption.next_step!), 500);
       } else {
-        console.log('❌ Navigation blocked or no next step');
       }
     }
   };
 
   // Handle file upload
   const handleFileProcessed = async (fileData: any) => {
-    console.log('📁 File processed:', fileData);
-    
     // Extract data from the uploaded file (same logic as old system)
     let extractedResults = null;
     let sumAretsResultat = null;
@@ -1995,11 +1831,7 @@ const selectiveMergeInk2 = (
       }
       if (sumAretsResultatItem && sumAretsResultatItem.current_amount !== null) {
         sumAretsResultat = Math.round(sumAretsResultatItem.current_amount);
-        console.log('📊 Found SumAretsResultat:', sumAretsResultat, 'from item:', sumAretsResultatItem);
       } else {
-        console.log('❌ Could not find SumAretsResultat in RR or BR data');
-        console.log('RR data keys:', fileData.data.rr_data?.map((item: any) => ({ id: item.id, variable_name: item.variable_name, label: item.label, current_amount: item.current_amount })));
-        
         // Try to find any result item as fallback
         const fallbackItem = fileData.data.rr_data?.find((item: any) => 
           item.current_amount !== null && item.current_amount !== 0 && 
@@ -2007,19 +1839,10 @@ const selectiveMergeInk2 = (
         );
         if (fallbackItem) {
           sumAretsResultat = Math.round(fallbackItem.current_amount);
-          console.log('📊 Using fallback SumAretsResultat:', sumAretsResultat, 'from item:', fallbackItem);
         }
       }
       
       // Extract SkattAretsResultat for tax confirmation
-      console.log('🔍 Searching for SkattAretsResultat in RR data...');
-      console.log('🔍 Available RR items:', fileData.data.rr_data.map((item: any) => ({
-        variable_name: item.variable_name,
-        id: item.id,
-        label: item.label,
-        current_amount: item.current_amount
-      })));
-      
       // First try to find exact variable name match
       let skattAretsResultatItem = fileData.data.rr_data.find((item: any) => 
         item.variable_name === 'SkattAretsResultat'
@@ -2044,9 +1867,6 @@ const selectiveMergeInk2 = (
         skattAretsResultat = Math.round(skattAretsResultatItem.current_amount);
         // Fix negative zero issue
         if (skattAretsResultat === -0) skattAretsResultat = 0;
-        console.log('💰 Found SkattAretsResultat:', skattAretsResultat, 'from item:', skattAretsResultatItem);
-      } else {
-        console.log('❌ Could not find SkattAretsResultat in RR data');
       }
     }
     
@@ -2153,8 +1973,6 @@ const selectiveMergeInk2 = (
     
     const continueTaxFlow = async () => {
       // Add debugging for tax amount
-      console.log('🏛️ Tax amount for step 104:', skattAretsResultat);
-      console.log('📊 Annual result for step 103:', sumAretsResultat);
       // Show tax question if we have tax data (including 0)
       if (skattAretsResultat !== null) {
         try {
@@ -2189,9 +2007,6 @@ const selectiveMergeInk2 = (
 
   // Initialize chat on mount
   useEffect(() => {
-    console.log('🚀 DatabaseDrivenChat initializing...');
-    console.log('CompanyData:', companyData);
-    
     // Only start if we have basic setup
     const initializeChat = async () => {
       try {
@@ -2224,14 +2039,11 @@ const selectiveMergeInk2 = (
     if (companyData.triggerChatStep && companyData.triggerChatStep > 0) {
       // CRITICAL: Prevent re-navigation to step 405 after first time
       if (companyData.triggerChatStep === 405 && companyData.taxButtonClickedBefore) {
-        console.log('✅ Skipping triggerChatStep to 405 - already shown before (taxButtonClickedBefore=true)');
-        console.log('📊 Manual tax edits applied silently without chat message');
         // Clear the trigger
         onDataUpdate({ triggerChatStep: null });
         return;
       }
       
-      console.log('🎯 Triggering navigation to step:', companyData.triggerChatStep);
       loadChatStep(companyData.triggerChatStep);
       // Clear the trigger to prevent repeated navigation
       onDataUpdate({ triggerChatStep: null });
@@ -2241,12 +2053,10 @@ const selectiveMergeInk2 = (
   // Listen for payment success and failure events
   useEffect(() => {
     const onPaymentSuccess = () => {
-      console.log("💚 Payment success event received, loading step 510");
       loadChatStep(510); // Payment success step
     };
     
     const onPaymentFailure = () => {
-      console.log("❌ Payment failure event received, loading step 508");
       loadChatStep(508); // Payment failure step
     };
     
@@ -2267,17 +2077,14 @@ const selectiveMergeInk2 = (
       const paymentParam = urlParams.get('payment');
       
       if (sessionId && paymentParam === 'embedded_complete') {
-        console.log("🔍 Detected payment completion URL, verifying payment status...");
         
         try {
           const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/stripe/verify?session_id=${sessionId}`);
           const result = await response.json();
           
           if (result?.paid) {
-            console.log("💚 Payment verified as successful from URL, loading step 510");
             loadChatStep(510);
           } else {
-            console.log("❌ Payment not successful from URL, loading step 508");
             loadChatStep(508);
           }
           

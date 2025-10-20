@@ -90,21 +90,9 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
   // Fetch officers from Bolagsverket on component mount
   useEffect(() => {
     const fetchOfficers = async () => {
-      console.log('🔍 Signering: Checking if should fetch from Bolagsverket...', {
-        orgNumber: companyData?.organizationNumber,
-        hasPrefilledData,
-        companyData
-      });
-
       if (!companyData?.organizationNumber || hasPrefilledData) {
-        console.log('⏭️ Skipping Bolagsverket fetch:', {
-          noOrgNumber: !companyData?.organizationNumber,
-          alreadyPrefilled: hasPrefilledData
-        });
         return;
       }
-
-      console.log('📥 Fetching officers from Bolagsverket for:', companyData.organizationNumber);
       setLoading(true);
       
       try {
@@ -117,11 +105,8 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
         // ✅ Normalisera orgnr: backend brukar föredra siffror utan bindestreck
         const normalizedOrg = String(companyData.organizationNumber).replace(/\D/g, '');
         const url = `${API_BASE}/api/bolagsverket/officers/${normalizedOrg}`;
-        console.log('🌐 API URL:', url);
 
         const response = await fetch(url, { credentials: 'omit' });
-        
-        console.log('📡 Response status:', response.status);
         
         if (!response.ok) {
           console.error('❌ Failed to fetch officers from Bolagsverket:', response.status, response.statusText);
@@ -129,14 +114,9 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
         }
 
         const result = await response.json();
-        console.log('✅ Bolagsverket response:', result);
         
         if (result.success && result.officers) {
           const officers = result.officers;
-          console.log('👥 Officers found:', {
-            företrädare: officers.UnderskriftForetradare.length,
-            revisorer: officers.UnderskriftAvRevisor.length
-          });
           
           // Mark all fetched data as from Bolagsverket
           const företrädare = officers.UnderskriftForetradare.map((o: any) => ({
@@ -149,8 +129,6 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
             fromBolagsverket: true
           }));
 
-          console.log('📋 Formatted data:', { företrädare, revisorer });
-
           // If we have officers, prefill the data
           if (företrädare.length > 0) {
             const newData = {
@@ -159,15 +137,10 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
               UnderskriftAvRevisor: revisorer,
               ValtRevisionsbolag: officers.ValtRevisionsbolag || data.ValtRevisionsbolag || ''
             };
-            console.log('💾 Updating component data with:', newData);
             updateData(newData);
             setOriginalData(newData); // Save original state for Ångra button
             setHasPrefilledData(true);
-          } else {
-            console.log('⚠️ No företrädare found, keeping default rows');
           }
-        } else {
-          console.log('⚠️ Response not successful or no officers:', result);
         }
       } catch (error) {
         console.error('💥 Error fetching officers from Bolagsverket:', error);
@@ -258,7 +231,6 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
     if (originalData) {
       setData(originalData);
       onDataUpdate({ signeringData: originalData });
-      console.log('↩️ Restored original data from Bolagsverket');
     }
   };
 
@@ -312,8 +284,6 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
     }
 
     try {
-      console.log('🖊️ Sending for digital signing...', data);
-      
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/send-for-digital-signing`, {
         method: 'POST',
         headers: {
@@ -332,7 +302,6 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       const result = await response.json();
       
       if (result.success) {
-        console.log('✅ Signing invitations sent successfully:', result);
         // You could show a success message or navigate to next step here
         alert('Signering-invitationer har skickats! Du kommer att få bekräftelse via e-post när alla har signerat.');
       } else {

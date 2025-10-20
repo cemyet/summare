@@ -496,7 +496,6 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               setIsEditingVerksamheten(false);
               
               // Bubble changes up to companyData
-              console.log('✅ [VERKSAMHETEN-APPROVE] Updating with edits:', newCommittedValues);
               onDataUpdate?.({
                 verksamhetContent: newCommittedValues['allmant_om_verksamheten'],
                 vasentligaHandelser: newCommittedValues['vasentliga_handelser']
@@ -660,7 +659,6 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
               setIsEditingFlerars(false);
               
               // Bubble changes up to companyData
-              console.log('✅ [FLERARS-APPROVE] Updating with edits:', newCommittedValues);
               onDataUpdate?.({ flerarsoversikt: newCommittedValues });
             };
             
@@ -1173,10 +1171,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       }
     });
 
-    console.log('Final note numbers calculated:', noteNumbers);
-    console.log('Available blocks:', blocks);
-    console.log('NoterData length:', noterData.length);
-    console.log('GroupedItems:', Object.keys(groupedItems));
     return noteNumbers;
   };
 
@@ -1471,25 +1465,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       nextAccepted['INK4.24b'] = 1;
     }
 
-    // Debug SLP in manual edits
-    console.log('🔍 handleApproveChanges - SLP Debug:', {
-      chatOverrides_SLP: chatOverrides['INK_sarskild_loneskatt'],
-      manualEdits_SLP: manualEdits['INK_sarskild_loneskatt'],
-      manualEdits_keys: Object.keys(manualEdits),
-      acceptedInk2Manuals_SLP: (companyData.acceptedInk2Manuals || {})['INK_sarskild_loneskatt'],
-      nextAccepted_SLP: nextAccepted['INK_sarskild_loneskatt'],
-      nextAccepted_keys: Object.keys(nextAccepted)
-    });
-
     // Get current INK2 data and update it with the accepted manual values
     // Use recalculatedData if available (has latest values from manual edits), otherwise fall back to companyData.ink2Data
     const currentInk2 = recalculatedData.length > 0 ? recalculatedData : (companyData.ink2Data || []);
-    console.log('🔍 handleApproveChanges - using data source:', {
-      usingRecalculated: recalculatedData.length > 0,
-      recalculatedDataLength: recalculatedData.length,
-      companyDataInk2Length: (companyData.ink2Data || []).length,
-      currentInk2Length: currentInk2.length
-    });
     
     const updatedInk2Data = currentInk2.map((item: any) => {
       // If there's a manual value for this variable, use it
@@ -1514,23 +1492,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       }
     });
     
-    // Log key values for debugging
-    const beraknadInUpdated = updatedInk2Data.find((i: any) => i.variable_name === 'INK_beraknad_skatt');
-    const bokfordInUpdated = updatedInk2Data.find((i: any) => i.variable_name === 'INK_bokford_skatt');
-    console.log('🔍 Updated INK2 data key values:', {
-      beraknadSkatt: beraknadInUpdated?.amount,
-      bokfordSkatt: bokfordInUpdated?.amount,
-      difference: (beraknadInUpdated?.amount || 0) - (bokfordInUpdated?.amount || 0)
-    });
-
     // Mark any chat keys that were applied this time
     const appliedChatKeys = Object.keys(chatOverrides);
-    
-    console.log('🔍 handleApproveChanges - Before update:', {
-      isFirstTimeClick,
-      taxButtonClickedBefore: companyData.taxButtonClickedBefore,
-      willTriggerStep405: isFirstTimeClick
-    });
     
     // CRITICAL: Set taxButtonClickedBefore FIRST in a separate update
     // This ensures the flag is set BEFORE we potentially trigger step 405
@@ -1553,10 +1516,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // If this is the first time clicking the button, trigger navigation to step 405
     // After first time, manual edits should NOT trigger step 405 again
     if (isFirstTimeClick && onDataUpdate) {
-      console.log('🎯 First time clicking tax approve button - triggering step 405');
       onDataUpdate({ triggerChatStep: 405 });
-    } else {
-      console.log('✅ Subsequent tax approve - NOT triggering step 405 (taxButtonClickedBefore was already true)');
     }
 
     // Check if we need to update RR/BR data based on tax differences
@@ -1588,8 +1548,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
 // Handle click on SKATTEBERÄKNING button in RR row 276
 const handleTaxCalculationClick = () => {
-  console.log('🎯 SKATTEBERÄKNING button clicked - showing tax module');
-  
   // Show tax module if hidden
   if (onDataUpdate) {
     onDataUpdate({ showTaxPreview: true });
@@ -1600,8 +1558,6 @@ const handleTaxCalculationClick = () => {
     const taxModule = document.querySelector('[data-section="tax-calculation"]');
     if (taxModule) {
       taxModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else {
-      console.log('⚠️ Tax module not found for scrolling');
     }
   }, 200);
 };
@@ -1609,37 +1565,21 @@ const handleTaxCalculationClick = () => {
   // Handle tax update logic when approving changes
   const handleTaxUpdateLogic = async (acceptedManuals: any, updatedInk2Data?: any[], forceUpdate = false) => {
     try {
-      console.log('🔍 Starting handleTaxUpdateLogic...', { forceUpdate });
-      console.log('🔍 Accepted manuals:', acceptedManuals);
-      
       // Get current INK2 data with accepted manual edits
       // Use provided updatedInk2Data if available (for immediate use after approval)
       const currentInk2Data = updatedInk2Data || (recalculatedData.length > 0 ? recalculatedData : ink2Data);
-      
-      console.log('📊 Current INK2 data:', {
-        recalculatedDataLength: recalculatedData.length,
-        ink2DataLength: ink2Data.length,
-        currentInk2DataLength: currentInk2Data.length,
-        usingRecalculated: recalculatedData.length > 0
-      });
-      
-      // Debug: Log all variable names in the data
-      const variableNames = currentInk2Data.map((item: any) => item.variable_name).filter(Boolean);
-      console.log('📋 Available variable names:', variableNames);
       
       // Helper function to get value with manual override
       const getValueWithOverride = (variableName: string): number => {
         // Check if there's a manual override first
         if (acceptedManuals && acceptedManuals[variableName] !== undefined) {
           const value = Number(acceptedManuals[variableName]);
-          console.log(`🔧 Using manual override for ${variableName}: ${value} (from acceptedManuals)`);
           return value;
         }
         
         // Otherwise get from INK2 data
         const item = currentInk2Data.find((item: any) => item.variable_name === variableName);
         const value = item?.amount || 0;
-        console.log(`📊 Using INK2 data for ${variableName}: ${value} (item found: ${!!item})`);
         return value;
       };
       
@@ -1647,21 +1587,7 @@ const handleTaxCalculationClick = () => {
       const beraknadSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_beraknad_skatt');
       const bokfordSkattItem = currentInk2Data.find((item: any) => item.variable_name === 'INK_bokford_skatt');
       
-      console.log('🔍 Tax items found:', {
-        beraknadSkattItem: beraknadSkattItem ? {
-          variable_name: beraknadSkattItem.variable_name,
-          amount: beraknadSkattItem.amount,
-          row_title: beraknadSkattItem.row_title
-        } : null,
-        bokfordSkattItem: bokfordSkattItem ? {
-          variable_name: bokfordSkattItem.variable_name,
-          amount: bokfordSkattItem.amount,
-          row_title: bokfordSkattItem.row_title
-        } : null
-      });
-      
       if (!beraknadSkattItem || !bokfordSkattItem) {
-        console.log('❌ Could not find INK_beraknad_skatt or INK_bokford_skatt items');
         return;
       }
 
@@ -1674,44 +1600,16 @@ const handleTaxCalculationClick = () => {
       const inkSarskildLoneskattValue = getValueWithOverride('INK_sarskild_loneskatt');
       const inkSarskildLoneskatt = Math.abs(inkSarskildLoneskattValue);
       
-      // Extra debugging for SLP
-      console.log('🔍 SLP Debug Info:', {
-        acceptedManuals_INK_sarskild_loneskatt: acceptedManuals ? acceptedManuals['INK_sarskild_loneskatt'] : 'no acceptedManuals',
-        allAcceptedManualKeys: acceptedManuals ? Object.keys(acceptedManuals) : [],
-        currentInk2DataLength: currentInk2Data.length,
-        slpItemInData: currentInk2Data.find((i: any) => i.variable_name === 'INK_sarskild_loneskatt')
-      });
-      
-      console.log('💰 Tax and SLP comparison:', { 
-        inkBeraknadSkatt, 
-        inkBokfordSkatt, 
-        inkSarskildLoneskattValue,
-        inkSarskildLoneskatt,
-        hasManualSLP: acceptedManuals && acceptedManuals['INK_sarskild_loneskatt'] !== undefined
-      });
-      
       const taxDifference = inkBeraknadSkatt - inkBokfordSkatt;
       
       // Only proceed if there's a tax difference OR an SLP value OR forceUpdate is true
       // forceUpdate = true when user manually approves changes (always update RR/BR)
       // This allows updates for tax-only changes, SLP-only changes, both, or manual approval
       if (!forceUpdate && taxDifference === 0 && inkSarskildLoneskatt === 0) {
-        console.log('✅ No tax difference and no SLP, skipping RR/BR updates');
         return;
       }
 
-      if (forceUpdate) {
-        console.log('🔧 Force update enabled - proceeding with RR/BR update from manual approval');
-      }
-      if (taxDifference !== 0) {
-        console.log('🚨 Tax difference detected:', taxDifference);
-      }
-      if (inkSarskildLoneskatt !== 0) {
-        console.log('🚨 SLP value detected:', inkSarskildLoneskatt);
-      }
-
       // Call API to update RR/BR data
-      console.log('🌐 Calling API to update RR/BR data...');
 
       const requestData = {
         inkBeraknadSkatt,
@@ -1725,17 +1623,6 @@ const handleTaxCalculationClick = () => {
         inkSarskildLoneskatt,
       };
       
-      console.log('📤 API request data:', {
-        inkBeraknadSkatt,
-        inkBokfordSkatt,
-        taxDifference,
-        inkSarskildLoneskatt,
-        rr_data_length: requestData.rr_data.length,
-        br_data_length: requestData.br_data.length,
-        organizationNumber: companyData.organizationNumber,
-        fiscalYear: companyData.fiscalYear
-      });
-      
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
         method: 'POST',
         headers: {
@@ -1744,14 +1631,11 @@ const handleTaxCalculationClick = () => {
         body: JSON.stringify(requestData),
       });
 
-      console.log('📥 API response status:', response.status);
-
     if (!response.ok) {
       const errorText = await response.text();
       console.error('❌ API error response:', errorText);
       
       if (response.status === 404) {
-        console.log('⚠️ Tax update endpoint not available yet - deployment in progress');
         // Don't throw error for 404, just log and continue
         return;
       }
@@ -1760,11 +1644,8 @@ const handleTaxCalculationClick = () => {
     }
 
       const result = await response.json();
-      console.log('✅ API response result:', result);
       
       if (result.success) {
-        console.log('🎉 Successfully updated RR/BR data with tax changes');
-        console.log('📊 Changes made:', result.changes);
         
         // Show success toast notification (commented out for now)
         // const taxAmount = new Intl.NumberFormat('sv-SE', {
@@ -2232,30 +2113,6 @@ const handleTaxCalculationClick = () => {
                 return hasNonZeroAmount;
               });
               
-              // Debug logging
-              console.log('Tax Toggle Debug:', {
-                showAllTax,
-                totalItems: allData.length,
-                filteredItems: filteredData.length,
-                sarskildLoneskattCondition: sarskildRow ? {
-                  pensionPremier: companyData.pensionPremier || 0,
-                  calculated: companyData.sarskildLoneskattPensionCalculated || 0,
-                  actual: companyData.sarskildLoneskattPension || 0,
-                  pensionPremierCheck: (companyData.pensionPremier || 0) > 0,
-                  calculatedGreaterThanActual: (companyData.sarskildLoneskattPensionCalculated || 0) > (companyData.sarskildLoneskattPension || 0),
-                  shouldShow: (companyData.pensionPremier || 0) > 0 && (companyData.sarskildLoneskattPensionCalculated || 0) > (companyData.sarskildLoneskattPension || 0),
-                  visible: filteredData.includes(sarskildRow)
-                } : 'Not found',
-                sampleData: allData.slice(0, 3).map(item => ({
-                  row_title: item.row_title,
-                  variable_name: item.variable_name,
-                  amount: item.amount,
-                  always_show: item.always_show,
-                  toggle_show: item.toggle_show,
-                  visible: filteredData.includes(item)
-                }))
-              });
-              
               return filteredData;
             })().map((item, index) => (
               <div
@@ -2655,16 +2512,13 @@ const handleTaxCalculationClick = () => {
         </div>
 
         {/* Download Section - Show at step 510+ (stays visible even when navigating to Signering) */}
-        {(() => {
-          console.log('🔍 Download render check:', { currentStep, shouldShow: currentStep >= 510 });
-          return currentStep >= 510 && (
-            <div data-section="download">
-              <Download 
-                companyData={companyData}
-              />
-            </div>
-          );
-        })()}
+        {currentStep >= 510 && (
+          <div data-section="download">
+            <Download 
+              companyData={companyData}
+            />
+          </div>
+        )}
 
         {/* Signering Section - Only show at step 515+ */}
         {currentStep >= 515 && (

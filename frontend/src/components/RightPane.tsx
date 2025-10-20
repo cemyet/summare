@@ -4,9 +4,6 @@ import { AnnualReportPreview } from "@/components/AnnualReportPreview"; // your 
 import StripeEmbeddedCheckout from "@/components/StripeEmbeddedCheckout";
 import { USE_EMBED } from "@/utils/flags";
 
-// Debug logging
-console.log('🔧 RightPane USE_EMBED:', USE_EMBED);
-
 interface RightPaneProps {
   companyData: any;
   currentStep: number;
@@ -20,11 +17,9 @@ export default function RightPane({ companyData, currentStep, editableAmounts = 
 
   useEffect(() => {
     const onShow = () => {
-      console.log('🔧 RightPane received summare:showPayment event');
       setShowPayment(true);
     };
     const onHide = () => {
-      console.log('🔧 RightPane received summare:hidePayment event');
       setShowPayment(false);
     };
 
@@ -39,11 +34,8 @@ export default function RightPane({ companyData, currentStep, editableAmounts = 
   // Grab the anchor after first render of preview
   useEffect(() => {
     const el = document.getElementById("payment-section-anchor");
-    console.log('🔧 Looking for payment-section-anchor:', !!el);
     setAnchorEl(el || null);
   }, [showPayment]); // re-check after toggling
-
-  console.log('🔧 RightPane render check:', { showPayment, hasAnchor: !!anchorEl });
 
   return (
     <>
@@ -55,16 +47,13 @@ export default function RightPane({ companyData, currentStep, editableAmounts = 
       />
       {showPayment && anchorEl ? (
         <>
-          {console.log('🔧 Portaling StripeEmbeddedCheckout into payment-section-anchor')}
           {createPortal(
             <div className="mt-4 max-w-[980px]">
               <StripeEmbeddedCheckout
                 onComplete={() => {
-                  console.log('🔧 StripeEmbeddedCheckout onComplete called');
                   setShowPayment(false);
                 }}
                 onFailure={() => {
-                  console.log('🔧 StripeEmbeddedCheckout onFailure called');
                   setShowPayment(false);
                 }}
                 height={720}

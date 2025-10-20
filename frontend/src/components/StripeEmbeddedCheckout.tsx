@@ -11,8 +11,6 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
     let checkout: any;
 
     (async () => {
-      console.log("🔧 API_BASE:", API_BASE);
-      console.log("🔧 STRIPE_PUBLISHABLE_KEY present:", !!STRIPE_PUBLISHABLE_KEY);
       if (!STRIPE_PUBLISHABLE_KEY) {
         if (ref.current) ref.current.innerHTML = "Stripe-nyckel saknas.";
         return;
@@ -49,12 +47,10 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
             const j = await r.json();
             if (j?.paid) {
               // Payment successful - trigger chat step 510
-              console.log("💚 Payment successful, triggering chat step 510");
               window.dispatchEvent(new CustomEvent("summare:paymentSuccess"));
               onComplete?.();
             } else {
               // Payment failed - trigger chat step 508
-              console.log("❌ Payment failed, triggering chat step 508");
               window.dispatchEvent(new CustomEvent("summare:paymentFailure"));
               onFailure?.();
             }
