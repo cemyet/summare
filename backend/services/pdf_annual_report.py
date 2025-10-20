@@ -659,7 +659,8 @@ def _merge_br_data(se_br: list, overlay: list) -> list:
 
 def _add_footer(canvas_obj, doc, company_name: str, page_num: int, total_pages: int):
     """
-    Add footer to page with thin line, company name (left), and page number (right).
+    Draw a horizontal rule at the bottom, then footer text.
+    Align to doc margins; nudge text slightly to the right; grey text color.
     Skip footer on page 1 (cover page).
     """
     # Skip footer on cover page (page 1)
@@ -668,30 +669,45 @@ def _add_footer(canvas_obj, doc, company_name: str, page_num: int, total_pages: 
     
     canvas_obj.saveState()
     
-    # Get page dimensions
-    page_width, page_height = A4
+    # Constants
+    FOOTER_FONT = 'Roboto'
+    FOOTER_SIZE = 10
+    FOOTER_GAP_PT = 2       # space between line and text below
+    FOOTER_NUDGE_X_PT = 4   # nudge text to the right
     
-    # Footer position (24mm = 68pt from bottom, same as margin)
-    footer_y = 68 - 20  # Position footer 20pt below margin line
+    # Get page dimensions and margins from doc
+    page_width, page_height = doc.pagesize
+    left_margin = doc.leftMargin
+    right_margin = doc.rightMargin
+    bottom_margin = doc.bottomMargin
     
-    # Draw thin grey line within content area (between margins)
+    # Horizontal rule aligned to margins (from left margin to right margin)
+    x0 = left_margin
+    x1 = page_width - right_margin
+    # Put the rule inside the bottom margin, 6pt above the bottom edge
+    line_y = bottom_margin - 6
+    
+    # Draw thin grey line
     line_color = colors.Color(0, 0, 0, alpha=0.20)  # 20% opacity
     canvas_obj.setStrokeColor(line_color)
     canvas_obj.setLineWidth(0.5)
-    # Line from left margin to right margin
-    canvas_obj.line(68, footer_y + 10, page_width - 68, footer_y + 10)  # 10pt above text
+    canvas_obj.line(x0, line_y, x1, line_y)
     
-    # Set font for footer text (10pt normal Roboto)
-    canvas_obj.setFont('Roboto', 10)
-    canvas_obj.setFillColor(colors.black)
+    # Footer text, nudged right, with 2pt gap below the rule
+    text_y = line_y - FOOTER_GAP_PT
+    left_x = left_margin + FOOTER_NUDGE_X_PT
+    right_x = page_width - right_margin - FOOTER_NUDGE_X_PT
     
-    # Company name on the left
-    canvas_obj.drawString(68, footer_y, company_name)
+    # Set text color to grey (#A9A9A9) and font
+    canvas_obj.setFillColor(colors.HexColor('#A9A9A9'))
+    canvas_obj.setFont(FOOTER_FONT, FOOTER_SIZE)
     
-    # Page number on the right (format: "X (Y)")
+    # Left string (company name)
+    canvas_obj.drawString(left_x, text_y, company_name or "")
+    
+    # Right string (page X (Y)) - use drawRightString for right alignment
     page_text = f"{page_num} ({total_pages})"
-    text_width = canvas_obj.stringWidth(page_text, 'Roboto', 10)
-    canvas_obj.drawString(page_width - 68 - text_width, footer_y, page_text)
+    canvas_obj.drawRightString(right_x, text_y, page_text)
     
     canvas_obj.restoreState()
 
