@@ -1,5 +1,5 @@
 # pdf_annual_report.py
-# Server-side PDF generation for full annual report using ReportLab
+# Server-side PDF generation for full annual report using ReportLab (with footer)
 from io import BytesIO
 from typing import Any, Dict, List, Tuple
 from reportlab.lib.pagesizes import A4
