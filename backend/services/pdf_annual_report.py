@@ -160,29 +160,23 @@ def _render_cover_page(elems, company_data):
     start_date_formatted = _format_date(start_date) if start_date else ""
     end_date_formatted = _format_date(end_date) if end_date else ""
     
-    # Create centered styles
+    # Create centered styles with tight spacing (no extra space between lines)
     cover_title_style = ParagraphStyle(
         'CoverTitle',
-        fontName='Roboto-Bold',
-        fontSize=20,
+        fontName='Roboto-Medium',  # Semibold
+        fontSize=18,
         alignment=1,  # CENTER
-        leading=24
+        leading=18,  # Tight leading (same as font size)
+        spaceAfter=0
     )
     
-    cover_normal_20pt_style = ParagraphStyle(
-        'CoverNormal20',
-        fontName='Roboto',
-        fontSize=20,
+    cover_semibold_18pt_style = ParagraphStyle(
+        'CoverSemibold18',
+        fontName='Roboto-Medium',  # Semibold
+        fontSize=18,
         alignment=1,  # CENTER
-        leading=24
-    )
-    
-    cover_normal_12pt_style = ParagraphStyle(
-        'CoverNormal12',
-        fontName='Roboto',
-        fontSize=12,
-        alignment=1,  # CENTER
-        leading=14
+        leading=18,  # Tight leading
+        spaceAfter=0
     )
     
     cover_normal_18pt_style = ParagraphStyle(
@@ -190,40 +184,47 @@ def _render_cover_page(elems, company_data):
         fontName='Roboto',
         fontSize=18,
         alignment=1,  # CENTER
-        leading=22
+        leading=18,  # Tight leading
+        spaceAfter=0
     )
     
-    # Add 18 line breaks (each Spacer represents vertical space)
-    # Each line break is approximately 12pt (normal line height)
-    elems.append(Spacer(1, 18 * 12))  # 18 line breaks = 216pt
+    cover_normal_12pt_style = ParagraphStyle(
+        'CoverNormal12',
+        fontName='Roboto',
+        fontSize=12,
+        alignment=1,  # CENTER
+        leading=12,  # Tight leading
+        spaceAfter=0
+    )
     
-    # "Årsredovisning" - 20pt bold
+    cover_normal_16pt_style = ParagraphStyle(
+        'CoverNormal16',
+        fontName='Roboto',
+        fontSize=16,
+        alignment=1,  # CENTER
+        leading=16,  # Tight leading
+        spaceAfter=0
+    )
+    
+    # Add 16 line breaks (each Spacer represents vertical space)
+    # Each line break is approximately 12pt (normal line height)
+    elems.append(Spacer(1, 16 * 12))  # 16 line breaks = 192pt
+    
+    # "Årsredovisning" - 18pt semibold
     elems.append(Paragraph("Årsredovisning", cover_title_style))
     
-    # Line break
-    elems.append(Spacer(1, 12))
+    # Company name - 18pt semibold (no space before)
+    elems.append(Paragraph(name, cover_semibold_18pt_style))
     
-    # Company name - 20pt normal
-    elems.append(Paragraph(name, cover_normal_20pt_style))
+    # Organization number - 18pt normal (no space before)
+    elems.append(Paragraph(orgnr, cover_normal_18pt_style))
     
-    # Line break
-    elems.append(Spacer(1, 12))
-    
-    # Organization number - 20pt normal
-    elems.append(Paragraph(orgnr, cover_normal_20pt_style))
-    
-    # Double line break
-    elems.append(Spacer(1, 24))
-    
-    # "avseende perioden" - 12pt normal
+    # "avseende perioden" - 12pt normal (no space before)
     elems.append(Paragraph("avseende perioden", cover_normal_12pt_style))
     
-    # Line break
-    elems.append(Spacer(1, 12))
-    
-    # Fiscal period - 18pt normal
+    # Fiscal period - 16pt normal (no space before)
     period_text = f"{start_date_formatted} - {end_date_formatted}"
-    elems.append(Paragraph(period_text, cover_normal_18pt_style))
+    elems.append(Paragraph(period_text, cover_normal_16pt_style))
     
     # Add page break after cover page
     elems.append(PageBreak())
