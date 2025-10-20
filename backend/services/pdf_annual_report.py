@@ -674,21 +674,21 @@ def _add_footer(canvas_obj, doc, company_name: str, page_num: int, total_pages: 
     # Footer position (24mm = 68pt from bottom, same as margin)
     footer_y = 68 - 20  # Position footer 20pt below margin line
     
-    # Draw thin grey line across FULL page width (from edge to edge, aligned with margins)
+    # Draw thin grey line within content area (between margins)
     line_color = colors.Color(0, 0, 0, alpha=0.20)  # 20% opacity
     canvas_obj.setStrokeColor(line_color)
     canvas_obj.setLineWidth(0.5)
-    canvas_obj.line(0, footer_y + 2, page_width, footer_y + 2)  # 2pt above text, full width
+    # Line from left margin to right margin
+    canvas_obj.line(68, footer_y + 10, page_width - 68, footer_y + 10)  # 10pt above text
     
     # Set font for footer text (10pt normal Roboto)
     canvas_obj.setFont('Roboto', 10)
-    # Set text color to #A9A9A9 (grey)
-    canvas_obj.setFillColor(colors.HexColor('#A9A9A9'))
+    canvas_obj.setFillColor(colors.black)
     
-    # Company name on the left (at margin)
+    # Company name on the left
     canvas_obj.drawString(68, footer_y, company_name)
     
-    # Page number on the right (at margin, format: "X (Y)")
+    # Page number on the right (format: "X (Y)")
     page_text = f"{page_num} ({total_pages})"
     text_width = canvas_obj.stringWidth(page_text, 'Roboto', 10)
     canvas_obj.drawString(page_width - 68 - text_width, footer_y, page_text)
