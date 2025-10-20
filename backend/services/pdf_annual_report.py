@@ -1527,22 +1527,38 @@ def build_visible_with_headings_pdf(items, toggle_on=False):
         # Subtotals (S2/TS2): show if ANY preceding trigger row until previous heading/S2 is present
         if _is_subtotal_trigger(sty):
             show = False
+            current_title = (it.get("row_title") or "").strip().lower()
+            
+            # Special handling: If this is "Utgående X" subtotal, check if corresponding section heading exists
+            # (e.g., "Utgående nedskrivningar" needs "Nedskrivningar" heading to exist)
+            if current_title.startswith("utgående ") or current_title.startswith("utgaende "):
+                # Extract the section name from "Utgående nedskrivningar" → "nedskrivningar"
+                section_name = current_title.replace("utgående ", "").replace("utgaende ", "").strip()
+                
+                # Check if the corresponding section heading exists in items before this S2
+                section_exists = False
+                for j in range(i):
+                    check_title = (items[j].get("row_title") or "").strip().lower()
+                    if check_title == section_name or (_is_heading_style(items[j].get("style")) and section_name in check_title):
+                        section_exists = True
+                        break
+                
+                # If section heading doesn't exist, don't show this S2 subtotal
+                if not section_exists:
+                    continue
+            
+            # Normal S2 logic: look backward for trigger rows until hitting a boundary
             j = i - 1
-            found_section_heading = False
             while j >= 0:
                 prv = items[j]
                 prv_title = (prv.get("row_title") or "").strip().lower()
                 
                 # Check if we hit a section boundary (heading or another S2)
                 if _is_heading_style(prv.get("style")) or _is_subtotal_trigger(prv.get("style")):
-                    # Also treat sub-headings like "Nedskrivningar", "Avskrivningar" as boundaries
-                    # even if they're not marked as H2/H3 (common in KONCERN block)
-                    found_section_heading = True
                     break
                 
                 # For rows with specific sub-heading titles, treat them as section boundaries
                 if prv_title in ["nedskrivningar", "avskrivningar", "uppskrivningar", "anskaffningsvärden"]:
-                    found_section_heading = True
                     break
                     
                 if prv.get("row_id") in trigger_ids:
