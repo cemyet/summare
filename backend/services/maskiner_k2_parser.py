@@ -209,11 +209,6 @@ def parse_maskiner_k2_from_sie_text(sie_text: str, debug: bool = False, two_file
     # =========================
     # PREVIOUS YEAR FORK LOGIC
     # =========================
-    # Debug: Log the fork decision
-    print(f"[MASKINER-DEBUG] Fork decision: two_files_flag={two_files_flag}, has_previous_text={previous_year_sie_text is not None}")
-    if previous_year_sie_text:
-        print(f"[MASKINER-DEBUG] Previous year text length: {len(previous_year_sie_text)} characters")
-    
     if two_files_flag and previous_year_sie_text:
         # ========================================
         # TWO FILES MODE: Run full parser on previous year SE file

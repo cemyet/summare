@@ -107,8 +107,6 @@ class DatabaseParser:
     def _apply_rr_not_migration(self):
         """Apply the rr_not column migration if it hasn't been applied yet"""
         try:
-            print("DEBUG: Applying rr_not migration...")
-            
             # Check if NOT2 block already has rr_not set
             not2_mapping = None
             for mapping in self.noter_mappings or []:
@@ -129,12 +127,12 @@ class DatabaseParser:
                 self.noter_mappings = noter_response.data
                 
             elif not2_mapping and not2_mapping.get('rr_not'):
-                print(f"DEBUG: ✅ NOT2 block already has rr_not={not2_mapping.get('rr_not')}")
+                pass
             else:
-                print("DEBUG: ❌ NOT2 block not found in noter mappings")
+                pass
                 
         except Exception as e:
-            print(f"DEBUG: Error applying rr_not migration: {e}")
+            pass
 
     def parse_account_balances(self, se_content: str) -> tuple[Dict[str, float], Dict[str, float], Dict[str, float], Dict[str, float]]:
         """Parse account balances from SE file content using the correct format"""
@@ -785,7 +783,6 @@ class DatabaseParser:
         # 2) Parse KONCERN note and reconcile
         try:
             from .koncern_k2_parser import parse_koncern_k2_from_sie_text
-            print(f"[DATABASE-DEBUG] Calling koncern parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
             koncern_note = parse_koncern_k2_from_sie_text(
                 se_content, 
                 debug=False, 
@@ -1659,10 +1656,6 @@ class DatabaseParser:
             # Only process blocks that have br_not values and are in our fixed numbering
             if br_not and block and block in block_note_numbers:
                 br_note_mapping[br_not] = block_note_numbers[block]
-                print(f"DEBUG: Mapping br_not {br_not} (block {block}) to note number {block_note_numbers[block]}")
-        
-        print(f"DEBUG: Created br_note_mapping: {br_note_mapping}")
-        print(f"DEBUG: Processing {len(br_data)} BR items")
         
         # Add note numbers to BR data
         updated_br_data = []
@@ -1674,7 +1667,6 @@ class DatabaseParser:
             if br_row_id in br_note_mapping:
                 note_number = br_note_mapping[br_row_id]
                 br_item_copy['note_number'] = note_number
-                print(f"DEBUG: Added note number {note_number} to BR row {br_row_id} ({br_item.get('label', 'No label')})")
             
             updated_br_data.append(br_item_copy)
         
@@ -1714,16 +1706,10 @@ class DatabaseParser:
             # Handle BR mappings (blocks with br_not values) - existing approach that works
             if br_not and block and block in block_note_numbers:
                 br_note_mapping[br_not] = block_note_numbers[block]
-                print(f"DEBUG: Mapping br_not {br_not} (block {block}) to note number {block_note_numbers[block]}")
             
             # Handle RR mappings (blocks with rr_not values) - mirror BR approach exactly
             if rr_not and block and block in block_note_numbers:
                 rr_note_mapping[str(rr_not)] = block_note_numbers[block]  # Convert to string to match frontend id format
-                print(f"DEBUG: Mapping rr_not {rr_not} (block {block}) to note number {block_note_numbers[block]}")
-        
-        print(f"DEBUG: Created br_note_mapping: {br_note_mapping}")
-        print(f"DEBUG: Created rr_note_mapping: {rr_note_mapping}")
-        print(f"DEBUG: Processing {len(br_data)} BR items and {len(rr_data)} RR items")
         
         # Add note numbers to BR data
         updated_br_data = []
@@ -1735,7 +1721,6 @@ class DatabaseParser:
             if br_row_id in br_note_mapping:
                 note_number = br_note_mapping[br_row_id]
                 br_item_copy['note_number'] = note_number
-                print(f"DEBUG: Added note number {note_number} to BR row {br_row_id} ({br_item.get('label', 'No label')})")
             
             updated_br_data.append(br_item_copy)
         
@@ -1745,15 +1730,14 @@ class DatabaseParser:
             rr_item_copy = rr_item.copy()
             rr_row_id = rr_item.get('id')
             
-            # Debug: Print all RR items to see their structure
+            # Check if RR item matches pattern
             if rr_item.get('label') and 'Personal' in rr_item.get('label', ''):
-                print(f"DEBUG: Found RR item with 'Personal' in label: id={rr_item.get('id')}, row_id={rr_item.get('row_id')} - {rr_item.get('label')}")
+                pass
             
             # If this RR row should have a note number, add it
             if rr_row_id in rr_note_mapping:
                 note_number = rr_note_mapping[rr_row_id]
                 rr_item_copy['note_number'] = note_number
-                print(f"DEBUG: Added note number {note_number} to RR row {rr_row_id} ({rr_item.get('label', 'No label')})")
             
             updated_rr_data.append(rr_item_copy)
         
@@ -2710,7 +2694,6 @@ class DatabaseParser:
         
         # Get precise KONCERN calculations from transaction analysis
         from .koncern_k2_parser import parse_koncern_k2_from_sie_text
-        print(f"[NOTER-DEBUG] Calling koncern parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
         koncern_k2_data = parse_koncern_k2_from_sie_text(
             se_content, 
             debug=False, 
@@ -2720,7 +2703,6 @@ class DatabaseParser:
         
         # Get precise INTRESSEFTG calculations from transaction analysis
         from .intresseftg_k2_parser import parse_intresseftg_k2_from_sie_text
-        print(f"[NOTER-DEBUG] Calling intresseftg parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
         intresseftg_k2_data = parse_intresseftg_k2_from_sie_text(
             se_content, 
             debug=False, 
@@ -2730,7 +2712,6 @@ class DatabaseParser:
         
         # Get precise BYGG calculations from transaction analysis
         from .bygg_k2_parser import parse_bygg_k2_from_sie_text
-        print(f"[NOTER-DEBUG] Calling bygg parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
         bygg_k2_data = parse_bygg_k2_from_sie_text(
             se_content, 
             debug=False, 
@@ -2740,7 +2721,6 @@ class DatabaseParser:
         
         # Get precise MASKINER calculations from transaction analysis
         from .maskiner_k2_parser import parse_maskiner_k2_from_sie_text
-        print(f"[NOTER-DEBUG] Calling maskiner parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
         maskiner_k2_data = parse_maskiner_k2_from_sie_text(
             se_content, 
             debug=False, 
@@ -2750,7 +2730,6 @@ class DatabaseParser:
         
         # Get precise INVENTARIER calculations from transaction analysis
         from .inventarier_k2_parser import parse_inventarier_k2_from_sie_text
-        print(f"[NOTER-DEBUG] Calling inventarier parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
         inventarier_k2_data = parse_inventarier_k2_from_sie_text(
             se_content, 
             debug=False, 
@@ -2760,7 +2739,6 @@ class DatabaseParser:
         
         # Get precise ÖVRIGA calculations from transaction analysis
         from .ovriga_k2_parser import parse_ovriga_k2_from_sie_text
-        print(f"[NOTER-DEBUG] Calling ovriga parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
         ovriga_k2_data = parse_ovriga_k2_from_sie_text(
             se_content, 
             debug=False, 
@@ -2770,7 +2748,6 @@ class DatabaseParser:
         
         # Get precise LVP calculations from transaction analysis
         from .lvp_k2_parser import parse_lvp_k2_from_sie_text
-        print(f"[NOTER-DEBUG] Calling lvp parser with two_files_flag={two_files_flag}, has_previous_content={previous_year_se_content is not None}")
         lvp_k2_data = parse_lvp_k2_from_sie_text(
             se_content, 
             debug=False, 

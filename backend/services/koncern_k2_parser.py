@@ -432,17 +432,12 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False, two_files
     # PREVIOUS YEAR FORK: TWO FILES vs FALLBACK
     # =========================
     
-    # Debug: Log the fork decision
-    print(f"[KONCERN-DEBUG] Fork decision: two_files_flag={two_files_flag}, has_previous_text={previous_year_sie_text is not None}")
-    if previous_year_sie_text:
-        print(f"[KONCERN-DEBUG] Previous year text length: {len(previous_year_sie_text)} characters")
-    
     if two_files_flag and previous_year_sie_text:
         # ========================================
         # TWO FILES MODE: Run full parser on previous year SE file
         # ========================================
         if debug:
-            print("[KONCERN-DEBUG] Two files mode: Running full parser on previous year SE file")
+            pass
         
         # Recursively call the parser on the previous year SE file
         # Pass the same account classifications (asset_all_set, imp_set) for consistency
@@ -482,7 +477,7 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False, two_files
         # FALLBACK MODE: Use balance-only calculation (original logic)
         # ========================================
         if debug:
-            print("[KONCERN-DEBUG] Fallback mode: Using balance-only calculation for previous year")
+            pass
         
         # Reuse the EXACT same account sets that were derived for the current year:
         #   - asset_all_set : the accounts contributing to acquisition value
@@ -562,28 +557,8 @@ def parse_koncern_k2_from_sie_text(sie_text: str, debug: bool = False, two_files
     # BACKEND DEBUG OUTPUT (one line per variable)
     # =========================
     if debug:
-        # show which accounts were used
-        try:
-            print(f"[KONCERN-DEBUG] accounts_used.asset = {sorted(list(asset_all_set))}")
-        except Exception:
-            print("[KONCERN-DEBUG] accounts_used.asset = <unavailable>")
-        try:
-            print(f"[KONCERN-DEBUG] accounts_used.impair = {sorted(list(imp_set))}")
-        except Exception:
-            print("[KONCERN-DEBUG] accounts_used.impair = <unavailable>")
-
-        # current + previous for easy verification
-        print(f"[KONCERN-DEBUG] koncern_ib current={koncern_ib} previous={koncern_ib_prev}")
-        print(f"[KONCERN-DEBUG] koncern_ub current={koncern_ub} previous={koncern_ub_prev}")
-        print(f"[KONCERN-DEBUG] ack_nedskr_koncern_ib current={ack_nedskr_koncern_ib} previous={ack_nedskr_koncern_ib_prev}")
-        print(f"[KONCERN-DEBUG] ack_nedskr_koncern_ub current={ack_nedskr_koncern_ub} previous={ack_nedskr_koncern_ub_prev}")
-        print(f"[KONCERN-DEBUG] red_varde_koncern current={red_varde_koncern} previous={red_varde_koncern_prev}")
-
-        # movements (prev from balances only)
-        print(f"[KONCERN-DEBUG] fsg_koncern (prev, from balances) = {fsg_koncern_prev}")
-        print(f"[KONCERN-DEBUG] inkop_koncern (prev, from balances) = {inkop_koncern_prev}")
-        print(f"[KONCERN-DEBUG] aterfor_nedskr_koncern (prev, from balances) = {aterfor_nedskr_koncern_prev}")
-        print(f"[KONCERN-DEBUG] arets_nedskr_koncern (prev, from balances) = {arets_nedskr_koncern_prev}")
+        if debug:
+            pass
 
     # ---------- Return (same + 1 key) ----------
     return {

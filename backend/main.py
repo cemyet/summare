@@ -422,15 +422,9 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         # Parse Förvaltningsberättelse data (FB) - Förändring i eget kapital
         try:
-            print(f"DEBUG: Starting FB calculation with br_data type: {type(br_data)}, length: {len(br_data) if br_data else 0}")
-            if br_data and len(br_data) > 0:
-                print(f"DEBUG: First BR item keys: {list(br_data[0].keys())}")
-                print(f"DEBUG: Sample BR variable names: {[item.get('variable_name') for item in br_data[:5]]}")
             fb_module = ForvaltningsberattelseFB()
             fb_variables = fb_module.calculate_forandring_eget_kapital(se_content, br_data)
-            print(f"DEBUG: FB variables calculated: {fb_variables}")
             fb_table = fb_module.generate_forandring_eget_kapital_table(fb_variables)
-            print(f"DEBUG: FB table generated with {len(fb_table)} rows")
         except Exception as e:
             print(f"Error parsing FB data: {e}")
             import traceback
@@ -676,15 +670,9 @@ async def upload_two_se_files(
         
         # Parse Förvaltningsberättelse data (FB) - Förändring i eget kapital
         try:
-            print(f"DEBUG: Starting FB calculation with br_data type: {type(br_data)}, length: {len(br_data) if br_data else 0}")
-            if br_data and len(br_data) > 0:
-                print(f"DEBUG: First BR item keys: {list(br_data[0].keys())}")
-                print(f"DEBUG: Sample BR variable names: {[item.get('variable_name') for item in br_data[:5]]}")
             fb_module = ForvaltningsberattelseFB()
             fb_variables = fb_module.calculate_forandring_eget_kapital(current_se_content, br_data)
-            print(f"DEBUG: FB variables calculated: {fb_variables}")
             fb_table = fb_module.generate_forandring_eget_kapital_table(fb_variables)
-            print(f"DEBUG: FB table generated with {len(fb_table)} rows")
         except Exception as e:
             print(f"Error parsing FB data: {e}")
             import traceback
