@@ -143,6 +143,91 @@ def _format_date(date_str: str) -> str:
     except Exception:
         return date_str
 
+def _render_cover_page(elems, company_data):
+    """Render cover page with company info and fiscal period"""
+    # Extract company metadata
+    se = (company_data or {}).get('seFileData') or {}
+    info = se.get('company_info') or {}
+    
+    name = company_data.get('company_name') or info.get('company_name') or "Bolag"
+    orgnr = company_data.get('organizationNumber') or info.get('organization_number') or ""
+    
+    # Get fiscal period dates
+    start_date = info.get('start_date', '')
+    end_date = info.get('end_date', '')
+    
+    # Format dates to YYYY-MM-DD
+    start_date_formatted = _format_date(start_date) if start_date else ""
+    end_date_formatted = _format_date(end_date) if end_date else ""
+    
+    # Create centered styles
+    cover_title_style = ParagraphStyle(
+        'CoverTitle',
+        fontName='Roboto-Bold',
+        fontSize=20,
+        alignment=1,  # CENTER
+        leading=24
+    )
+    
+    cover_normal_20pt_style = ParagraphStyle(
+        'CoverNormal20',
+        fontName='Roboto',
+        fontSize=20,
+        alignment=1,  # CENTER
+        leading=24
+    )
+    
+    cover_normal_12pt_style = ParagraphStyle(
+        'CoverNormal12',
+        fontName='Roboto',
+        fontSize=12,
+        alignment=1,  # CENTER
+        leading=14
+    )
+    
+    cover_normal_18pt_style = ParagraphStyle(
+        'CoverNormal18',
+        fontName='Roboto',
+        fontSize=18,
+        alignment=1,  # CENTER
+        leading=22
+    )
+    
+    # Add 18 line breaks (each Spacer represents vertical space)
+    # Each line break is approximately 12pt (normal line height)
+    elems.append(Spacer(1, 18 * 12))  # 18 line breaks = 216pt
+    
+    # "Årsredovisning" - 20pt bold
+    elems.append(Paragraph("Årsredovisning", cover_title_style))
+    
+    # Line break
+    elems.append(Spacer(1, 12))
+    
+    # Company name - 20pt normal
+    elems.append(Paragraph(name, cover_normal_20pt_style))
+    
+    # Line break
+    elems.append(Spacer(1, 12))
+    
+    # Organization number - 20pt normal
+    elems.append(Paragraph(orgnr, cover_normal_20pt_style))
+    
+    # Double line break
+    elems.append(Spacer(1, 24))
+    
+    # "avseende perioden" - 12pt normal
+    elems.append(Paragraph("avseende perioden", cover_normal_12pt_style))
+    
+    # Line break
+    elems.append(Spacer(1, 12))
+    
+    # Fiscal period - 18pt normal
+    period_text = f"{start_date_formatted} - {end_date_formatted}"
+    elems.append(Paragraph(period_text, cover_normal_18pt_style))
+    
+    # Add page break after cover page
+    elems.append(PageBreak())
+
 def _get_year_headers(data: Dict[str, Any], fiscal_year: int, prev_year: int) -> Tuple[str, str]:
     """Get formatted year headers with end dates for BR columns"""
     se = (data or {}).get('seFileData') or {}
@@ -587,6 +672,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     
     H0, H1, H2, P, SMALL = _styles()
     elems: List[Any] = []
+    
+    # ===== COVER PAGE =====
+    _render_cover_page(elems, company_data)
     
     # Extract company metadata
     name, orgnr, fiscal_year = _company_meta(company_data)
