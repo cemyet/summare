@@ -855,7 +855,7 @@ function ManagementReportModule({ companyData, onDataUpdate }: any) {
         </section>
 
         {/* H2 Förändringar i eget kapital — existing, working table, embedded */}
-        <section id="eget-kapital" className="mt-8 pt-5">
+        <section id="eget-kapital" className="mt-8 pt-5" style={{ marginTop: '20pt' }}>
           <Forvaltningsberattelse
             embedded
             fbTable={companyData.fbTable || []}
@@ -1903,7 +1903,7 @@ const handleTaxCalculationClick = () => {
 
         {/* Balance Sheet Section */}
         {(
-          <div className="space-y-4">
+          <div className="space-y-4" style={{ marginTop: '24pt' }}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-foreground">Balansräkning</h2>
               <div className="flex items-center space-x-2">
