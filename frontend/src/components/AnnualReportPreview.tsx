@@ -1372,9 +1372,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
     
     // Add extra spacing before major section headings in balance sheet
-    if (style === 'H0' && label) {
+    // Check for H0, S2, or S3 styles (these are major section headers)
+    if ((style === 'H0' || style === 'S2' || style === 'S3') && label) {
       const upperLabel = label.toUpperCase();
-      if (upperLabel.includes('EGET KAPITAL') || upperLabel.includes('SKULDER')) {
+      // Match "EGET KAPITAL" or just "SKULDER" at the start (not "kortfristiga skulder" etc)
+      if (upperLabel === 'EGET KAPITAL' || upperLabel === 'SKULDER') {
         inlineStyle.marginTop = '16pt'; // Add 16pt spacing before major sections
       }
     }
@@ -1943,13 +1945,26 @@ const handleTaxCalculationClick = () => {
                   return null;
                 }
                 
+                // Check if this is first Equity row (appears after "Summa tillgångar")
+                const prevItem = index > 0 ? useBR[index - 1] : null;
+                const isFirstEquityRow = prevItem && 
+                  prevItem.label && 
+                  prevItem.label.toUpperCase().includes('SUMMA TILLGÅNGAR') &&
+                  item.label &&
+                  item.label.toUpperCase().includes('EGET KAPITAL');
+                
+                const styleClasses = getStyleClasses(item.style, item.label);
+                const customStyle = isFirstEquityRow 
+                  ? { ...styleClasses.style, marginTop: '16pt' }
+                  : styleClasses.style;
+                
                 return (
                   <div 
                     key={index} 
-                    className={`${getStyleClasses(item.style, item.label).className} ${
+                    className={`${styleClasses.className} ${
                       item.level === 0 ? 'border-b pb-1' : ''
                     }`}
-                    style={getStyleClasses(item.style, item.label).style}
+                    style={customStyle}
                   >
                     <span className="text-muted-foreground">{item.label}</span>
                     <span className="text-right font-medium">
