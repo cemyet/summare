@@ -1838,30 +1838,25 @@ class DatabaseParser:
         # Inject INK4.14a (outnyttjat underskott) into ink_values if provided
         if 'INK4.14a' in manual_amounts:
             ink_values['INK4.14a'] = manual_amounts['INK4.14a']
-            print(f"Injected INK4.14a (outnyttjat underskott): {manual_amounts['INK4.14a']}")
         
         # Inject INK4.6b (outnyttjat underskott) into ink_values if provided
         if 'INK4.6b' in manual_amounts:
             ink_values['INK4.6b'] = manual_amounts['INK4.6b']
-            print(f"Injected INK4.6b (outnyttjat underskott): {manual_amounts['INK4.6b']}")
 
         # Inject INK4.6d (återföring periodiseringsfonder) into ink_values if provided
         if 'INK4.6d' in manual_amounts:
             ink_values['INK4.6d'] = manual_amounts['INK4.6d']
-            print(f"Injected INK4.6d (återföring periodiseringsfonder): {manual_amounts['INK4.6d']}")
 
         
         # Inject underskott adjustment for INK4.16 if provided
         if 'ink4_16_underskott_adjustment' in manual_amounts:
             ink_values['ink4_16_underskott_adjustment'] = manual_amounts['ink4_16_underskott_adjustment']
-            print(f"Injected ink4_16_underskott_adjustment: {manual_amounts['ink4_16_underskott_adjustment']}")
         
         # Inject calculated values from editable ranges if provided (sticky values)
         calculated_editable_vars = ['INK4.6a', 'INK4.6b', 'INK4.6d']  # Add others as needed
         for var_name in calculated_editable_vars:
             if var_name in manual_amounts:
                 ink_values[var_name] = manual_amounts[var_name]
-                print(f"Injected calculated editable value {var_name}: {manual_amounts[var_name]}")
                
         for mapping in sorted_mappings:
             try:
@@ -1874,7 +1869,6 @@ class DatabaseParser:
                 if variable_name in manual_amounts and not force_recalculate:
                     amount = manual_amounts[variable_name]
                     ink_values[variable_name] = amount  # Store for dependencies
-                    print(f"Using manual override for {variable_name}: {amount}")
                 else:
                     # Calculate normally (or force recalculate for dependent values)
                     amount = self.calculate_ink2_variable_value(mapping, current_accounts, fiscal_year, rr_data, ink_values, br_data, previous_accounts)
@@ -2254,7 +2248,6 @@ class DatabaseParser:
             tax_amount = base * rate
             # Round to whole kronor: ≥50 öre up, <50 öre down
             rounded_tax = round(tax_amount)
-            print(f"INK_beraknad_skatt: base={base}, rate={rate}, tax_amount={tax_amount}, rounded={rounded_tax}")
             return float(rounded_tax)
 
         # If there's a calculation formula, use it

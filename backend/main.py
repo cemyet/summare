@@ -1465,18 +1465,14 @@ async def recalculate_ink2(request: RecalculateRequest):
         manual_amounts = dict(request.manual_amounts)
         if request.ink4_14a_outnyttjat_underskott and request.ink4_14a_outnyttjat_underskott > 0:
             manual_amounts['INK4.14a'] = request.ink4_14a_outnyttjat_underskott
-            print(f"🔥 Injecting INK4.14a unused tax loss: {request.ink4_14a_outnyttjat_underskott}")
         if request.ink4_16_underskott_adjustment and request.ink4_16_underskott_adjustment != 0:
             manual_amounts['ink4_16_underskott_adjustment'] = request.ink4_16_underskott_adjustment
-            print(f"📊 Injecting ink4_16_underskott_adjustment: {request.ink4_16_underskott_adjustment}")
         if request.justering_sarskild_loneskatt and request.justering_sarskild_loneskatt != 0:
             manual_amounts['justering_sarskild_loneskatt'] = request.justering_sarskild_loneskatt
-            print(f"💰 Injecting pension tax adjustment: {request.justering_sarskild_loneskatt}")
         
         # Preserve INK4.6d if it exists in manual_amounts (sticky value from original calculation)
         if 'INK4.6d' in request.manual_amounts:
             manual_amounts['INK4.6d'] = request.manual_amounts['INK4.6d']
-            print(f"📋 Preserving INK4.6d återföring tax: {manual_amounts['INK4.6d']}")
 
         # STATELESS FIX: If SLP has already been booked to RR (after approval),
         # zero out the INK adjustment so it isn't counted twice in skattemässigt resultat
@@ -1492,9 +1488,6 @@ async def recalculate_ink2(request: RecalculateRequest):
         
         if rr_252_has_slp:
             manual_amounts['justering_sarskild_loneskatt'] = 0.0
-            print(f"🔄 SLP already booked to RR 252, zeroing INK adjustment to prevent double-counting")
-        elif getattr(request, 'is_chat_injection', False):
-            print(f"💬 Chat injection mode: preserving SLP in calculation")
         
         # Parse INK2 data with manual overrides
         ink2_data = parser.parse_ink2_data_with_overrides(
@@ -1530,12 +1523,9 @@ async def recalculate_ink2(request: RecalculateRequest):
             # If SLP already booked to RR, don't subtract again (RR 275 already includes SLP effect)
             if rr_252_has_slp:
                 arets_resultat_justerat = sum_resultat_fore_skatt - ink_beraknad
-                print(f"🔄 SLP already in RR 275, formula: {sum_resultat_fore_skatt} - {ink_beraknad}")
             else:
                 # SLP lowers the result: Årets_resultat_justerat = SumResultatForeSkatt - SLP - INK_beraknad_skatt
                 arets_resultat_justerat = sum_resultat_fore_skatt - slp - ink_beraknad
-                print(f"🔧 SLP not yet in RR, formula: {sum_resultat_fore_skatt} - {slp} - {ink_beraknad}")
-
             # write back into ink2_data (update or append)
             wrote = False
             for r in ink2_data:
@@ -1550,10 +1540,8 @@ async def recalculate_ink2(request: RecalculateRequest):
                     'header': False, 'show_amount': True, 'always_show': True, 'is_calculated': True,
                     'amount': round(arets_resultat_justerat),
                 })
-            
-            print(f"🔧 Fixed Årets_resultat_justerat: {arets_resultat_justerat} (SumResultatForeSkatt: {sum_resultat_fore_skatt} - SLP: {slp} - INK_beraknad: {ink_beraknad})")
-        except Exception as e:
-            print(f"⚠️ Warning: Could not fix Årets_resultat_justerat: {str(e)}")
+        except Exception:
+            pass
             # Continue without failing the entire request
         
         return {
@@ -1903,12 +1891,7 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
     3. Update BR row_id 380 "Årets resultat" (AretsResultat) = new SumAretsResultat
     4. Update BR row_id 413 "Skatteskulder" = Skatteskulder + (INK_beraknad_skatt - INK_bokford_skatt)
     """
-    print(
-        f"🚀 Tax update endpoint called with: "
-        f"inkBeraknadSkatt={request.inkBeraknadSkatt}, "
-        f"inkBokfordSkatt={request.inkBokfordSkatt}, "
-        f"inkSarskildLoneskatt={getattr(request, 'inkSarskildLoneskatt', None)}"
-    )
+    pass
     try:
         # Helper functions for robust data manipulation
         def _eq(a, b):
@@ -2014,13 +1997,12 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         slp_raw = float(request.inkSarskildLoneskatt or 0.0)
         slp_accepted = abs(slp_raw)  # backend expects +SLP always
         d_slp = 0.0
-        print(f"🧾 SLP accepted (positive): {slp_accepted}; rr items: {len(rr)}; br items: {len(br)}")
 
         # Always run SLP section, even when 0 (to reset values to base)
         if slp_accepted >= 0:
             rr_personal = _find_rr_personalkostnader(rr)
             if not rr_personal:
-                print("WARN: RR PersonalKostnader not found by var/label/row_id/id.")
+                pass
             else:
                 # Establish stable base once (idempotent across calls). Support both legacy and new base keys.
                 already = _num(rr_personal.get("slp_injected"))
@@ -2036,7 +2018,6 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                 delta_rr252 = _set_current(rr_personal, new_rr252)
                 after = _num(rr_personal.get("current_amount"))
                 rr_personal["slp_injected"] = slp_accepted
-                print(f"RR 252 Personalkostnader: {before} -> {after} (base {base}, SLP {slp_accepted}, delta {delta_rr252})")
 
                 # Use current SLP level (not delta magnitude) for idempotent ripples
                 applied_slp = slp_accepted
@@ -2114,7 +2095,6 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                         
                         # Calculate only the SLP delta (not total delta) for reporting
                         d_slp = slp_accepted - slp_already_in_skatteskulder
-                        print(f"BR 413 Skatteskulder (SLP): {before_skatteskulder} -> {after_skatteskulder} (base {base_skatteskulder}, SLP {slp_accepted}, tax {tax_calc_in_skatteskulder}, slp_delta {d_slp})")
                         
                         # Note: BR 416 (SumKortfristigaSkulder) will be updated later in tax section with total delta
                         
@@ -2139,7 +2119,6 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         rr_tax_old = rr_tax_new - d_rr_tax
         prev_calc = abs(rr_tax_old)
         d_calc = ink_calc - prev_calc
-        print(f"Updated RR SkattAretsResultat: prev={rr_tax_old} new={rr_tax_new} (delta={d_rr_tax})")
 
         rr_result = _find_by_row_id(rr, 279, varname="SumAretsResultat", label="Årets resultat")
         if not rr_result:
@@ -2158,8 +2137,6 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         resultat_fore_skatt = _num(rr_result_before_skatt.get("current_amount"))
         rr_result_new = resultat_fore_skatt + rr_tax_new + ovriga_skatter
         _set_current(rr_result, rr_result_new)
-        
-        print(f"Updated RR SumAretsResultat: RR275={resultat_fore_skatt} + tax={rr_tax_new} + ovriga={ovriga_skatter} = {rr_result_new}")
 
         # --- BR: sync Årets resultat (380) to RR result, update equity sums ---
         br_result = _get(br, id=380) or _get(br, name="AretsResultat")
@@ -2167,7 +2144,6 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             raise HTTPException(400, "BR row 380 (AretsResultat) missing")
 
         d_br_result = _delta_set(br_result, rr_result_new)  # returns delta vs old
-        print(f"Updated BR AretsResultat: {br_result.get('current_amount', 0)} -> {rr_result_new}")
 
         # --- BR: update SumFrittEgetKapital (381) by the delta in AretsResultat ---
         br_sum_fritt = _get(br, id=381) or _get(br, name="SumFrittEgetKapital")
@@ -2175,19 +2151,12 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             old_fritt = float(br_sum_fritt.get("current_amount") or 0)
             new_fritt = old_fritt + d_br_result
             _set(br_sum_fritt, new_fritt)
-            print(f"Updated BR SumFrittEgetKapital: {old_fritt} -> {new_fritt} (delta={d_br_result})")
-        else:
-            print("⚠️  BR row 381 (SumFrittEgetKapital) not found - cannot update")
-
         # --- BR: update SumEgetKapital (382) by the delta in SumFrittEgetKapital ---
         br_sum_eget = _get(br, id=382) or _get(br, name="SumEgetKapital")
         if br_sum_eget:
             old_eget = float(br_sum_eget.get("current_amount") or 0)
             new_eget = old_eget + d_br_result
             _set(br_sum_eget, new_eget)
-            print(f"Updated BR SumEgetKapital: {old_eget} -> {new_eget} (delta={d_br_result})")
-        else:
-            print("⚠️  BR row 382 (SumEgetKapital) not found - cannot update")
 
         # --- BR: update Skatteskulder (413) by the tax DIFF, then roll up short-term debts (416) ---
         br_tax_liab = _get(br, id=413) or _get(br, name="Skatteskulder")
@@ -2218,7 +2187,6 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_tax_only = ink_calc - old_tax_calc
         # Calculate total delta for BR 416 ripple
         d_tax_liab = new_skatteskulder - old_skatteskulder
-        print(f"Updated BR Skatteskulder: base={base_skatteskulder}, SLP={slp_in_skatteskulder}, tax={ink_calc}, new={new_skatteskulder} (tax_delta={d_tax_only}, total_delta={d_tax_liab})")
 
         # --- BR: update SumKortfristigaSkulder (416) idempotently ---
         # This should include all the Skatteskulder changes (both SLP and tax)
@@ -2241,10 +2209,6 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             d_sum_short = new_sum_short - old_sum_short
             _set_current(br_sum_short, new_sum_short)
             br_sum_short["skatteskulder_injected"] = total_injected_in_skatteskulder
-            
-            print(f"Updated BR SumKortfristigaSkulder: base={base_sum_short}, skatteskulder_total={total_injected_in_skatteskulder}, new={new_sum_short} (delta={d_sum_short})")
-        else:
-            print("⚠️  BR row 416 (SumKortfristigaSkulder) not found")
 
         # --- BR: update total balance sheet (417) by BOTH equity and liability deltas ---
         # Balance sheet equation: Assets = Equity + Liabilities
@@ -2256,9 +2220,6 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             total_delta = d_br_result + d_sum_short
             new_total = old_total + total_delta
             _set(br_sum_total, new_total)
-            print(f"Updated BR SumEgetKapitalOchSkulder: {old_total} -> {new_total} (equity_delta={d_br_result}, liability_delta={d_sum_short}, total_delta={total_delta})")
-        else:
-            print("⚠️  BR row 417 (SumEgetKapitalOchSkulder) not found - cannot update")
 
         # return updated arrays
         return {
