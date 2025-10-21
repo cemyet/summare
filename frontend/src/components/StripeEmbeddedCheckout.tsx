@@ -7,6 +7,27 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Suppress harmless Chrome extension errors in Stripe iframe
+    const originalError = console.error;
+    const filteredError = (...args: any[]) => {
+      const message = args[0]?.toString() || '';
+      // Filter out extension-related errors that don't affect functionality
+      if (
+        message.includes('chrome-extension://') ||
+        message.includes('runtime/sendMessage') ||
+        message.includes('message channel closed')
+      ) {
+        return; // Suppress these errors
+      }
+      originalError.apply(console, args);
+    };
+    console.error = filteredError;
+
+    // Restore original console.error on cleanup
+    const cleanup = () => {
+      console.error = originalError;
+    };
+
     let alive = true;
     let checkout: any;
 
@@ -67,7 +88,11 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
       embedded.mount(ref.current);
     })();
 
-    return () => { alive = false; try { checkout?.destroy?.(); } catch {} };
+    return () => { 
+      alive = false; 
+      cleanup(); // Restore original console.error
+      try { checkout?.destroy?.(); } catch {} 
+    };
   }, [onComplete]);
 
   // stay within your preview card frames (rounded border, hidden overflow)
