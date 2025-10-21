@@ -1762,6 +1762,43 @@ const handleTaxCalculationClick = () => {
       }
     }
     
+    // Special logic for "Omsättningstillgångar" - only show if child sums have values
+    if (item.label && item.label.toUpperCase().includes('OMSÄTTNINGSTILLGÅNGAR')) {
+      const sumVarulager = data.find(row => 
+        row.label && row.label.toUpperCase().includes('SUMMA VARULAGER')
+      );
+      const sumFordringar = data.find(row => 
+        row.label && row.label.toUpperCase().includes('SUMMA KORTFRISTIGA FORDRINGAR')
+      );
+      const sumPlaceringar = data.find(row => 
+        row.label && row.label.toUpperCase().includes('SUMMA KORTFRISTIGA PLACERINGAR')
+      );
+      const sumKassa = data.find(row => 
+        row.label && row.label.toUpperCase().includes('SUMMA KASSA OCH BANK')
+      );
+      
+      const hasVarulager = sumVarulager && 
+        ((sumVarulager.current_amount && sumVarulager.current_amount > 0) ||
+         (sumVarulager.previous_amount && sumVarulager.previous_amount > 0));
+      
+      const hasFordringar = sumFordringar && 
+        ((sumFordringar.current_amount && sumFordringar.current_amount > 0) ||
+         (sumFordringar.previous_amount && sumFordringar.previous_amount > 0));
+      
+      const hasPlaceringar = sumPlaceringar && 
+        ((sumPlaceringar.current_amount && sumPlaceringar.current_amount > 0) ||
+         (sumPlaceringar.previous_amount && sumPlaceringar.previous_amount > 0));
+      
+      const hasKassa = sumKassa && 
+        ((sumKassa.current_amount && sumKassa.current_amount > 0) ||
+         (sumKassa.previous_amount && sumKassa.previous_amount > 0));
+      
+      // Only show if at least one child sum has a value > 0
+      if (!hasVarulager && !hasFordringar && !hasPlaceringar && !hasKassa) {
+        return false;
+      }
+    }
+    
     if (showAll) return true;
     
     // Check if this is a heading
