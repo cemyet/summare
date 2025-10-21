@@ -24,10 +24,10 @@ stripe.api_key = STRIPE_SECRET_KEY
 StripeClientClass = getattr(stripe, "StripeClient", None)  # may be None on odd installs
 _has_checkout_sessions = bool(getattr(getattr(stripe, "checkout", None), "sessions", None))
 
-logger.info("Stripe version: %s", getattr(stripe, "__version__", "?"))
-logger.info("Stripe module file: %s", getattr(stripe, "__file__", "?"))
-logger.info("Has StripeClient: %s", callable(StripeClientClass))
-logger.info("Has checkout.sessions: %s", _has_checkout_sessions)
+logger.debug("Stripe version: %s", getattr(stripe, "__version__", "?"))
+logger.debug("Stripe module file: %s", getattr(stripe, "__file__", "?"))
+logger.debug("Has StripeClient: %s", callable(StripeClientClass))
+logger.debug("Has checkout.sessions: %s", _has_checkout_sessions)
 
 SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
 CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled")
@@ -2402,4 +2402,11 @@ if __name__ == "__main__":
     # Get port from environment variable (Railway sets this)
     port = int(os.environ.get("PORT", 8080))
     
-    uvicorn.run(app, host="0.0.0.0", port=port) 
+    # Reduce log verbosity - only show warnings and errors
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=port,
+        log_level="warning",  # Only show warnings and errors
+        access_log=False       # Disable HTTP access logs
+    ) 
