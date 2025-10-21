@@ -819,8 +819,6 @@ async def get_bolagsverket_officers(organization_number: str):
         # Clean organization number (remove hyphens and non-digits)
         clean_org = "".join(ch for ch in organization_number if ch.isdigit())
         
-        logger.info(f"Fetching officers for organization: {clean_org}")
-        
         # Fetch company data from Bolagsverket API
         try:
             company_info = fetch_company_objects(clean_org, ["FUNKTIONARER", "FIRMATECKNING"])
@@ -851,8 +849,6 @@ async def get_bolagsverket_officers(organization_number: str):
                 status_code=500,
                 detail=f"Extraction failed: {str(extract_error)}"
             )
-        
-        logger.info(f"Successfully extracted {len(officers_data['UnderskriftForetradare'])} företrädare and {len(officers_data['UnderskriftAvRevisor'])} revisorer")
         
         return {
             "success": True,
@@ -1350,23 +1346,17 @@ async def process_chat_choice(request: dict):
         option_value = request.get("option_value")
         context = request.get("context", {})
         
-        print(f"🔍 Processing choice: step={step_number}, option={option_value}, context={context}")
-        
         # Get the current step to find the selected option
         step_data = await get_chat_flow_step(step_number)
-        print(f"🔍 Step data for {step_number}: {step_data}")
         if not step_data or not step_data.get("success"):
             raise HTTPException(status_code=404, detail="Step not found")
         
         # Find the selected option
         selected_option = None
-        print(f"🔍 Available options: {[opt['option_value'] for opt in step_data['options']]}")
         for option in step_data["options"]:
             if option["option_value"] == option_value:
                 selected_option = option
                 break
-        
-        print(f"🔍 Selected option: {selected_option}")
         if not selected_option:
             raise HTTPException(status_code=400, detail=f"Invalid option '{option_value}'. Available: {[opt['option_value'] for opt in step_data['options']]}")
         

@@ -40,8 +40,7 @@ def get_supabase_client():
     try:
         from supabase import create_client
         return create_client(url, key)
-    except Exception as e:
-        print(f"⚠️  Could not create Supabase client: {e}")
+    except Exception:
         return None
 
 # ---------- Helpers --------------------------------------------------------
@@ -146,13 +145,9 @@ def read_local_mapping_csv() -> List[Dict[str, Any]]:
                 with open(path, 'r', encoding='utf-8') as f:
                     reader = csv.DictReader(f)
                     data = list(reader)
-                    print(f"✅ Loaded {len(data)} mappings from CSV: {path}")
                     return data
-            except Exception as e:
-                print(f"⚠️  Failed reading CSV {path}: {e}")
-    print(f"❌ Could not find CSV in any of these locations:")
-    for path in get_csv_candidates():
-        print(f"   - {path}")
+            except Exception:
+                pass
     return []
 
 def fetch_ink2_form_mappings() -> List[Dict[str, Any]]:
@@ -160,19 +155,13 @@ def fetch_ink2_form_mappings() -> List[Dict[str, Any]]:
     try:
         client = get_supabase_client()
         if client is None:
-            print("ℹ️  Supabase not configured, using CSV fallback")
             return read_local_mapping_csv()
         response = client.table("ink2_form").select("*").execute()
         data = response.data or []
         if not data:
-            print("⚠️  Supabase returned no data, using CSV fallback")
             return read_local_mapping_csv()
-        print(f"✅ Loaded {len(data)} mappings from Supabase")
         return data
-    except Exception as e:
-        print(f"⚠️  Supabase error: {e}. Falling back to CSV.")
-        import traceback
-        traceback.print_exc()
+    except Exception:
         return read_local_mapping_csv()
 
 # ---------- Variable resolver (aligned with your PDF logic) ----------------
@@ -294,17 +283,8 @@ def build_sru_text(company_data: Dict[str, Any], mappings: Optional[List[Dict[st
     today, now_time = today_dates()
     system_info = _system_info(company_data)
 
-    print(f"\n📊 SRU Generator - Building SRU file:")
-    print(f"  - Organization: {org}")
-    print(f"  - Fiscal year: {year} ({fy_start} - {fy_end})")
-    print(f"  - System: {system_info}")
-
     # value resolver
     ctx = _choose_rows(company_data)
-    print(f"  - INK2 rows: {len(ctx.ink2_rows)}")
-    print(f"  - RR rows: {len(ctx.rr_rows)}")
-    print(f"  - BR rows: {len(ctx.br_rows)}")
-    print(f"  - Accepted manuals: {len(ctx.accepted)}")
     
     resolver = VarResolver(ctx)
 
@@ -312,7 +292,6 @@ def build_sru_text(company_data: Dict[str, Any], mappings: Optional[List[Dict[st
     rows = mappings if mappings is not None else fetch_ink2_form_mappings()
     # keep numeric SRU only
     rows = [r for r in rows if _is_numeric_sru(r.get("sru"))]
-    print(f"  - Valid SRU mappings: {len(rows)}")
     
     # Sort by Id column (form order) instead of SRU number
     # This maintains the order as they appear in the INK2 form top-to-bottom
@@ -355,10 +334,6 @@ def build_sru_text(company_data: Dict[str, Any], mappings: Optional[List[Dict[st
         if value is not None:
             add_upgift(lines_s if target == "S" else lines_r, sru, value)
 
-    print(f"\n📋 SRU lines generated:")
-    print(f"  - INK2R lines: {len(lines_r)}")
-    print(f"  - INK2S lines: {len(lines_s)}")
-    
     # Lines are already in form order (sorted by Id column), no need to re-sort
 
     # build file

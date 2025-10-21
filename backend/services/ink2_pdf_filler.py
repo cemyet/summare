@@ -102,9 +102,8 @@ def build_override_map(company_data: dict) -> dict:
         v = _sv_num(company_data["unusedTaxLossAmount"])
         if v is not None:
             M[_norm("INK4.14a")] = v
-            print(f"✅ Mapped unusedTaxLossAmount to INK4.14a: {v} (no manual override)")
     elif ink4_14a_has_manual:
-        print(f"ℹ️ Skipping unusedTaxLossAmount mapping - INK4.14a has manual override in acceptedInk2Manuals")
+        pass  # INK4.14a has manual override in acceptedInk2Manuals
 
     return M
 
@@ -113,7 +112,6 @@ try:
     HAS_PYMUPDF = True
 except ImportError:
     HAS_PYMUPDF = False
-    print("⚠️  PyMuPDF not available, PDF flattening will be skipped")
 
 # Load environment variables
 load_dotenv()
@@ -456,11 +454,6 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], compan
     
     # Detect naming style from raw field names
     style = detect_name_style(raw_names)
-    print(f"📄 PyMuPDF found {len(widgets_by_name)} unique form fields, style: {style}")
-    
-    # Debug: show first 30 field names
-    sample_keys = sorted(list(widgets_by_name.keys()))[:30]
-    print(f"📋 Sample field names in index: {sample_keys}")
     
     # Extract organization number variants if company_data provided
     if company_data:
@@ -482,37 +475,29 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], compan
         }
         
         # Write org number specials directly
-        print(f"🔍 Writing org number: digits={digits}, dashed={dashed}")
         for logical_name, value in org_specials.items():
             if not value:
                 continue
             pdf_name = to_pdf_field_name(logical_name, style)
             key = normalize_field_name(pdf_name)
             hits = widgets_by_name.get(key, [])
-            print(f"🔍 org debug: {logical_name} → {pdf_name} → '{key}' → hits: {len(hits)}")
             for page, widget in hits:
                 try:
                     widget.field_value = str(value)
                     widget.update()
-                    print(f"✅ org_nr → {logical_name} = {value}")
-                except Exception as e:
-                    print(f"⚠️  Error setting org {logical_name}: {e}")
+                except Exception:
+                    pass
         
         # Safety net: auto-probe any field with "org" in name and set to dashed format
         if dashed:
-            print(f"🔍 Safety net: Probing all fields containing 'org'...")
-            org_count = 0
             for key, widgets in widgets_by_name.items():
                 if "org" in key:
                     for page, widget in widgets:
                         try:
                             widget.field_value = dashed
                             widget.update()
-                            org_count += 1
-                            print(f"✅ Safety net: {key} = {dashed}")
-                        except Exception as e:
-                            print(f"⚠️  Safety net error on {key}: {e}")
-            print(f"🔍 Safety net wrote org number to {org_count} fields")
+                        except Exception:
+                            pass
     
     # Assign all values
     filled_count = 0
@@ -524,16 +509,11 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], compan
         normalized = normalize_field_name(pdf_name)
         hits = widgets_by_name.get(normalized, [])
         
-        # Debug first few lookups
-        if filled_count + not_found_count < 5:
-            print(f"🔍 DEBUG: {logical_name} → {pdf_name} → normalized: '{normalized}' → hits: {len(hits)}")
-        
         # Special-case the four checkboxes on page 4
         is_checkbox = pdf_name in ("23a", "23b", "24a", "24b")
         
         if not hits:
             not_found_count += 1
-            print(f"⚠️  {logical_name} → {pdf_name} not found")
             continue
         
         for page, widget in hits:
@@ -548,12 +528,10 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], compan
                 widget.update()  # Force appearance generation for this widget
                 # NOTE: page.reload() removed - doesn't exist in this PyMuPDF version
                 
-            except Exception as e:
-                print(f"⚠️  Error setting {logical_name}: {e}")
+            except Exception:
                 continue
         
         filled_count += 1
-        print(f"✅ {logical_name} → {pdf_name} = {value}")
     
     # Flatten so values are baked into page content for any viewer
     flat_doc = fitz.open("pdf", doc.convert_to_pdf())
@@ -561,7 +539,6 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], compan
     flat_doc.close()
     doc.close()
     
-    print(f"✅ PDF form filled with PyMuPDF: {filled_count} fields set, {not_found_count} not found, flattened")
     return out_bytes
 
 
@@ -594,20 +571,14 @@ class INK2PdfFiller:
         )
         
         # Log a sample of overrides for validation
-        if self.resolver.ov:
-            sample = {k: self.resolver.ov[k] for k in list(self.resolver.ov.keys())[:8]}
-            print(f"🔎 OVERRIDE SAMPLE: {sample}")
-        else:
-            print("⚠️  No overrides found in company_data")
+        pass
         
     def _load_form_mappings(self):
         """Load form field mappings from ink2_form table"""
         try:
             response = supabase.table('ink2_form').select('*').order('Id').execute()
             self.form_mappings = response.data
-            print(f"✅ Loaded {len(self.form_mappings)} form field mappings")
         except Exception as e:
-            print(f"❌ Error loading form mappings: {e}")
             raise
     
     def _fetch_variable_value(self, variable_name: str) -> Optional[float]:
@@ -689,14 +660,7 @@ class INK2PdfFiller:
         special_values = {}
         
         # Debug: Show top-level keys in company_data
-        print(f"🔍 DEBUG: company_data keys: {list(company_data.keys())}")
-        if 'seFileData' in company_data:
-            se_data = company_data['seFileData']
-            print(f"🔍 DEBUG: seFileData keys: {list(se_data.keys())}")
-            if 'company_info' in se_data:
-                company_info = se_data['company_info']
-                print(f"🔍 DEBUG: company_info keys: {list(company_info.keys())}")
-                print(f"🔍 DEBUG: company_info values: {company_info}")
+        pass
         
         # Current date and time for framställning
         now = datetime.now()
@@ -716,25 +680,20 @@ class INK2PdfFiller:
         # Organization number with alias fallback (multiple lookup attempts)
         # Try snake_case first
         org_nr = get_meta_value(company_data, 'organization_number')
-        print(f"🔍 DEBUG: get_meta_value('organization_number') = {org_nr}")
         
         # Try camelCase (frontend format)
         if not org_nr:
             org_nr = get_meta_value(company_data, 'organizationNumber')
-            print(f"🔍 DEBUG: get_meta_value('organizationNumber') = {org_nr}")
         
         # Try other variants
         if not org_nr:
             org_nr = get_meta_value(company_data, 'org_nr')
-            print(f"🔍 DEBUG: get_meta_value('org_nr') = {org_nr}")
         if not org_nr:
             org_nr = get_meta_value(company_data, 'PersOrgNr')
-            print(f"🔍 DEBUG: get_meta_value('PersOrgNr') = {org_nr}")
         
         # Fallback to constructor parameter
         if not org_nr and self.organization_number:
             org_nr = self.organization_number
-            print(f"🔍 DEBUG: Using self.organization_number = {org_nr}")
         
         if org_nr:
             # Format with dash (556610-3643) for display in PDF
@@ -747,9 +706,6 @@ class INK2PdfFiller:
             special_values['PersOrgNr'] = org_formatted
             special_values['orgnr'] = org_formatted
             special_values['organisationsnummer'] = org_formatted
-            print(f"✅ Organization number set: {org_formatted}")
-        else:
-            print("❌ Organization number not found in company_data or self.organization_number")
         
         # Fiscal year dates with alias fallback - convert YYYYMMDD to YYYY-MM-DD
         start = get_meta_value(company_data, 'start_date')
@@ -762,7 +718,6 @@ class INK2PdfFiller:
                 start_formatted = start_str  # Already formatted or invalid
             special_values['start_date'] = start_formatted
             special_values['fiscal_year_start'] = start_formatted
-            print(f"✅ Start date set: {start_formatted}")
         
         end = get_meta_value(company_data, 'end_date')
         if end:
@@ -774,9 +729,6 @@ class INK2PdfFiller:
                 end_formatted = end_str  # Already formatted or invalid
             special_values['end_date'] = end_formatted
             special_values['fiscal_year_end'] = end_formatted
-            print(f"✅ End date set: {end_formatted}")
-        
-        print(f"📋 Special values created: {list(special_values.keys())}")
         
         return special_values
     
@@ -815,14 +767,12 @@ class INK2PdfFiller:
             # Check if this is a special value (exact match first)
             if variable_map in special_values:
                 assignments[form_field_raw] = special_values[variable_map]
-                print(f"✅ Special value: {form_field_raw} = {variable_map} = {special_values[variable_map]}")
                 continue
             
             # Check case-insensitive
             variable_map_lower = variable_map.lower()
             if variable_map_lower in special_values_lower:
                 assignments[form_field_raw] = special_values_lower[variable_map_lower]
-                print(f"✅ Special value (case-insensitive): {form_field_raw} = {variable_map} = {special_values_lower[variable_map_lower]}")
                 continue
             
             # Check if any alias of this variable_map exists in special_values
@@ -830,12 +780,10 @@ class INK2PdfFiller:
             for alias in ALIASES.get(variable_map, []):
                 if alias in special_values:
                     assignments[form_field_raw] = special_values[alias]
-                    print(f"✅ Special value (via alias): {form_field_raw} = {variable_map} → {alias} = {special_values[alias]}")
                     found_in_special = True
                     break
                 elif alias.lower() in special_values_lower:
                     assignments[form_field_raw] = special_values_lower[alias.lower()]
-                    print(f"✅ Special value (via alias, case-insensitive): {form_field_raw} = {variable_map} → {alias} = {special_values_lower[alias.lower()]}")
                     found_in_special = True
                     break
             
@@ -858,7 +806,6 @@ class INK2PdfFiller:
             formatted_skatt = self._format_value_for_field(skatt_arets_resultat, 'number', '4.3a')
             if formatted_skatt:
                 assignments['4.3a'] = formatted_skatt
-                print(f"✅ OVERRIDE: 4.3a (Skatt på årets resultat) = {formatted_skatt} (from RR SkattAretsResultat)")
         
         # SPECIAL HANDLING: INK4.23a/23b radio buttons (Uppdragstagare)
         # When Ja selected: INK4.23a=1, INK4.23b=0 → PDF: 23a=Yes, 23b=Off
@@ -870,17 +817,14 @@ class INK2PdfFiller:
             # Ja selected
             assignments['23a'] = 'Yes'
             assignments['23b'] = 'Off'
-            print(f"✅ INK4.23a/b radio: Ja selected (INK4.23a=1, INK4.23b=0 → 23a=Yes, 23b=Off)")
         elif ink4_23b_value == 1:
             # Nej selected
             assignments['23a'] = 'Off'
             assignments['23b'] = 'Yes'
-            print(f"✅ INK4.23a/b radio: Nej selected (INK4.23a=0, INK4.23b=1 → 23a=Off, 23b=Yes)")
         else:
             # Default to "Nej" (23b checked)
             assignments['23a'] = 'Off'
             assignments['23b'] = 'Yes'
-            print(f"✅ INK4.23a/b radio: Default to Nej (23a=Off, 23b=Yes)")
         
         # SPECIAL HANDLING: INK4.24a/24b radio buttons (Revision)
         # When Ja selected: INK4.24a=1, INK4.24b=0 → PDF: 24a=Yes, 24b=Off
@@ -892,17 +836,14 @@ class INK2PdfFiller:
             # Ja selected
             assignments['24a'] = 'Yes'
             assignments['24b'] = 'Off'
-            print(f"✅ INK4.24a/b radio: Ja selected (INK4.24a=1, INK4.24b=0 → 24a=Yes, 24b=Off)")
         elif ink4_24b_value == 1:
             # Nej selected
             assignments['24a'] = 'Off'
             assignments['24b'] = 'Yes'
-            print(f"✅ INK4.24a/b radio: Nej selected (INK4.24a=0, INK4.24b=1 → 24a=Off, 24b=Yes)")
         else:
             # Default to "Nej" (24b checked)
             assignments['24a'] = 'Off'
             assignments['24b'] = 'Yes'
-            print(f"✅ INK4.24a/b radio: Default to Nej (24a=Off, 24b=Yes)")
         
         # Load template PDF
         with open(pdf_path, 'rb') as f:
@@ -944,9 +885,6 @@ def generate_filled_ink2_pdf(organization_number: str, fiscal_year: int, company
     br_data = company_data.get('seFileData', {}).get('br_data', [])
     # IMPORTANT: Try ink2Data first (has latest manual edits), then fall back to seFileData.ink2_data
     ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
-    
-    print(f"📊 INK2 PDF Filler - RR items: {len(rr_data)}, BR items: {len(br_data)}, INK2 items: {len(ink2_data)}")
-    print(f"📊 INK2 data source: {'ink2Data (with manual edits)' if company_data.get('ink2Data') else 'seFileData.ink2_data (original)'}")
     
     # Create filler and fill the form (pass company_data for overrides)
     filler = INK2PdfFiller(organization_number, fiscal_year, rr_data, br_data, ink2_data, company_data)
