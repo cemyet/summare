@@ -1938,17 +1938,17 @@ const handleTaxCalculationClick = () => {
                   return null;
                 }
                 
-                // Check if this is first Equity row (appears after "Summa tillgångar")
-                const prevItem = index > 0 ? useBR[index - 1] : null;
-                const isFirstEquityRow = prevItem && 
-                  prevItem.label && 
-                  prevItem.label.toUpperCase().includes('SUMMA TILLGÅNGAR') &&
-                  item.label &&
-                  item.label.toUpperCase().includes('EGET KAPITAL');
+                // Check if this is "Summa tillgångar" row - add space after it
+                const nextItem = index < useBR.length - 1 ? useBR[index + 1] : null;
+                const isSummaTillgangar = item.label && 
+                  item.label.toUpperCase().includes('SUMMA TILLGÅNGAR') &&
+                  nextItem && 
+                  nextItem.label &&
+                  nextItem.label.toUpperCase().includes('EGET KAPITAL');
                 
                 const styleClasses = getStyleClasses(item.style, item.label);
-                const customStyle = isFirstEquityRow 
-                  ? { ...styleClasses.style, paddingTop: '16pt' }
+                const customStyle = isSummaTillgangar 
+                  ? { ...styleClasses.style, paddingBottom: '16pt' }
                   : styleClasses.style;
                 
                 return (
