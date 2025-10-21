@@ -1721,7 +1721,20 @@ const handleTaxCalculationClick = () => {
 
   // Helper function to check if a row should be shown
   const shouldShowRow = (item: any, showAll: boolean, data: any[]): boolean => {
-    // Never show "Tillgångar" row, even with toggle on
+    // Never show these rows, even with toggle on
+    const hiddenRowIds = [
+      312,  // Tecknat men ej inbetalt kapital (BR)
+      310,  // Balansräkning (BR)
+      240,  // Resultaträkning (RR)
+      241   // Rörelseresultat (RR)
+    ];
+    
+    // Check by row ID (can be string or number)
+    if (item.id && hiddenRowIds.includes(Number(item.id))) {
+      return false;
+    }
+    
+    // Also check by label for "Tillgångar"
     if (item.label && item.label.toUpperCase() === 'TILLGÅNGAR') {
       return false;
     }
