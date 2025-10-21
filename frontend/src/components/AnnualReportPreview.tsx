@@ -1739,6 +1739,29 @@ const handleTaxCalculationClick = () => {
       return false;
     }
     
+    // Special logic for "Anläggningstillgångar" - only show if child sums have values
+    if (item.label && item.label.toUpperCase().includes('ANLÄGGNINGSTILLGÅNGAR')) {
+      const sumImmateriella = data.find(row => 
+        row.label && row.label.toUpperCase().includes('SUMMA IMMATERIELLA')
+      );
+      const sumMateriella = data.find(row => 
+        row.label && row.label.toUpperCase().includes('SUMMA MATERIELLA')
+      );
+      
+      const hasImmateriella = sumImmateriella && 
+        ((sumImmateriella.current_amount && sumImmateriella.current_amount > 0) ||
+         (sumImmateriella.previous_amount && sumImmateriella.previous_amount > 0));
+      
+      const hasMateriella = sumMateriella && 
+        ((sumMateriella.current_amount && sumMateriella.current_amount > 0) ||
+         (sumMateriella.previous_amount && sumMateriella.previous_amount > 0));
+      
+      // Only show if at least one child sum has a value > 0
+      if (!hasImmateriella && !hasMateriella) {
+        return false;
+      }
+    }
+    
     if (showAll) return true;
     
     // Check if this is a heading
