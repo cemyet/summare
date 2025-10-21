@@ -1356,9 +1356,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   // No fallback needed - database-driven parser provides all data
 
   // Helper function to get styling classes and style based on style
-  const getStyleClasses = (style?: string) => {
+  const getStyleClasses = (style?: string, label?: string) => {
     const baseClasses = 'grid gap-4';
     let additionalClasses = '';
+    let inlineStyle: React.CSSProperties = { gridTemplateColumns: '4fr 0.5fr 1fr 1fr' };
     
     // Handle bold styling for header styles only
     if (style === 'H0' || style === 'H1' || style === 'H2' || style === 'H3' || style === 'S1' || style === 'S2' || style === 'S3') {
@@ -1370,9 +1371,17 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
     }
     
+    // Add extra spacing before major section headings in balance sheet
+    if (style === 'H0' && label) {
+      const upperLabel = label.toUpperCase();
+      if (upperLabel.includes('EGET KAPITAL') || upperLabel.includes('SKULDER')) {
+        inlineStyle.marginTop = '16pt'; // Add 16pt spacing before major sections
+      }
+    }
+    
     return {
       className: `${baseClasses}${additionalClasses}`,
-      style: { gridTemplateColumns: '4fr 0.5fr 1fr 1fr' }
+      style: inlineStyle
     };
   };
 
@@ -1856,10 +1865,10 @@ const handleTaxCalculationClick = () => {
                 return (
                   <div 
                     key={index} 
-                    className={`${getStyleClasses(item.style).className} ${
+                    className={`${getStyleClasses(item.style, item.label).className} ${
                       item.level === 0 ? 'border-b pb-1' : ''
                     }`}
-                    style={getStyleClasses(item.style).style}
+                    style={getStyleClasses(item.style, item.label).style}
                   >
                     <span className="text-muted-foreground flex items-center justify-between">
                       <span>{item.label}</span>
@@ -1903,7 +1912,7 @@ const handleTaxCalculationClick = () => {
 
         {/* Balance Sheet Section */}
         {(
-          <div className="space-y-4" style={{ marginTop: '24pt' }}>
+          <div className="space-y-4" style={{ marginTop: '34pt' }}>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-foreground">Balansräkning</h2>
               <div className="flex items-center space-x-2">
@@ -1937,10 +1946,10 @@ const handleTaxCalculationClick = () => {
                 return (
                   <div 
                     key={index} 
-                    className={`${getStyleClasses(item.style).className} ${
+                    className={`${getStyleClasses(item.style, item.label).className} ${
                       item.level === 0 ? 'border-b pb-1' : ''
                     }`}
-                    style={getStyleClasses(item.style).style}
+                    style={getStyleClasses(item.style, item.label).style}
                   >
                     <span className="text-muted-foreground">{item.label}</span>
                     <span className="text-right font-medium">
