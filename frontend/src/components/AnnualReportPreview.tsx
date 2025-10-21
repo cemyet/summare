@@ -1721,6 +1721,11 @@ const handleTaxCalculationClick = () => {
 
   // Helper function to check if a row should be shown
   const shouldShowRow = (item: any, showAll: boolean, data: any[]): boolean => {
+    // Never show "Tillgångar" row, even with toggle on
+    if (item.label && item.label.toUpperCase() === 'TILLGÅNGAR') {
+      return false;
+    }
+    
     if (showAll) return true;
     
     // Check if this is a heading
