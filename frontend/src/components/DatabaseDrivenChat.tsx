@@ -585,6 +585,24 @@ interface ChatFlowResponse {
             }
           }, 500);
         }
+        // Auto-scroll to Signering section for step 515
+        else if (stepNumber === 515) {
+          setTimeout(() => {
+            const signeringModule = document.querySelector('[data-section="signering"]');
+            const scrollContainer = document.querySelector('.overflow-auto');
+            
+            if (signeringModule && scrollContainer) {
+              const containerRect = scrollContainer.getBoundingClientRect();
+              const signeringRect = signeringModule.getBoundingClientRect();
+              const scrollTop = scrollContainer.scrollTop + signeringRect.top - containerRect.top - 10;
+              
+              scrollContainer.scrollTo({
+                top: scrollTop,
+                behavior: 'smooth'
+              });
+            }
+          }, 500);
+        }
         
         if (stepNumber !== 402) {
           // Store all options (unfiltered) for submit logic
@@ -1151,11 +1169,6 @@ interface ChatFlowResponse {
           // Auto-scroll to Download on step 510
           if (next_step === 510) {
             setTimeout(() => scrollToDownload(), 500);
-          }
-          
-          // Auto-scroll to Signering on steps 515 or 520
-          if (next_step === 515 || next_step === 520) {
-            setTimeout(() => scrollToSignering(), 500);
           }
           
           setTimeout(() => loadChatStep(next_step, updatedInk2Data), 1000);
