@@ -381,12 +381,6 @@ interface ChatFlowResponse {
         // Handle no_option automatically if it exists
         const noOption = response.options.find(opt => opt.option_order === 0);
         if (noOption) {
-            option_value: noOption.option_value,
-            next_step: noOption.next_step,
-            action_type: noOption.action_type,
-            action_data: noOption.action_data
-          });
-          
           // For message-type steps with no_option, show the message first, then execute the no_option
           if (response.question_type === 'message') {
             // Get the most recent inkBeraknadSkatt value from global data first, then INK2 data
@@ -474,24 +468,16 @@ interface ChatFlowResponse {
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
               const scrollContainer = document.querySelector('.overflow-auto');
-                noterModule: !!noterModule,
-                scrollContainer: !!scrollContainer
-              });
               
               if (noterModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
                 const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
                 
-                  currentScrollTop: scrollContainer.scrollTop,
-                  targetScrollTop: scrollTop
-                });
-                
                 scrollContainer.scrollTo({
                   top: scrollTop,
                   behavior: 'smooth'
                 });
-              } else {
               }
             }, 200); // Shorter delay since we're about to navigate away
           }
@@ -566,28 +552,16 @@ interface ChatFlowResponse {
           setTimeout(() => {
             const noterModule = document.querySelector('[data-section="noter"]');
             const scrollContainer = document.querySelector('.overflow-auto');
-              noterModule: !!noterModule,
-              scrollContainer: !!scrollContainer,
-              noterModuleRect: noterModule?.getBoundingClientRect(),
-              scrollContainerRect: scrollContainer?.getBoundingClientRect()
-            });
             
             if (noterModule && scrollContainer) {
               const containerRect = scrollContainer.getBoundingClientRect();
               const noterRect = noterModule.getBoundingClientRect();
               const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
               
-                currentScrollTop: scrollContainer.scrollTop,
-                targetScrollTop: scrollTop,
-                noterTop: noterRect.top,
-                containerTop: containerRect.top
-              });
-              
               scrollContainer.scrollTo({
                 top: scrollTop,
                 behavior: 'smooth'
               });
-            } else {
             }
           }, 500);
         }
@@ -596,9 +570,6 @@ interface ChatFlowResponse {
           setTimeout(() => {
             const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]');
             const scrollContainer = document.querySelector('.overflow-auto');
-              fbModule: !!fbModule,
-              scrollContainer: !!scrollContainer
-            });
             
             if (fbModule && scrollContainer) {
               // Scroll to bottom of förvaltningsberättelse to show Resultatdisposition
@@ -607,17 +578,10 @@ interface ChatFlowResponse {
               const fbHeight = fbModule.scrollHeight || fbRect.height;
               const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top + fbHeight - containerRect.height + 50;
               
-                currentScrollTop: scrollContainer.scrollTop,
-                targetScrollTop: scrollTop,
-                fbHeight: fbHeight,
-                containerHeight: containerRect.height
-              });
-              
               scrollContainer.scrollTo({
                 top: Math.max(0, scrollTop), // Ensure non-negative scroll position
                 behavior: 'smooth'
               });
-            } else {
             }
           }, 500);
         }
@@ -670,10 +634,6 @@ interface ChatFlowResponse {
       const downloadRect = downloadModule.getBoundingClientRect();
       const scrollTop = scrollContainer.scrollTop + downloadRect.top - containerRect.top - 24;
 
-        currentScrollTop: scrollContainer.scrollTop,
-        targetScrollTop: scrollTop
-      });
-
       scrollContainer.scrollTo({
         top: scrollTop,
         behavior: 'smooth'
@@ -699,10 +659,6 @@ interface ChatFlowResponse {
       const containerRect = scrollContainer.getBoundingClientRect();
       const signeringRect = signeringModule.getBoundingClientRect();
       const scrollTop = scrollContainer.scrollTop + signeringRect.top - containerRect.top - 24;
-
-        currentScrollTop: scrollContainer.scrollTop,
-        targetScrollTop: scrollTop
-      });
 
       scrollContainer.scrollTo({
         top: scrollTop,
@@ -804,26 +760,16 @@ interface ChatFlowResponse {
           setTimeout(() => {
             const noterModule = document.querySelector('[data-section="noter"]');
             const scrollContainer = document.querySelector('.overflow-auto');
-              noterModule: !!noterModule,
-              scrollContainer: !!scrollContainer
-            });
             
             if (noterModule && scrollContainer) {
               const containerRect = scrollContainer.getBoundingClientRect();
               const noterRect = noterModule.getBoundingClientRect();
               const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 10pt padding from top
               
-                currentScrollTop: scrollContainer.scrollTop,
-                targetScrollTop: scrollTop,
-                noterTop: noterRect.top,
-                containerTop: containerRect.top
-              });
-              
               scrollContainer.scrollTo({
                 top: scrollTop,
                 behavior: 'smooth'
               });
-            } else {
             }
           }, 200);
         }
@@ -984,11 +930,6 @@ interface ChatFlowResponse {
                 const maxDividend = companyData.sumFrittEgetKapital || 0;
                 const balancerasAmount = maxDividend - dividendAmount;
                 
-                  arets_utdelning: dividendAmount,
-                  sumFrittEgetKapital: maxDividend,
-                  arets_balanseras_nyrakning: balancerasAmount
-                });
-                
                 // Store both values for message substitution
                 updateData.arets_balanseras_nyrakning = balancerasAmount;
                 
@@ -1131,24 +1072,16 @@ interface ChatFlowResponse {
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
               const scrollContainer = document.querySelector('.overflow-auto');
-                noterModule: !!noterModule,
-                scrollContainer: !!scrollContainer
-              });
               
               if (noterModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
                 const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
                 
-                  currentScrollTop: scrollContainer.scrollTop,
-                  targetScrollTop: scrollTop
-                });
-                
                 scrollContainer.scrollTo({
                   top: scrollTop,
                   behavior: 'smooth'
                 });
-              } else {
               }
             }, 500);
           }
@@ -1458,11 +1391,6 @@ const selectiveMergeInk2 = (
       // Get SLP amount
       const inkSarskildLoneskatt = getAcceptedSLP(ink2Data, companyData);
       
-        inkSarskildLoneskatt, 
-        inkBokfordSkatt,
-        note: 'Setting inkBeraknadSkatt = inkBokfordSkatt to avoid tax injection' 
-      });
-      
       // IMPORTANT: Set inkBeraknadSkatt = inkBokfordSkatt so taxDifference = 0
       // This ensures ONLY SLP is injected, not the calculated tax changes
       const requestData = {
@@ -1647,24 +1575,12 @@ const selectiveMergeInk2 = (
     if (submitOption) {
         // Store the input value based on action data
         if (submitOption.action_data?.variable) {
-          
-            variable: submitOption.action_data.variable,
-            value: value,
-            inputValue: inputValue,
-            parsedValue: inputType === 'amount' ? parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0 : inputValue.trim()
-          });
-
           // Store dividend input and calculate balanseras for substitution
           if (submitOption.action_data.variable === 'arets_utdelning' && inputType === 'amount') {
             // Use absolute value only after validation passes
             const dividendAmount = Math.abs(value as number);
             const maxDividend = companyData.sumFrittEgetKapital || 0;
             const balancerasAmount = maxDividend - dividendAmount;
-            
-              sumFrittEgetKapital: maxDividend,
-              arets_utdelning: dividendAmount,
-              balanseras_amount: balancerasAmount
-            });
             
             // Store only dividend amount (positive)
             onDataUpdate({ arets_utdelning: dividendAmount });
@@ -1754,18 +1670,11 @@ const selectiveMergeInk2 = (
       }
 
       // Navigate to next step (unless we're handling special cases)
-        hasNextStep: !!submitOption.next_step,
-        nextStep: submitOption.next_step,
-        variable: submitOption.action_data?.variable,
-        willNavigate: submitOption.next_step && submitOption.action_data?.variable !== 'sarskildLoneskattCustom'
-      });
-      
       if (submitOption.next_step && 
           submitOption.action_data?.variable !== 'sarskildLoneskattCustom') {
         setShowInput(false);
         setInputValue('');
         setTimeout(() => loadChatStep(submitOption.next_step!), 500);
-      } else {
       }
     }
   };
