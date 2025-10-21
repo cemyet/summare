@@ -1371,15 +1371,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
     }
     
-    // Add extra spacing before major section headings in balance sheet
-    // Check for H0, S2, or S3 styles (these are major section headers)
-    if ((style === 'H0' || style === 'S2' || style === 'S3') && label) {
-      const upperLabel = label.toUpperCase();
-      // Match "EGET KAPITAL" or just "SKULDER" at the start (not "kortfristiga skulder" etc)
-      if (upperLabel === 'EGET KAPITAL' || upperLabel === 'SKULDER') {
-        inlineStyle.marginTop = '16pt'; // Add 16pt spacing before major sections
-      }
-    }
+    // Note: Spacing for "Eget kapital" is handled directly in the BR rendering logic
+    // based on context (appears after "Summa tillgångar")
     
     return {
       className: `${baseClasses}${additionalClasses}`,
@@ -1955,7 +1948,7 @@ const handleTaxCalculationClick = () => {
                 
                 const styleClasses = getStyleClasses(item.style, item.label);
                 const customStyle = isFirstEquityRow 
-                  ? { ...styleClasses.style, marginTop: '16pt' }
+                  ? { ...styleClasses.style, paddingTop: '16pt' }
                   : styleClasses.style;
                 
                 return (
