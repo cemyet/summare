@@ -1334,9 +1334,11 @@ const selectiveMergeInk2 = (
     const originalBrData = (window as any).__originalBrData || companyData.seFileData?.br_data || [];
     
     // Include accepted SLP in manual_amounts for chat injections
+    // CRITICAL FIX: Only include SLP if it's a number, not a string like 'current' or 'calculated'
     const chatManuals = { ...manuals };
-    if (companyData.justeringSarskildLoneskatt) {
-      chatManuals['justering_sarskild_loneskatt'] = Math.abs(companyData.justeringSarskildLoneskatt);
+    const slpValue = companyData.justeringSarskildLoneskatt;
+    if (typeof slpValue === 'number' && slpValue !== 0) {
+      chatManuals['justering_sarskild_loneskatt'] = Math.abs(slpValue);
     }
 
     const resp = await apiService.recalculateInk2({
