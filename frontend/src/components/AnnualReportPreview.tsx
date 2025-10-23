@@ -1337,14 +1337,31 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Canonical Undo
   const handleUndo = async () => {
-    // this session's manual edits are discarded
+    // CRITICAL FIX: Preserve chat-injected values when undoing manual edits
+    // Build a map of chat-injected values that should NOT be undone
+    const chatInjectedValues: Record<string, number> = {};
+    
+    // Preserve unused tax loss from chat (INK4.14a)
+    const underskott = Number(companyData.unusedTaxLossAmount || 0);
+    if (Number.isFinite(underskott) && underskott !== 0) {
+      chatInjectedValues['INK4.14a'] = underskott;
+    }
+    
+    // Preserve SLP adjustment from chat (INK_sarskild_loneskatt)
+    const sarskild = Number(companyData.justeringSarskildLoneskatt || 0);
+    if (Number.isFinite(sarskild) && sarskild !== 0) {
+      chatInjectedValues['INK_sarskild_loneskatt'] = -Math.abs(sarskild);
+    }
+    
+    // This session's manual edits are discarded
     setManualEdits({});
 
-    // mark that the next approve should clear old accepted edits
+    // Mark that the next approve should clear old accepted edits (but preserve chat injections)
     clearAcceptedOnNextApproveRef.current = true;
 
-    // recalc with baseline=original, without accepted
-    await recalcWithManuals({}, { includeAccepted: false, baselineSource: 'original' });
+    // Recalc with chat injections preserved but without other accepted manuals
+    // This shows the state with only chat values, removing any manual edits
+    await recalcWithManuals(chatInjectedValues, { includeAccepted: false, baselineSource: 'original' });
   };
 
   
@@ -1453,9 +1470,25 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Chat overrides need to be preserved across manual edit sessions
     const chatOverrides = getChatOverrides();
     
-    // If Undo was used this session, drop previously accepted edits
+    // CRITICAL FIX: Always preserve chat-injected values from companyData, even after undo
+    // These are values injected via chat flow that should persist across manual edit sessions
+    const chatInjectedValues: Record<string, number> = {};
+    
+    // Preserve unused tax loss from chat (INK4.14a)
+    const underskott = Number(companyData.unusedTaxLossAmount || 0);
+    if (Number.isFinite(underskott) && underskott !== 0) {
+      chatInjectedValues['INK4.14a'] = underskott;
+    }
+    
+    // Preserve SLP adjustment from chat (INK_sarskild_loneskatt)
+    const sarskild = Number(companyData.justeringSarskildLoneskatt || 0);
+    if (Number.isFinite(sarskild) && sarskild !== 0) {
+      chatInjectedValues['INK_sarskild_loneskatt'] = -Math.abs(sarskild);
+    }
+    
+    // If Undo was used this session, drop previously accepted edits BUT keep chat injections
     const nextAccepted = clearAcceptedOnNextApproveRef.current
-      ? { ...chatOverrides, ...manualEdits }                      // approve chat overrides + current session edits
+      ? { ...chatInjectedValues, ...chatOverrides, ...manualEdits }  // preserve chat injections + any new overrides + current session edits
       : { ...(companyData.acceptedInk2Manuals || {}), ...chatOverrides, ...manualEdits };  // preserve previous + chat + session
     
     // Set default values for radio button fields if not already set
@@ -1516,12 +1549,19 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Update accepted edits, ink2Data, and track applied chat keys
     // IMPORTANT: Always update ink2Data so INK2 PDF reflects manual edits
     // NOTE: Do this BEFORE recalcWithManuals to ensure proper state for recalculation
-    // CRITICAL FIX: After undo, mark chat-related fields as "applied" to prevent getChatOverrides()
+    // CRITICAL FIX: After undo, mark chat-injected fields as "applied" to prevent getChatOverrides()
     // from re-applying them during subsequent recalculations
-    const chatRelatedFields = ['INK4.14a', 'INK_sarskild_loneskatt']; // Fields that can come from chat overrides
-    const additionalApplied = wasUndoApprove 
-      ? Object.fromEntries(chatRelatedFields.map(k => [k, true]))
-      : {};
+    // Only mark fields that actually have values in chatInjectedValues
+    const additionalApplied: Record<string, boolean> = {};
+    if (wasUndoApprove) {
+      // Mark fields that were preserved from chat injections
+      if (nextAccepted['INK4.14a'] !== undefined) {
+        additionalApplied['INK4.14a'] = true;
+      }
+      if (nextAccepted['INK_sarskild_loneskatt'] !== undefined) {
+        additionalApplied['INK_sarskild_loneskatt'] = true;
+      }
+    }
     
     onDataUpdate({ 
       acceptedInk2Manuals: nextAccepted,
