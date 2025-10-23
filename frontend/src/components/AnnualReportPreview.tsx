@@ -1505,8 +1505,24 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       onDataUpdate({ taxButtonClickedBefore: true });
     }
     
+    // Check if we need to update RR/BR data based on tax differences
+    // Pass the updated INK2 data directly to ensure we use the latest values
+    // Always update when user manually approves (forceUpdate = true)
+    await handleTaxUpdateLogic(nextAccepted, updatedInk2Data, true);
+
+    // Capture the undo flag before we reset it
+    const wasUndoApprove = clearAcceptedOnNextApproveRef.current;
+
     // Update accepted edits, ink2Data, and track applied chat keys
     // IMPORTANT: Always update ink2Data so INK2 PDF reflects manual edits
+    // NOTE: Do this BEFORE recalcWithManuals to ensure proper state for recalculation
+    // CRITICAL FIX: After undo, mark chat-related fields as "applied" to prevent getChatOverrides()
+    // from re-applying them during subsequent recalculations
+    const chatRelatedFields = ['INK4.14a', 'INK_sarskild_loneskatt']; // Fields that can come from chat overrides
+    const additionalApplied = wasUndoApprove 
+      ? Object.fromEntries(chatRelatedFields.map(k => [k, true]))
+      : {};
+    
     onDataUpdate({ 
       acceptedInk2Manuals: nextAccepted,
       ink2Data: updatedInk2Data,
@@ -1514,6 +1530,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       chatApplied: {
         ...(companyData.chatApplied || {}),
         ...Object.fromEntries(appliedChatKeys.map(k => [k, true])),
+        ...additionalApplied, // Prevent re-application after undo
       },
     });
 
@@ -1522,11 +1539,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     if (isFirstTimeClick && onDataUpdate) {
       onDataUpdate({ triggerChatStep: 405 });
     }
-
-    // Check if we need to update RR/BR data based on tax differences
-    // Pass the updated INK2 data directly to ensure we use the latest values
-    // Always update when user manually approves (forceUpdate = true)
-    await handleTaxUpdateLogic(nextAccepted, updatedInk2Data, true);
 
     // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
     clearAcceptedOnNextApproveRef.current = false;
@@ -1547,7 +1559,27 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // ALWAYS recalc derived rows (4.15, 4.16, skattemässigt resultat, beräknad skatt, etc.)
     // Preserve manual edits via acceptedInk2Manuals, but keep derived rows live.
     // This ensures INK4.15 and INK4.16 are always up-to-date with the latest manual changes
-    await recalcWithManuals(nextAccepted, { includeAccepted: false, baselineSource: 'current' });
+    // IMPORTANT: If this was an undo-then-approve, pass the undone values directly to avoid
+    // using stale companyData state (React state updates are batched and may not be reflected yet)
+    if (wasUndoApprove) {
+      // After undo, recalc using the undone values by passing them as manual overrides
+      // Extract non-editable values from updatedInk2Data to use as the baseline
+      const undoneValues: Record<string, number> = {};
+      updatedInk2Data.forEach((item: any) => {
+        if (item.variable_name && item.amount !== null && item.amount !== undefined) {
+          undoneValues[item.variable_name] = item.amount;
+        }
+      });
+      // Pass undone values with includeAccepted=true and acceptedManualsOverride
+      // This ensures we use the undone state as the baseline for recalculation
+      await recalcWithManuals({}, { 
+        includeAccepted: true, 
+        baselineSource: 'original',
+        acceptedManualsOverride: undoneValues 
+      });
+    } else {
+      await recalcWithManuals(nextAccepted, { includeAccepted: false, baselineSource: 'current' });
+    }
   };
 
 // Handle click on SKATTEBERÄKNING button in RR row 276
