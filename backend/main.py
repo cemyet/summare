@@ -353,11 +353,16 @@ async def create_embedded_checkout(request: Request):
             result = db.table("payments").select("id").eq("organization_number", org_number).eq("payment_status", "paid").execute()
             is_first_time = len(result.data) == 0
             
+            print(f"🔍 Payment check for org {org_number}: found {len(result.data)} previous payments, is_first_time={is_first_time}")
+            
             if is_first_time:
                 price_id = STRIPE_PRICE_FIRST_TIME
                 amount_sek = 499
+                print(f"✨ First-time buyer discount applied: {amount_sek} SEK")
+            else:
+                print(f"💰 Returning customer: {amount_sek} SEK")
         except Exception as e:
-            print(f"Error checking payment history: {str(e)}")
+            print(f"❌ Error checking payment history: {str(e)}")
             # Default to regular price on error
 
     # Build metadata
