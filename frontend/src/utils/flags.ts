@@ -2,6 +2,6 @@
 // Force deployment trigger
 
 export const API_BASE = "https://api.summare.se";
-export const STRIPE_PUBLISHABLE_KEY = "pk_test_51RuGItRd07xh2DS6MZ6VgEO8ZywkLww4YPb4E23Edv7JPRpmBto5mBe0VfZqSPYcM8Zcgj7YVMM1DWSfuzsWnub000qtW9IR0z";
+export const STRIPE_PUBLISHABLE_KEY = "pk_test_51SBymNDpfvdIn7I4edb6yF57j0yAZgEU0kkDSHaIeXhQQ5D0iAxuiw5quZtXRlOv8BVTvhaJ6Fnj3PyCPrvt3SMN005hKTVo5l";
 export const USE_EMBED = true;
 
