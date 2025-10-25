@@ -1093,7 +1093,8 @@ interface ChatFlowResponse {
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
               if (noterModule) {
-                noterModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Use 'center' like tax module for perfect positioning
+                noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }
             }, 500);
           }
@@ -1103,7 +1104,8 @@ interface ChatFlowResponse {
             setTimeout(() => {
               const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]');
               if (fbModule) {
-                fbModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Use 'center' like tax module for perfect positioning
+                fbModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
               }
             }, 500);
           }
