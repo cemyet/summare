@@ -2224,6 +2224,9 @@ const handleTaxCalculationClick = () => {
               };
               
               const filteredData = allData.filter((item: any) => {
+                // EXCEPTION: NEVER show INK4.3a when toggle is off (even if it has a value)
+                if (item.variable_name === 'INK4.3a' && !showAllTax) return false;
+                
                 // Always exclude INK4.23b and INK4.24b (combined into INK4.23a and INK4.24a as radio buttons)
                 if (item.variable_name === 'INK4.23b' || item.variable_name === 'INK4.24b') return false;
                 

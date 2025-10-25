@@ -623,15 +623,18 @@ async def stripe_webhook(request: Request):
         print(f"❌ Error processing Stripe webhook: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")
 
-def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_amounts: Dict[str, float] = None) -> List[Dict]:
+def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_amounts: Dict[str, float] = None, slp_adjustment: float = 0.0) -> List[Dict]:
     """
     Helper function to inject calculated adjustments into INK2 data for PDF consistency.
     Ensures INK4.1/INK4.2 reflect Årets resultat (justerat) and INK4.3a reflects beräknad skatt.
+    
+    Formula: Årets resultat (justerat) = SumResultatForeSkatt + INK_sarskild_loneskatt - INK_beraknad_skatt
     
     Args:
         ink2_data: INK2 calculation data
         rr_data: RR (resultaträkning) data
         manual_amounts: Optional manual overrides to respect
+        slp_adjustment: SLP (särskild löneskatt) amount to add (if not already in RR)
     
     Returns:
         Updated ink2_data with injections
@@ -649,13 +652,17 @@ def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_a
         rr_275 = next((x for x in rr_data or [] if str(x.get('row_id')) == '275'), None)
         sum_resultat_fore_skatt = float(rr_275.get('current_amount') or 0) if rr_275 else 0.0
         
-        # Get beräknad skatt from INK2
+        # Get beräknad skatt and SLP from INK2
         ink_beraknad = _find_amt(ink2_data, 'INK_beraknad_skatt')
-        print(f"📊 inject_ink2_adjustments: INK_beraknad_skatt = {ink_beraknad} kr, SumResultatForeSkatt = {sum_resultat_fore_skatt} kr")
+        ink_slp = _find_amt(ink2_data, 'INK_sarskild_loneskatt') or slp_adjustment
         
-        # Calculate Årets resultat (justerat) = SumResultatForeSkatt - INK_beraknad_skatt
-        # (SLP is handled separately in recalculation flow)
-        arets_resultat_justerat = sum_resultat_fore_skatt - ink_beraknad
+        print(f"📊 inject_ink2_adjustments: SumResultatForeSkatt={sum_resultat_fore_skatt} kr, SLP={ink_slp} kr, INK_beraknad_skatt={ink_beraknad} kr")
+        
+        # Calculate: Årets resultat (justerat) = SumResultatForeSkatt + INK_sarskild_loneskatt - INK_beraknad_skatt
+        # Note: INK_sarskild_loneskatt is already NEGATIVE in the calculation (cost), so we ADD it
+        arets_resultat_justerat = sum_resultat_fore_skatt + ink_slp - ink_beraknad
+        
+        print(f"📊 Calculated Årets resultat (justerat) = {sum_resultat_fore_skatt} + {ink_slp} - {ink_beraknad} = {arets_resultat_justerat} kr")
         
         # Check for manual overrides
         ink4_1_manual = manual_amounts.get('INK4.1')
@@ -670,6 +677,7 @@ def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_a
                 for r in ink2_data:
                     if r.get('variable_name') == 'INK4.1':
                         r['amount'] = round(abs(arets_resultat_justerat))
+                        print(f"✅ Injected INK4.1 (vinst): {round(abs(arets_resultat_justerat))} kr")
                     elif r.get('variable_name') == 'INK4.2':
                         r['amount'] = 0.0
             elif arets_resultat_justerat < 0:
@@ -679,6 +687,7 @@ def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_a
                         r['amount'] = 0.0
                     elif r.get('variable_name') == 'INK4.2':
                         r['amount'] = round(abs(arets_resultat_justerat))
+                        print(f"✅ Injected INK4.2 (förlust): {round(abs(arets_resultat_justerat))} kr")
             else:
                 # Zero result: zero out both
                 for r in ink2_data:
@@ -706,6 +715,8 @@ def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_a
         
     except Exception as e:
         print(f"⚠️ Error in inject_ink2_adjustments: {e}")
+        import traceback
+        traceback.print_exc()
         return ink2_data  # Return unchanged on error
 
 @app.post("/upload-se-file", response_model=dict)
@@ -1924,23 +1935,9 @@ async def recalculate_ink2(request: RecalculateRequest):
                 })
             
             # INJECTION: Sync INK4.1/INK4.2 with Årets_resultat_justerat for PDF consistency
-            # This ensures preview and PDF show the same values without circular dependency
-            # Note: For recalculation, we need to account for SLP in the adjustment
-            if not rr_252_has_slp:
-                # If SLP not already in RR, adjust the result before injection
-                adjusted_rr_data = []
-                for rr_item in (request.rr_data or []):
-                    if str(rr_item.get('row_id')) == '275':
-                        # Temporarily adjust SumResultatForeSkatt for injection calculation
-                        adjusted_item = dict(rr_item)
-                        adjusted_item['current_amount'] = sum_resultat_fore_skatt - slp
-                        adjusted_rr_data.append(adjusted_item)
-                    else:
-                        adjusted_rr_data.append(rr_item)
-                ink2_data = inject_ink2_adjustments(ink2_data, adjusted_rr_data, manual_amounts)
-            else:
-                # SLP already in RR, use as-is
-                ink2_data = inject_ink2_adjustments(ink2_data, request.rr_data, manual_amounts)
+            # Pass SLP adjustment if not already booked in RR
+            slp_adjustment = 0.0 if rr_252_has_slp else -slp  # Negative because it's a cost
+            ink2_data = inject_ink2_adjustments(ink2_data, request.rr_data, manual_amounts, slp_adjustment)
                         
         except Exception:
             pass
