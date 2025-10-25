@@ -1128,8 +1128,9 @@ interface ChatFlowResponse {
             }, 500);
           }
           
-          // Auto-scroll to Förvaltningsberättelse (Resultatdisposition) on step 423
-          if (next_step === 423) {
+          // Auto-scroll to Förvaltningsberättelse (Resultatdisposition) on step 424
+          // User clicked "Utdelning" in step 423, now entering dividend amount
+          if (next_step === 424) {
             setTimeout(() => {
               const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]') as HTMLElement | null;
               const scrollContainer = 
