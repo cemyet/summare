@@ -1092,8 +1092,8 @@ interface ChatFlowResponse {
         
         if (next_step && !interceptedExternalRedirect) {
           
-          // Auto-scroll to noter section for step 420
-          if (next_step === 420) {
+          // Auto-scroll to noter section when coming from step 104 (approve booked tax)
+          if (next_step === 420 && previousStepRef.current === 104) {
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
               const scrollContainer = document.querySelector('.overflow-auto');
@@ -1101,12 +1101,26 @@ interface ChatFlowResponse {
               if (noterModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
-                // Different padding based on which step we came from:
-                // - From step 104 (approve booked tax): -10pt padding (original)
-                // - From step 405 (after tax adjustments): -80pt padding (show frame edge)
-                const padding = previousStepRef.current === 405 ? -80 : -10;
-                console.log('🔍 Autoscroll to Noter from step:', previousStepRef.current, 'using padding:', padding);
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top + padding;
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // Less padding for clean scroll to top
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+              }
+            }, 500);
+          }
+          
+          // Auto-scroll to noter section when coming from step 405 (after tax adjustments)
+          if (next_step === 420 && previousStepRef.current === 405) {
+            setTimeout(() => {
+              const noterModule = document.querySelector('[data-section="noter"]');
+              const scrollContainer = document.querySelector('.overflow-auto');
+              
+              if (noterModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const noterRect = noterModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 80; // More padding to show frame edge
                 
                 scrollContainer.scrollTo({
                   top: scrollTop,
