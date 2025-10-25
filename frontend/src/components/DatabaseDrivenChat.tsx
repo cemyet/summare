@@ -1038,8 +1038,10 @@ interface ChatFlowResponse {
           case 'save_manual_tax':
             // CRITICAL FIX: Trigger the INK2 approve logic to save changes and ripple to RR/BR
             // This ensures the chat flow button has the same behavior as the blue button
+            // The INK2 approval will handle navigation to step 405, so we return early to prevent
+            // the chat flow from navigating naturally (which would cause duplicate messages)
             onDataUpdate({ triggerInk2Approve: true });
-            break;
+            return; // Exit early to prevent duplicate navigation
             
           case 'reset_tax_edits':
             // Reset tax editing mode
