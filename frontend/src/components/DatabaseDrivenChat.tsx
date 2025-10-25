@@ -1105,6 +1105,7 @@ interface ChatFlowResponse {
                 // - From step 104 (approve booked tax): -10pt padding (original)
                 // - From step 405 (after tax adjustments): -80pt padding (show frame edge)
                 const padding = previousStepRef.current === 405 ? -80 : -10;
+                console.log('🔍 Autoscroll to Noter from step:', previousStepRef.current, 'using padding:', padding);
                 const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top + padding;
                 
                 scrollContainer.scrollTo({
