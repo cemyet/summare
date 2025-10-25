@@ -32,9 +32,13 @@ logger.debug("Has checkout.sessions: %s", _has_checkout_sessions)
 SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
 CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled")
 
-# Stripe Price IDs for products (set via environment variables or hardcoded)
-STRIPE_PRICE_FIRST_TIME = os.getenv("STRIPE_PRICE_FIRST_TIME", "")  # 499 SEK - will be set from dashboard
-STRIPE_PRICE_REGULAR = os.getenv("STRIPE_PRICE_REGULAR", "")  # 699 SEK - will be set from dashboard
+# Stripe Product IDs (hardcoded from Dashboard)
+STRIPE_PRODUCT_FIRST_TIME = os.getenv("STRIPE_PRODUCT_FIRST_TIME", "prod_T8CMRG8sg1tN1n")  # 499 SEK
+STRIPE_PRODUCT_REGULAR = os.getenv("STRIPE_PRODUCT_REGULAR", "prod_T8CKt7CYLkjF10")  # 699 SEK
+
+# Stripe Price IDs (hardcoded from Dashboard - preferred method)
+STRIPE_PRICE_FIRST_TIME = os.getenv("STRIPE_PRICE_FIRST_TIME", "price_1SBvxhRd07xh2DS6ivTVNzDy")  # 499 SEK
+STRIPE_PRICE_REGULAR = os.getenv("STRIPE_PRICE_REGULAR", "price_1SBvvsRd07xh2DS6hO8hmRD7")  # 699 SEK
 
 def create_checkout_session_url(amount_ore: int,
                                 email: str | None = None,
@@ -119,6 +123,47 @@ def create_checkout_session_url(amount_ore: int,
     if r.status_code >= 400:
         raise RuntimeError(f"Stripe REST error {r.status_code}: {r.text}")
     return r.json()["url"]
+
+def get_price_from_product(product_id: str) -> str | None:
+    """Get the default (active) Price ID from a Product ID"""
+    try:
+        key = os.getenv("STRIPE_SECRET_KEY")
+        if not key:
+            return None
+        
+        # Fetch product with prices
+        r = requests.get(
+            f"https://api.stripe.com/v1/products/{product_id}",
+            params={"expand[]": "default_price"},
+            auth=(key, ""),
+            timeout=10,
+        )
+        
+        if r.status_code == 200:
+            product = r.json()
+            default_price = product.get("default_price")
+            if isinstance(default_price, dict):
+                return default_price.get("id")
+            elif isinstance(default_price, str):
+                return default_price
+        
+        # Fallback: fetch prices for this product
+        r = requests.get(
+            "https://api.stripe.com/v1/prices",
+            params={"product": product_id, "active": "true", "limit": 1},
+            auth=(key, ""),
+            timeout=10,
+        )
+        
+        if r.status_code == 200:
+            prices = r.json().get("data", [])
+            if prices:
+                return prices[0]["id"]
+        
+        return None
+    except Exception as e:
+        print(f"Error fetching price from product {product_id}: {str(e)}")
+        return None
 
 def create_checkout_with_price_id(price_id: str,
                                    email: str | None = None,
@@ -386,34 +431,31 @@ async def create_payment_checkout_session(request: CreatePaymentRequest):
         
         is_first_time = len(result.data) == 0
         
-        # Get Price IDs from environment or use fallback to amount-based pricing
-        price_first_time = STRIPE_PRICE_FIRST_TIME
-        price_regular = STRIPE_PRICE_REGULAR
-        
         metadata = {
             "organization_number": org_number,
             "product_type": "first_time_discount" if is_first_time else "regular",
             "source": "annual_report_flow"
         }
         
-        # If Price IDs are configured, use them; otherwise fall back to amount-based pricing
-        if is_first_time and price_first_time:
-            url = create_checkout_with_price_id(
-                price_id=price_first_time,
-                email=request.customer_email,
-                metadata=metadata
-            )
+        # Determine which product/price to use
+        if is_first_time:
             amount_sek = 499
-        elif not is_first_time and price_regular:
+            # Try to get Price ID from Product ID or use configured Price ID
+            price_id = STRIPE_PRICE_FIRST_TIME or get_price_from_product(STRIPE_PRODUCT_FIRST_TIME)
+        else:
+            amount_sek = 699
+            # Try to get Price ID from Product ID or use configured Price ID
+            price_id = STRIPE_PRICE_REGULAR or get_price_from_product(STRIPE_PRODUCT_REGULAR)
+        
+        # Create checkout session
+        if price_id:
             url = create_checkout_with_price_id(
-                price_id=price_regular,
+                price_id=price_id,
                 email=request.customer_email,
                 metadata=metadata
             )
-            amount_sek = 699
         else:
-            # Fallback to amount-based pricing if Price IDs not configured
-            amount_sek = 499 if is_first_time else 699
+            # Fallback to amount-based pricing if Price ID not available
             url = create_checkout_session_url(
                 amount_ore=amount_sek * 100,
                 email=request.customer_email,
