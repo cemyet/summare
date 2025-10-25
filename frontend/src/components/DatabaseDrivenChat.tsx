@@ -1092,42 +1092,65 @@ interface ChatFlowResponse {
         
         if (next_step && !interceptedExternalRedirect) {
           
-          // Auto-scroll to noter section when coming from step 104 (approve booked tax)
-          if (next_step === 420 && previousStepRef.current === 104) {
-            setTimeout(() => {
-              const noterModule = document.querySelector('[data-section="noter"]');
-              const scrollContainer = document.querySelector('.overflow-auto');
-              
-              if (noterModule && scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const noterRect = noterModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // Less padding for clean scroll to top
+          // Auto-scroll to noter section for step 420
+          if (next_step === 420) {
+            console.log('🔍 Navigating to step 420 from previous step:', previousStepRef.current);
+            
+            // From step 104 (approve booked tax) - use less padding
+            if (previousStepRef.current === 104) {
+              console.log('✅ Using -10pt padding for 104->420');
+              setTimeout(() => {
+                const noterModule = document.querySelector('[data-section="noter"]');
+                const scrollContainer = document.querySelector('.overflow-auto');
                 
-                scrollContainer.scrollTo({
-                  top: scrollTop,
-                  behavior: 'smooth'
-                });
-              }
-            }, 500);
-          }
-          
-          // Auto-scroll to noter section when coming from step 405 (after tax adjustments)
-          if (next_step === 420 && previousStepRef.current === 405) {
-            setTimeout(() => {
-              const noterModule = document.querySelector('[data-section="noter"]');
-              const scrollContainer = document.querySelector('.overflow-auto');
-              
-              if (noterModule && scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const noterRect = noterModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 80; // More padding to show frame edge
+                if (noterModule && scrollContainer) {
+                  const containerRect = scrollContainer.getBoundingClientRect();
+                  const noterRect = noterModule.getBoundingClientRect();
+                  const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // Less padding for clean scroll to top
+                  
+                  scrollContainer.scrollTo({
+                    top: scrollTop,
+                    behavior: 'smooth'
+                  });
+                }
+              }, 500);
+            }
+            // From step 405 (after tax adjustments) - use more padding
+            else if (previousStepRef.current === 405) {
+              console.log('✅ Using -80pt padding for 405->420');
+              setTimeout(() => {
+                const noterModule = document.querySelector('[data-section="noter"]');
+                const scrollContainer = document.querySelector('.overflow-auto');
                 
-                scrollContainer.scrollTo({
-                  top: scrollTop,
-                  behavior: 'smooth'
-                });
-              }
-            }, 500);
+                if (noterModule && scrollContainer) {
+                  const containerRect = scrollContainer.getBoundingClientRect();
+                  const noterRect = noterModule.getBoundingClientRect();
+                  const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 80; // More padding to show frame edge
+                  
+                  scrollContainer.scrollTo({
+                    top: scrollTop,
+                    behavior: 'smooth'
+                  });
+                }
+              }, 500);
+            } else {
+              console.log('⚠️ Unknown previous step, defaulting to -10pt padding');
+              setTimeout(() => {
+                const noterModule = document.querySelector('[data-section="noter"]');
+                const scrollContainer = document.querySelector('.overflow-auto');
+                
+                if (noterModule && scrollContainer) {
+                  const containerRect = scrollContainer.getBoundingClientRect();
+                  const noterRect = noterModule.getBoundingClientRect();
+                  const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
+                  
+                  scrollContainer.scrollTo({
+                    top: scrollTop,
+                    behavior: 'smooth'
+                  });
+                }
+              }, 500);
+            }
           }
           
           // Auto-scroll to förvaltningsberättelse section for step 422
