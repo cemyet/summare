@@ -938,6 +938,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     'INK4.15',
     'INK4.16',
     'Arets_resultat_justerat',
+    'INK4.1',  // Injected from Årets resultat (justerat)
+    'INK4.2',  // Injected from Årets resultat (justerat)
+    'INK4.3a', // Injected from INK_beraknad_skatt
   ]);
 
   // When a recalc response arrives, only replace CALC_ONLY amounts;
