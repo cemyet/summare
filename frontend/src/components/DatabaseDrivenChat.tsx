@@ -1501,6 +1501,40 @@ const selectiveMergeInk2 = (
       }
     } else if (actionData?.endpoint === 'send_for_digital_signing') {
       try {
+        // CRITICAL FIX: Validate emails before sending (mirror Signering module behavior)
+        const signeringData = companyData.signeringData || { UnderskriftForetradare: [], UnderskriftAvRevisor: [] };
+        const errors: string[] = [];
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        // Validate företrädare emails
+        (signeringData.UnderskriftForetradare || []).forEach((foretradare: any) => {
+          const email = foretradare.UnderskriftHandlingEmail?.trim();
+          const fullName = `${foretradare.UnderskriftHandlingTilltalsnamn || ''} ${foretradare.UnderskriftHandlingEfternamn || ''}`.trim();
+          
+          if (!email) {
+            errors.push(`Email saknas för ${fullName}. Vänligen kontrollera och försök igen.`);
+          } else if (!emailRegex.test(email)) {
+            errors.push(`Ogiltig emailadress för ${fullName}. Vänligen kontrollera och försök igen.`);
+          }
+        });
+
+        // Validate revisor emails
+        (signeringData.UnderskriftAvRevisor || []).forEach((revisor: any) => {
+          const email = revisor.UnderskriftHandlingEmail?.trim();
+          const fullName = `${revisor.UnderskriftHandlingTilltalsnamn || ''} ${revisor.UnderskriftHandlingEfternamn || ''}`.trim();
+          
+          if (!email) {
+            errors.push(`Email saknas för ${fullName}. Vänligen kontrollera och försök igen.`);
+          } else if (!emailRegex.test(email)) {
+            errors.push(`Ogiltig emailadress för ${fullName}. Vänligen kontrollera och försök igen.`);
+          }
+        });
+
+        // If validation fails, show error messages and don't send
+        if (errors.length > 0) {
+          errors.forEach(error => addMessage(error, true, '⚠️'));
+          return; // Exit without sending
+        }
         
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/send-for-digital-signing`, {
           method: 'POST',
@@ -1508,7 +1542,7 @@ const selectiveMergeInk2 = (
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            signeringData: companyData.signeringData || {},
+            signeringData: signeringData,
             organizationNumber: companyData.organizationNumber
           }),
         });
