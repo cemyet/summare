@@ -535,6 +535,8 @@ async def stripe_webhook(request: Request):
         sig_header = request.headers.get('stripe-signature')
         webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
         
+        print(f"🔔 Webhook received, has signature: {bool(sig_header)}, has secret: {bool(webhook_secret)}")
+        
         if not webhook_secret:
             print("⚠️ STRIPE_WEBHOOK_SECRET not configured - skipping signature verification")
             # Parse JSON directly for development
@@ -546,12 +548,14 @@ async def stripe_webhook(request: Request):
                 event = stripe.Webhook.construct_event(
                     body, sig_header, webhook_secret
                 )
+                print("✅ Webhook signature verified")
             except ValueError as e:
                 print(f"❌ Invalid payload: {e}")
                 raise HTTPException(status_code=400, detail="Invalid payload")
-            except stripe.error.SignatureVerificationError as e:
-                print(f"❌ Invalid signature: {e}")
-                raise HTTPException(status_code=400, detail="Invalid signature")
+            except Exception as e:
+                # Catch all signature verification errors
+                print(f"❌ Signature verification failed: {type(e).__name__}: {str(e)}")
+                raise HTTPException(status_code=400, detail=f"Invalid signature: {str(e)}")
         
         event_type = event.get('type')
         event_data = event.get('data', {}).get('object', {})
