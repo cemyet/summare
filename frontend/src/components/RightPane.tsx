@@ -57,6 +57,8 @@ export default function RightPane({ companyData, currentStep, editableAmounts = 
                   setShowPayment(false);
                 }}
                 height={720}
+                organizationNumber={companyData?.organizationNumber || companyData?.seFileData?.company_info?.organization_number}
+                customerEmail={companyData?.customerEmail}
               />
             </div>,
             anchorEl

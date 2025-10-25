@@ -3,7 +3,19 @@ import { loadStripe } from "@stripe/stripe-js";
 import { API_BASE, STRIPE_PUBLISHABLE_KEY } from "@/utils/flags";
 // Force deployment v2
 
-export default function StripeEmbeddedCheckout({ onComplete, onFailure, height = 720 }: { onComplete?: () => void; onFailure?: () => void; height?: number }) {
+export default function StripeEmbeddedCheckout({ 
+  onComplete, 
+  onFailure, 
+  height = 720, 
+  organizationNumber, 
+  customerEmail 
+}: { 
+  onComplete?: () => void; 
+  onFailure?: () => void; 
+  height?: number;
+  organizationNumber?: string;
+  customerEmail?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,7 +49,16 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
         return;
       }
 
-      const res = await fetch(`${API_BASE}/api/payments/create-embedded-checkout`, { method: "POST" });
+      const res = await fetch(`${API_BASE}/api/payments/create-embedded-checkout`, { 
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          organization_number: organizationNumber,
+          customer_email: customerEmail
+        })
+      });
       const raw = await res.text().catch(() => "");
       let data: any = {};
       try { data = raw ? JSON.parse(raw) : {}; } catch {}
@@ -93,7 +114,7 @@ export default function StripeEmbeddedCheckout({ onComplete, onFailure, height =
       cleanup(); // Restore original console.error
       try { checkout?.destroy?.(); } catch {} 
     };
-  }, [onComplete]);
+  }, [onComplete, organizationNumber, customerEmail]);
 
   // stay within your preview card frames (rounded border, hidden overflow)
   return (

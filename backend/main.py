@@ -198,7 +198,10 @@ def create_checkout_with_price_id(price_id: str,
     if callable(getattr(sessions, "create", None)):
         s = sessions.create(
             mode="payment",
-            line_items=[{"price": price_id, "quantity": 1}],
+            line_items=[{
+                "price": price_id,
+                "quantity": 1,
+            }],
             success_url=success_url,
             cancel_url=cancel_url,
             customer_email=email,
@@ -316,31 +319,65 @@ def _stripe_post(path: str, form: dict):
 @app.post("/api/payments/create-embedded-checkout")
 async def create_embedded_checkout(request: Request):
     """
-    Creates an *embedded* Checkout session and returns {client_secret, session_id}.
+    Creates an *embedded* Checkout session with dynamic pricing.
+    Returns {client_secret, session_id, amount_sek, is_first_time_buyer}.
     Frontend will call stripe.initEmbeddedCheckout({ clientSecret }).
     """
     if not STRIPE_SECRET_KEY:
         raise HTTPException(status_code=500, detail="Stripe not configured")
 
-    # you can read payload if you wish:
+    # Read payload to get organization number
+    payload = {}
     try:
-        _ = await request.json()
+        payload = await request.json()
     except Exception:
-        _ = None
+        pass
+    
+    org_number = payload.get("organization_number", "").replace("-", "").replace(" ", "").strip()
+    customer_email = payload.get("customer_email")
+    
+    # Determine pricing based on payment history
+    is_first_time = True
+    price_id = STRIPE_PRICE_REGULAR  # Default to regular price
+    amount_sek = 699
+    
+    if org_number:
+        try:
+            # Check if this organization has paid before
+            result = db.table("payments").select("id").eq("organization_number", org_number).eq("payment_status", "paid").execute()
+            is_first_time = len(result.data) == 0
+            
+            if is_first_time:
+                price_id = STRIPE_PRICE_FIRST_TIME
+                amount_sek = 499
+        except Exception as e:
+            print(f"Error checking payment history: {str(e)}")
+            # Default to regular price on error
 
-    # Build Stripe form for an embedded checkout session
+    # Build metadata
+    metadata = {
+        "organization_number": org_number,
+        "product_type": "first_time_discount" if is_first_time else "regular",
+        "source": "embedded_checkout"
+    }
+
+    # Build Stripe form for an embedded checkout session using Price ID
     form = {
         "mode": "payment",
         "ui_mode": "embedded",
-        # Use inline price_data so you don't need a Price in the dashboard
-        "line_items[0][price_data][currency]": "sek",
-        "line_items[0][price_data][product_data][name]": "Årsredovisning",
-        "line_items[0][price_data][unit_amount]": str(AMOUNT_SEK * 100),  # öre
+        "line_items[0][price]": price_id,  # Use Price ID instead of price_data
         "line_items[0][quantity]": "1",
-        # Disable redirects completely - completion handled by JavaScript onComplete only
         "redirect_on_completion": "never",
         "automatic_tax[enabled]": "true",
     }
+    
+    # Add customer email if provided
+    if customer_email:
+        form["customer_email"] = customer_email
+    
+    # Add metadata
+    for key, value in metadata.items():
+        form[f"metadata[{key}]"] = str(value)
 
     try:
         session = _stripe_post("/v1/checkout/sessions", form)
@@ -348,6 +385,8 @@ async def create_embedded_checkout(request: Request):
         return {
             "client_secret": session["client_secret"],
             "session_id": session["id"],
+            "amount_sek": amount_sek,
+            "is_first_time_buyer": is_first_time,
         }
     except HTTPException:
         raise
