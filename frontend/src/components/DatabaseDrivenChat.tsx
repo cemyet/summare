@@ -1099,7 +1099,11 @@ interface ChatFlowResponse {
               if (noterModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 80; // 80pt padding to show frame edge with space above and top edge
+                // Different padding based on which step we came from:
+                // - From step 104 (approve booked tax): -10pt padding (original)
+                // - From step 405 (after tax adjustments): -80pt padding (show frame edge)
+                const padding = currentStep === 405 ? -80 : -10;
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top + padding;
                 
                 scrollContainer.scrollTo({
                   top: scrollTop,
