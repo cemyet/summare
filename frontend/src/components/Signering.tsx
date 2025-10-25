@@ -302,11 +302,12 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       const result = await response.json();
       
       if (result.success) {
-        // Show a success message
-        alert('Signering-invitationer har skickats! Du kommer att få bekräftelse via e-post när alla har signerat.');
-        
-        // CRITICAL FIX: Navigate to step 520 after successful sending (when triggered from chat)
-        if (triggeredFromChat) {
+        // CRITICAL FIX: Only show alert popup for manual blue button clicks
+        // When triggered from chat, the chat flow will show its own message at step 520
+        if (!triggeredFromChat) {
+          alert('Signering-invitationer har skickats! Du kommer att få bekräftelse via e-post när alla har signerat.');
+        } else {
+          // Navigate to step 520 which will show the chat message
           onDataUpdate({ triggerChatStep: 520 });
         }
       } else {
