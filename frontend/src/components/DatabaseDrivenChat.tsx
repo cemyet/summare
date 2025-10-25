@@ -971,7 +971,9 @@ interface ChatFlowResponse {
             
           case 'api_call':
             await handleApiCall(action_data);
-            break;
+            // CRITICAL FIX: Return early to prevent navigation until validation passes
+            // The api_call handler (like signing) will navigate when ready
+            return;
             
           case 'enable_editing':
             // Enable tax editing mode immediately

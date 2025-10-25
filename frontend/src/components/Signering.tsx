@@ -277,7 +277,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
     return true;
   };
 
-  const handleSendForSigning = async () => {
+  const handleSendForSigning = async (triggeredFromChat: boolean = false) => {
     // Validate emails before sending
     if (!validateEmails()) {
       return;
@@ -302,8 +302,13 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       const result = await response.json();
       
       if (result.success) {
-        // You could show a success message or navigate to next step here
+        // Show a success message
         alert('Signering-invitationer har skickats! Du kommer att få bekräftelse via e-post när alla har signerat.');
+        
+        // CRITICAL FIX: Navigate to step 520 after successful sending (when triggered from chat)
+        if (triggeredFromChat) {
+          onDataUpdate({ triggerChatStep: 520 });
+        }
       } else {
         throw new Error(result.message || 'Failed to send signing invitations');
       }
@@ -320,8 +325,8 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       // Clear the trigger immediately to prevent re-execution
       onDataUpdate({ triggerSigneringSend: false });
       
-      // Execute the send logic
-      handleSendForSigning();
+      // Execute the send logic with flag to indicate chat trigger (for navigation)
+      handleSendForSigning(true);
     }
   }, [companyData?.triggerSigneringSend]);
 
@@ -636,7 +641,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
               )}
               <Button 
                 className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 ml-auto"
-                onClick={handleSendForSigning}
+                onClick={() => handleSendForSigning(false)}
               >
                 Skicka
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
