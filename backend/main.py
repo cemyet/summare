@@ -350,7 +350,8 @@ async def create_embedded_checkout(request: Request):
     if org_number:
         try:
             # Check if this organization has paid before
-            result = db.table("payments").select("id").eq("organization_number", org_number).eq("payment_status", "paid").execute()
+            # Use db.supabase for direct Supabase client access
+            result = db.supabase.table("payments").select("id").eq("organization_number", org_number).eq("payment_status", "paid").execute()
             is_first_time = len(result.data) == 0
             
             print(f"🔍 Payment check for org {org_number}: found {len(result.data)} previous payments, is_first_time={is_first_time}")
@@ -591,7 +592,8 @@ async def stripe_webhook(request: Request):
                     "paid_at": datetime.now().isoformat()
                 }
                 
-                db.table("payments").insert(payment_data).execute()
+                # Use db.supabase for direct Supabase client access
+                db.supabase.table("payments").insert(payment_data).execute()
                 print(f"💾 Payment saved to database for org: {org_number}")
             except Exception as db_error:
                 print(f"⚠️ Failed to save payment to database: {str(db_error)}")
