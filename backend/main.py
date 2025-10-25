@@ -628,13 +628,11 @@ def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_a
     Helper function to inject calculated adjustments into INK2 data for PDF consistency.
     Ensures INK4.1/INK4.2 reflect Årets resultat (justerat) and INK4.3a reflects beräknad skatt.
     
-    Formula: Årets resultat (justerat) = SumResultatForeSkatt + INK_sarskild_loneskatt - INK_beraknad_skatt
-    
     Args:
         ink2_data: INK2 calculation data
-        rr_data: RR (resultaträkning) data
+        rr_data: RR (resultaträkning) data (not used - kept for backward compatibility)
         manual_amounts: Optional manual overrides to respect
-        slp_adjustment: SLP (särskild löneskatt) amount to add (if not already in RR)
+        slp_adjustment: SLP adjustment (not used - kept for backward compatibility)
     
     Returns:
         Updated ink2_data with injections
@@ -648,21 +646,11 @@ def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_a
                     return float(r.get('amount') or 0)
             return 0.0
         
-        # Get SumResultatForeSkatt from RR (row_id 275)
-        rr_275 = next((x for x in rr_data or [] if str(x.get('row_id')) == '275'), None)
-        sum_resultat_fore_skatt = float(rr_275.get('current_amount') or 0) if rr_275 else 0.0
-        
-        # Get beräknad skatt and SLP from INK2
+        # Get already-calculated values from INK2 data
+        arets_resultat_justerat = _find_amt(ink2_data, 'Arets_resultat_justerat')
         ink_beraknad = _find_amt(ink2_data, 'INK_beraknad_skatt')
-        ink_slp = _find_amt(ink2_data, 'INK_sarskild_loneskatt') or slp_adjustment
         
-        print(f"📊 inject_ink2_adjustments: SumResultatForeSkatt={sum_resultat_fore_skatt} kr, SLP={ink_slp} kr, INK_beraknad_skatt={ink_beraknad} kr")
-        
-        # Calculate: Årets resultat (justerat) = SumResultatForeSkatt + INK_sarskild_loneskatt - INK_beraknad_skatt
-        # Note: INK_sarskild_loneskatt is already NEGATIVE in the calculation (cost), so we ADD it
-        arets_resultat_justerat = sum_resultat_fore_skatt + ink_slp - ink_beraknad
-        
-        print(f"📊 Calculated Årets resultat (justerat) = {sum_resultat_fore_skatt} + {ink_slp} - {ink_beraknad} = {arets_resultat_justerat} kr")
+        print(f"📊 inject_ink2_adjustments: Årets resultat (justerat) = {arets_resultat_justerat} kr, INK_beraknad_skatt = {ink_beraknad} kr")
         
         # Check for manual overrides
         ink4_1_manual = manual_amounts.get('INK4.1')
