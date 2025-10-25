@@ -174,6 +174,7 @@ interface ChatFlowResponse {
   const [lastLoadedOptions, setLastLoadedOptions] = useState<ChatOption[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const messageCallbacks = useRef<Record<string, () => void>>({});
+  const previousStepRef = useRef<number>(101); // Track previous step for conditional autoscroll
   const [showInput, setShowInput] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [inputType, setInputType] = useState('text');
@@ -375,6 +376,7 @@ interface ChatFlowResponse {
       }
       
       if (response.success) {
+        previousStepRef.current = currentStep; // Store previous step before updating
         setCurrentStep(stepNumber);
         onDataUpdate({ currentStep: stepNumber }); // 👉 expose step to the preview/right pane
         
@@ -1102,7 +1104,7 @@ interface ChatFlowResponse {
                 // Different padding based on which step we came from:
                 // - From step 104 (approve booked tax): -10pt padding (original)
                 // - From step 405 (after tax adjustments): -80pt padding (show frame edge)
-                const padding = currentStep === 405 ? -80 : -10;
+                const padding = previousStepRef.current === 405 ? -80 : -10;
                 const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top + padding;
                 
                 scrollContainer.scrollTo({
