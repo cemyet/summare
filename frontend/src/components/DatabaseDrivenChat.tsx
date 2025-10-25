@@ -472,7 +472,7 @@ interface ChatFlowResponse {
               if (noterModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 40; // 40pt padding to show heading
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 60; // 60pt padding for perfect heading visibility
                 
                 scrollContainer.scrollTo({
                   top: scrollTop,
@@ -1099,7 +1099,7 @@ interface ChatFlowResponse {
               if (noterModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 40; // 40pt padding to show heading and top edge
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 60; // 60pt padding for perfect heading visibility and top edge
                 
                 scrollContainer.scrollTo({
                   top: scrollTop,
