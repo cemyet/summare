@@ -664,8 +664,9 @@ def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_a
                 # Profit: inject into INK4.1, zero out INK4.2
                 for r in ink2_data:
                     if r.get('variable_name') == 'INK4.1':
+                        old_val = r.get('amount', 0)
                         r['amount'] = round(abs(arets_resultat_justerat))
-                        print(f"✅ Injected INK4.1 (vinst): {round(abs(arets_resultat_justerat))} kr")
+                        print(f"✅ Injected INK4.1 (vinst): {old_val} → {round(abs(arets_resultat_justerat))} kr")
                     elif r.get('variable_name') == 'INK4.2':
                         r['amount'] = 0.0
             elif arets_resultat_justerat < 0:
@@ -674,13 +675,16 @@ def inject_ink2_adjustments(ink2_data: List[Dict], rr_data: List[Dict], manual_a
                     if r.get('variable_name') == 'INK4.1':
                         r['amount'] = 0.0
                     elif r.get('variable_name') == 'INK4.2':
+                        old_val = r.get('amount', 0)
                         r['amount'] = round(abs(arets_resultat_justerat))
-                        print(f"✅ Injected INK4.2 (förlust): {round(abs(arets_resultat_justerat))} kr")
+                        print(f"✅ Injected INK4.2 (förlust): {old_val} → {round(abs(arets_resultat_justerat))} kr")
             else:
                 # Zero result: zero out both
                 for r in ink2_data:
                     if r.get('variable_name') in ['INK4.1', 'INK4.2']:
                         r['amount'] = 0.0
+        else:
+            print(f"ℹ️ Skipping INK4.1/4.2 injection - manual overrides exist: INK4.1={ink4_1_manual}, INK4.2={ink4_2_manual}")
         
         # Inject INK_beraknad_skatt into INK4.3a (Skatt på årets resultat)
         # Always inject unless manually overridden (even if 0, to replace booked tax)
@@ -1927,8 +1931,10 @@ async def recalculate_ink2(request: RecalculateRequest):
             slp_adjustment = 0.0 if rr_252_has_slp else -slp  # Negative because it's a cost
             ink2_data = inject_ink2_adjustments(ink2_data, request.rr_data, manual_amounts, slp_adjustment)
                         
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ Exception in Arets_resultat_justerat calculation: {e}")
+            import traceback
+            traceback.print_exc()
             # Continue without failing the entire request
         
         return {
