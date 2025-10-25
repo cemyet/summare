@@ -302,14 +302,12 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       const result = await response.json();
       
       if (result.success) {
-        // CRITICAL FIX: Only show alert popup for manual blue button clicks
-        // When triggered from chat, the chat flow will show its own message at step 520
-        if (!triggeredFromChat) {
-          alert('Signering-invitationer har skickats! Du kommer att få bekräftelse via e-post när alla har signerat.');
-        } else {
-          // Navigate to step 520 which will show the chat message
+        // CRITICAL FIX: No alert popup needed - removed to avoid duplicate messaging
+        // When triggered from chat, navigate to step 520 which will show the chat message
+        if (triggeredFromChat) {
           onDataUpdate({ triggerChatStep: 520 });
         }
+        // For blue button, success is silent (user will get email confirmation)
       } else {
         throw new Error(result.message || 'Failed to send signing invitations');
       }
