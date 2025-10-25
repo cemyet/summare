@@ -61,6 +61,7 @@ def create_checkout_session_url(amount_ore: int,
             customer_email=email,
             metadata=metadata or {},
             allow_promotion_codes=True,
+            automatic_tax={"enabled": True},
         )
         return s.url
 
@@ -83,6 +84,7 @@ def create_checkout_session_url(amount_ore: int,
             customer_email=email,
             metadata=metadata or {},
             allow_promotion_codes=True,
+            automatic_tax={"enabled": True},
         )
         return s.url
 
@@ -92,6 +94,7 @@ def create_checkout_session_url(amount_ore: int,
         "success_url": success_url,
         "cancel_url": cancel_url,
         "allow_promotion_codes": "true",
+        "automatic_tax[enabled]": "true",
         "line_items[0][quantity]": "1",
         "line_items[0][price_data][currency]": "sek",
         "line_items[0][price_data][product_data][name]": "Årsredovisning – Summare",
