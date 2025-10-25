@@ -1962,13 +1962,9 @@ const selectiveMergeInk2 = (
   // Watch for triggerChatStep requests from components
   useEffect(() => {
     if (companyData.triggerChatStep && companyData.triggerChatStep > 0) {
-      // CRITICAL: Prevent re-navigation to step 405 after first time
-      if (companyData.triggerChatStep === 405 && companyData.taxButtonClickedBefore) {
-        // Clear the trigger
-        onDataUpdate({ triggerChatStep: null });
-        return;
-      }
-      
+      // CRITICAL FIX: Always navigate when triggerChatStep is explicitly set
+      // The component setting the trigger is responsible for deciding whether to navigate
+      // (e.g., handleApproveChanges only sets it on first click)
       loadChatStep(companyData.triggerChatStep);
       // Clear the trigger to prevent repeated navigation
       onDataUpdate({ triggerChatStep: null });

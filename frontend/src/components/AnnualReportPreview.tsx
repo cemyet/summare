@@ -1533,12 +1533,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Mark any chat keys that were applied this time
     const appliedChatKeys = Object.keys(chatOverrides);
     
-    // CRITICAL: Set taxButtonClickedBefore FIRST in a separate update
-    // This ensures the flag is set BEFORE we potentially trigger step 405
-    if (isFirstTimeClick) {
-      onDataUpdate({ taxButtonClickedBefore: true });
-    }
-    
     // Check if we need to update RR/BR data based on tax differences
     // Pass the updated INK2 data directly to ensure we use the latest values
     // Always update when user manually approves (forceUpdate = true)
@@ -1564,7 +1558,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       }
     }
     
-    onDataUpdate({ 
+    // CRITICAL FIX: Combine all state updates into a single call to prevent race conditions
+    // If first time click, set both taxButtonClickedBefore AND triggerChatStep together
+    // This ensures the DatabaseDrivenChat useEffect sees triggerChatStep BEFORE taxButtonClickedBefore
+    const stateUpdates: any = {
       acceptedInk2Manuals: nextAccepted,
       ink2Data: updatedInk2Data,
       // Mark chat keys as "applied once"
@@ -1573,13 +1570,16 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         ...Object.fromEntries(appliedChatKeys.map(k => [k, true])),
         ...additionalApplied, // Prevent re-application after undo
       },
-    });
-
-    // If this is the first time clicking the button, trigger navigation to step 405
+    };
+    
+    // If this is the first time clicking the button, add navigation trigger
     // After first time, manual edits should NOT trigger step 405 again
-    if (isFirstTimeClick && onDataUpdate) {
-      onDataUpdate({ triggerChatStep: 405 });
+    if (isFirstTimeClick) {
+      stateUpdates.triggerChatStep = 405;
+      stateUpdates.taxButtonClickedBefore = true;
     }
+    
+    onDataUpdate(stateUpdates);
 
     // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
     clearAcceptedOnNextApproveRef.current = false;
