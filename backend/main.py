@@ -32,6 +32,10 @@ logger.debug("Has checkout.sessions: %s", _has_checkout_sessions)
 SUCCESS_URL = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
 CANCEL_URL = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled")
 
+# Stripe Price IDs for products (set via environment variables or hardcoded)
+STRIPE_PRICE_FIRST_TIME = os.getenv("STRIPE_PRICE_FIRST_TIME", "")  # 499 SEK - will be set from dashboard
+STRIPE_PRICE_REGULAR = os.getenv("STRIPE_PRICE_REGULAR", "")  # 699 SEK - will be set from dashboard
+
 def create_checkout_session_url(amount_ore: int,
                                 email: str | None = None,
                                 metadata: dict | None = None) -> str:
@@ -110,6 +114,75 @@ def create_checkout_session_url(amount_ore: int,
         "https://api.stripe.com/v1/checkout/sessions",
         data=form,
         auth=(key, ""),  # Basic auth with secret key
+        timeout=20,
+    )
+    if r.status_code >= 400:
+        raise RuntimeError(f"Stripe REST error {r.status_code}: {r.text}")
+    return r.json()["url"]
+
+def create_checkout_with_price_id(price_id: str,
+                                   email: str | None = None,
+                                   metadata: dict | None = None) -> str:
+    """Create Stripe checkout session using a Price ID (recommended for products in dashboard)"""
+    key = os.getenv("STRIPE_SECRET_KEY")
+    if not key:
+        raise RuntimeError("Stripe not configured (STRIPE_SECRET_KEY missing)")
+    
+    success_url = os.getenv("STRIPE_SUCCESS_URL", "https://summare.se/app?payment=success") + "?session_id={CHECKOUT_SESSION_ID}"
+    cancel_url = os.getenv("STRIPE_CANCEL_URL", "https://summare.se/app?payment=cancelled")
+    
+    # 1) Try StripeClient first
+    StripeClientClass = getattr(stripe, "StripeClient", None)
+    if callable(StripeClientClass):
+        client = StripeClientClass(key)
+        s = client.checkout.sessions.create(
+            mode="payment",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            customer_email=email,
+            metadata=metadata or {},
+            allow_promotion_codes=True,
+            automatic_tax={"enabled": True},
+        )
+        return s.url
+    
+    # 2) Try module helper
+    checkout = getattr(stripe, "checkout", None)
+    sessions = getattr(checkout, "sessions", None) if checkout else None
+    if callable(getattr(sessions, "create", None)):
+        s = sessions.create(
+            mode="payment",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            customer_email=email,
+            metadata=metadata or {},
+            allow_promotion_codes=True,
+            automatic_tax={"enabled": True},
+        )
+        return s.url
+    
+    # 3) Raw HTTPS fallback
+    form = {
+        "mode": "payment",
+        "success_url": success_url,
+        "cancel_url": cancel_url,
+        "allow_promotion_codes": "true",
+        "automatic_tax[enabled]": "true",
+        "line_items[0][price]": price_id,
+        "line_items[0][quantity]": "1",
+    }
+    if email:
+        form["customer_email"] = email
+    if metadata:
+        for k, v in metadata.items():
+            form[f"metadata[{k}]"] = str(v)
+    
+    r = requests.post(
+        "https://api.stripe.com/v1/checkout/sessions",
+        data=form,
+        auth=(key, ""),
         timeout=20,
     )
     if r.status_code >= 400:
@@ -248,6 +321,36 @@ async def verify_stripe_session(session_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/check-first-time-buyer/{org_number}")
+async def check_first_time_buyer(org_number: str):
+    """Check if an organization number has made a payment before"""
+    try:
+        # Clean organization number (remove dashes, spaces)
+        clean_org = org_number.replace("-", "").replace(" ", "").strip()
+        
+        # Query database for previous payments
+        result = db.table("payments").select("id, paid_at").eq("organization_number", clean_org).eq("payment_status", "paid").execute()
+        
+        has_paid_before = len(result.data) > 0
+        recommended_price = 699 if has_paid_before else 499
+        
+        return {
+            "organization_number": org_number,
+            "has_paid_before": has_paid_before,
+            "recommended_price_sek": recommended_price,
+            "is_eligible_for_discount": not has_paid_before
+        }
+    except Exception as e:
+        print(f"Error checking first-time buyer: {str(e)}")
+        # Default to regular price if there's an error
+        return {
+            "organization_number": org_number,
+            "has_paid_before": False,
+            "recommended_price_sek": 699,
+            "is_eligible_for_discount": False,
+            "error": str(e)
+        }
+
 @app.post("/create-stripe-session")
 async def create_stripe_session():
     """Create a Stripe checkout session for annual report payment"""
@@ -265,6 +368,68 @@ async def create_stripe_session():
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create Stripe session: {str(e)}")
+
+class CreatePaymentRequest(BaseModel):
+    organization_number: str
+    customer_email: Optional[str] = None
+
+@app.post("/api/payments/create-checkout-session")
+async def create_payment_checkout_session(request: CreatePaymentRequest):
+    """
+    Create a Stripe checkout session with dynamic pricing based on first-time buyer status
+    """
+    try:
+        org_number = request.organization_number.replace("-", "").replace(" ", "").strip()
+        
+        # Check if this organization has paid before
+        result = db.table("payments").select("id").eq("organization_number", org_number).eq("payment_status", "paid").execute()
+        
+        is_first_time = len(result.data) == 0
+        
+        # Get Price IDs from environment or use fallback to amount-based pricing
+        price_first_time = STRIPE_PRICE_FIRST_TIME
+        price_regular = STRIPE_PRICE_REGULAR
+        
+        metadata = {
+            "organization_number": org_number,
+            "product_type": "first_time_discount" if is_first_time else "regular",
+            "source": "annual_report_flow"
+        }
+        
+        # If Price IDs are configured, use them; otherwise fall back to amount-based pricing
+        if is_first_time and price_first_time:
+            url = create_checkout_with_price_id(
+                price_id=price_first_time,
+                email=request.customer_email,
+                metadata=metadata
+            )
+            amount_sek = 499
+        elif not is_first_time and price_regular:
+            url = create_checkout_with_price_id(
+                price_id=price_regular,
+                email=request.customer_email,
+                metadata=metadata
+            )
+            amount_sek = 699
+        else:
+            # Fallback to amount-based pricing if Price IDs not configured
+            amount_sek = 499 if is_first_time else 699
+            url = create_checkout_session_url(
+                amount_ore=amount_sek * 100,
+                email=request.customer_email,
+                metadata=metadata
+            )
+        
+        return {
+            "checkout_url": url,
+            "amount_sek": amount_sek,
+            "is_first_time_buyer": is_first_time,
+            "product_type": metadata["product_type"]
+        }
+        
+    except Exception as e:
+        print(f"Error creating payment checkout: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create checkout session: {str(e)}")
 
 @app.post("/stripe-webhook")
 async def stripe_webhook(request: Request):
@@ -305,18 +470,39 @@ async def stripe_webhook(request: Request):
             session_id = event_data.get('id')
             customer_email = event_data.get('customer_details', {}).get('email')
             amount_total = event_data.get('amount_total', 0)
+            amount_subtotal = event_data.get('amount_subtotal', 0)
             customer_name = event_data.get('customer_details', {}).get('name', 'Unknown')
+            payment_intent = event_data.get('payment_intent')
+            metadata = event_data.get('metadata', {})
+            currency = event_data.get('currency', 'sek')
             
             print(f"✅ Payment successful: {session_id}, email: {customer_email}, name: {customer_name}, amount: {amount_total}")
             
-            # Here you could:
-            # 1. Update database to mark payment as completed
-            # 2. Send confirmation email
-            # 3. Trigger next steps in the annual report process
-            # 4. Generate and send the final report
+            # Extract organization number from metadata
+            org_number = metadata.get('organization_number', '').replace("-", "").replace(" ", "").strip()
+            product_type = metadata.get('product_type', 'regular')
             
-            # TODO: Add your business logic here
-            # Example: Store payment in database, send email, etc.
+            # Save payment to database
+            try:
+                payment_data = {
+                    "organization_number": org_number,
+                    "stripe_session_id": session_id,
+                    "stripe_payment_intent_id": payment_intent,
+                    "amount_total": amount_total,
+                    "amount_subtotal": amount_subtotal,
+                    "currency": currency,
+                    "customer_email": customer_email,
+                    "customer_name": customer_name,
+                    "payment_status": "paid",
+                    "product_type": product_type,
+                    "metadata": metadata,
+                    "paid_at": datetime.now().isoformat()
+                }
+                
+                db.table("payments").insert(payment_data).execute()
+                print(f"💾 Payment saved to database for org: {org_number}")
+            except Exception as db_error:
+                print(f"⚠️ Failed to save payment to database: {str(db_error)}")
             
             return {"status": "success", "message": "Payment processed successfully"}
             
