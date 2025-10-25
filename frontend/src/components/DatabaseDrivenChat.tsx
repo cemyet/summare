@@ -736,7 +736,6 @@ interface ChatFlowResponse {
 
   // Handle option selection
   const handleOptionSelect = async (option: ChatOption, explicitStepNumber?: number, updatedInk2Data?: any[]) => {
-    console.log('🚀 handleOptionSelect called - option:', option.option_text, 'next_step:', option.next_step, 'current step:', currentStep);
     try {
       setIsWaitingForUser(false); // User took action, stop waiting
       
@@ -1092,67 +1091,33 @@ interface ChatFlowResponse {
         }
         
         if (next_step && !interceptedExternalRedirect) {
-          console.log('🎯 About to navigate to step:', next_step, 'from step:', previousStepRef.current);
           
           // Auto-scroll to noter section for step 420
           if (next_step === 420) {
-            console.log('🔍 Navigating to step 420 from previous step:', previousStepRef.current);
-            
-            // From step 104 (approve booked tax) - use less padding
-            if (previousStepRef.current === 104) {
-              console.log('✅ Using -10pt padding for 104->420');
-              setTimeout(() => {
-                const noterModule = document.querySelector('[data-section="noter"]');
-                const scrollContainer = document.querySelector('.overflow-auto');
+            setTimeout(() => {
+              const noterModule = document.querySelector('[data-section="noter"]');
+              const scrollContainer = document.querySelector('.overflow-auto');
+              
+              if (noterModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const noterRect = noterModule.getBoundingClientRect();
                 
-                if (noterModule && scrollContainer) {
-                  const containerRect = scrollContainer.getBoundingClientRect();
-                  const noterRect = noterModule.getBoundingClientRect();
-                  const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // Less padding for clean scroll to top
-                  
-                  scrollContainer.scrollTo({
-                    top: scrollTop,
-                    behavior: 'smooth'
-                  });
+                // Determine padding based on previous step:
+                // - From 101, 401 (approve tax): -10pt padding for clean scroll to top
+                // - From 402, 405 (after manual edits): -80pt padding to show frame edge
+                let padding = -10; // Default for direct approval
+                if (previousStepRef.current === 402 || previousStepRef.current === 405) {
+                  padding = -80; // More padding when coming from manual edits
                 }
-              }, 500);
-            }
-            // From step 405 (after tax adjustments) - use more padding
-            else if (previousStepRef.current === 405) {
-              console.log('✅ Using -80pt padding for 405->420');
-              setTimeout(() => {
-                const noterModule = document.querySelector('[data-section="noter"]');
-                const scrollContainer = document.querySelector('.overflow-auto');
                 
-                if (noterModule && scrollContainer) {
-                  const containerRect = scrollContainer.getBoundingClientRect();
-                  const noterRect = noterModule.getBoundingClientRect();
-                  const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 80; // More padding to show frame edge
-                  
-                  scrollContainer.scrollTo({
-                    top: scrollTop,
-                    behavior: 'smooth'
-                  });
-                }
-              }, 500);
-            } else {
-              console.log('⚠️ Unknown previous step, defaulting to -10pt padding');
-              setTimeout(() => {
-                const noterModule = document.querySelector('[data-section="noter"]');
-                const scrollContainer = document.querySelector('.overflow-auto');
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top + padding;
                 
-                if (noterModule && scrollContainer) {
-                  const containerRect = scrollContainer.getBoundingClientRect();
-                  const noterRect = noterModule.getBoundingClientRect();
-                  const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
-                  
-                  scrollContainer.scrollTo({
-                    top: scrollTop,
-                    behavior: 'smooth'
-                  });
-                }
-              }, 500);
-            }
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+              }
+            }, 500);
           }
           
           // Auto-scroll to förvaltningsberättelse section for step 422
