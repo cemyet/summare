@@ -314,6 +314,7 @@ interface CompanyData {
   // Tax button tracking
   taxButtonClickedBefore?: boolean; // Track if tax approve button has been clicked before
   triggerChatStep?: number | null; // Trigger navigation to a specific chat step
+  triggerInk2Approve?: boolean; // Trigger INK2 approval from chat flow
   chatApplied?: Record<string, boolean>; // Track which chat overrides have been applied once
 }
 
@@ -1621,6 +1622,18 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       await recalcWithManuals(nextAccepted, { includeAccepted: false, baselineSource: 'current' });
     }
   };
+
+  // CRITICAL FIX: Listen for trigger from chat flow to approve INK2 changes
+  // This ensures the chat flow button has the same behavior as the blue button
+  useEffect(() => {
+    if (companyData.triggerInk2Approve) {
+      // Clear the trigger immediately to prevent re-execution
+      onDataUpdate({ triggerInk2Approve: false });
+      
+      // Execute the approval logic
+      handleApproveChanges();
+    }
+  }, [companyData.triggerInk2Approve]);
 
 // Handle click on SKATTEBERÄKNING button in RR row 276
 const handleTaxCalculationClick = () => {

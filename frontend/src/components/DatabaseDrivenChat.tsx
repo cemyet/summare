@@ -1036,8 +1036,9 @@ interface ChatFlowResponse {
             break;
             
           case 'save_manual_tax':
-            // Save manual tax changes
-            onDataUpdate({ taxEditingEnabled: false, editableAmounts: false });
+            // CRITICAL FIX: Trigger the INK2 approve logic to save changes and ripple to RR/BR
+            // This ensures the chat flow button has the same behavior as the blue button
+            onDataUpdate({ triggerInk2Approve: true });
             break;
             
           case 'reset_tax_edits':
