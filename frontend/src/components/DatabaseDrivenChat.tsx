@@ -736,6 +736,7 @@ interface ChatFlowResponse {
 
   // Handle option selection
   const handleOptionSelect = async (option: ChatOption, explicitStepNumber?: number, updatedInk2Data?: any[]) => {
+    console.log('🚀 handleOptionSelect called - option:', option.option_text, 'next_step:', option.next_step, 'current step:', currentStep);
     try {
       setIsWaitingForUser(false); // User took action, stop waiting
       
@@ -1091,6 +1092,7 @@ interface ChatFlowResponse {
         }
         
         if (next_step && !interceptedExternalRedirect) {
+          console.log('🎯 About to navigate to step:', next_step, 'from step:', previousStepRef.current);
           
           // Auto-scroll to noter section for step 420
           if (next_step === 420) {
