@@ -37,8 +37,14 @@ STRIPE_PRODUCT_FIRST_TIME = os.getenv("STRIPE_PRODUCT_FIRST_TIME", "prod_T8CMRG8
 STRIPE_PRODUCT_REGULAR = os.getenv("STRIPE_PRODUCT_REGULAR", "prod_T8CKt7CYLkjF10")  # 699 SEK
 
 # Stripe Price IDs (hardcoded from Dashboard - preferred method)
-STRIPE_PRICE_FIRST_TIME = os.getenv("STRIPE_PRICE_FIRST_TIME", "price_1SBvxhRd07xh2DS6ivTVNzDy")  # 499 SEK
-STRIPE_PRICE_REGULAR = os.getenv("STRIPE_PRICE_REGULAR", "price_1SBvvsRd07xh2DS6hO8hmRD7")  # 699 SEK
+# IMPORTANT: These must match your Stripe mode (test vs live)
+# TEST mode prices (default):
+STRIPE_PRICE_FIRST_TIME = os.getenv("STRIPE_PRICE_FIRST_TIME", "price_1SC1CgDpfvdIn7I4XmBw5Kz1")  # TEST: 499 SEK
+STRIPE_PRICE_REGULAR = os.getenv("STRIPE_PRICE_REGULAR", "price_1SC1QQDpfvdIn7I4gS07EzzA")  # TEST: 699 SEK
+
+# LIVE mode prices (set via environment variables for production):
+# STRIPE_PRICE_FIRST_TIME=price_1SBvxhRd07xh2DS6ivTVNzDy  # LIVE: 499 SEK
+# STRIPE_PRICE_REGULAR=price_1SBvvsRd07xh2DS6hO8hmRD7     # LIVE: 699 SEK
 
 def create_checkout_session_url(amount_ore: int,
                                 email: str | None = None,
