@@ -472,7 +472,7 @@ interface ChatFlowResponse {
               if (noterModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 40; // 40pt padding to show heading
                 
                 scrollContainer.scrollTo({
                   top: scrollTop,
@@ -556,7 +556,7 @@ interface ChatFlowResponse {
             if (noterModule && scrollContainer) {
               const containerRect = scrollContainer.getBoundingClientRect();
               const noterRect = noterModule.getBoundingClientRect();
-              const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
+              const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 40; // 40pt padding to show heading
               
               scrollContainer.scrollTo({
                 top: scrollTop,
@@ -782,7 +782,7 @@ interface ChatFlowResponse {
             if (noterModule && scrollContainer) {
               const containerRect = scrollContainer.getBoundingClientRect();
               const noterRect = noterModule.getBoundingClientRect();
-              const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 10pt padding from top
+              const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 40; // 40pt padding to show heading
               
               scrollContainer.scrollTo({
                 top: scrollTop,
@@ -1097,7 +1097,7 @@ interface ChatFlowResponse {
               if (noterModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const noterRect = noterModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 10pt padding from top
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 40; // 40pt padding to show heading and top edge
                 
                 scrollContainer.scrollTo({
                   top: scrollTop,
