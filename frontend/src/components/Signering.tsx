@@ -313,6 +313,18 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
     }
   };
 
+  // CRITICAL FIX: Listen for trigger from chat flow to send for signing
+  // This ensures validation popups appear in the Signering module, not in chat
+  useEffect(() => {
+    if (companyData?.triggerSigneringSend) {
+      // Clear the trigger immediately to prevent re-execution
+      onDataUpdate({ triggerSigneringSend: false });
+      
+      // Execute the send logic
+      handleSendForSigning();
+    }
+  }, [companyData?.triggerSigneringSend]);
+
   return (
     <div data-section="signering" className="space-y-8">
       <Card>

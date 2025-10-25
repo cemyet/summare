@@ -53,6 +53,7 @@ interface CompanyData {
   taxButtonClickedBefore?: boolean; // Track if tax approve button has been clicked before
   triggerChatStep?: number | null; // Trigger navigation to a specific chat step
   triggerInk2Approve?: boolean; // Trigger INK2 approval from chat flow
+  triggerSigneringSend?: boolean; // Trigger signing send from chat flow
 }
 
 export function AnnualReportChat() {
