@@ -1092,17 +1092,8 @@ interface ChatFlowResponse {
           if (next_step === 420) {
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
-              const scrollContainer = document.querySelector('.overflow-auto');
-              
-              if (noterModule && scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const noterRect = noterModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10;
-                
-                scrollContainer.scrollTo({
-                  top: scrollTop,
-                  behavior: 'smooth'
-                });
+              if (noterModule) {
+                noterModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }
             }, 500);
           }
@@ -1111,16 +1102,8 @@ interface ChatFlowResponse {
           if (next_step === 422) {
             setTimeout(() => {
               const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]');
-              const scrollContainer = document.querySelector('.overflow-auto');
-              if (fbModule && scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const fbRect = fbModule.getBoundingClientRect();
-                const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top - 10; // 5-7pt padding from top
-                
-                scrollContainer.scrollTo({
-                  top: scrollTop,
-                  behavior: 'smooth'
-                });
+              if (fbModule) {
+                fbModule.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }
             }, 500);
           }
