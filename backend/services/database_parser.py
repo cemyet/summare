@@ -1977,6 +1977,11 @@ class DatabaseParser:
         if variable_name == 'INK4.2':
             sum_arets = rr('SumAretsResultat')
             return -sum_arets if sum_arets < 0 else 0.0
+        if variable_name == 'INK4.3a':
+            # INK4.3a: Skatt på årets resultat
+            # Returns booked tax from RR (typically negative, so we negate it)
+            # This will be OVERRIDDEN by injection with INK_beraknad_skatt
+            return -float(rr('SkattAretsResultat'))
         if variable_name == 'INK4.6a':
             # Periodiseringsfonder previous_year * statslaneranta
             rate = float(self.global_variables.get('statslaneranta', 0.0))
