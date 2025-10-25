@@ -580,12 +580,17 @@ async def stripe_webhook(request: Request):
             
             # Save payment to database
             try:
+                # Convert from öre (cents) to SEK (kronor) with decimals
+                # Stripe returns amounts in smallest currency unit (öre for SEK)
+                amount_total_sek = amount_total / 100.0 if amount_total else 0.0
+                amount_subtotal_sek = amount_subtotal / 100.0 if amount_subtotal else 0.0
+                
                 payment_data = {
                     "organization_number": org_number,
                     "stripe_session_id": session_id,
                     "stripe_payment_intent_id": payment_intent,
-                    "amount_total": amount_total,
-                    "amount_subtotal": amount_subtotal,
+                    "amount_total": amount_total_sek,  # e.g., 623.75 SEK
+                    "amount_subtotal": amount_subtotal_sek,  # e.g., 499.00 SEK
                     "currency": currency,
                     "customer_email": customer_email,
                     "customer_name": customer_name,
