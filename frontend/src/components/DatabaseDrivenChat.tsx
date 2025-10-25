@@ -1248,11 +1248,13 @@ const CALC_ONLY = new Set<string>([
   "INK4.15",
   "INK4.16",
   "Arets_resultat_justerat",
+  "INK4.1",  // Injected from Årets resultat (justerat)
+  "INK4.2",  // Injected from Årets resultat (justerat)  
+  "INK4.3a", // Injected from INK_beraknad_skatt
 ]);
 
 const isHeader = (n?: string) => !!n && /_header$/i.test(n || "");
-const isCalculated = (n?: string) =>
-  !!n && (CALC_ONLY.has(n) || n === "INK4.1" || n === "INK4.2" || n === "INK4.3a");
+const isCalculated = (n?: string) => !!n && CALC_ONLY.has(n);
 
 /** Build baseline manuals from current visible rows */
 const buildBaselineManualsFromCurrent = (rows: any[]): Record<string, number> => {
