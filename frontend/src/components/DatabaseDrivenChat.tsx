@@ -1092,9 +1092,17 @@ interface ChatFlowResponse {
           if (next_step === 420) {
             setTimeout(() => {
               const noterModule = document.querySelector('[data-section="noter"]');
-              if (noterModule) {
-                // Use 'center' like tax module for perfect positioning
-                noterModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              const scrollContainer = document.querySelector('.overflow-auto');
+              
+              if (noterModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const noterRect = noterModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + noterRect.top - containerRect.top - 10; // 10pt padding from top
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
               }
             }, 500);
           }
@@ -1103,9 +1111,17 @@ interface ChatFlowResponse {
           if (next_step === 422) {
             setTimeout(() => {
               const fbModule = document.querySelector('[data-section="forvaltningsberattelse"]');
-              if (fbModule) {
-                // Use 'center' like tax module for perfect positioning
-                fbModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              const scrollContainer = document.querySelector('.overflow-auto');
+              
+              if (fbModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const fbRect = fbModule.getBoundingClientRect();
+                const scrollTop = scrollContainer.scrollTop + fbRect.top - containerRect.top - 10; // 10pt padding from top
+                
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
               }
             }, 500);
           }
