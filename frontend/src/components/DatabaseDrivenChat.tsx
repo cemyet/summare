@@ -1921,8 +1921,8 @@ const selectiveMergeInk2 = (
               if (taxModule && scrollContainer) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const taxRect = taxModule.getBoundingClientRect();
-                // Increased padding to 80px to hide BR content above INK2 module
-                const scrollTop = scrollContainer.scrollTop + taxRect.top - containerRect.top - 80;
+                // No padding - scroll directly to tax module top
+                const scrollTop = scrollContainer.scrollTop + taxRect.top - containerRect.top;
                 
                 scrollContainer.scrollTo({
                   top: scrollTop,
