@@ -551,6 +551,7 @@ interface ChatFlowResponse {
         } 
         // Auto-scroll to INK2 (tax-calculation) section for step 110
         else if (stepNumber === 110) {
+          // Wait longer for tax module to render since showTaxPreview is set right before this
           setTimeout(() => {
             const taxModule = document.querySelector('[data-section="tax-calculation"]');
             const scrollContainer = document.querySelector('.overflow-auto');
@@ -564,8 +565,10 @@ interface ChatFlowResponse {
                 top: scrollTop,
                 behavior: 'smooth'
               });
+            } else {
+              console.log('⚠️ Step 110 autoscroll: tax module or scroll container not found');
             }
-          }, 500);
+          }, 800); // Longer delay to ensure tax module is rendered
         }
         // Auto-scroll to Noter section for step 420
         else if (stepNumber === 420) {
@@ -1877,7 +1880,8 @@ const selectiveMergeInk2 = (
       fiscalYear: fileData.data?.company_info?.fiscal_year || new Date().getFullYear(),
       companyName: fileData.data?.company_info?.company_name || fileData.data?.scraped_company_data?.company_name || 'Företag AB',
       organizationNumber: orgNumber,
-      showRRBR: true // Show RR and BR data in preview
+      showRRBR: true, // Show RR and BR data in preview
+      showTaxPreview: true // Show tax calculation immediately so it's ready for step 110
     });
     
     setShowFileUpload(false);
@@ -1912,11 +1916,22 @@ const selectiveMergeInk2 = (
       // Add debugging for tax amount
       // Show tax question if we have tax data (including 0)
       if (skattAretsResultat !== null) {
-        // Show tax preview before loading step 110
-        onDataUpdate({ showTaxPreview: true });
-        // Load step 110 using standard loadChatStep function
+        // Pass the temp data to loadChatStep so variable substitution works
+        const tempData = {
+          sumAretsResultat,
+          skattAretsResultat,
+          inkBeraknadSkatt,
+          inkBokfordSkatt,
+          pensionPremier,
+          sarskildLoneskattPension,
+          sarskildLoneskattPensionCalculated,
+          sumFrittEgetKapital
+        };
+        
+        // Load step 110 using standard loadChatStep function with temp data
         // This will handle the "continue" option and auto-navigate to step 201
-        loadChatStep(110);
+        // showTaxPreview is already set to true when file was uploaded
+        loadChatStep(110, undefined, tempData);
       } else {
         // No tax data found, go directly to dividends
         loadChatStep(501);
