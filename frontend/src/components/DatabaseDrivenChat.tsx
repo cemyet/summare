@@ -1862,6 +1862,10 @@ const selectiveMergeInk2 = (
       showRRBR: true // Show RR and BR data in preview
     });
     
+    // Update global state so subsequent steps have access to calculated values
+    setGlobalInk2Data(fileData.data?.ink2_data || []);
+    setGlobalInkBeraknadSkatt(inkBeraknadSkatt);
+    
     setShowFileUpload(false);
     
     // Add the result overview message from database (step 103) - with variable substitution
@@ -1932,9 +1936,23 @@ const selectiveMergeInk2 = (
             );
             
             if (continueOption && continueOption.next_step) {
+              // Prepare temp data with all calculated values to pass to next step
+              const tempData = {
+                sumAretsResultat,
+                skattAretsResultat,
+                inkBeraknadSkatt,
+                inkBokfordSkatt,
+                pensionPremier,
+                sarskildLoneskattPension,
+                sarskildLoneskattPensionCalculated,
+                sumFrittEgetKapital
+              };
+              
               // Auto-navigate to next step after showing message and scrolling
+              // Pass both ink2Data and tempData so variable substitution works
               setTimeout(() => {
-                loadChatStep(continueOption.next_step);
+                const ink2DataToPass = fileData.data?.ink2_data || companyData.ink2Data || [];
+                loadChatStep(continueOption.next_step, ink2DataToPass, tempData);
               }, 1000); // Wait for autoscroll to complete
             } else {
               // No auto-continue, show options for user to select
