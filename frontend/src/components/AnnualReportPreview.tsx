@@ -1569,9 +1569,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // CRITICAL FIX: Combine all state updates into a single call to prevent race conditions
     // If first time click, set both taxButtonClickedBefore AND triggerChatStep together
     // This ensures the DatabaseDrivenChat useEffect sees triggerChatStep BEFORE taxButtonClickedBefore
+    // NOTE: Do NOT set ink2Data here - it will be set after recalc completes with fresh values
     const stateUpdates: any = {
       acceptedInk2Manuals: nextAccepted,
-      ink2Data: updatedInk2Data,
+      // ink2Data: updatedInk2Data,  ← REMOVED: Don't set old values, wait for recalc
       // Mark chat keys as "applied once"
       chatApplied: {
         ...(companyData.chatApplied || {}),
