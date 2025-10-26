@@ -1593,14 +1593,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false, showTaxPreview: true });
     setShowAllTax(false);
 
-    // Auto-scroll to tax module immediately
-    setTimeout(() => {
-      const taxModule = document.querySelector('[data-section="tax-calculation"]');
-      if (taxModule) {
-        taxModule.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-    }, 100);
-
     // ALWAYS recalc derived rows (4.15, 4.16, skattemässigt resultat, beräknad skatt, etc.)
     // Preserve manual edits via acceptedInk2Manuals, but keep derived rows live.
     // This ensures INK4.15 and INK4.16 are always up-to-date with the latest manual changes
