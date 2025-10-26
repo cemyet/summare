@@ -380,6 +380,14 @@ interface ChatFlowResponse {
         setCurrentStep(stepNumber);
         onDataUpdate({ currentStep: stepNumber }); // 👉 expose step to the preview/right pane
         
+        // CRITICAL: Set taxButtonClickedBefore when reaching step 405 for the first time
+        // This ensures subsequent manual edits don't trigger step 405 again
+        // Whether user got here via step 401 option 1 OR step 402 blue button
+        if (stepNumber === 405 && !companyData.taxButtonClickedBefore) {
+          console.log('🎯 First time reaching step 405 - setting flag to prevent future navigations');
+          onDataUpdate({ taxButtonClickedBefore: true });
+        }
+        
         // Handle no_option automatically if it exists
         const noOption = response.options.find(opt => opt.option_order === 0);
         if (noOption) {

@@ -1578,20 +1578,12 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     
     // If this is the first time clicking the button, trigger navigation
     // After first time, manual edits should NOT trigger step 405 again
+    // NOTE: Flag will be set automatically in loadChatStep when step 405 loads
     if (isFirstTimeClick) {
-      // Trigger step 405 FIRST (before setting flag)
       stateUpdates.triggerChatStep = 405;
     }
     
     onDataUpdate(stateUpdates);
-    
-    // Set flag AFTER triggering to prevent subsequent navigations
-    if (isFirstTimeClick) {
-      // Small delay to ensure trigger is processed before flag is set
-      setTimeout(() => {
-        onDataUpdate({ taxButtonClickedBefore: true });
-      }, 100);
-    }
 
     // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
     clearAcceptedOnNextApproveRef.current = false;
