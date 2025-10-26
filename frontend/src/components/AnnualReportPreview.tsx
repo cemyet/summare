@@ -1319,24 +1319,15 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       // Store recalculated data in state for display purposes
       setRecalculatedData(merged);
       
-      // Only update ink2Data in companyData if not in manual edit mode
-      // During manual edit, the recalculatedData state will be used for display
-      // This prevents flickering when user is typing
-      if (!isInk2ManualEdit) {
-        onDataUpdate({
-          ink2Data: merged,
-          inkBeraknadSkatt:
-            merged.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount
-            ?? companyData.inkBeraknadSkatt
-        });
-      } else {
-        // In edit mode, only update the calculated tax value
-        onDataUpdate({
-          inkBeraknadSkatt:
-            merged.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount
-            ?? companyData.inkBeraknadSkatt
-        });
-      }
+      // Always keep companyData.ink2Data in sync for PDF correctness.
+      // UI still renders from `recalculatedData`, so no flicker.
+      // PDF generation needs fresh ink2Data to show correct 4.15/4.16 calc-only fields.
+      onDataUpdate({
+        ink2Data: merged,
+        inkBeraknadSkatt:
+          merged.find((i:any)=>i.variable_name==='INK_beraknad_skatt')?.amount
+          ?? companyData.inkBeraknadSkatt
+      });
       
       // Return merged data so caller can use it if needed
       return merged;
@@ -1624,16 +1615,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       finalInk2Data = await recalcWithManuals(nextAccepted, { includeAccepted: false, baselineSource: 'current' });
     }
     
-    // CRITICAL: Update companyData.ink2Data with recalculated values for PDF generation
-    // Race condition fix: isInk2ManualEdit state may not have updated yet when recalcWithManuals runs
-    // so it may not have updated ink2Data. Force update it here with the returned data.
-    // This ensures INK2 PDF has correct 4.15/4.16 values
-    if (finalInk2Data && finalInk2Data.length > 0) {
-      onDataUpdate({ ink2Data: finalInk2Data });
-    }
-    
     // Update RR/BR with tax changes after approving manual edits
-    // Use finalInk2Data directly (no need to wait for state update)
+    // recalcWithManuals already updated companyData.ink2Data, so use finalInk2Data directly
     await handleTaxUpdateLogic(nextAccepted, finalInk2Data || updatedInk2Data, true);
   };
 
