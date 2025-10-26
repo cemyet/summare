@@ -1904,8 +1904,7 @@ const selectiveMergeInk2 = (
             }
           );
           addMessage(taxText, true, step110Response.question_icon, () => {
-            // Set options after tax message completes
-            setCurrentOptions(step110Response.options);
+            // Show tax preview
             onDataUpdate({ showTaxPreview: true });
             
             // Auto-scroll to tax module after message is displayed
@@ -1926,6 +1925,21 @@ const selectiveMergeInk2 = (
                 console.log('⚠️ Step 110 autoscroll: tax module or scroll container not found');
               }
             }, 500);
+            
+            // Check if there's a "continue" option that should auto-navigate
+            const continueOption = step110Response.options.find((opt: any) => 
+              opt.option_value === 'continue' || opt.option_order === 0
+            );
+            
+            if (continueOption && continueOption.next_step) {
+              // Auto-navigate to next step after showing message and scrolling
+              setTimeout(() => {
+                loadChatStep(continueOption.next_step);
+              }, 1000); // Wait for autoscroll to complete
+            } else {
+              // No auto-continue, show options for user to select
+              setCurrentOptions(step110Response.options);
+            }
           });
         } catch (error) {
           console.error('❌ Error fetching step 110:', error);
