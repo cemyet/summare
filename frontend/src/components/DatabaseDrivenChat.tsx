@@ -1901,10 +1901,12 @@ const selectiveMergeInk2 = (
         try {
           const step110Response = await apiService.getChatFlowStep(110) as ChatFlowResponse;
           const taxAmount = new Intl.NumberFormat('sv-SE').format(skattAretsResultat);
+          const beraknadSkattAmount = new Intl.NumberFormat('sv-SE').format(inkBeraknadSkatt);
           const taxText = substituteVariables(
             step110Response.question_text,
             {
-              SkattAretsResultat: taxAmount
+              SkattAretsResultat: taxAmount,
+              inkBeraknadSkatt: beraknadSkattAmount
             }
           );
           addMessage(taxText, true, step110Response.question_icon, () => {
