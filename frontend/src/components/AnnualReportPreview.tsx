@@ -1576,18 +1576,21 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       },
     };
     
-    // If this is the first time clicking the button, set flag FIRST to prevent race condition
+    // If this is the first time clicking the button, trigger navigation
     // After first time, manual edits should NOT trigger step 405 again
     if (isFirstTimeClick) {
-      // Set flag FIRST in separate call (CRITICAL for race condition prevention)
-      onDataUpdate({ taxButtonClickedBefore: true });
+      // Trigger step 405 FIRST (before setting flag)
+      stateUpdates.triggerChatStep = 405;
     }
     
     onDataUpdate(stateUpdates);
     
-    // Trigger step 405 AFTER state is updated (only first time)
+    // Set flag AFTER triggering to prevent subsequent navigations
     if (isFirstTimeClick) {
-      onDataUpdate({ triggerChatStep: 405 });
+      // Small delay to ensure trigger is processed before flag is set
+      setTimeout(() => {
+        onDataUpdate({ taxButtonClickedBefore: true });
+      }, 100);
     }
 
     // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
