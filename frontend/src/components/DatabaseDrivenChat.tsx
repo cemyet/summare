@@ -1895,23 +1895,23 @@ const selectiveMergeInk2 = (
       // Show tax question if we have tax data (including 0)
       if (skattAretsResultat !== null) {
         try {
-          const step104Response = await apiService.getChatFlowStep(104) as ChatFlowResponse;
+          const step110Response = await apiService.getChatFlowStep(110) as ChatFlowResponse;
           const taxAmount = new Intl.NumberFormat('sv-SE').format(skattAretsResultat);
           const taxText = substituteVariables(
-            step104Response.question_text,
+            step110Response.question_text,
             {
               SkattAretsResultat: taxAmount
             }
           );
-          addMessage(taxText, true, step104Response.question_icon, () => {
+          addMessage(taxText, true, step110Response.question_icon, () => {
             // Set options after tax message completes
-            setCurrentOptions(step104Response.options);
+            setCurrentOptions(step110Response.options);
             onDataUpdate({ showTaxPreview: true });
           });
         } catch (error) {
-          console.error('❌ Error fetching step 104:', error);
+          console.error('❌ Error fetching step 110:', error);
           const taxAmount = new Intl.NumberFormat('sv-SE').format(skattAretsResultat);
-          addMessage(`Den bokförda skatten är ${taxAmount} kr. Vill du godkänna den eller vill du se över de skattemässiga justeringarna?`, true, '🏛️', () => {
+          addMessage(`Den bokförda skatten är ${taxAmount} kr. Låt oss först se över skatteberäkningen tillsammans och se om du vill göra några justeringar.`, true, '🏛️', () => {
             setCurrentOptions([]);
             onDataUpdate({ showTaxPreview: true });
           });
