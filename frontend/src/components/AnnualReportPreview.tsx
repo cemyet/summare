@@ -1619,8 +1619,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
     
     // CRITICAL: Update RR/BR with tax changes after approving manual edits
-    // This ensures RR row 277 (Skatt på årets resultat) and row 279 (Årets resultat) are updated
-    await handleTaxUpdateLogic(nextAccepted, updatedInk2Data, true);
+    // Wait briefly for recalculatedData state to update after recalcWithManuals
+    // Pass undefined to force handleTaxUpdateLogic to use latest recalculatedData from recalcWithManuals
+    // updatedInk2Data has OLD values from before recalc, recalculatedData has NEW calculated values
+    await new Promise(resolve => setTimeout(resolve, 50));
+    await handleTaxUpdateLogic(nextAccepted, undefined, true);
   };
 
   // CRITICAL FIX: Listen for trigger from chat flow to approve INK2 changes
