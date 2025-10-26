@@ -2011,6 +2011,14 @@ const selectiveMergeInk2 = (
   // Watch for triggerChatStep requests from components
   useEffect(() => {
     if (companyData.triggerChatStep && companyData.triggerChatStep > 0) {
+      // CRITICAL GUARD: Prevent step 405 from triggering more than once
+      // Layer 3 protection (see CRITICAL_LOGIC_AND_FLOWS.md)
+      if (companyData.triggerChatStep === 405 && companyData.taxButtonClickedBefore) {
+        console.log('✅ useEffect guard: Skipping step 405 - already shown before');
+        onDataUpdate({ triggerChatStep: null });
+        return;
+      }
+      
       // CRITICAL FIX: Always navigate when triggerChatStep is explicitly set
       // The component setting the trigger is responsible for deciding whether to navigate
       // (e.g., handleApproveChanges only sets it on first click)

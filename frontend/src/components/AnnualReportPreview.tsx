@@ -1576,14 +1576,19 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       },
     };
     
-    // If this is the first time clicking the button, add navigation trigger
+    // If this is the first time clicking the button, set flag FIRST to prevent race condition
     // After first time, manual edits should NOT trigger step 405 again
     if (isFirstTimeClick) {
-      stateUpdates.triggerChatStep = 405;
-      stateUpdates.taxButtonClickedBefore = true;
+      // Set flag FIRST in separate call (CRITICAL for race condition prevention)
+      onDataUpdate({ taxButtonClickedBefore: true });
     }
     
     onDataUpdate(stateUpdates);
+    
+    // Trigger step 405 AFTER state is updated (only first time)
+    if (isFirstTimeClick) {
+      onDataUpdate({ triggerChatStep: 405 });
+    }
 
     // reset the flag and session edits, close edit mode, hide 0-rows right away (no lag)
     clearAcceptedOnNextApproveRef.current = false;
@@ -1617,6 +1622,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     } else {
       await recalcWithManuals(nextAccepted, { includeAccepted: false, baselineSource: 'current' });
     }
+    
+    // CRITICAL: Update RR/BR with tax changes after approving manual edits
+    // This ensures RR row 277 (Skatt på årets resultat) and row 279 (Årets resultat) are updated
+    await handleTaxUpdateLogic(nextAccepted, updatedInk2Data, true);
   };
 
   // CRITICAL FIX: Listen for trigger from chat flow to approve INK2 changes
