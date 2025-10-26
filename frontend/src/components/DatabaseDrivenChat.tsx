@@ -1894,28 +1894,11 @@ const selectiveMergeInk2 = (
       // Add debugging for tax amount
       // Show tax question if we have tax data (including 0)
       if (skattAretsResultat !== null) {
-        try {
-          const step110Response = await apiService.getChatFlowStep(110) as ChatFlowResponse;
-          const taxAmount = new Intl.NumberFormat('sv-SE').format(skattAretsResultat);
-          const taxText = substituteVariables(
-            step110Response.question_text,
-            {
-              SkattAretsResultat: taxAmount
-            }
-          );
-          addMessage(taxText, true, step110Response.question_icon, () => {
-            // Set options after tax message completes
-            setCurrentOptions(step110Response.options);
-            onDataUpdate({ showTaxPreview: true });
-          });
-        } catch (error) {
-          console.error('❌ Error fetching step 110:', error);
-          const taxAmount = new Intl.NumberFormat('sv-SE').format(skattAretsResultat);
-          addMessage(`Den bokförda skatten är ${taxAmount} kr. Låt oss först se över skatteberäkningen tillsammans och se om du vill göra några justeringar.`, true, '🏛️', () => {
-            setCurrentOptions([]);
-            onDataUpdate({ showTaxPreview: true });
-          });
-        }
+        // Show tax preview before loading step 110
+        onDataUpdate({ showTaxPreview: true });
+        // Load step 110 using standard loadChatStep function
+        // This will handle the "continue" option and auto-navigate to step 201
+        loadChatStep(110);
       } else {
         // No tax data found, go directly to dividends
         loadChatStep(501);
