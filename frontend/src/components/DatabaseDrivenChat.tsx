@@ -1953,10 +1953,11 @@ const selectiveMergeInk2 = (
               
               // Auto-navigate to next step after showing message and scrolling
               // Pass both ink2Data and tempData so variable substitution works
+              // Increased delay to allow autoscroll to fully "land" before next message
               setTimeout(() => {
                 const ink2DataToPass = fileData.data?.ink2_data || companyData.ink2Data || [];
                 loadChatStep(continueOption.next_step, ink2DataToPass, tempData);
-              }, 1000); // Wait for autoscroll to complete
+              }, 2000); // Wait 2s total (1.5s after autoscroll starts at 500ms)
             } else {
               // No auto-continue, show options for user to select
               setCurrentOptions(step110Response.options);
