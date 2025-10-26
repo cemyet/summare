@@ -57,7 +57,17 @@ def build_override_map(company_data: dict) -> dict:
             M[_norm(k)] = v
 
     # 3) Manual overrides made by the user inside INK2 (HIGHEST PRIORITY - applied last)
+    # CRITICAL: Skip CALC_ONLY fields - they should always use latest calculated values from ink2Data
+    CALC_ONLY_FIELDS = {
+        'INK_skattemassigt_resultat', 'INK_beraknad_skatt',
+        'INK4.15', 'INK4.16', 'Arets_resultat_justerat',
+        'INK4.1', 'INK4.2', 'INK4.3a'
+    }
+    
     for k, v in (company_data.get("acceptedInk2Manuals") or {}).items():
+        # Skip calculated-only fields - they must come from ink2Data (step 2)
+        if k in CALC_ONLY_FIELDS:
+            continue
         val = _sv_num(v)
         if val is not None:
             M[_norm(k)] = val
