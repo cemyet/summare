@@ -549,6 +549,24 @@ interface ChatFlowResponse {
             }
           }, 200);
         } 
+        // Auto-scroll to INK2 (tax-calculation) section for step 110
+        else if (stepNumber === 110) {
+          setTimeout(() => {
+            const taxModule = document.querySelector('[data-section="tax-calculation"]');
+            const scrollContainer = document.querySelector('.overflow-auto');
+            
+            if (taxModule && scrollContainer) {
+              const containerRect = scrollContainer.getBoundingClientRect();
+              const taxRect = taxModule.getBoundingClientRect();
+              const scrollTop = scrollContainer.scrollTop + taxRect.top - containerRect.top - 40; // 40pt padding to show heading
+              
+              scrollContainer.scrollTo({
+                top: scrollTop,
+                behavior: 'smooth'
+              });
+            }
+          }, 500);
+        }
         // Auto-scroll to Noter section for step 420
         else if (stepNumber === 420) {
           setTimeout(() => {
