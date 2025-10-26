@@ -2156,23 +2156,26 @@ const handleTaxCalculationClick = () => {
               <div className="flex items-center justify-between border-b pb-2">
                 <div className="flex items-center gap-3">
                   <h2 className="text-lg font-semibold text-foreground">Skatteberäkning</h2>
-                  <button
-                    onClick={() => {
-                      setIsInk2ManualEdit(!isInk2ManualEdit);
-                      // Optional: sync global flag for consistency
-                      onDataUpdate({ taxEditingEnabled: !isInk2ManualEdit });
-                    }}
-                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-                      isInk2ManualEdit 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
-                    }`}
-                    title={isInk2ManualEdit ? 'Avsluta redigering' : 'Redigera värden'}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                    </svg>
-                  </button>
+                  {/* Only show manual edit button after step 401 (when user reaches step 402 or 405) */}
+                  {currentStep >= 402 && (
+                    <button
+                      onClick={() => {
+                        setIsInk2ManualEdit(!isInk2ManualEdit);
+                        // Optional: sync global flag for consistency
+                        onDataUpdate({ taxEditingEnabled: !isInk2ManualEdit });
+                      }}
+                      className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                        isInk2ManualEdit 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                      }`}
+                      title={isInk2ManualEdit ? 'Avsluta redigering' : 'Redigera värden'}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                      </svg>
+                    </button>
+                  )}
                 </div>
                 <div className="flex items-center space-x-2">
                   <label 
