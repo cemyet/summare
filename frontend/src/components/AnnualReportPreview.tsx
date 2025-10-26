@@ -1587,6 +1587,23 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     setIsInk2ManualEdit(false);
     onDataUpdate({ taxEditingEnabled: false, editableAmounts: false, showTaxPreview: true });
     setShowAllTax(false);
+    
+    // Autoscroll to keep INK2 module visible after rows collapse
+    setTimeout(() => {
+      const taxModule = document.querySelector('[data-section="tax-calculation"]');
+      const scrollContainer = document.querySelector('.overflow-auto');
+      
+      if (taxModule && scrollContainer) {
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const taxRect = taxModule.getBoundingClientRect();
+        const scrollTop = scrollContainer.scrollTop + taxRect.top - containerRect.top - 20; // 20px padding
+        
+        scrollContainer.scrollTo({
+          top: scrollTop,
+          behavior: 'smooth'
+        });
+      }
+    }, 300); // Wait for collapse animation to complete
 
     // ALWAYS recalc derived rows (4.15, 4.16, skattemässigt resultat, beräknad skatt, etc.)
     // Preserve manual edits via acceptedInk2Manuals, but keep derived rows live.
