@@ -1337,7 +1337,11 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
             ?? companyData.inkBeraknadSkatt
         });
       }
+      
+      // Return merged data so caller can use it if needed
+      return merged;
     }
+    return null;
   };
 
   // Canonical Undo
@@ -1598,6 +1602,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // This ensures INK4.15 and INK4.16 are always up-to-date with the latest manual changes
     // IMPORTANT: If this was an undo-then-approve, pass the undone values directly to avoid
     // using stale companyData state (React state updates are batched and may not be reflected yet)
+    let finalInk2Data: any[] | null = null;
+    
     if (wasUndoApprove) {
       // After undo, recalc using the undone values by passing them as manual overrides
       // Extract non-editable values from updatedInk2Data to use as the baseline
@@ -1609,21 +1615,26 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       });
       // Pass undone values with includeAccepted=true and acceptedManualsOverride
       // This ensures we use the undone state as the baseline for recalculation
-      await recalcWithManuals({}, { 
+      finalInk2Data = await recalcWithManuals({}, { 
         includeAccepted: true, 
         baselineSource: 'original',
         acceptedManualsOverride: undoneValues 
       });
     } else {
-      await recalcWithManuals(nextAccepted, { includeAccepted: false, baselineSource: 'current' });
+      finalInk2Data = await recalcWithManuals(nextAccepted, { includeAccepted: false, baselineSource: 'current' });
     }
     
-    // CRITICAL: Update RR/BR with tax changes after approving manual edits
-    // Wait briefly for recalculatedData state to update after recalcWithManuals
-    // Pass undefined to force handleTaxUpdateLogic to use latest recalculatedData from recalcWithManuals
-    // updatedInk2Data has OLD values from before recalc, recalculatedData has NEW calculated values
-    await new Promise(resolve => setTimeout(resolve, 50));
-    await handleTaxUpdateLogic(nextAccepted, undefined, true);
+    // CRITICAL: Update companyData.ink2Data with recalculated values for PDF generation
+    // Race condition fix: isInk2ManualEdit state may not have updated yet when recalcWithManuals runs
+    // so it may not have updated ink2Data. Force update it here with the returned data.
+    // This ensures INK2 PDF has correct 4.15/4.16 values
+    if (finalInk2Data && finalInk2Data.length > 0) {
+      onDataUpdate({ ink2Data: finalInk2Data });
+    }
+    
+    // Update RR/BR with tax changes after approving manual edits
+    // Use finalInk2Data directly (no need to wait for state update)
+    await handleTaxUpdateLogic(nextAccepted, finalInk2Data || updatedInk2Data, true);
   };
 
   // CRITICAL FIX: Listen for trigger from chat flow to approve INK2 changes
