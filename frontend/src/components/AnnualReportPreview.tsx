@@ -2698,7 +2698,12 @@ const handleTaxCalculationClick = () => {
         {currentStep >= 510 && (
           <div data-section="download">
             <Download 
-              companyData={companyData}
+              companyData={{
+                ...companyData,
+                // PATCH 2: Belt & suspenders - ensure ink2Data is fresh for PDF generation
+                // If recalculatedData exists and is more recent, prefer it (edge case safety)
+                ink2Data: (recalculatedData.length > 0 ? recalculatedData : companyData.ink2Data) || companyData.ink2Data
+              }}
             />
           </div>
         )}
