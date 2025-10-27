@@ -2264,7 +2264,7 @@ class DatabaseParser:
         # Variables that should always be positive (account-based calculations)
         positive_only_variables = [
             'INK4.3c', 'INK4.4a', 'INK4.5b', 'INK4.5c', 
-            'INK4.6a', 'INK4.6c', 'INK4.21'
+            'INK4.6a', 'INK4.6c', 'INK4.20', 'INK4.21'
         ]
         if variable_name in positive_only_variables:
             return abs(account_sum)
