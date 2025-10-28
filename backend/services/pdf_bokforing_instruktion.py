@@ -86,7 +86,9 @@ def _find_amt(rows, name):
         return 0.0
     for r in rows:
         if r.get('variable_name') == name:
-            return _num(r.get('amount') or r.get('current_amount') or 0)
+            amt = _num(r.get('amount') or r.get('current_amount') or 0)
+            print(f"   🔍 Found {name}: amount={r.get('amount')}, current_amount={r.get('current_amount')}, final={amt}")
+            return amt
     return 0.0
 
 def check_should_generate(company_data: Dict[str, Any]) -> bool:
@@ -104,20 +106,41 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
                company_data.get('rrRows') or 
                company_data.get('seFileData', {}).get('rr_data', []))
     
+    # DEBUG: Print available INK2 variable names
+    ink2_vars = [item.get('variable_name') for item in ink2_data if item.get('variable_name')]
+    print(f"🔍 DEBUG: Available INK2 variables ({len(ink2_vars)} total): {ink2_vars[:20]}...")
+    
+    # DEBUG: Print sample INK2 items
+    if ink2_data and len(ink2_data) > 0:
+        print(f"🔍 DEBUG: Sample INK2 item: {ink2_data[0]}")
+    
+    # DEBUG: Print available RR variable names
+    rr_vars = [item.get('variable_name') for item in rr_data if item.get('variable_name')]
+    print(f"🔍 DEBUG: Available RR variables ({len(rr_vars)} total): {rr_vars[:20]}...")
+    
+    # DEBUG: Print sample RR item
+    if rr_data and len(rr_data) > 0:
+        print(f"🔍 DEBUG: Sample RR item: {rr_data[0]}")
+    
     # Get SLP
     slp = _find_amt(ink2_data, 'SLP')
+    print(f"🔍 DEBUG: SLP value = {slp}")
     
     # Get beräknad skatt
     beraknad_skatt = _find_amt(ink2_data, 'INK_beraknad_skatt')
+    print(f"🔍 DEBUG: INK_beraknad_skatt value = {beraknad_skatt}")
     
     # Get bokförd skatt (from RR - typically negative, so negate it)
     bokford_skatt = abs(_find_amt(rr_data, 'SkattAretsResultat'))
+    print(f"🔍 DEBUG: SkattAretsResultat (bokförd) value = {bokford_skatt}")
     
     # Get justerat årets resultat
     justerat_arets_resultat = _find_amt(ink2_data, 'Arets_resultat_justerat')
+    print(f"🔍 DEBUG: Arets_resultat_justerat value = {justerat_arets_resultat}")
     
     # Get årets resultat from RR
     arets_resultat = _find_amt(rr_data, 'SumAretsResultat')
+    print(f"🔍 DEBUG: SumAretsResultat (årets) value = {arets_resultat}")
     
     # Check conditions
     should_generate = (
@@ -162,6 +185,16 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     bokford_skatt = abs(_find_amt(rr_data, 'SkattAretsResultat'))
     justerat_arets_resultat = _find_amt(ink2_data, 'Arets_resultat_justerat')
     arets_resultat = _find_amt(rr_data, 'SumAretsResultat')
+    
+    # DEBUG: Print values being used for PDF generation
+    print(f"📄 DEBUG PDF Generation:")
+    print(f"   SLP: {slp}")
+    print(f"   Beräknad skatt: {beraknad_skatt}")
+    print(f"   Bokförd skatt: {bokford_skatt}")
+    print(f"   Justerat årets resultat: {justerat_arets_resultat}")
+    print(f"   Årets resultat: {arets_resultat}")
+    print(f"   Delta skatt: {abs(beraknad_skatt - bokford_skatt)}")
+    print(f"   Delta resultat: {abs(justerat_arets_resultat - arets_resultat)}")
     
     # Get fiscal year end date
     se = (company_data or {}).get('seFileData') or {}
