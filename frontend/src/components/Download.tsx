@@ -45,7 +45,7 @@ export function Download({ companyData }: DownloadProps) {
     },
     {
       id: 'bokforingsorder',
-      title: 'Bokföringsorder',
+      title: 'Bokföringsinstruktion',
       subtitle: 'Ladda ner pdf',
       filename: 'bokforingsinstruktion.pdf',
       icon: <FileText className="w-5 h-5" />,
@@ -257,7 +257,7 @@ export function Download({ companyData }: DownloadProps) {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-6">
-            Nu finns alla dokument och filer klara för nedladdning. Signering av årsredovisning kommer att göras digitalt i nästa steg, men du kan också ladda ner den som pdf. Inkomstdeklarationen kan du antingen ladda ner som pdf eller som SRU-filer, som du sen kan ladda upp på Skatteverkets hemsida för att lämna in deklarationen. Dessutom finns en bokföringsorder att ladda ner om justeringar på årets resultat har gjorts.
+            Nu finns alla dokument och filer klara för nedladdning. Signering av årsredovisning kommer att göras digitalt i nästa steg, men du kan också ladda ner den som pdf. Inkomstdeklarationen kan du antingen ladda ner som pdf eller som SRU-filer, som du sen kan ladda upp på Skatteverkets hemsida för att lämna in deklarationen. Dessutom finns en bokföringsinstruktion att ladda ner om justeringar på årets resultat har gjorts.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
