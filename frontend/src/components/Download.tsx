@@ -47,7 +47,7 @@ export function Download({ companyData }: DownloadProps) {
       id: 'bokforingsorder',
       title: 'Bokföringsorder',
       subtitle: 'Ladda ner pdf',
-      filename: 'Test.pdf',
+      filename: 'bokforingsinstruktion.pdf',
       icon: <FileText className="w-5 h-5" />,
       downloaded: false
     }
@@ -163,6 +163,49 @@ export function Download({ companyData }: DownloadProps) {
           const errorText = await response.text();
           console.error('SRU file error:', errorText);
           throw new Error(`Server responded with ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        a.remove();
+      } else if (fileId === 'bokforingsorder') {
+        // Handle Bokföringsinstruktion PDF generation
+        if (!companyData) {
+          alert('Företagsdata saknas. Vänligen ladda upp en SIE-fil först.');
+          setIsGenerating(null);
+          return;
+        }
+        
+        const API_BASE = import.meta.env.VITE_API_URL || 'https://api.summare.se';
+        
+        const response = await fetch(`${API_BASE}/api/pdf/bokforing-instruktion`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            companyData,
+            renderVersion: Date.now() // cache buster
+          }),
+          cache: 'no-store',
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Bokföringsinstruktion PDF error:', errorText);
+          
+          // If no adjustments needed (400 error), show friendly message
+          if (response.status === 400) {
+            alert('Bokföringsinstruktion behövs inte - inga justeringar krävs för detta bolag.');
+          } else {
+            throw new Error(`Server responded with ${response.status}`);
+          }
+          setIsGenerating(null);
+          return;
         }
         
         const blob = await response.blob();
