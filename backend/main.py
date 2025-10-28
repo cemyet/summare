@@ -2789,6 +2789,87 @@ async def generate_sru(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error generating SRU files: {str(e)}")
 
+@app.post("/api/pdf/bokforing-instruktion/check")
+async def check_bokforing_instruktion(request: Request):
+    """
+    Check if Bokföringsinstruktion PDF should be generated based on conditions:
+    - SLP ≠ 0 OR
+    - Beräknad skatt ≠ bokförd skatt OR
+    - Justerat årets resultat ≠ årets resultat
+    
+    Returns: {"shouldGenerate": true/false}
+    """
+    try:
+        from services.pdf_bokforing_instruktion import check_should_generate
+        
+        payload = await request.json()
+        company_data = payload.get('companyData', {})
+        
+        should_generate = check_should_generate(company_data)
+        
+        return {"shouldGenerate": should_generate}
+    except Exception as e:
+        print(f"Error checking Bokföringsinstruktion requirements: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error checking Bokföringsinstruktion requirements: {str(e)}")
+
+@app.post("/api/pdf/bokforing-instruktion")
+async def pdf_bokforing_instruktion(request: Request):
+    """
+    Generate accounting instruction PDF (Bokföringsinstruktion) when adjustments are needed.
+    This PDF is only generated when:
+    - SLP ≠ 0 OR
+    - Beräknad skatt ≠ bokförd skatt OR
+    - Justerat årets resultat ≠ årets resultat
+    """
+    try:
+        from services.pdf_bokforing_instruktion import generate_bokforing_instruktion_pdf, check_should_generate
+        from fastapi.responses import Response
+        
+        payload = await request.json()
+        company_data = payload.get('companyData', {})
+        
+        # Check if PDF should be generated
+        if not check_should_generate(company_data):
+            raise HTTPException(
+                status_code=400, 
+                detail="Bokföringsinstruktion not needed - no adjustments required"
+            )
+        
+        # Generate PDF
+        pdf_bytes = generate_bokforing_instruktion_pdf(company_data)
+        
+        # Extract name and fiscal year for filename
+        name = (company_data.get('company_name') 
+                or company_data.get('companyName')
+                or (company_data.get('seFileData') or {}).get('company_info', {}).get('company_name') 
+                or 'bolag')
+        fy = (company_data.get('fiscalYear') 
+              or company_data.get('fiscal_year')
+              or (company_data.get('seFileData') or {}).get('company_info', {}).get('fiscal_year') 
+              or '')
+        
+        filename = f'bokforingsinstruktion_{name}_{fy}.pdf'
+        
+        return Response(
+            content=pdf_bytes,
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error generating Bokföringsinstruktion PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating Bokföringsinstruktion PDF: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     import os
