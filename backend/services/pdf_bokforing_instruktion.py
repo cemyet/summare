@@ -142,11 +142,12 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
     arets_resultat = _find_amt(rr_data, 'SumAretsResultat')
     print(f"🔍 DEBUG: SumAretsResultat (årets) value = {arets_resultat}")
     
-    # Check conditions
+    # Check conditions - use 1 kr threshold for meaningful adjustments
+    THRESHOLD = 1.0  # 1 kr minimum for meaningful accounting adjustments
     should_generate = (
-        abs(slp) > 0 or 
-        abs(beraknad_skatt - bokford_skatt) > 0.01 or  # Use small epsilon for float comparison
-        abs(justerat_arets_resultat - arets_resultat) > 0.01
+        abs(slp) >= THRESHOLD or 
+        abs(beraknad_skatt - bokford_skatt) >= THRESHOLD or
+        abs(justerat_arets_resultat - arets_resultat) >= THRESHOLD
     )
     
     print(f"📋 Bokföringsinstruktion check: SLP={slp}, Beräknad={beraknad_skatt}, Bokförd={bokford_skatt}, "
@@ -217,8 +218,11 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     # Build table data with headers
     table_data = [["Konto", "Debet", "Kredit"]]
     
-    # Add SLP rows if abs(slp) > 0
-    if abs(slp) > 0:
+    # Use same threshold as check function
+    THRESHOLD = 1.0  # 1 kr minimum
+    
+    # Add SLP rows if abs(slp) >= threshold
+    if abs(slp) >= THRESHOLD:
         table_data.append([
             "7533 Särskild löneskatt för pensionskostnader",
             _fmt_sek(abs(slp)),
@@ -230,8 +234,8 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
             _fmt_sek(abs(slp))
         ])
     
-    # Add tax adjustment rows
-    if abs(beraknad_skatt - bokford_skatt) > 0.01:
+    # Add tax adjustment rows only if delta >= threshold
+    if abs(beraknad_skatt - bokford_skatt) >= THRESHOLD:
         if beraknad_skatt > bokford_skatt:
             # Beräknad skatt > bokförd skatt
             delta = abs(beraknad_skatt - bokford_skatt)
@@ -259,8 +263,8 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
                 ""
             ])
     
-    # Add result adjustment rows
-    if abs(justerat_arets_resultat - arets_resultat) > 0.01:
+    # Add result adjustment rows only if delta >= threshold
+    if abs(justerat_arets_resultat - arets_resultat) >= THRESHOLD:
         delta = abs(justerat_arets_resultat - arets_resultat)
         if justerat_arets_resultat > arets_resultat:
             # Justerat årets resultat > årets resultat
@@ -286,6 +290,17 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
                 "",
                 _fmt_sek(delta)
             ])
+    
+    # Check if we have any rows beyond the header
+    if len(table_data) <= 1:
+        print("⚠️ WARNING: No adjustment rows to display in PDF (all deltas < 1 kr)")
+        # Return a minimal error PDF or raise exception
+        # For now, we'll just create a note in the PDF
+        table_data.append([
+            "Ingen bokföringsinstruktion krävs - alla justeringar < 1 kr",
+            "",
+            ""
+        ])
     
     # Create table with styling
     # Column widths: Konto (wide), Debet (medium), Kredit (medium)
