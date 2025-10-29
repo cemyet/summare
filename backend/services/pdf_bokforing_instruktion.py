@@ -102,13 +102,21 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
     ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
     
     # Get ORIGINAL values (captured at upload, never modified)
-    # These are stored at upload time before any INK2 adjustments
+    # Try multiple locations: top level, company_info, seFileData.company_info
     arets_resultat_original = company_data.get('arets_resultat_original')
     arets_skatt_original = company_data.get('arets_skatt_original')
     
+    # Try seFileData.company_info
+    if arets_resultat_original is None or arets_skatt_original is None:
+        se_info = (company_data.get('seFileData') or {}).get('company_info') or {}
+        if arets_resultat_original is None:
+            arets_resultat_original = se_info.get('arets_resultat_original')
+        if arets_skatt_original is None:
+            arets_skatt_original = se_info.get('arets_skatt_original')
+    
     print(f"📌 Using ORIGINAL values: Årets resultat = {arets_resultat_original} kr, Bokförd skatt = {arets_skatt_original} kr")
     
-    # If original values not found, fallback to seFileData.rr_data (for backward compatibility)
+    # If original values still not found, fallback to seFileData.rr_data (for backward compatibility)
     if arets_resultat_original is None or arets_skatt_original is None:
         print("⚠️ Original values not found, falling back to seFileData.rr_data")
         rr_data = company_data.get('seFileData', {}).get('rr_data', [])
@@ -199,10 +207,19 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
     
     # Get ORIGINAL values (captured at upload, never modified)
+    # Try multiple locations: top level, company_info, seFileData.company_info
     arets_resultat_original = company_data.get('arets_resultat_original')
     arets_skatt_original = company_data.get('arets_skatt_original')
     
-    # If original values not found, fallback to seFileData.rr_data (for backward compatibility)
+    # Try seFileData.company_info
+    if arets_resultat_original is None or arets_skatt_original is None:
+        se_info = (company_data.get('seFileData') or {}).get('company_info') or {}
+        if arets_resultat_original is None:
+            arets_resultat_original = se_info.get('arets_resultat_original')
+        if arets_skatt_original is None:
+            arets_skatt_original = se_info.get('arets_skatt_original')
+    
+    # If original values still not found, fallback to seFileData.rr_data (for backward compatibility)
     if arets_resultat_original is None or arets_skatt_original is None:
         print("⚠️ Original values not found in PDF generation, falling back to seFileData.rr_data")
         rr_data = company_data.get('seFileData', {}).get('rr_data', [])

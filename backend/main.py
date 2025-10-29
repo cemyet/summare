@@ -857,6 +857,10 @@ async def upload_se_file(file: UploadFile = File(...)):
         # Rensa upp temporär fil
         os.unlink(temp_path)
         
+        # Store original values in company_info so they're part of seFileData
+        company_info['arets_resultat_original'] = arets_resultat_original
+        company_info['arets_skatt_original'] = arets_skatt_original
+        
         return {
             "success": True,
             "data": {
@@ -1104,6 +1108,10 @@ async def upload_two_se_files(
         )
         # Get sarskild_loneskatt rate from global variables
         sarskild_loneskatt_pension_calculated = pension_premier * 0.2431
+        
+        # Store original values in company_info so they're part of seFileData
+        company_info['arets_resultat_original'] = arets_resultat_original
+        company_info['arets_skatt_original'] = arets_skatt_original
         
         # Cleanup temporary files
         os.unlink(current_temp_path)
