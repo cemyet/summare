@@ -259,6 +259,49 @@ from models.schemas import (
     BolagsverketCompanyInfo, ManagementReportData
 )
 
+# ============================================================================
+# Utility functions for freezing original RR values (Bokföringsinstruktion)
+# ============================================================================
+
+def _to_number(x):
+    """Convert value to float, handling various formats"""
+    try:
+        return float(str(x).replace(' ', '').replace('\xa0', '').replace(',', '.'))
+    except Exception:
+        return None
+
+def _get_rr_value(rr_items, var_name):
+    """Extract value from RR items by variable name"""
+    for it in rr_items or []:
+        if (it.get('variable_name') or '') == var_name:
+            # Prefer 'final' then 'current_amount' then 'amount'
+            for k in ('final', 'current_amount', 'amount'):
+                if it.get(k) is not None:
+                    return _to_number(it.get(k))
+    return None
+
+def freeze_originals(company_data: dict) -> dict:
+    """
+    Capture original RR values once and never overwrite them.
+    Called at upload time and before any INK2 injections.
+    """
+    # Accept rr from either seFileData.rr_data or rrData
+    rr = ((company_data.get('seFileData') or {}).get('rr_data')
+          or company_data.get('rrData') or [])
+    
+    # Only set if not already set (never overwrite)
+    if 'arets_resultat_original' not in company_data or company_data.get('arets_resultat_original') is None:
+        val = _get_rr_value(rr, 'SumAretsResultat')
+        company_data['arets_resultat_original'] = val
+        print(f"📌 FROZEN ORIGINAL: Årets resultat = {val} kr")
+    
+    if 'arets_skatt_original' not in company_data or company_data.get('arets_skatt_original') is None:
+        val = _get_rr_value(rr, 'SkattAretsResultat')  # usually negative
+        company_data['arets_skatt_original'] = val
+        print(f"📌 FROZEN ORIGINAL: Bokförd skatt = {val} kr")
+    
+    return company_data
+
 app = FastAPI(
     title="Raketrapport API",
     description="API för att generera årsredovisningar enligt K2",
@@ -785,17 +828,12 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
         
-        # CAPTURE ORIGINAL VALUES for Bokföringsinstruktion comparison (before any INK2 adjustments)
-        def _find_rr_amt(rr_list, var_name):
-            for item in rr_list:
-                if item.get('variable_name') == var_name:
-                    amt = item.get('current_amount')
-                    return float(amt) if amt is not None else 0.0
-            return 0.0
-        
-        arets_resultat_original = _find_rr_amt(rr_data, 'SumAretsResultat')
-        arets_skatt_original = abs(_find_rr_amt(rr_data, 'SkattAretsResultat'))
-        print(f"📌 ORIGINAL VALUES CAPTURED: Årets resultat = {arets_resultat_original} kr, Bokförd skatt = {arets_skatt_original} kr")
+        # Freeze original values before any INK2 adjustments (for Bokföringsinstruktion)
+        # Create temporary structure with rr_data
+        temp_data = {'rr_data': rr_data}
+        temp_data = freeze_originals(temp_data)
+        arets_resultat_original = temp_data.get('arets_resultat_original')
+        arets_skatt_original = temp_data.get('arets_skatt_original')
         
         # Pass RR data to BR parsing so calculated values from RR are available
         # Use koncern-aware BR parsing for automatic reconciliation with K2 notes
@@ -1047,17 +1085,12 @@ async def upload_two_se_files(
         
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
         
-        # CAPTURE ORIGINAL VALUES for Bokföringsinstruktion comparison (before any INK2 adjustments)
-        def _find_rr_amt(rr_list, var_name):
-            for item in rr_list:
-                if item.get('variable_name') == var_name:
-                    amt = item.get('current_amount')
-                    return float(amt) if amt is not None else 0.0
-            return 0.0
-        
-        arets_resultat_original = _find_rr_amt(rr_data, 'SumAretsResultat')
-        arets_skatt_original = abs(_find_rr_amt(rr_data, 'SkattAretsResultat'))
-        print(f"📌 ORIGINAL VALUES CAPTURED: Årets resultat = {arets_resultat_original} kr, Bokförd skatt = {arets_skatt_original} kr")
+        # Freeze original values before any INK2 adjustments (for Bokföringsinstruktion)
+        # Create temporary structure with rr_data
+        temp_data = {'rr_data': rr_data}
+        temp_data = freeze_originals(temp_data)
+        arets_resultat_original = temp_data.get('arets_resultat_original')
+        arets_skatt_original = temp_data.get('arets_skatt_original')
         
         # Pass RR data to BR parsing with two files flag and previous year SE content
         br_data = parser.parse_br_data_with_koncern(

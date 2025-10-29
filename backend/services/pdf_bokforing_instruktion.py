@@ -2,7 +2,7 @@
 # Server-side PDF generation for accounting instructions (Bokföringsinstruktion) using ReportLab
 
 from io import BytesIO
-from typing import Any, Dict
+from typing import Any, Dict, Tuple, Optional
 from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -18,16 +18,26 @@ pdfmetrics.registerFont(TTFont('Roboto', os.path.join(FONT_DIR, 'Roboto-Regular.
 pdfmetrics.registerFont(TTFont('Roboto-Medium', os.path.join(FONT_DIR, 'Roboto-Medium.ttf')))
 pdfmetrics.registerFont(TTFont('Roboto-Bold', os.path.join(FONT_DIR, 'Roboto-Bold.ttf')))
 
-def _num(v):
-    """Convert value to float, handling bools, None, empty strings"""
+# Threshold for meaningful adjustments
+EPS = 0.5  # treat < 0.5 kr as zero to avoid 0.16 noise
+THRESHOLD = 1.0  # 1 kr minimum for whole-kr deltas
+
+def _to_number(x):
+    """Convert value to float, handling various formats"""
     try:
-        if isinstance(v, bool): return 0.0
-        if v is None or v == "": return 0.0
-        if isinstance(v, (int, float)): return float(v)
-        s = str(v).replace(" ", "").replace("\u00A0", "").replace(",", ".")
-        return float(s) if s else 0.0
+        return float(str(x).replace(' ', '').replace('\xa0', '').replace(',', '.'))
     except Exception:
-        return 0.0
+        return None
+
+def _get_rr_value(rr_items, var_name):
+    """Extract value from RR items by variable name"""
+    for it in rr_items or []:
+        if (it.get('variable_name') or '') == var_name:
+            # Prefer 'final' then 'current_amount' then 'amount'
+            for k in ('final', 'current_amount', 'amount'):
+                if it.get(k) is not None:
+                    return _to_number(it.get(k))
+    return None
 
 def _format_date(date_str: str) -> str:
     """Format YYYYMMDD to YYYY-MM-DD"""
@@ -80,109 +90,113 @@ def _styles():
     
     return H1, P
 
-def _find_amt(rows, name):
-    """Find amount from data rows by variable name"""
-    if not rows:
-        return 0.0
-    for r in rows:
-        if r.get('variable_name') == name:
-            amt = _num(r.get('amount') or r.get('current_amount') or 0)
-            print(f"   🔍 Found {name}: amount={r.get('amount')}, current_amount={r.get('current_amount')}, final={amt}")
-            return amt
-    return 0.0
+def pick_originals(company_data: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
+    """
+    Extract original RR values with multiple fallback strategies.
+    Returns: (arets_resultat_original, arets_skatt_original)
+    """
+    # 1) Prefer explicitly frozen originals (top level)
+    orig_res = company_data.get('arets_resultat_original')
+    orig_tax = company_data.get('arets_skatt_original')
+    
+    # 2) Try seFileData.company_info
+    if orig_res is None or orig_tax is None:
+        se_info = (company_data.get('seFileData') or {}).get('company_info') or {}
+        if orig_res is None:
+            orig_res = se_info.get('arets_resultat_original')
+        if orig_tax is None:
+            orig_tax = se_info.get('arets_skatt_original')
+    
+    # 3) Try original_snapshot (legacy)
+    if orig_res is None or orig_tax is None:
+        snap = company_data.get('original_snapshot') or {}
+        rr0 = snap.get('RR') or []
+        if orig_res is None:
+            orig_res = _get_rr_value(rr0, 'SumAretsResultat')
+        if orig_tax is None:
+            orig_tax = _get_rr_value(rr0, 'SkattAretsResultat')
+    
+    # 4) Last resort fallback to incoming RR (not recommended)
+    if orig_res is None or orig_tax is None:
+        rr = ((company_data.get('seFileData') or {}).get('rr_data')
+              or company_data.get('rrData') or [])
+        if orig_res is None:
+            orig_res = _get_rr_value(rr, 'SumAretsResultat')
+        if orig_tax is None:
+            orig_tax = _get_rr_value(rr, 'SkattAretsResultat')
+    
+    return _to_number(orig_res), _to_number(orig_tax)
+
+def compute_deltas(company_data: Dict[str, Any]) -> Tuple[float, float, Optional[float], Tuple]:
+    """
+    Compute deltas with proper sign handling and tolerance.
+    Returns: (slp, delta_tax, delta_res, (orig_res, orig_tax, adj_res))
+    """
+    # Extract INK2 variables
+    ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
+    ink_vars = {(x.get('variable_name') or ''): x for x in ink2_data}
+    
+    # Get SLP (stored as negative, so use abs)
+    slp_item = ink_vars.get('INK_sarskild_loneskatt') or {}
+    slp = abs(_to_number(slp_item.get('amount') or slp_item.get('final') or 0))
+    
+    # Get beräknad skatt (calculated tax)
+    tax_item = ink_vars.get('INK_beraknad_skatt') or {}
+    ink_tax = _to_number(tax_item.get('amount') or tax_item.get('final') or 0)
+    
+    # Get justerat årets resultat (adjusted result)
+    adj_item = ink_vars.get('Arets_resultat_justerat') or {}
+    adj_res = _to_number(adj_item.get('amount') or adj_item.get('final'))
+    
+    # Get original values
+    orig_res, orig_tax = pick_originals(company_data)
+    
+    print(f"📊 DELTA COMPUTATION:")
+    print(f"   SLP: {slp}")
+    print(f"   INK beräknad skatt: {ink_tax}")
+    print(f"   Original bokförd skatt (raw): {orig_tax}")
+    print(f"   Original årets resultat: {orig_res}")
+    print(f"   Justerat årets resultat: {adj_res}")
+    
+    # TAX DELTA
+    # orig_tax is usually negative (expense). Use its absolute amount when comparing to positive calculated tax.
+    booked_tax_abs = abs(orig_tax) if orig_tax is not None else 0.0
+    delta_tax = (ink_tax or 0.0) - booked_tax_abs
+    if abs(delta_tax) < EPS:
+        delta_tax = 0.0
+    delta_tax = round(delta_tax)
+    
+    print(f"   Bokförd skatt (abs): {booked_tax_abs}")
+    print(f"   Delta tax: {delta_tax}")
+    
+    # RESULT DELTA
+    # We want how much result changed due to INK2: original - adjusted
+    # Positive delta means result decreased; negative means it increased.
+    delta_res = None
+    if orig_res is not None and adj_res is not None:
+        delta_res = round(orig_res - adj_res)
+        if abs(delta_res) < THRESHOLD:  # whole-krona threshold
+            delta_res = 0
+        print(f"   Delta result: {delta_res}")
+    
+    return slp or 0.0, delta_tax, delta_res, (orig_res, orig_tax, adj_res)
 
 def check_should_generate(company_data: Dict[str, Any]) -> bool:
     """
     Check if bokföringsinstruktion PDF should be generated based on:
     - SLP ≠ 0 OR
-    - Beräknad skatt ≠ bokförd skatt OR
-    - Justerat årets resultat ≠ årets resultat
+    - Delta tax ≠ 0 OR
+    - Delta result ≠ 0
     """
-    # Extract INK2 data - use latest calculated values
-    ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
+    slp, delta_tax, delta_res, (orig_res, orig_tax, adj_res) = compute_deltas(company_data)
     
-    # Get ORIGINAL values (captured at upload, never modified)
-    # Try multiple locations: top level, company_info, seFileData.company_info
-    arets_resultat_original = company_data.get('arets_resultat_original')
-    arets_skatt_original = company_data.get('arets_skatt_original')
-    
-    # Try seFileData.company_info
-    if arets_resultat_original is None or arets_skatt_original is None:
-        se_info = (company_data.get('seFileData') or {}).get('company_info') or {}
-        if arets_resultat_original is None:
-            arets_resultat_original = se_info.get('arets_resultat_original')
-        if arets_skatt_original is None:
-            arets_skatt_original = se_info.get('arets_skatt_original')
-    
-    print(f"📌 Using ORIGINAL values: Årets resultat = {arets_resultat_original} kr, Bokförd skatt = {arets_skatt_original} kr")
-    
-    # If original values still not found, fallback to seFileData.rr_data (for backward compatibility)
-    if arets_resultat_original is None or arets_skatt_original is None:
-        print("⚠️ Original values not found, falling back to seFileData.rr_data")
-        rr_data = company_data.get('seFileData', {}).get('rr_data', [])
-        def _find_amt(rows, name):
-            for r in rows:
-                if r.get('variable_name') == name:
-                    return _num(r.get('amount') or r.get('current_amount') or 0)
-            return 0.0
-        if arets_resultat_original is None:
-            arets_resultat_original = _find_amt(rr_data, 'SumAretsResultat')
-        if arets_skatt_original is None:
-            arets_skatt_original = abs(_find_amt(rr_data, 'SkattAretsResultat'))
-    
-    # DEBUG: Print available INK2 variable names
-    ink2_vars = [item.get('variable_name') for item in ink2_data if item.get('variable_name')]
-    print(f"🔍 DEBUG: Available INK2 variables ({len(ink2_vars)} total): {ink2_vars[:20]}...")
-    
-    # DEBUG: Print sample INK2 items
-    if ink2_data and len(ink2_data) > 0:
-        print(f"🔍 DEBUG: Sample INK2 item: {ink2_data[0]}")
-    
-    # DEBUG: Print available RR variable names
-    rr_vars = [item.get('variable_name') for item in rr_data if item.get('variable_name')]
-    print(f"🔍 DEBUG: Available RR variables ({len(rr_vars)} total): {rr_vars[:20]}...")
-    
-    # DEBUG: Print sample RR item
-    if rr_data and len(rr_data) > 0:
-        print(f"🔍 DEBUG: Sample RR item: {rr_data[0]}")
-    
-    # Get SLP - stored as INK_sarskild_loneskatt in ink2_data (negative value, so use abs)
-    slp = abs(_find_amt(ink2_data, 'INK_sarskild_loneskatt'))
-    print(f"🔍 DEBUG: SLP value = {slp}")
-    
-    # Additional SLP debug - check if it exists with different field names
-    slp_items = [item for item in ink2_data if 'slp' in str(item.get('variable_name', '')).lower() or 'loneskatt' in str(item.get('variable_name', '')).lower()]
-    if slp_items:
-        print(f"🔍 DEBUG: Found SLP-related items: {slp_items}")
-    else:
-        print(f"🔍 DEBUG: No SLP items found in ink2_data")
-    
-    # Get beräknad skatt from INK2
-    beraknad_skatt = _find_amt(ink2_data, 'INK_beraknad_skatt')
-    print(f"🔍 DEBUG: INK_beraknad_skatt value = {beraknad_skatt}")
-    
-    # Get bokförd skatt from ORIGINAL stored value
-    bokford_skatt = arets_skatt_original
-    print(f"🔍 DEBUG: Bokförd skatt (from ORIGINAL) = {bokford_skatt}")
-    
-    # Get justerat årets resultat from INK2
-    justerat_arets_resultat = _find_amt(ink2_data, 'Arets_resultat_justerat')
-    print(f"🔍 DEBUG: Arets_resultat_justerat value = {justerat_arets_resultat}")
-    
-    # Get årets resultat from ORIGINAL stored value
-    arets_resultat = arets_resultat_original
-    print(f"🔍 DEBUG: Årets resultat (from ORIGINAL) = {arets_resultat}")
-    
-    # Check conditions - use 1 kr threshold for meaningful adjustments
-    THRESHOLD = 1.0  # 1 kr minimum for meaningful accounting adjustments
     should_generate = (
         abs(slp) >= THRESHOLD or 
-        abs(beraknad_skatt - bokford_skatt) >= THRESHOLD or
-        abs(justerat_arets_resultat - arets_resultat) >= THRESHOLD
+        abs(delta_tax) >= THRESHOLD or
+        (delta_res is not None and abs(delta_res) >= THRESHOLD)
     )
     
-    print(f"📋 Bokföringsinstruktion check: SLP={slp}, Beräknad={beraknad_skatt}, Bokförd={bokford_skatt}, "
-          f"Justerat={justerat_arets_resultat}, Årets={arets_resultat} → Should generate: {should_generate}")
+    print(f"📋 Bokföringsinstruktion check: SLP={slp}, Delta tax={delta_tax}, Delta result={delta_res} → Should generate: {should_generate}")
     
     return should_generate
 
@@ -203,55 +217,8 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     H1, P = _styles()
     elems = []
     
-    # Extract INK2 data - use latest calculated values (includes SLP, beräknad skatt, justerat resultat)
-    ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
-    
-    # Get ORIGINAL values (captured at upload, never modified)
-    # Try multiple locations: top level, company_info, seFileData.company_info
-    arets_resultat_original = company_data.get('arets_resultat_original')
-    arets_skatt_original = company_data.get('arets_skatt_original')
-    
-    # Try seFileData.company_info
-    if arets_resultat_original is None or arets_skatt_original is None:
-        se_info = (company_data.get('seFileData') or {}).get('company_info') or {}
-        if arets_resultat_original is None:
-            arets_resultat_original = se_info.get('arets_resultat_original')
-        if arets_skatt_original is None:
-            arets_skatt_original = se_info.get('arets_skatt_original')
-    
-    # If original values still not found, fallback to seFileData.rr_data (for backward compatibility)
-    if arets_resultat_original is None or arets_skatt_original is None:
-        print("⚠️ Original values not found in PDF generation, falling back to seFileData.rr_data")
-        rr_data = company_data.get('seFileData', {}).get('rr_data', [])
-        if arets_resultat_original is None:
-            arets_resultat_original = _find_amt(rr_data, 'SumAretsResultat')
-        if arets_skatt_original is None:
-            arets_skatt_original = abs(_find_amt(rr_data, 'SkattAretsResultat'))
-    
-    # Get values from INK2 (latest calculated) and stored originals
-    # SLP is stored as INK_sarskild_loneskatt (negative value in formula, so use abs)
-    slp = abs(_find_amt(ink2_data, 'INK_sarskild_loneskatt'))
-    beraknad_skatt = _find_amt(ink2_data, 'INK_beraknad_skatt')
-    bokford_skatt = arets_skatt_original
-    justerat_arets_resultat = _find_amt(ink2_data, 'Arets_resultat_justerat')
-    arets_resultat = arets_resultat_original
-    
-    # DEBUG: Print values being used for PDF generation
-    print(f"📄 DEBUG PDF Generation:")
-    print(f"   SLP: {slp} (from INK2)")
-    print(f"   Beräknad skatt: {beraknad_skatt} (from INK2)")
-    print(f"   Bokförd skatt: {bokford_skatt} (from ORIGINAL RR)")
-    print(f"   Justerat årets resultat: {justerat_arets_resultat} (from INK2)")
-    print(f"   Årets resultat: {arets_resultat} (from ORIGINAL RR)")
-    print(f"   Delta skatt: {abs(beraknad_skatt - bokford_skatt)}")
-    print(f"   Delta resultat: {abs(justerat_arets_resultat - arets_resultat)}")
-    
-    # Additional SLP debug for PDF generation
-    slp_items = [item for item in ink2_data if 'slp' in str(item.get('variable_name', '')).lower() or 'loneskatt' in str(item.get('variable_name', '')).lower()]
-    if slp_items:
-        print(f"   🔍 SLP items in ink2Data: {[(item.get('variable_name'), item.get('amount')) for item in slp_items]}")
-    else:
-        print(f"   ⚠️ No SLP items found in ink2Data for PDF generation")
+    # Compute deltas
+    slp, delta_tax, delta_res, (orig_res, orig_tax, adj_res) = compute_deltas(company_data)
     
     # Get fiscal year end date
     se = (company_data or {}).get('seFileData') or {}
@@ -274,9 +241,6 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     # Build table data with headers
     table_data = [["Konto", "Debet", "Kredit"]]
     
-    # Use same threshold as check function
-    THRESHOLD = 1.0  # 1 kr minimum
-    
     # Add SLP rows if abs(slp) >= threshold
     if abs(slp) >= THRESHOLD:
         table_data.append([
@@ -290,68 +254,64 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
             _fmt_sek(abs(slp))
         ])
     
-    # Add tax adjustment rows only if delta >= threshold
-    if abs(beraknad_skatt - bokford_skatt) >= THRESHOLD:
-        if beraknad_skatt > bokford_skatt:
-            # Beräknad skatt > bokförd skatt
-            delta = abs(beraknad_skatt - bokford_skatt)
+    # Add tax adjustment rows if delta_tax >= threshold
+    if abs(delta_tax) >= THRESHOLD:
+        if delta_tax > 0:
+            # Beräknad skatt > bokförd skatt (need to book more tax expense)
             table_data.append([
                 "8910 Skatt som belastar årets resultat",
-                _fmt_sek(delta),
+                _fmt_sek(abs(delta_tax)),
                 ""
             ])
             table_data.append([
                 "2512 Beräknad inkomstskatt",
                 "",
-                _fmt_sek(delta)
+                _fmt_sek(abs(delta_tax))
             ])
         else:
-            # Beräknad skatt < bokförd skatt
-            delta = abs(bokford_skatt - beraknad_skatt)
+            # Beräknad skatt < bokförd skatt (need to reduce tax expense)
             table_data.append([
                 "8910 Skatt som belastar årets resultat",
                 "",
-                _fmt_sek(delta)
+                _fmt_sek(abs(delta_tax))
             ])
             table_data.append([
                 "2512 Beräknad inkomstskatt",
-                _fmt_sek(delta),
+                _fmt_sek(abs(delta_tax)),
                 ""
             ])
     
-    # Add result adjustment rows only if delta >= threshold
-    if abs(justerat_arets_resultat - arets_resultat) >= THRESHOLD:
-        delta = abs(justerat_arets_resultat - arets_resultat)
-        if justerat_arets_resultat > arets_resultat:
-            # Justerat årets resultat > årets resultat
+    # Add result adjustment rows if delta_res >= threshold
+    if delta_res is not None and abs(delta_res) >= THRESHOLD:
+        if delta_res > 0:
+            # Result decreased (justerat < original) - debit 8999, credit 2099
             table_data.append([
                 "2099 Årets resultat",
                 "",
-                _fmt_sek(delta)
+                _fmt_sek(abs(delta_res))
             ])
             table_data.append([
                 "8999 Årets resultat",
-                _fmt_sek(delta),
+                _fmt_sek(abs(delta_res)),
                 ""
             ])
         else:
-            # Justerat årets resultat < årets resultat
+            # Result increased (justerat > original) - debit 2099, credit 8999
             table_data.append([
                 "2099 Årets resultat",
-                _fmt_sek(delta),
+                _fmt_sek(abs(delta_res)),
                 ""
             ])
             table_data.append([
                 "8999 Årets resultat",
                 "",
-                _fmt_sek(delta)
+                _fmt_sek(abs(delta_res))
             ])
     
     # Check if we have any rows beyond the header
     if len(table_data) <= 1:
         print("⚠️ WARNING: No adjustment rows to display in PDF (all deltas < 1 kr)")
-        # Return a minimal error PDF or raise exception
-        # For now, we'll just create a note in the PDF
+        # Add a note in the PDF
         table_data.append([
             "Ingen bokföringsinstruktion krävs - alla justeringar < 1 kr",
             "",
@@ -395,4 +355,3 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     doc.build(elems)
     
     return buf.getvalue()
-
