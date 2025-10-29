@@ -785,6 +785,18 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
         
+        # CAPTURE ORIGINAL VALUES for Bokföringsinstruktion comparison (before any INK2 adjustments)
+        def _find_rr_amt(rr_list, var_name):
+            for item in rr_list:
+                if item.get('variable_name') == var_name:
+                    amt = item.get('current_amount')
+                    return float(amt) if amt is not None else 0.0
+            return 0.0
+        
+        arets_resultat_original = _find_rr_amt(rr_data, 'SumAretsResultat')
+        arets_skatt_original = abs(_find_rr_amt(rr_data, 'SkattAretsResultat'))
+        print(f"📌 ORIGINAL VALUES CAPTURED: Årets resultat = {arets_resultat_original} kr, Bokförd skatt = {arets_skatt_original} kr")
+        
         # Pass RR data to BR parsing so calculated values from RR are available
         # Use koncern-aware BR parsing for automatic reconciliation with K2 notes
         br_data = parser.parse_br_data_with_koncern(se_content, current_accounts, previous_accounts, rr_data)
@@ -868,7 +880,10 @@ async def upload_se_file(file: UploadFile = File(...)):
                 "fb_count": len(fb_table),
                 "pension_premier": pension_premier,
                 "sarskild_loneskatt_pension": sarskild_loneskatt_pension,
-                "sarskild_loneskatt_pension_calculated": sarskild_loneskatt_pension_calculated
+                "sarskild_loneskatt_pension_calculated": sarskild_loneskatt_pension_calculated,
+                # ORIGINAL VALUES for Bokföringsinstruktion (never modified by INK2 adjustments)
+                "arets_resultat_original": arets_resultat_original,
+                "arets_skatt_original": arets_skatt_original
             },
             "message": "SE-fil laddad framgångsrikt"
         }
@@ -1028,6 +1043,18 @@ async def upload_two_se_files(
         
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
         
+        # CAPTURE ORIGINAL VALUES for Bokföringsinstruktion comparison (before any INK2 adjustments)
+        def _find_rr_amt(rr_list, var_name):
+            for item in rr_list:
+                if item.get('variable_name') == var_name:
+                    amt = item.get('current_amount')
+                    return float(amt) if amt is not None else 0.0
+            return 0.0
+        
+        arets_resultat_original = _find_rr_amt(rr_data, 'SumAretsResultat')
+        arets_skatt_original = abs(_find_rr_amt(rr_data, 'SkattAretsResultat'))
+        print(f"📌 ORIGINAL VALUES CAPTURED: Årets resultat = {arets_resultat_original} kr, Bokförd skatt = {arets_skatt_original} kr")
+        
         # Pass RR data to BR parsing with two files flag and previous year SE content
         br_data = parser.parse_br_data_with_koncern(
             current_se_content, 
@@ -1106,7 +1133,10 @@ async def upload_two_se_files(
                 "pension_premier": pension_premier,
                 "sarskild_loneskatt_pension": sarskild_loneskatt_pension,
                 "sarskild_loneskatt_pension_calculated": sarskild_loneskatt_pension_calculated,
-                "two_files_used": True  # Flag to indicate two files were processed
+                "two_files_used": True,  # Flag to indicate two files were processed
+                # ORIGINAL VALUES for Bokföringsinstruktion (never modified by INK2 adjustments)
+                "arets_resultat_original": arets_resultat_original,
+                "arets_skatt_original": arets_skatt_original
             },
             "message": "Båda SE-filerna laddades framgångsrikt"
         }

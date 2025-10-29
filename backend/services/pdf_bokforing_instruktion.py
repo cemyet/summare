@@ -101,9 +101,26 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
     # Extract INK2 data - use latest calculated values
     ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
     
-    # Extract RR data - ALWAYS use ORIGINAL values from seFileData for comparison
-    # DO NOT use rrData/rrRows as those may have been updated with INK2 adjustments
-    rr_data = company_data.get('seFileData', {}).get('rr_data', [])
+    # Get ORIGINAL values (captured at upload, never modified)
+    # These are stored at upload time before any INK2 adjustments
+    arets_resultat_original = company_data.get('arets_resultat_original')
+    arets_skatt_original = company_data.get('arets_skatt_original')
+    
+    print(f"📌 Using ORIGINAL values: Årets resultat = {arets_resultat_original} kr, Bokförd skatt = {arets_skatt_original} kr")
+    
+    # If original values not found, fallback to seFileData.rr_data (for backward compatibility)
+    if arets_resultat_original is None or arets_skatt_original is None:
+        print("⚠️ Original values not found, falling back to seFileData.rr_data")
+        rr_data = company_data.get('seFileData', {}).get('rr_data', [])
+        def _find_amt(rows, name):
+            for r in rows:
+                if r.get('variable_name') == name:
+                    return _num(r.get('amount') or r.get('current_amount') or 0)
+            return 0.0
+        if arets_resultat_original is None:
+            arets_resultat_original = _find_amt(rr_data, 'SumAretsResultat')
+        if arets_skatt_original is None:
+            arets_skatt_original = abs(_find_amt(rr_data, 'SkattAretsResultat'))
     
     # DEBUG: Print available INK2 variable names
     ink2_vars = [item.get('variable_name') for item in ink2_data if item.get('variable_name')]
@@ -132,21 +149,21 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
     else:
         print(f"🔍 DEBUG: No SLP items found in ink2_data")
     
-    # Get beräknad skatt
+    # Get beräknad skatt from INK2
     beraknad_skatt = _find_amt(ink2_data, 'INK_beraknad_skatt')
     print(f"🔍 DEBUG: INK_beraknad_skatt value = {beraknad_skatt}")
     
-    # Get bokförd skatt (from RR - typically negative, so negate it)
-    bokford_skatt = abs(_find_amt(rr_data, 'SkattAretsResultat'))
-    print(f"🔍 DEBUG: SkattAretsResultat (bokförd) value = {bokford_skatt}")
+    # Get bokförd skatt from ORIGINAL stored value
+    bokford_skatt = arets_skatt_original
+    print(f"🔍 DEBUG: Bokförd skatt (from ORIGINAL) = {bokford_skatt}")
     
-    # Get justerat årets resultat
+    # Get justerat årets resultat from INK2
     justerat_arets_resultat = _find_amt(ink2_data, 'Arets_resultat_justerat')
     print(f"🔍 DEBUG: Arets_resultat_justerat value = {justerat_arets_resultat}")
     
-    # Get årets resultat from RR
-    arets_resultat = _find_amt(rr_data, 'SumAretsResultat')
-    print(f"🔍 DEBUG: SumAretsResultat (årets) value = {arets_resultat}")
+    # Get årets resultat from ORIGINAL stored value
+    arets_resultat = arets_resultat_original
+    print(f"🔍 DEBUG: Årets resultat (from ORIGINAL) = {arets_resultat}")
     
     # Check conditions - use 1 kr threshold for meaningful adjustments
     THRESHOLD = 1.0  # 1 kr minimum for meaningful accounting adjustments
@@ -181,17 +198,26 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     # Extract INK2 data - use latest calculated values (includes SLP, beräknad skatt, justerat resultat)
     ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
     
-    # Extract RR data - ALWAYS use ORIGINAL values from seFileData for comparison
-    # DO NOT use rrData/rrRows as those may have been updated with INK2 adjustments
-    rr_data = company_data.get('seFileData', {}).get('rr_data', [])
+    # Get ORIGINAL values (captured at upload, never modified)
+    arets_resultat_original = company_data.get('arets_resultat_original')
+    arets_skatt_original = company_data.get('arets_skatt_original')
     
-    # Get values from INK2 (latest calculated) and RR (original)
+    # If original values not found, fallback to seFileData.rr_data (for backward compatibility)
+    if arets_resultat_original is None or arets_skatt_original is None:
+        print("⚠️ Original values not found in PDF generation, falling back to seFileData.rr_data")
+        rr_data = company_data.get('seFileData', {}).get('rr_data', [])
+        if arets_resultat_original is None:
+            arets_resultat_original = _find_amt(rr_data, 'SumAretsResultat')
+        if arets_skatt_original is None:
+            arets_skatt_original = abs(_find_amt(rr_data, 'SkattAretsResultat'))
+    
+    # Get values from INK2 (latest calculated) and stored originals
     # SLP is stored as INK_sarskild_loneskatt (negative value in formula, so use abs)
     slp = abs(_find_amt(ink2_data, 'INK_sarskild_loneskatt'))
     beraknad_skatt = _find_amt(ink2_data, 'INK_beraknad_skatt')
-    bokford_skatt = abs(_find_amt(rr_data, 'SkattAretsResultat'))
+    bokford_skatt = arets_skatt_original
     justerat_arets_resultat = _find_amt(ink2_data, 'Arets_resultat_justerat')
-    arets_resultat = _find_amt(rr_data, 'SumAretsResultat')
+    arets_resultat = arets_resultat_original
     
     # DEBUG: Print values being used for PDF generation
     print(f"📄 DEBUG PDF Generation:")
