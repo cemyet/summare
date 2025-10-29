@@ -891,7 +891,7 @@ async def upload_se_file(file: UploadFile = File(...)):
         ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, se_content, previous_accounts)
         
         # ⚠️ CRITICAL: Freeze originals AFTER RR has values, BEFORE inject_ink2_adjustments mutates them
-        temp_data = {'rr_data': rr_data}
+        temp_data = {'rrData': rr_data}  # Use 'rrData' key that freeze_originals looks for
         temp_data = freeze_originals(temp_data)
         arets_resultat_original = temp_data.get('arets_resultat_original')
         arets_skatt_original = temp_data.get('arets_skatt_original')
@@ -1156,7 +1156,7 @@ async def upload_two_se_files(
         ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, current_se_content, previous_accounts)
         
         # ⚠️ CRITICAL: Freeze originals AFTER RR has values, BEFORE inject_ink2_adjustments mutates them
-        temp_data = {'rr_data': rr_data}
+        temp_data = {'rrData': rr_data}  # Use 'rrData' key that freeze_originals looks for
         temp_data = freeze_originals(temp_data)
         arets_resultat_original = temp_data.get('arets_resultat_original')
         arets_skatt_original = temp_data.get('arets_skatt_original')
