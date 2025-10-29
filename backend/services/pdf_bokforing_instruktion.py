@@ -98,13 +98,12 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
     - Beräknad skatt ≠ bokförd skatt OR
     - Justerat årets resultat ≠ årets resultat
     """
-    # Extract INK2 data
+    # Extract INK2 data - use latest calculated values
     ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
     
-    # Extract RR data
-    rr_data = (company_data.get('rrData') or 
-               company_data.get('rrRows') or 
-               company_data.get('seFileData', {}).get('rr_data', []))
+    # Extract RR data - ALWAYS use ORIGINAL values from seFileData for comparison
+    # DO NOT use rrData/rrRows as those may have been updated with INK2 adjustments
+    rr_data = company_data.get('seFileData', {}).get('rr_data', [])
     
     # DEBUG: Print available INK2 variable names
     ink2_vars = [item.get('variable_name') for item in ink2_data if item.get('variable_name')]
@@ -122,9 +121,16 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
     if rr_data and len(rr_data) > 0:
         print(f"🔍 DEBUG: Sample RR item: {rr_data[0]}")
     
-    # Get SLP
+    # Get SLP - should be in INK2 data after user input
     slp = _find_amt(ink2_data, 'SLP')
     print(f"🔍 DEBUG: SLP value = {slp}")
+    
+    # Additional SLP debug - check if it exists with different field names
+    slp_items = [item for item in ink2_data if 'slp' in str(item.get('variable_name', '')).lower()]
+    if slp_items:
+        print(f"🔍 DEBUG: Found SLP-related items: {slp_items}")
+    else:
+        print(f"🔍 DEBUG: No SLP items found in ink2_data")
     
     # Get beräknad skatt
     beraknad_skatt = _find_amt(ink2_data, 'INK_beraknad_skatt')
@@ -172,15 +178,14 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     H1, P = _styles()
     elems = []
     
-    # Extract INK2 data
+    # Extract INK2 data - use latest calculated values (includes SLP, beräknad skatt, justerat resultat)
     ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
     
-    # Extract RR data
-    rr_data = (company_data.get('rrData') or 
-               company_data.get('rrRows') or 
-               company_data.get('seFileData', {}).get('rr_data', []))
+    # Extract RR data - ALWAYS use ORIGINAL values from seFileData for comparison
+    # DO NOT use rrData/rrRows as those may have been updated with INK2 adjustments
+    rr_data = company_data.get('seFileData', {}).get('rr_data', [])
     
-    # Get values
+    # Get values from INK2 (latest calculated) and RR (original)
     slp = _find_amt(ink2_data, 'SLP')
     beraknad_skatt = _find_amt(ink2_data, 'INK_beraknad_skatt')
     bokford_skatt = abs(_find_amt(rr_data, 'SkattAretsResultat'))
@@ -189,13 +194,20 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     
     # DEBUG: Print values being used for PDF generation
     print(f"📄 DEBUG PDF Generation:")
-    print(f"   SLP: {slp}")
-    print(f"   Beräknad skatt: {beraknad_skatt}")
-    print(f"   Bokförd skatt: {bokford_skatt}")
-    print(f"   Justerat årets resultat: {justerat_arets_resultat}")
-    print(f"   Årets resultat: {arets_resultat}")
+    print(f"   SLP: {slp} (from INK2)")
+    print(f"   Beräknad skatt: {beraknad_skatt} (from INK2)")
+    print(f"   Bokförd skatt: {bokford_skatt} (from ORIGINAL RR)")
+    print(f"   Justerat årets resultat: {justerat_arets_resultat} (from INK2)")
+    print(f"   Årets resultat: {arets_resultat} (from ORIGINAL RR)")
     print(f"   Delta skatt: {abs(beraknad_skatt - bokford_skatt)}")
     print(f"   Delta resultat: {abs(justerat_arets_resultat - arets_resultat)}")
+    
+    # Additional SLP debug for PDF generation
+    slp_items = [item for item in ink2_data if 'slp' in str(item.get('variable_name', '')).lower()]
+    if slp_items:
+        print(f"   🔍 SLP items in ink2Data: {slp_items}")
+    else:
+        print(f"   ⚠️ No SLP items found in ink2Data for PDF generation")
     
     # Get fiscal year end date
     se = (company_data or {}).get('seFileData') or {}
