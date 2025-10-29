@@ -121,12 +121,12 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
     if rr_data and len(rr_data) > 0:
         print(f"🔍 DEBUG: Sample RR item: {rr_data[0]}")
     
-    # Get SLP - should be in INK2 data after user input
-    slp = _find_amt(ink2_data, 'SLP')
+    # Get SLP - stored as INK_sarskild_loneskatt in ink2_data (negative value, so use abs)
+    slp = abs(_find_amt(ink2_data, 'INK_sarskild_loneskatt'))
     print(f"🔍 DEBUG: SLP value = {slp}")
     
     # Additional SLP debug - check if it exists with different field names
-    slp_items = [item for item in ink2_data if 'slp' in str(item.get('variable_name', '')).lower()]
+    slp_items = [item for item in ink2_data if 'slp' in str(item.get('variable_name', '')).lower() or 'loneskatt' in str(item.get('variable_name', '')).lower()]
     if slp_items:
         print(f"🔍 DEBUG: Found SLP-related items: {slp_items}")
     else:
@@ -186,7 +186,8 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     rr_data = company_data.get('seFileData', {}).get('rr_data', [])
     
     # Get values from INK2 (latest calculated) and RR (original)
-    slp = _find_amt(ink2_data, 'SLP')
+    # SLP is stored as INK_sarskild_loneskatt (negative value in formula, so use abs)
+    slp = abs(_find_amt(ink2_data, 'INK_sarskild_loneskatt'))
     beraknad_skatt = _find_amt(ink2_data, 'INK_beraknad_skatt')
     bokford_skatt = abs(_find_amt(rr_data, 'SkattAretsResultat'))
     justerat_arets_resultat = _find_amt(ink2_data, 'Arets_resultat_justerat')
@@ -203,9 +204,9 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     print(f"   Delta resultat: {abs(justerat_arets_resultat - arets_resultat)}")
     
     # Additional SLP debug for PDF generation
-    slp_items = [item for item in ink2_data if 'slp' in str(item.get('variable_name', '')).lower()]
+    slp_items = [item for item in ink2_data if 'slp' in str(item.get('variable_name', '')).lower() or 'loneskatt' in str(item.get('variable_name', '')).lower()]
     if slp_items:
-        print(f"   🔍 SLP items in ink2Data: {slp_items}")
+        print(f"   🔍 SLP items in ink2Data: {[(item.get('variable_name'), item.get('amount')) for item in slp_items]}")
     else:
         print(f"   ⚠️ No SLP items found in ink2Data for PDF generation")
     
