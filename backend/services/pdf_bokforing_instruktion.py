@@ -29,15 +29,33 @@ def _to_number(x):
     except Exception:
         return None
 
-def _get_rr_value(rr_items, var_name):
-    """Extract value from RR items by variable name"""
-    for it in rr_items or []:
-        if (it.get('variable_name') or '') == var_name:
-            # Prefer 'final' then 'current_amount' then 'amount'
-            for k in ('final', 'current_amount', 'amount'):
-                if it.get(k) is not None:
-                    return _to_number(it.get(k))
+def _rr_pick_num(item):
+    """Pick numeric value from RR item, prefer 'final' → 'current_amount' → 'amount'"""
+    for k in ('final', 'current_amount', 'amount'):
+        if item.get(k) is not None:
+            v = _to_number(item.get(k))
+            if v is not None:
+                return v
     return None
+
+def _rr_find(rr_items, var_name):
+    """Find value in RR items by variable name"""
+    if not rr_items:
+        return None
+    for it in rr_items:
+        if (it.get('variable_name') or '') == var_name:
+            return _rr_pick_num(it)
+    return None
+
+def _normalize_delta(x):
+    """Normalize delta: treat < 1 SEK as 0, round to integer"""
+    if x is None:
+        return 0
+    try:
+        x = float(x)
+    except Exception:
+        return 0
+    return 0 if abs(x) < EPS else int(round(x))
 
 def _format_date(date_str: str) -> str:
     """Format YYYYMMDD to YYYY-MM-DD"""
@@ -90,44 +108,53 @@ def _styles():
     
     return H1, P
 
+def _pick_originals_from_snapshot(company_data):
+    """Extract originals from the immutable __original_rr_snapshot__"""
+    snap = (company_data or {}).get('__original_rr_snapshot__') or []
+    orig_res = _rr_find(snap, 'SumAretsResultat')
+    orig_tax = _rr_find(snap, 'SkattAretsResultat')
+    print(f"🔍 Snapshot lookup: Årets resultat = {orig_res}, Bokförd skatt = {orig_tax}")
+    return orig_res, orig_tax
+
 def pick_originals(company_data: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
     """
     Extract original RR values with multiple fallback strategies.
     Returns: (arets_resultat_original, arets_skatt_original)
     """
-    # 1) Prefer explicitly frozen originals (top level)
+    # 1) Prefer explicitly frozen originals (top level or seFileData)
     orig_res = company_data.get('arets_resultat_original')
     orig_tax = company_data.get('arets_skatt_original')
     
-    # 2) Try seFileData.company_info
     if orig_res is None or orig_tax is None:
-        se_info = (company_data.get('seFileData') or {}).get('company_info') or {}
+        se_data = (company_data.get('seFileData') or {})
         if orig_res is None:
-            orig_res = se_info.get('arets_resultat_original')
+            orig_res = se_data.get('arets_resultat_original')
         if orig_tax is None:
-            orig_tax = se_info.get('arets_skatt_original')
+            orig_tax = se_data.get('arets_skatt_original')
     
-    # 3) Try original_snapshot (legacy)
+    print(f"🔍 Explicit originals: Årets resultat = {orig_res}, Bokförd skatt = {orig_tax}")
+    
+    # 2) If missing, use the immutable snapshot (CRITICAL!)
     if orig_res is None or orig_tax is None:
-        snap = company_data.get('original_snapshot') or {}
-        rr0 = snap.get('RR') or []
+        sr, st = _pick_originals_from_snapshot(company_data)
         if orig_res is None:
-            orig_res = _get_rr_value(rr0, 'SumAretsResultat')
+            orig_res = sr
         if orig_tax is None:
-            orig_tax = _get_rr_value(rr0, 'SkattAretsResultat')
+            orig_tax = st
     
-    # 4) Last resort fallback to incoming RR (not recommended)
+    # 3) LAST resort (discouraged): current RR (may already be mutated)
     if orig_res is None or orig_tax is None:
+        print("⚠️ WARNING: Falling back to current RR data (may be mutated!)")
         rr = ((company_data.get('seFileData') or {}).get('rr_data')
               or company_data.get('rrData') or [])
         if orig_res is None:
-            orig_res = _get_rr_value(rr, 'SumAretsResultat')
+            orig_res = _rr_find(rr, 'SumAretsResultat')
         if orig_tax is None:
-            orig_tax = _get_rr_value(rr, 'SkattAretsResultat')
+            orig_tax = _rr_find(rr, 'SkattAretsResultat')
     
-    return _to_number(orig_res), _to_number(orig_tax)
+    return orig_res, orig_tax
 
-def compute_deltas(company_data: Dict[str, Any]) -> Tuple[float, float, Optional[float], Tuple]:
+def compute_deltas(company_data: Dict[str, Any]) -> Tuple[int, int, int, Tuple]:
     """
     Compute deltas with proper sign handling and tolerance.
     Returns: (slp, delta_tax, delta_res, (orig_res, orig_tax, adj_res))
@@ -136,50 +163,53 @@ def compute_deltas(company_data: Dict[str, Any]) -> Tuple[float, float, Optional
     ink2_data = company_data.get('ink2Data') or company_data.get('seFileData', {}).get('ink2_data', [])
     ink_vars = {(x.get('variable_name') or ''): x for x in ink2_data}
     
+    def _ink_val(key):
+        """Get INK2 value, prefer final over amount"""
+        it = ink_vars.get(key) or {}
+        val = it.get('final') if it.get('final') is not None else it.get('amount')
+        return _to_number(val)
+    
     # Get SLP (stored as negative, so use abs)
-    slp_item = ink_vars.get('INK_sarskild_loneskatt') or {}
-    slp = abs(_to_number(slp_item.get('amount') or slp_item.get('final') or 0))
+    slp = abs(_ink_val('INK_sarskild_loneskatt') or 0.0)
     
     # Get beräknad skatt (calculated tax)
-    tax_item = ink_vars.get('INK_beraknad_skatt') or {}
-    ink_tax = _to_number(tax_item.get('amount') or tax_item.get('final') or 0)
+    ink_tax = _ink_val('INK_beraknad_skatt') or 0.0
     
     # Get justerat årets resultat (adjusted result)
-    adj_item = ink_vars.get('Arets_resultat_justerat') or {}
-    adj_res = _to_number(adj_item.get('amount') or adj_item.get('final'))
+    adj_res = _ink_val('Arets_resultat_justerat')
     
-    # Get original values
+    # Get original values (THIS NOW READS FROM SNAPSHOT!)
     orig_res, orig_tax = pick_originals(company_data)
     
     print(f"📊 DELTA COMPUTATION:")
-    print(f"   SLP: {slp}")
+    print(f"   SLP (abs): {slp}")
     print(f"   INK beräknad skatt: {ink_tax}")
     print(f"   Original bokförd skatt (raw): {orig_tax}")
     print(f"   Original årets resultat: {orig_res}")
     print(f"   Justerat årets resultat: {adj_res}")
     
     # TAX DELTA
-    # orig_tax is usually negative (expense). Use its absolute amount when comparing to positive calculated tax.
+    # orig_tax is usually NEGATIVE (expense). Use its absolute amount when comparing to positive calculated tax.
     booked_tax_abs = abs(orig_tax) if orig_tax is not None else 0.0
-    delta_tax = (ink_tax or 0.0) - booked_tax_abs
-    if abs(delta_tax) < EPS:
-        delta_tax = 0.0
-    delta_tax = round(delta_tax)
+    delta_tax = _normalize_delta(ink_tax - booked_tax_abs)
     
     print(f"   Bokförd skatt (abs): {booked_tax_abs}")
-    print(f"   Delta tax: {delta_tax}")
+    print(f"   Delta tax (normalized): {delta_tax}")
     
     # RESULT DELTA
     # We want how much result changed due to INK2: original - adjusted
     # Positive delta means result decreased; negative means it increased.
-    delta_res = None
+    delta_res = 0
     if orig_res is not None and adj_res is not None:
-        delta_res = round(orig_res - adj_res)
-        if abs(delta_res) < THRESHOLD:  # whole-krona threshold
-            delta_res = 0
-        print(f"   Delta result: {delta_res}")
+        delta_res = _normalize_delta(orig_res - adj_res)  # positive → reduce result via 8999/2099
+        print(f"   Delta result (normalized): {delta_res}")
+    else:
+        print(f"   Delta result: Cannot compute (orig_res={orig_res}, adj_res={adj_res})")
     
-    return slp or 0.0, delta_tax, delta_res, (orig_res, orig_tax, adj_res)
+    # Return as integers after normalization
+    slp_used = int(round(slp)) if abs(slp) >= EPS else 0
+    
+    return slp_used, delta_tax, delta_res, (orig_res, orig_tax, adj_res)
 
 def check_should_generate(company_data: Dict[str, Any]) -> bool:
     """
@@ -187,14 +217,13 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
     - SLP ≠ 0 OR
     - Delta tax ≠ 0 OR
     - Delta result ≠ 0
+    
+    Note: compute_deltas already applies normalization (< 1 SEK → 0)
     """
     slp, delta_tax, delta_res, (orig_res, orig_tax, adj_res) = compute_deltas(company_data)
     
-    should_generate = (
-        abs(slp) >= THRESHOLD or 
-        abs(delta_tax) >= THRESHOLD or
-        (delta_res is not None and abs(delta_res) >= THRESHOLD)
-    )
+    # Deltas are already normalized (< 1 SEK treated as 0)
+    should_generate = (slp != 0 or delta_tax != 0 or delta_res != 0)
     
     print(f"📋 Bokföringsinstruktion check: SLP={slp}, Delta tax={delta_tax}, Delta result={delta_res} → Should generate: {should_generate}")
     
@@ -241,32 +270,32 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     # Build table data with headers
     table_data = [["Konto", "Debet", "Kredit"]]
     
-    # Add SLP rows if abs(slp) >= threshold
-    if abs(slp) >= THRESHOLD:
+    # Add SLP rows if non-zero (already normalized)
+    if slp != 0:
         table_data.append([
             "7533 Särskild löneskatt för pensionskostnader",
-            _fmt_sek(abs(slp)),
+            _fmt_sek(slp),
             ""
         ])
         table_data.append([
             "2514 Beräknad särskild löneskatt på pensionskostnader",
             "",
-            _fmt_sek(abs(slp))
+            _fmt_sek(slp)
         ])
     
-    # Add tax adjustment rows if delta_tax >= threshold
-    if abs(delta_tax) >= THRESHOLD:
+    # Add tax adjustment rows if non-zero (already normalized)
+    if delta_tax != 0:
         if delta_tax > 0:
             # Beräknad skatt > bokförd skatt (need to book more tax expense)
             table_data.append([
                 "8910 Skatt som belastar årets resultat",
-                _fmt_sek(abs(delta_tax)),
+                _fmt_sek(delta_tax),
                 ""
             ])
             table_data.append([
                 "2512 Beräknad inkomstskatt",
                 "",
-                _fmt_sek(abs(delta_tax))
+                _fmt_sek(delta_tax)
             ])
         else:
             # Beräknad skatt < bokförd skatt (need to reduce tax expense)
@@ -281,18 +310,18 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
                 ""
             ])
     
-    # Add result adjustment rows if delta_res >= threshold
-    if delta_res is not None and abs(delta_res) >= THRESHOLD:
+    # Add result adjustment rows if non-zero (already normalized)
+    if delta_res != 0:
         if delta_res > 0:
             # Result decreased (justerat < original) - debit 8999, credit 2099
             table_data.append([
                 "2099 Årets resultat",
                 "",
-                _fmt_sek(abs(delta_res))
+                _fmt_sek(delta_res)
             ])
             table_data.append([
                 "8999 Årets resultat",
-                _fmt_sek(abs(delta_res)),
+                _fmt_sek(delta_res),
                 ""
             ])
         else:

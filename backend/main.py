@@ -263,6 +263,10 @@ from models.schemas import (
 # Utility functions for freezing original RR values (Bokföringsinstruktion)
 # ============================================================================
 
+import copy
+
+EPS_NOISE_SEK = 1.0  # anything |x| < 1 SEK is treated as 0
+
 def _to_number(x):
     """Convert value to float, handling various formats"""
     try:
@@ -270,36 +274,72 @@ def _to_number(x):
     except Exception:
         return None
 
-def _get_rr_value(rr_items, var_name):
-    """Extract value from RR items by variable name"""
-    for it in rr_items or []:
-        if (it.get('variable_name') or '') == var_name:
-            # Prefer 'final' then 'current_amount' then 'amount'
-            for k in ('final', 'current_amount', 'amount'):
-                if it.get(k) is not None:
-                    return _to_number(it.get(k))
+def _rr_pick_num(item):
+    """Pick numeric value from RR item, prefer 'final' → 'current_amount' → 'amount'"""
+    for k in ('final', 'current_amount', 'amount'):
+        if item.get(k) is not None:
+            v = _to_number(item.get(k))
+            if v is not None:
+                return v
     return None
+
+def _rr_find(rr_items, var_name):
+    """Find value in RR items by variable name"""
+    if not rr_items:
+        return None
+    for it in rr_items:
+        if (it.get('variable_name') or '') == var_name:
+            return _rr_pick_num(it)
+    return None
+
+def _normalize_delta(x):
+    """Normalize delta: treat < 1 SEK as 0, round to integer"""
+    if x is None:
+        return 0
+    try:
+        x = float(x)
+    except Exception:
+        return 0
+    return 0 if abs(x) < EPS_NOISE_SEK else int(round(x))
 
 def freeze_originals(company_data: dict) -> dict:
     """
-    Capture original RR values once and never overwrite them.
-    Called at upload time and before any INK2 injections.
+    Idempotent: sets originals once and keeps a deep snapshot of pre-INK2 RR.
+    Must be called AFTER RR amounts exist and BEFORE any INK2 injection.
     """
-    # Accept rr from either seFileData.rr_data or rrData
+    if company_data is None:
+        return {}
+
+    # Don't overwrite if already frozen
+    if (company_data.get('arets_resultat_original') is not None and 
+        company_data.get('arets_skatt_original') is not None and 
+        company_data.get('__original_rr_snapshot__')):
+        print("📌 Originals already frozen, skipping")
+        return company_data
+
+    # Where RR may live
     rr = ((company_data.get('seFileData') or {}).get('rr_data')
           or company_data.get('rrData') or [])
-    
-    # Only set if not already set (never overwrite)
-    if 'arets_resultat_original' not in company_data or company_data.get('arets_resultat_original') is None:
-        val = _get_rr_value(rr, 'SumAretsResultat')
-        company_data['arets_resultat_original'] = val
-        print(f"📌 FROZEN ORIGINAL: Årets resultat = {val} kr")
-    
-    if 'arets_skatt_original' not in company_data or company_data.get('arets_skatt_original') is None:
-        val = _get_rr_value(rr, 'SkattAretsResultat')  # usually negative
-        company_data['arets_skatt_original'] = val
-        print(f"📌 FROZEN ORIGINAL: Bokförd skatt = {val} kr")
-    
+
+    # Grab values; tolerate that some pipelines only fill 'final'
+    arets_resultat = _rr_find(rr, 'SumAretsResultat')
+    arets_skatt = _rr_find(rr, 'SkattAretsResultat')  # usually NEGATIVE (expense)
+
+    print(f"🔍 Attempting to freeze: Årets resultat = {arets_resultat}, Bokförd skatt = {arets_skatt}")
+
+    # Only freeze when we have at least one meaningful number
+    if arets_resultat is not None or arets_skatt is not None:
+        # Deep snapshot BEFORE any mutation
+        company_data['__original_rr_snapshot__'] = copy.deepcopy(rr)
+        if company_data.get('arets_resultat_original') is None:
+            company_data['arets_resultat_original'] = arets_resultat
+        if company_data.get('arets_skatt_original') is None:
+            company_data['arets_skatt_original'] = arets_skatt
+        print(f"📌 FROZEN ORIGINALS: Årets resultat = {arets_resultat} kr, Bokförd skatt = {arets_skatt} kr")
+        print(f"📌 Created deep snapshot with {len(rr)} RR items")
+    else:
+        print("⚠️ WARNING: Could not freeze originals - no numeric values found in RR")
+
     return company_data
 
 app = FastAPI(
@@ -828,13 +868,6 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
         
-        # Freeze original values before any INK2 adjustments (for Bokföringsinstruktion)
-        # Create temporary structure with rr_data
-        temp_data = {'rr_data': rr_data}
-        temp_data = freeze_originals(temp_data)
-        arets_resultat_original = temp_data.get('arets_resultat_original')
-        arets_skatt_original = temp_data.get('arets_skatt_original')
-        
         # Pass RR data to BR parsing so calculated values from RR are available
         # Use koncern-aware BR parsing for automatic reconciliation with K2 notes
         br_data = parser.parse_br_data_with_koncern(se_content, current_accounts, previous_accounts, rr_data)
@@ -842,7 +875,15 @@ async def upload_se_file(file: UploadFile = File(...)):
         # Parse INK2 data (tax calculations) - pass RR data, BR data, SIE content, and previous accounts for account descriptions
         ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, se_content, previous_accounts)
         
+        # ⚠️ CRITICAL: Freeze originals AFTER RR has values, BEFORE inject_ink2_adjustments mutates them
+        temp_data = {'rr_data': rr_data}
+        temp_data = freeze_originals(temp_data)
+        arets_resultat_original = temp_data.get('arets_resultat_original')
+        arets_skatt_original = temp_data.get('arets_skatt_original')
+        original_rr_snapshot = temp_data.get('__original_rr_snapshot__')
+        
         # Inject adjustments for PDF consistency (INK4.1/4.2 ← Årets resultat justerat, INK4.3a ← beräknad skatt)
+        # This may mutate rr_data, but we have a deep snapshot frozen above
         ink2_data = inject_ink2_adjustments(ink2_data, rr_data)
         
         # Parse Noter data (notes) - pass SE content and user toggles if needed
@@ -925,7 +966,8 @@ async def upload_se_file(file: UploadFile = File(...)):
                 "sarskild_loneskatt_pension_calculated": sarskild_loneskatt_pension_calculated,
                 # ORIGINAL VALUES for Bokföringsinstruktion (never modified by INK2 adjustments)
                 "arets_resultat_original": arets_resultat_original,
-                "arets_skatt_original": arets_skatt_original
+                "arets_skatt_original": arets_skatt_original,
+                "__original_rr_snapshot__": original_rr_snapshot  # Deep snapshot of pre-INK2 RR
             },
             "message": "SE-fil laddad framgångsrikt"
         }
@@ -1085,13 +1127,6 @@ async def upload_two_se_files(
         
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts)
         
-        # Freeze original values before any INK2 adjustments (for Bokföringsinstruktion)
-        # Create temporary structure with rr_data
-        temp_data = {'rr_data': rr_data}
-        temp_data = freeze_originals(temp_data)
-        arets_resultat_original = temp_data.get('arets_resultat_original')
-        arets_skatt_original = temp_data.get('arets_skatt_original')
-        
         # Pass RR data to BR parsing with two files flag and previous year SE content
         br_data = parser.parse_br_data_with_koncern(
             current_se_content, 
@@ -1105,7 +1140,15 @@ async def upload_two_se_files(
         # Parse INK2 data (tax calculations) - pass RR data, BR data, SIE content, and previous accounts for account descriptions
         ink2_data = parser.parse_ink2_data(current_accounts, company_info.get('fiscal_year'), rr_data, br_data, current_se_content, previous_accounts)
         
+        # ⚠️ CRITICAL: Freeze originals AFTER RR has values, BEFORE inject_ink2_adjustments mutates them
+        temp_data = {'rr_data': rr_data}
+        temp_data = freeze_originals(temp_data)
+        arets_resultat_original = temp_data.get('arets_resultat_original')
+        arets_skatt_original = temp_data.get('arets_skatt_original')
+        original_rr_snapshot = temp_data.get('__original_rr_snapshot__')
+        
         # Inject adjustments for PDF consistency (INK4.1/4.2 ← Årets resultat justerat, INK4.3a ← beräknad skatt)
+        # This may mutate rr_data, but we have a deep snapshot frozen above
         ink2_data = inject_ink2_adjustments(ink2_data, rr_data)
         
         # Parse Noter data (notes) - pass SE content and user toggles if needed
@@ -1177,7 +1220,8 @@ async def upload_two_se_files(
                 "two_files_used": True,  # Flag to indicate two files were processed
                 # ORIGINAL VALUES for Bokföringsinstruktion (never modified by INK2 adjustments)
                 "arets_resultat_original": arets_resultat_original,
-                "arets_skatt_original": arets_skatt_original
+                "arets_skatt_original": arets_skatt_original,
+                "__original_rr_snapshot__": original_rr_snapshot  # Deep snapshot of pre-INK2 RR
             },
             "message": "Båda SE-filerna laddades framgångsrikt"
         }
