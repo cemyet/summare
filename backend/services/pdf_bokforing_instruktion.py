@@ -1,4 +1,4 @@
-# pdf_bokforing_instruktion.py
+# pdf_bokforing_instruktion.py - Force deployment trigger
 # Server-side PDF generation for accounting instructions (Bokföringsinstruktion) using ReportLab
 
 from io import BytesIO
