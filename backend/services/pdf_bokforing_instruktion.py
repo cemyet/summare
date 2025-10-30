@@ -90,7 +90,7 @@ def _styles():
     """Return custom paragraph styles"""
     H1 = ParagraphStyle(
         'CustomH1',
-        fontName='Roboto-Bold',
+        fontName='Roboto-Medium',  # Changed to semibold
         fontSize=16,
         leading=20,
         textColor=colors.black,
@@ -270,6 +270,10 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     # Build table data with headers
     table_data = [["Konto", "Debet", "Kredit"]]
     
+    # Track totals for sum row
+    total_debet = 0
+    total_kredit = 0
+    
     # Add SLP rows if non-zero (already normalized)
     if slp != 0:
         table_data.append([
@@ -277,11 +281,13 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
             _fmt_sek(slp),
             ""
         ])
+        total_debet += slp
         table_data.append([
             "2514 Beräknad särskild löneskatt på pensionskostnader",
             "",
             _fmt_sek(slp)
         ])
+        total_kredit += slp
     
     # Add tax adjustment rows if non-zero (already normalized)
     if delta_tax != 0:
@@ -292,11 +298,13 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
                 _fmt_sek(delta_tax),
                 ""
             ])
+            total_debet += delta_tax
             table_data.append([
                 "2512 Beräknad inkomstskatt",
                 "",
                 _fmt_sek(delta_tax)
             ])
+            total_kredit += delta_tax
         else:
             # Beräknad skatt < bokförd skatt (need to reduce tax expense)
             table_data.append([
@@ -304,11 +312,13 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
                 "",
                 _fmt_sek(abs(delta_tax))
             ])
+            total_kredit += abs(delta_tax)
             table_data.append([
                 "2512 Beräknad inkomstskatt",
                 _fmt_sek(abs(delta_tax)),
                 ""
             ])
+            total_debet += abs(delta_tax)
     
     # Add result adjustment rows if non-zero (already normalized)
     if delta_res != 0:
@@ -319,11 +329,13 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
                 "",
                 _fmt_sek(delta_res)
             ])
+            total_kredit += delta_res
             table_data.append([
                 "8999 Årets resultat",
                 _fmt_sek(delta_res),
                 ""
             ])
+            total_debet += delta_res
         else:
             # Result increased (justerat > original) - debit 2099, credit 8999
             table_data.append([
@@ -331,11 +343,13 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
                 _fmt_sek(abs(delta_res)),
                 ""
             ])
+            total_debet += abs(delta_res)
             table_data.append([
                 "8999 Årets resultat",
                 "",
                 _fmt_sek(abs(delta_res))
             ])
+            total_kredit += abs(delta_res)
     
     # Check if we have any rows beyond the header
     if len(table_data) <= 1:
@@ -346,6 +360,13 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
             "",
             ""
         ])
+    else:
+        # Add sum row
+        table_data.append([
+            "Summa",
+            _fmt_sek(total_debet),
+            _fmt_sek(total_kredit)
+        ])
     
     # Create table with styling
     # Column widths: Konto (wide), Debet (medium), Kredit (medium)
@@ -355,27 +376,35 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     t = Table(table_data, hAlign='LEFT', colWidths=col_widths)
     
     # Apply table styling
+    # Create gray color with 50% opacity for lines
+    line_color = colors.Color(0, 0, 0, alpha=0.5)  # Black with 50% opacity
+    
     style = TableStyle([
         # Header row styling
-        ('FONT', (0, 0), (-1, 0), 'Roboto-Bold', 11),
-        ('FONT', (0, 1), (-1, -1), 'Roboto', 10),
-        ('LINEBELOW', (0, 0), (-1, 0), 1.0, colors.black),
-        ('LINEBELOW', (0, -1), (-1, -1), 1.0, colors.black),
+        ('FONT', (0, 0), (-1, 0), 'Roboto-Medium', 11),  # Semibold header
+        ('FONT', (0, 1), (-1, -1), 'Roboto', 10),  # Regular font for content rows
+        ('LINEBELOW', (0, 0), (-1, 0), 0.5, line_color),  # 0.5pt line with 50% opacity
+        ('LINEBELOW', (0, -1), (-1, -1), 0.5, line_color),  # 0.5pt line with 50% opacity
         
         # Alignment
         ('ALIGN', (0, 0), (0, -1), 'LEFT'),    # Konto column left-aligned
-        ('ALIGN', (1, 0), (-1, 0), 'CENTER'),  # Header row centered
+        ('ALIGN', (1, 0), (-1, 0), 'RIGHT'),   # Header row Debet/Kredit right-aligned
         ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),  # Debet/Kredit values right-aligned
         
         # Valign
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
         
-        # Padding
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        # Padding - reduced from 6 to 3
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
     ])
+    
+    # If we have a sum row (more than just header row), make it semibold
+    if len(table_data) > 1 and table_data[-1][0] == "Summa":
+        style.add('FONT', (0, -1), (-1, -1), 'Roboto-Medium', 10)  # Semibold sum row
+        style.add('LINEABOVE', (0, -1), (-1, -1), 0.5, line_color)  # Line above sum row
     
     t.setStyle(style)
     elems.append(t)

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download as DownloadIcon, FileText, Check } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 interface DownloadFile {
   id: string;
@@ -18,6 +19,7 @@ interface DownloadProps {
 
 export function Download({ companyData }: DownloadProps) {
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
+  const { toast } = useToast();
   const [files, setFiles] = useState<DownloadFile[]>([
     {
       id: 'arsredovisning',
@@ -200,7 +202,11 @@ export function Download({ companyData }: DownloadProps) {
           
           // If no adjustments needed (400 error), show friendly message
           if (response.status === 400) {
-            alert('Bokföringsinstruktion behövs inte - inga justeringar krävs för detta bolag.');
+            toast({
+              title: "Ingen bokföringsinstruktion krävs",
+              description: "Inga justeringar behövs för detta bolag.",
+              variant: "default",
+            });
           } else {
             throw new Error(`Server responded with ${response.status}`);
           }
