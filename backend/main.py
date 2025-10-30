@@ -314,32 +314,15 @@ def freeze_originals(company_data: dict) -> dict:
     if (company_data.get('arets_resultat_original') is not None and 
         company_data.get('arets_skatt_original') is not None and 
         company_data.get('__original_rr_snapshot__')):
-        print("📌 Originals already frozen, skipping")
         return company_data
 
     # Where RR may live
     rr = ((company_data.get('seFileData') or {}).get('rr_data')
           or company_data.get('rrData') or [])
 
-    print(f"🔍 DEBUG: Freeze attempt, found {len(rr)} RR items")
-    if len(rr) > 0:
-        print(f"🔍 DEBUG: First RR item sample: {rr[0]}")
-        # Find SumAretsResultat item
-        for item in rr:
-            if item.get('variable_name') == 'SumAretsResultat':
-                print(f"🔍 DEBUG: Found SumAretsResultat item: {item}")
-                break
-        # Find SkattAretsResultat item
-        for item in rr:
-            if item.get('variable_name') == 'SkattAretsResultat':
-                print(f"🔍 DEBUG: Found SkattAretsResultat item: {item}")
-                break
-
     # Grab values; tolerate that some pipelines only fill 'final'
     arets_resultat = _rr_find(rr, 'SumAretsResultat')
     arets_skatt = _rr_find(rr, 'SkattAretsResultat')  # usually NEGATIVE (expense)
-
-    print(f"🔍 Attempting to freeze: Årets resultat = {arets_resultat}, Bokförd skatt = {arets_skatt}")
 
     # Only freeze when we have at least one meaningful number
     if arets_resultat is not None or arets_skatt is not None:
@@ -349,11 +332,6 @@ def freeze_originals(company_data: dict) -> dict:
             company_data['arets_resultat_original'] = arets_resultat
         if company_data.get('arets_skatt_original') is None:
             company_data['arets_skatt_original'] = arets_skatt
-        print(f"📌 FROZEN ORIGINALS: Årets resultat = {arets_resultat} kr, Bokförd skatt = {arets_skatt} kr")
-        print(f"📌 Created deep snapshot with {len(rr)} RR items")
-    else:
-        print("⚠️ WARNING: Could not freeze originals - no numeric values found in RR")
-        print(f"⚠️ DEBUG: RR has {len(rr)} items but no matching variable_names or no numeric values")
 
     return company_data
 

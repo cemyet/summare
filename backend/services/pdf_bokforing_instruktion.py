@@ -123,7 +123,6 @@ def _pick_originals_from_snapshot(company_data):
     snap = (company_data or {}).get('__original_rr_snapshot__') or []
     orig_res = _rr_find(snap, 'SumAretsResultat')
     orig_tax = _rr_find(snap, 'SkattAretsResultat')
-    print(f"🔍 Snapshot lookup: Årets resultat = {orig_res}, Bokförd skatt = {orig_tax}")
     return orig_res, orig_tax
 
 def pick_originals(company_data: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
@@ -142,8 +141,6 @@ def pick_originals(company_data: Dict[str, Any]) -> Tuple[Optional[float], Optio
         if orig_tax is None:
             orig_tax = se_data.get('arets_skatt_original')
     
-    print(f"🔍 Explicit originals: Årets resultat = {orig_res}, Bokförd skatt = {orig_tax}")
-    
     # 2) If missing, use the immutable snapshot (CRITICAL!)
     if orig_res is None or orig_tax is None:
         sr, st = _pick_originals_from_snapshot(company_data)
@@ -154,7 +151,6 @@ def pick_originals(company_data: Dict[str, Any]) -> Tuple[Optional[float], Optio
     
     # 3) LAST resort (discouraged): current RR (may already be mutated)
     if orig_res is None or orig_tax is None:
-        print("⚠️ WARNING: Falling back to current RR data (may be mutated!)")
         rr = ((company_data.get('seFileData') or {}).get('rr_data')
               or company_data.get('rrData') or [])
         if orig_res is None:
@@ -191,20 +187,10 @@ def compute_deltas(company_data: Dict[str, Any]) -> Tuple[int, int, int, Tuple]:
     # Get original values (THIS NOW READS FROM SNAPSHOT!)
     orig_res, orig_tax = pick_originals(company_data)
     
-    print(f"📊 DELTA COMPUTATION:")
-    print(f"   SLP (abs): {slp}")
-    print(f"   INK beräknad skatt: {ink_tax}")
-    print(f"   Original bokförd skatt (raw): {orig_tax}")
-    print(f"   Original årets resultat: {orig_res}")
-    print(f"   Justerat årets resultat: {adj_res}")
-    
     # TAX DELTA
     # orig_tax is usually NEGATIVE (expense). Use its absolute amount when comparing to positive calculated tax.
     booked_tax_abs = abs(orig_tax) if orig_tax is not None else 0.0
     delta_tax = _normalize_delta(ink_tax - booked_tax_abs)
-    
-    print(f"   Bokförd skatt (abs): {booked_tax_abs}")
-    print(f"   Delta tax (normalized): {delta_tax}")
     
     # RESULT DELTA
     # We want how much result changed due to INK2: original - adjusted
@@ -212,9 +198,6 @@ def compute_deltas(company_data: Dict[str, Any]) -> Tuple[int, int, int, Tuple]:
     delta_res = 0
     if orig_res is not None and adj_res is not None:
         delta_res = _normalize_delta(orig_res - adj_res)  # positive → reduce result via 8999/2099
-        print(f"   Delta result (normalized): {delta_res}")
-    else:
-        print(f"   Delta result: Cannot compute (orig_res={orig_res}, adj_res={adj_res})")
     
     # Return as integers after normalization
     slp_used = int(round(slp)) if abs(slp) >= EPS else 0
@@ -234,8 +217,6 @@ def check_should_generate(company_data: Dict[str, Any]) -> bool:
     
     # Deltas are already normalized (< 1 SEK treated as 0)
     should_generate = (slp != 0 or delta_tax != 0 or delta_res != 0)
-    
-    print(f"📋 Bokföringsinstruktion check: SLP={slp}, Delta tax={delta_tax}, Delta result={delta_res} → Should generate: {should_generate}")
     
     return should_generate
 
@@ -363,7 +344,6 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     
     # Check if we have any rows beyond the header
     if len(table_data) <= 1:
-        print("⚠️ WARNING: No adjustment rows to display in PDF (all deltas < 1 kr)")
         # Add a note in the PDF
         table_data.append([
             "Ingen bokföringsinstruktion krävs - alla justeringar < 1 kr",
