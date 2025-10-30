@@ -2219,23 +2219,77 @@ const handleTaxCalculationClick = () => {
               // Find INK_sarskild_loneskatt row for conditional logic
               const sarskildRow = allData.find((item: any) => item.variable_name === 'INK_sarskild_loneskatt');
               
+              // Helper function to check if a non-heading row would be visible after filtering
+              const wouldRowBeVisible = (item: any): boolean => {
+                // EXCEPTION: NEVER show INK4.3a when toggle is off
+                if (item.variable_name === 'INK4.3a' && !showAllTax) return false;
+                
+                // Always exclude INK4.23b and INK4.24b
+                if (item.variable_name === 'INK4.23b' || item.variable_name === 'INK4.24b') return false;
+                
+                // Always exclude rows explicitly marked to never show
+                if (item.show_amount === 'NEVER') return false;
+
+                // NEW TOGGLE LOGIC: When toggle is ON, override with toggle_show logic
+                if (showAllTax) {
+                  // Special case: INK_sarskild_loneskatt
+                  if (item.variable_name === 'INK_sarskild_loneskatt') {
+                    if (item.toggle_show === false) return false;
+                    const pensionPremier = companyData.pensionPremier || 0;
+                    const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
+                    const actual = companyData.sarskildLoneskattPension || 0;
+                    return item.toggle_show === true && (pensionPremier > 0 && calculated > actual);
+                  }
+                  return item.toggle_show === true;
+                }
+
+                // ORIGINAL LOGIC: When toggle is OFF
+                if (isEditing) {
+                  // Special case: INK_sarskild_loneskatt
+                  if (item.variable_name === 'INK_sarskild_loneskatt') {
+                    const pensionPremier = companyData.pensionPremier || 0;
+                    const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
+                    const actual = companyData.sarskildLoneskattPension || 0;
+                    return pensionPremier > 0 && calculated > actual;
+                  }
+
+                  if (item.always_show === false) return false;
+                  if (item.always_show === true) return true;
+                  
+                  // For always_show = null/undefined, show only if amount is non-zero
+                  const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
+                                         item.amount !== 0;
+                  return hasNonZeroAmount;
+                }
+
+                // Normal (read-only) mode filter logic
+                if (item.variable_name === 'INK_sarskild_loneskatt') {
+                  const pensionPremier = companyData.pensionPremier || 0;
+                  const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
+                  const actual = companyData.sarskildLoneskattPension || 0;
+                  return pensionPremier > 0 && calculated > actual;
+                }
+
+                if (item.always_show === true) return true;
+                if (item.always_show === false) return false;
+
+                // For non-headers with always_show = null/undefined, show only if amount is non-zero
+                const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && 
+                                       item.amount !== 0;
+                
+                return hasNonZeroAmount;
+              };
+              
               // Helper function to check if any row in a block should be shown
+              // Uses the same filtering logic as the main filter to ensure headings hide when all children are filtered out
               const shouldShowBlockContent = (blockName: string): boolean => {
                 if (!blockName) return true; // Items without block are always evaluated individually
                 
                 return allData.some((item: any) => {
                   if (item.block !== blockName || item.header === true) return false; // Skip headers and other blocks
                   
-                  // Check individual row visibility rules
-                  if (item.show_amount === 'NEVER') return false;
-                  
-                  // Handle always_show with new boolean/null logic
-                  if (item.always_show === true) return true;
-                  if (item.always_show === false) return false;
-                  
-                  // For always_show = null/undefined, show if amount is non-zero OR toggle is on
-                  return (item.amount !== null && item.amount !== undefined && 
-                         item.amount !== 0) || showAllTax;
+                  // Use the same visibility logic as the main filter
+                  return wouldRowBeVisible(item);
                 });
               };
               
