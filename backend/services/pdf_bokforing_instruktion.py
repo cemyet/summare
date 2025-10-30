@@ -268,48 +268,48 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     # Add SLP rows if non-zero (already normalized)
     if slp != 0:
         table_data.append([
-            "7533 Särskild löneskatt för pensionskostnader",
-            _fmt_sek(slp),
-            ""
-        ])
-        total_debet += slp
-        table_data.append([
             "2514 Beräknad särskild löneskatt på pensionskostnader",
             "",
             _fmt_sek(slp)
         ])
         total_kredit += slp
+        table_data.append([
+            "7533 Särskild löneskatt för pensionskostnader",
+            _fmt_sek(slp),
+            ""
+        ])
+        total_debet += slp
     
     # Add tax adjustment rows if non-zero (already normalized)
     if delta_tax != 0:
         if delta_tax > 0:
             # Beräknad skatt > bokförd skatt (need to book more tax expense)
             table_data.append([
-                "8910 Skatt som belastar årets resultat",
-                _fmt_sek(delta_tax),
-                ""
-            ])
-            total_debet += delta_tax
-            table_data.append([
                 "2512 Beräknad inkomstskatt",
                 "",
                 _fmt_sek(delta_tax)
             ])
             total_kredit += delta_tax
-        else:
-            # Beräknad skatt < bokförd skatt (need to reduce tax expense)
             table_data.append([
                 "8910 Skatt som belastar årets resultat",
-                "",
-                _fmt_sek(abs(delta_tax))
+                _fmt_sek(delta_tax),
+                ""
             ])
-            total_kredit += abs(delta_tax)
+            total_debet += delta_tax
+        else:
+            # Beräknad skatt < bokförd skatt (need to reduce tax expense)
             table_data.append([
                 "2512 Beräknad inkomstskatt",
                 _fmt_sek(abs(delta_tax)),
                 ""
             ])
             total_debet += abs(delta_tax)
+            table_data.append([
+                "8910 Skatt som belastar årets resultat",
+                "",
+                _fmt_sek(abs(delta_tax))
+            ])
+            total_kredit += abs(delta_tax)
     
     # Add result adjustment rows if non-zero (already normalized)
     if delta_res != 0:
