@@ -106,7 +106,17 @@ def _styles():
         alignment=TA_LEFT
     )
     
-    return H1, P
+    # Smaller style for booking date (1pt smaller than P)
+    DateStyle = ParagraphStyle(
+        'DateStyle',
+        fontName='Roboto',
+        fontSize=10,
+        leading=13,
+        textColor=colors.black,
+        alignment=TA_LEFT
+    )
+    
+    return H1, P, DateStyle
 
 def _pick_originals_from_snapshot(company_data):
     """Extract originals from the immutable __original_rr_snapshot__"""
@@ -243,7 +253,7 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
         bottomMargin=68
     )
     
-    H1, P = _styles()
+    H1, P, DateStyle = _styles()
     elems = []
     
     # Compute deltas
@@ -260,11 +270,11 @@ def generate_bokforing_instruktion_pdf(company_data: Dict[str, Any]) -> bytes:
     elems.append(Spacer(1, 12))  # Line break
     elems.append(Spacer(1, 12))  # Second line break
     
-    # Add booking date line
+    # Add booking date line with smaller font
     if formatted_end_date:
-        elems.append(Paragraph(f"Bokföringsdatum: {formatted_end_date}", P))
+        elems.append(Paragraph(f"Bokföringsdatum: {formatted_end_date}", DateStyle))
     else:
-        elems.append(Paragraph("Bokföringsdatum:", P))
+        elems.append(Paragraph("Bokföringsdatum:", DateStyle))
     elems.append(Spacer(1, 12))  # Line break
     
     # Build table data with headers
