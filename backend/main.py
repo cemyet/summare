@@ -1830,6 +1830,59 @@ async def get_next_chat_flow_step(current_step: int):
         print(f"Error getting next chat flow step: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting next chat flow step: {str(e)}")
 
+@app.get("/api/payments/get-customer-email")
+async def get_customer_email(organization_number: str):
+    """
+    Get the customer_email from the most recent paid payment for an organization
+    """
+    try:
+        supabase = get_supabase_client()
+        
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Normalize organization number (remove dashes and spaces)
+        org_number = organization_number.replace("-", "").replace(" ", "").strip()
+        
+        if not org_number:
+            raise HTTPException(status_code=400, detail="Organization number is required")
+        
+        # Get all paid payments for this organization
+        all_results = supabase.table('payments')\
+            .select('customer_email,paid_at')\
+            .eq('organization_number', org_number)\
+            .eq('payment_status', 'paid')\
+            .execute()
+        
+        # Sort by paid_at descending (most recent first) and get the first one
+        customer_email = None
+        if all_results.data:
+            sorted_results = sorted(
+                all_results.data, 
+                key=lambda x: x.get('paid_at') or '', 
+                reverse=True
+            )
+            if sorted_results:
+                customer_email = sorted_results[0].get('customer_email')
+        
+        if not customer_email:
+            return {
+                "success": False,
+                "customer_email": None,
+                "message": "No paid payment found for this organization"
+            }
+        
+        return {
+            "success": True,
+            "customer_email": customer_email
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting customer email: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting customer email: {str(e)}")
+
 @app.post("/api/chat-flow/process-choice")
 async def process_chat_choice(request: dict):
     """

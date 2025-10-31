@@ -221,6 +221,10 @@ class ApiService {
   async checkBolagsverketHealth(): Promise<{ success: boolean; healthy: boolean; message: string }> {
     return this.makeRequest(API_ENDPOINTS.bolagsverketHealth);
   }
+
+  async getCustomerEmail(organizationNumber: string): Promise<{ success: boolean; customer_email: string | null; message?: string }> {
+    return this.makeRequest(`${API_ENDPOINTS.payments || '/api/payments'}/get-customer-email?organization_number=${encodeURIComponent(organizationNumber)}`);
+  }
 }
 
 export const apiService = new ApiService();

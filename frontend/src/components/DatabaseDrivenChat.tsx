@@ -371,6 +371,25 @@ interface ChatFlowResponse {
       }
       const response = await apiService.getChatFlowStep(stepNumber) as ChatFlowResponse;
       
+      // Special handling for step 512: Fetch customer_email from payments table
+      let customerEmail: string | null = null;
+      if (stepNumber === 512) {
+        try {
+          const orgNumber = companyData.organizationNumber || companyData.seFileData?.company_info?.organization_number;
+          if (orgNumber) {
+            const emailResponse = await apiService.getCustomerEmail(orgNumber);
+            if (emailResponse.success && emailResponse.customer_email) {
+              customerEmail = emailResponse.customer_email;
+              // Store in companyData for variable substitution
+              onDataUpdate({ customer_email: customerEmail });
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching customer email:', error);
+          // Continue without customer_email - user can still enter manually
+        }
+      }
+      
       // Debug logging for step 506
       if (stepNumber === 506) {
       }
@@ -416,7 +435,9 @@ interface ChatFlowResponse {
               inkBokfordSkatt: dataToUseForMessage.inkBokfordSkatt ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.inkBokfordSkatt) : '0',
               unusedTaxLossAmount: dataToUseForMessage.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.unusedTaxLossAmount) : '0',
               arets_utdelning: dataToUseForMessage.arets_utdelning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_utdelning) : '0',
-              arets_balanseras_nyrakning: dataToUseForMessage.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_balanseras_nyrakning) : '0'
+              arets_balanseras_nyrakning: dataToUseForMessage.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_balanseras_nyrakning) : '0',
+              customer_email: customerEmail || dataToUseForMessage.customer_email || dataToUseForMessage.customerEmail || '',
+              username: dataToUseForMessage.username || ''
             });
             
             // Special handling for step 506: watch for actual Stripe payment content to be rendered
@@ -523,7 +544,9 @@ interface ChatFlowResponse {
           unusedTaxLossAmount: dataToUse.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.unusedTaxLossAmount) : '0',
           SumFrittEgetKapital: dataToUse.sumFrittEgetKapital ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sumFrittEgetKapital) : '0',
           arets_utdelning: dataToUse.arets_utdelning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.arets_utdelning) : '0',
-          arets_balanseras_nyrakning: dataToUse.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.arets_balanseras_nyrakning) : '0'
+          arets_balanseras_nyrakning: dataToUse.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.arets_balanseras_nyrakning) : '0',
+          customer_email: customerEmail || dataToUse.customer_email || dataToUse.customerEmail || '',
+          username: dataToUse.username || ''
         };
         const questionText = substituteVariables(response.question_text, substitutionVars);
         
@@ -943,8 +966,15 @@ interface ChatFlowResponse {
           case 'set_variable':
             // Handle variable setting while preserving existing data
             if (action_data?.variable && action_data?.value !== undefined) {
+              // Special handling for step 512: Replace "customer_email" string with actual email value
+              let actualValue = action_data.value;
+              if (action_data.variable === 'username' && action_data.value === 'customer_email') {
+                // Get customer_email from companyData (fetched when loading step 512)
+                actualValue = companyData.customer_email || companyData.customerEmail || '';
+              }
+              
               // Preserve existing ink2Data when setting variables to prevent data loss
-              const updateData: any = { [action_data.variable]: action_data.value };
+              const updateData: any = { [action_data.variable]: actualValue };
               if (companyData.ink2Data && companyData.ink2Data.length > 0) {
                 updateData.ink2Data = companyData.ink2Data;
               }
@@ -954,7 +984,7 @@ interface ChatFlowResponse {
               
               // Special handling for dividend: calculate balanseras amount for message substitution
               if (action_data.variable === 'arets_utdelning') {
-                const dividendAmount = Number(action_data.value) || 0;
+                const dividendAmount = Number(actualValue) || 0;
                 const maxDividend = companyData.sumFrittEgetKapital || 0;
                 const balancerasAmount = maxDividend - dividendAmount;
                 
@@ -1575,6 +1605,19 @@ const selectiveMergeInk2 = (
       if (dividendAmount > maxDividend) {
         const maxFormatted = new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(maxDividend);
         addMessage(`Utdelningen kan inte överstiga fritt eget kapital ${maxFormatted} kr. Vänligen försök igen.`, true, '🤖');
+        setInputValue(''); // Clear the input field
+        setShowInput(true); // Keep input visible
+        return;
+      }
+    }
+    
+    // Validate email format (step 513: username)
+    if (submitOption?.action_data?.variable === 'username' && inputType === 'string') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const emailValue = value as string;
+      
+      if (!emailRegex.test(emailValue)) {
+        addMessage('Vänligen ange en giltig e-postadress.', true, '🤖');
         setInputValue(''); // Clear the input field
         setShowInput(true); // Keep input visible
         return;
