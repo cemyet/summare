@@ -1849,17 +1849,17 @@ async def get_customer_email(organization_number: str):
         
         # Get all paid payments for this organization
         all_results = supabase.table('payments')\
-            .select('customer_email,paid_at')\
+            .select('customer_email,created_at')\
             .eq('organization_number', org_number)\
             .eq('payment_status', 'paid')\
             .execute()
         
-        # Sort by paid_at descending (most recent first) and get the first one
+        # Sort by created_at descending (most recent first) and get the first one
         customer_email = None
         if all_results.data:
             sorted_results = sorted(
                 all_results.data, 
-                key=lambda x: x.get('paid_at') or '', 
+                key=lambda x: x.get('created_at') or '', 
                 reverse=True
             )
             if sorted_results:

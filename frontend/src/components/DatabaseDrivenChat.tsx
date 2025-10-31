@@ -375,17 +375,34 @@ interface ChatFlowResponse {
       let customerEmail: string | null = null;
       if (stepNumber === 512) {
         try {
-          const orgNumber = companyData.organizationNumber || companyData.seFileData?.company_info?.organization_number;
+          // Get organization number from multiple possible locations
+          const orgNumberRaw = companyData.organizationNumber || 
+                              companyData.seFileData?.company_info?.organization_number ||
+                              companyData.seFileData?.organization_number;
+          
+          // Normalize organization number (same as backend does)
+          const orgNumber = orgNumberRaw ? orgNumberRaw.replace(/-/g, '').replace(/\s/g, '').trim() : null;
+          
           if (orgNumber) {
+            console.log('🔍 Fetching customer_email for step 512, org:', orgNumber);
             const emailResponse = await apiService.getCustomerEmail(orgNumber);
             if (emailResponse.success && emailResponse.customer_email) {
               customerEmail = emailResponse.customer_email;
               // Store in companyData for variable substitution
               onDataUpdate({ customer_email: customerEmail });
+              console.log('✅ Fetched customer_email for step 512:', customerEmail);
+            } else {
+              console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
             }
+          } else {
+            console.warn('⚠️ No organization number found for step 512. Available data:', {
+              organizationNumber: companyData.organizationNumber,
+              seFileData_company_info: companyData.seFileData?.company_info?.organization_number,
+              seFileData_org: companyData.seFileData?.organization_number
+            });
           }
         } catch (error) {
-          console.error('Error fetching customer email:', error);
+          console.error('❌ Error fetching customer email:', error);
           // Continue without customer_email - user can still enter manually
         }
       }
@@ -533,6 +550,11 @@ interface ChatFlowResponse {
         
         // Substitute variables in question text (use temp data if available)
         const dataToUse = tempCompanyData || companyData;
+        // For step 512, prioritize freshly fetched customerEmail over dataToUse values
+        const finalCustomerEmail = stepNumber === 512 
+          ? (customerEmail || dataToUse.customer_email || dataToUse.customerEmail || '')
+          : (dataToUse.customer_email || dataToUse.customerEmail || '');
+        
         const substitutionVars = {
           SumAretsResultat: dataToUse.sumAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sumAretsResultat) : '0',
           SkattAretsResultat: dataToUse.skattAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.skattAretsResultat) : '0',
@@ -545,7 +567,7 @@ interface ChatFlowResponse {
           SumFrittEgetKapital: dataToUse.sumFrittEgetKapital ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sumFrittEgetKapital) : '0',
           arets_utdelning: dataToUse.arets_utdelning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.arets_utdelning) : '0',
           arets_balanseras_nyrakning: dataToUse.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.arets_balanseras_nyrakning) : '0',
-          customer_email: customerEmail || dataToUse.customer_email || dataToUse.customerEmail || '',
+          customer_email: finalCustomerEmail,
           username: dataToUse.username || ''
         };
         const questionText = substituteVariables(response.question_text, substitutionVars);

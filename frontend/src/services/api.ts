@@ -223,7 +223,7 @@ class ApiService {
   }
 
   async getCustomerEmail(organizationNumber: string): Promise<{ success: boolean; customer_email: string | null; message?: string }> {
-    return this.makeRequest(`${API_ENDPOINTS.payments || '/api/payments'}/get-customer-email?organization_number=${encodeURIComponent(organizationNumber)}`);
+    return this.makeRequest(`${API_ENDPOINTS.base}/api/payments/get-customer-email?organization_number=${encodeURIComponent(organizationNumber)}`);
   }
 }
 
