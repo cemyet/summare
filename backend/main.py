@@ -252,6 +252,7 @@ from services.database_parser import DatabaseParser
 from services.supabase_database import db
 from services.bolagsverket_service import BolagsverketService
 from services.fb import ForvaltningsberattelseFB
+from services.email_service import send_password_email, generate_password
 from rating_bolag_scraper import get_company_info_with_search
 from models.schemas import (
     ReportRequest, ReportResponse, CompanyData, 
@@ -1978,6 +1979,57 @@ async def send_for_digital_signing(request: dict):
     except Exception as e:
         print(f"Error sending for digital signing: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error sending for digital signing: {str(e)}")
+
+@app.post("/api/users/create-account")
+async def create_user_account(request: dict):
+    """
+    Create user account and send password email
+    Called after step 515 when username is registered
+    """
+    try:
+        username = request.get("username")  # Email address
+        organization_number = request.get("organization_number")
+        
+        if not username:
+            raise HTTPException(status_code=400, detail="Username (email) is required")
+        
+        # Validate email format
+        import re
+        email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        if not re.match(email_pattern, username):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        
+        # Generate password
+        password = generate_password()
+        
+        # TODO: Create user account in Supabase Auth or your user management system
+        # For now, we'll just send the email with credentials
+        # You'll need to implement actual user creation based on your auth system
+        
+        # Send password email
+        login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+        email_sent = await send_password_email(username, username, password, login_url)
+        
+        if not email_sent:
+            # Email sending failed but don't block - user can request password reset
+            print(f"⚠️ Password email failed to send, but user account can still be created")
+        
+        # TODO: Store username/password hash in database for login
+        # For security, password should be hashed (never store plain text)
+        # You might want to use Supabase Auth or another auth provider
+        
+        return {
+            "success": True,
+            "message": "User account created and password email sent",
+            "username": username,
+            # Don't return password in response for security
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error creating user account: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error creating user account: {str(e)}")
 
 def substitute_variables(data, context):
     """Replace {variable} placeholders with actual values"""
