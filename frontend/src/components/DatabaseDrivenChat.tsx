@@ -288,7 +288,10 @@ interface ChatFlowResponse {
       sarskild_loneskatt_pension: context.sarskild_loneskatt_pension || companyData.sarskildLoneskattPension || 0,
       sarskild_loneskatt_pension_calculated: context.sarskild_loneskatt_pension_calculated || companyData.sarskildLoneskattPensionCalculated || 0,
       arets_utdelning: context.arets_utdelning || companyData.arets_utdelning || 0,
-      arets_balanseras_nyrakning: context.arets_balanseras_nyrakning || companyData.arets_balanseras_nyrakning || 0
+      arets_balanseras_nyrakning: context.arets_balanseras_nyrakning || companyData.arets_balanseras_nyrakning || 0,
+      // Ensure customer_email and username from context are included
+      customer_email: context.customer_email !== undefined ? context.customer_email : (companyData.customer_email || companyData.customerEmail || ''),
+      username: context.username !== undefined ? context.username : (companyData.username || '')
     };
 
     // Replace variables
