@@ -445,6 +445,11 @@ interface ChatFlowResponse {
             
             // Substitute variables in question text (use temp data if available)
             const dataToUseForMessage = tempCompanyData || companyData;
+            // For step 512, prioritize freshly fetched customerEmail
+            const finalCustomerEmailForMessage = stepNumber === 512 
+              ? (customerEmail || dataToUseForMessage.customer_email || dataToUseForMessage.customerEmail || '')
+              : (dataToUseForMessage.customer_email || dataToUseForMessage.customerEmail || '');
+            
             const questionText = substituteVariables(response.question_text, {
               SumAretsResultat: dataToUseForMessage.sumAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.sumAretsResultat) : '0',
               SkattAretsResultat: dataToUseForMessage.skattAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.skattAretsResultat) : '0',
@@ -456,7 +461,7 @@ interface ChatFlowResponse {
               unusedTaxLossAmount: dataToUseForMessage.unusedTaxLossAmount ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.unusedTaxLossAmount) : '0',
               arets_utdelning: dataToUseForMessage.arets_utdelning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_utdelning) : '0',
               arets_balanseras_nyrakning: dataToUseForMessage.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_balanseras_nyrakning) : '0',
-              customer_email: customerEmail || dataToUseForMessage.customer_email || dataToUseForMessage.customerEmail || '',
+              customer_email: finalCustomerEmailForMessage,
               username: dataToUseForMessage.username || ''
             });
             
