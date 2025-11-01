@@ -668,8 +668,26 @@ interface ChatFlowResponse {
           }, 500);
         }
         // Auto-scroll to Signering section for step 515
-        // Also trigger account creation and email sending
         else if (stepNumber === 515) {
+          setTimeout(() => {
+            const signeringModule = document.querySelector('[data-section="signering"]');
+            const scrollContainer = document.querySelector('.overflow-auto');
+            
+            if (signeringModule && scrollContainer) {
+              const containerRect = scrollContainer.getBoundingClientRect();
+              const signeringRect = signeringModule.getBoundingClientRect();
+              const scrollTop = scrollContainer.scrollTop + signeringRect.top - containerRect.top - 10;
+              
+              scrollContainer.scrollTo({
+                top: scrollTop,
+                behavior: 'smooth'
+              });
+            }
+          }, 500);
+        }
+        // Trigger account creation and email sending when step 514 loads
+        // Step 514 message says "credentials have been sent", so account must be created here
+        else if (stepNumber === 514) {
           // Create user account and send password email
           const username = companyData.username || companyData.customer_email || companyData.customerEmail;
           const orgNumber = companyData.organizationNumber || 
@@ -706,22 +724,6 @@ interface ChatFlowResponse {
           } else {
             console.warn('⚠️ Cannot create account - missing username or organization number', { username, orgNumber });
           }
-          
-          setTimeout(() => {
-            const signeringModule = document.querySelector('[data-section="signering"]');
-            const scrollContainer = document.querySelector('.overflow-auto');
-            
-            if (signeringModule && scrollContainer) {
-              const containerRect = scrollContainer.getBoundingClientRect();
-              const signeringRect = signeringModule.getBoundingClientRect();
-              const scrollTop = scrollContainer.scrollTop + signeringRect.top - containerRect.top - 10;
-              
-              scrollContainer.scrollTo({
-                top: scrollTop,
-                behavior: 'smooth'
-              });
-            }
-          }, 500);
         }
         
         if (stepNumber !== 402) {
@@ -1088,6 +1090,20 @@ interface ChatFlowResponse {
                     arets_balanseras_nyrakning: balancerasAmount
                   };
                   setTimeout(() => loadChatStep(next_step, updatedInk2Data, tempData), 500);
+                  return; // Skip normal navigation
+                }
+              }
+              
+              // Special handling for username: ensure it's available for step 514 substitution
+              if (action_data.variable === 'username') {
+                // If navigating to step 514, pass username in temp data for immediate substitution
+                if (next_step === 514) {
+                  const tempData = {
+                    ...companyData,
+                    username: actualValue
+                  };
+                  onDataUpdate(updateData);
+                  setTimeout(() => loadChatStep(next_step, updatedInk2Data, tempData), 300);
                   return; // Skip normal navigation
                 }
               }
@@ -1749,6 +1765,18 @@ const selectiveMergeInk2 = (
           } else {
             // For other variables, store normally
             onDataUpdate({ [submitOption.action_data.variable]: value });
+            
+            // Special handling for username: ensure it's available for step 514 substitution
+            if (submitOption.action_data.variable === 'username' && submitOption.next_step === 514) {
+              const tempData = {
+                ...companyData,
+                username: value
+              };
+              setShowInput(false);
+              setInputValue('');
+              setTimeout(() => loadChatStep(514, undefined, tempData), 300);
+              return; // Don't continue to normal navigation
+            }
           }
 
         // Handle chat override variables (driven by SQL action_data.variable)
