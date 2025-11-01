@@ -388,43 +388,18 @@ interface ChatFlowResponse {
           // Normalize organization number (same as backend does)
           let orgNumber = orgNumberRaw ? orgNumberRaw.replace(/-/g, '').replace(/\s/g, '').trim() : null;
           
-          // If org number not found in companyData, try to get it from most recent payment
-          if (!orgNumber) {
-            console.log('⚠️ No organization number in companyData, trying to get from most recent payment...');
-            const emailResponse = await apiService.getCustomerEmail(); // No org number = get most recent
-            if (emailResponse.success && emailResponse.organization_number) {
-              fetchedOrgNumber = emailResponse.organization_number;
-              orgNumber = fetchedOrgNumber.replace(/-/g, '').replace(/\s/g, '').trim();
-              console.log('✅ Got organization_number from most recent payment:', orgNumber);
-              
-              // Also get customer_email if available
-              if (emailResponse.customer_email) {
-                customerEmail = emailResponse.customer_email;
-              }
-            }
-          }
-          
-          // Now try to get customer_email if we have org number
           if (orgNumber) {
-            // Only fetch if we don't already have customerEmail from most recent payment lookup
-            if (!customerEmail) {
-              console.log('🔍 Fetching customer_email for step 512, org:', orgNumber);
-              const emailResponse = await apiService.getCustomerEmail(orgNumber);
-              if (emailResponse.success && emailResponse.customer_email) {
-                customerEmail = emailResponse.customer_email;
-                
-                // Use organization_number from API response if provided (in case it's different format)
-                if (emailResponse.organization_number && !fetchedOrgNumber) {
-                  fetchedOrgNumber = emailResponse.organization_number;
-                  orgNumber = fetchedOrgNumber.replace(/-/g, '').replace(/\s/g, '').trim();
-                }
-              } else {
-                console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
+            console.log('🔍 Fetching customer_email for step 512, org:', orgNumber);
+            const emailResponse = await apiService.getCustomerEmail(orgNumber);
+            if (emailResponse.success && emailResponse.customer_email) {
+              customerEmail = emailResponse.customer_email;
+              
+              // Use organization_number from API response if provided (in case it's different format)
+              if (emailResponse.organization_number) {
+                fetchedOrgNumber = emailResponse.organization_number;
+                orgNumber = fetchedOrgNumber.replace(/-/g, '').replace(/\s/g, '').trim();
               }
-            }
-            
-            // If we have customerEmail, check if user exists
-            if (customerEmail) {
+              
               // Check if user already exists with this email and org number
               console.log('🔍 Checking if user exists:', customerEmail);
               try {
@@ -436,27 +411,23 @@ interface ChatFlowResponse {
               } catch (error) {
                 console.error('❌ Error checking user existence:', error);
               }
-            }
-            
-            // Store in companyData for variable substitution (update immediately)
-            const updateData: any = { 
-              customer_email: customerEmail || '',
-              user_exist: userExists
-            };
-            
-            // Also store org number if we fetched it from API (always store it for future use)
-            if (fetchedOrgNumber) {
-              updateData.organizationNumber = fetchedOrgNumber;
-              console.log('✅ Stored organization_number from API response:', fetchedOrgNumber);
-            } else if (orgNumber) {
-              // Store normalized version
-              updateData.organizationNumber = orgNumber;
-              console.log('✅ Stored normalized organization_number:', orgNumber);
-            }
-            
-            if (customerEmail || fetchedOrgNumber) {
+              
+              // Store in companyData for variable substitution (update immediately)
+              const updateData: any = { 
+                customer_email: customerEmail,
+                user_exist: userExists
+              };
+              
+              // Also store org number if we fetched it from API
+              if (fetchedOrgNumber && !companyData.organizationNumber) {
+                updateData.organizationNumber = fetchedOrgNumber;
+                console.log('✅ Stored organization_number from API response:', fetchedOrgNumber);
+              }
+              
               onDataUpdate(updateData);
               console.log('✅ Fetched customer_email for step 512:', customerEmail);
+            } else {
+              console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
             }
           } else {
             console.warn('⚠️ No organization number found for step 512. Available data:', {

@@ -222,11 +222,8 @@ class ApiService {
     return this.makeRequest(API_ENDPOINTS.bolagsverketHealth);
   }
 
-  async getCustomerEmail(organizationNumber?: string): Promise<{ success: boolean; customer_email: string | null; organization_number?: string | null; message?: string }> {
-    const url = organizationNumber 
-      ? `${API_ENDPOINTS.base}/api/payments/get-customer-email?organization_number=${encodeURIComponent(organizationNumber)}`
-      : `${API_ENDPOINTS.base}/api/payments/get-customer-email`;
-    return this.makeRequest(url);
+  async getCustomerEmail(organizationNumber: string): Promise<{ success: boolean; customer_email: string | null; organization_number?: string | null; message?: string }> {
+    return this.makeRequest(`${API_ENDPOINTS.base}/api/payments/get-customer-email?organization_number=${encodeURIComponent(organizationNumber)}`);
   }
 
   async createUserAccount(username: string, organizationNumber: string): Promise<{ success: boolean; message: string; username: string; user_exist: boolean; email_sent: boolean }> {
