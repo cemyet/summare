@@ -707,11 +707,23 @@ interface ChatFlowResponse {
                            companyData.seFileData?.company_info?.organization_number ||
                            companyData.seFileData?.organization_number;
           
+          console.log('🔍 Step 514 - Account creation check:', {
+            username,
+            orgNumber,
+            companyData_username: companyData.username,
+            companyData_customer_email: companyData.customer_email,
+            companyData_customerEmail: companyData.customerEmail,
+            companyData_organizationNumber: companyData.organizationNumber,
+            seFileData_company_info: companyData.seFileData?.company_info?.organization_number,
+            seFileData_org: companyData.seFileData?.organization_number
+          });
+          
           if (username && orgNumber) {
-            console.log('📧 Creating account and sending password email for:', username);
+            console.log('📧 Creating account and sending password email for:', username, 'org:', orgNumber);
             // Call in background - don't block UI
             apiService.createUserAccount(username, orgNumber.replace(/-/g, '').replace(/\s/g, '').trim())
               .then((result) => {
+                console.log('📧 Account creation result:', result);
                 if (result.success) {
                   if (result.user_exist) {
                     console.log('✅ Existing user - organization number added to account');
@@ -735,7 +747,11 @@ interface ChatFlowResponse {
                 console.error('Error details:', JSON.stringify(error, null, 2));
               });
           } else {
-            console.warn('⚠️ Cannot create account - missing username or organization number', { username, orgNumber });
+            console.error('❌ CANNOT CREATE ACCOUNT - Missing required data:', { 
+              username: username || 'MISSING', 
+              orgNumber: orgNumber || 'MISSING',
+              companyData_keys: Object.keys(companyData)
+            });
           }
         }
         
@@ -1082,6 +1098,22 @@ interface ChatFlowResponse {
               }
               if (globalInk2Data && globalInk2Data.length > 0) {
                 updateData.ink2Data = globalInk2Data;
+              }
+              
+              // Special handling for username: ensure it's available for step 514
+              if (action_data.variable === 'username') {
+                console.log('🔍 Setting username via set_variable:', actualValue);
+                // If navigating to step 514, pass username in temp data for immediate account creation
+                if (next_step === 514) {
+                  const tempData = {
+                    ...companyData,
+                    username: actualValue
+                  };
+                  onDataUpdate(updateData);
+                  console.log('🔍 Navigating to step 514 with username in tempData:', actualValue);
+                  setTimeout(() => loadChatStep(next_step, updatedInk2Data, tempData), 300);
+                  return; // Skip normal navigation
+                }
               }
               
               // Special handling for dividend: calculate balanseras amount for message substitution
