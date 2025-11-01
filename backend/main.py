@@ -2108,7 +2108,6 @@ async def create_user_account(request: dict):
         
         user_exists = len(user_result.data) > 0
         password = None
-        email_should_send = False
         
         if user_exists:
             # User exists - check if org number is in their array
@@ -2173,8 +2172,18 @@ async def create_user_account(request: dict):
                 else:
                     print(f"ℹ️ Organization number {org_number} already exists for user {username}")
             
-            # Existing user - don't send password email (they already have one)
-            password = "***"  # Don't expose existing password
+            # Existing user - get their current password from database
+            password = user_data.get('password')
+            if not password:
+                print(f"⚠️ Warning: Existing user {username} has no password in database")
+                password = generate_password()  # Fallback: generate new password if missing
+                supabase.table('users')\
+                    .update({'password': password})\
+                    .eq('id', user_data['id'])\
+                    .execute()
+                print(f"✅ Generated and saved new password for user {username}")
+            
+            print(f"✅ Using existing password for user {username}")
             
         else:
             # New user - create account
@@ -2190,25 +2199,26 @@ async def create_user_account(request: dict):
                 .execute()
             
             print(f"✅ Created new user account for {username} with password: {password}")
-            email_should_send = True
         
-        # Send password email only for new users
-        if email_should_send:
-            login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
-            email_sent = await send_password_email(username, username, password, login_url)
-            
-            if not email_sent:
-                print(f"⚠️ Password email failed to send for new user {username}")
-                # Still return success since account was created
+        # Always send password email (with existing password for existing users, new password for new users)
+        login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+        email_sent = await send_password_email(username, username, password, login_url)
+        
+        if not email_sent:
+            print(f"⚠️ Password email failed to send for user {username}")
+            # Still return success since account was processed
+        else:
+            if user_exists:
+                print(f"✅ Password email sent to existing user {username} (with existing password)")
             else:
-                print(f"✅ Password email sent to {username}")
+                print(f"✅ Password email sent to new user {username} (with new password)")
         
         return {
             "success": True,
             "message": "User account processed successfully",
             "username": username,
             "user_exist": user_exists,
-            "email_sent": email_should_send
+            "email_sent": email_sent  # Always true if email was sent (for both new and existing users)
         }
         
     except HTTPException:
