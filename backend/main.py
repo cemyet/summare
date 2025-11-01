@@ -2236,29 +2236,42 @@ async def create_user_account(request: dict):
             
             print(f"✅ Created new user account for {username} with password: {password}")
         
-        # Fetch company name from se_files table for email personalization
-        company_name = ""
-        try:
-            # Query se_files table to get company_name from the most recent file for this organization
-            se_files_result = supabase.table('se_files')\
-                .select('data')\
-                .eq('organization_number', org_number)\
-                .order('created_at', desc=True)\
-                .limit(1)\
-                .execute()
-            
-            if se_files_result.data and len(se_files_result.data) > 0:
-                file_data = se_files_result.data[0].get('data', {})
-                if isinstance(file_data, dict):
-                    company_info = file_data.get('company_info', {})
-                    if isinstance(company_info, dict):
-                        company_name = company_info.get('company_name', '')
-                    # Also check if company_name is directly in data
-                    if not company_name:
-                        company_name = file_data.get('company_name', '')
-        except Exception as e:
-            print(f"⚠️ Could not fetch company_name for email: {str(e)}")
-            # Continue without company_name - will use default "ditt bolag"
+        # Fetch company name using same logic as PDF generator (_company_meta function)
+        # Check multiple sources: request.company_name, data.company_name, seFileData.company_info.company_name
+        company_name = request.get("company_name", "")  # Try from request first
+        if not company_name:
+            try:
+                # Query se_files table to get company_name from the most recent file for this organization
+                se_files_result = supabase.table('se_files')\
+                    .select('data')\
+                    .eq('organization_number', org_number)\
+                    .order('created_at', desc=True)\
+                    .limit(1)\
+                    .execute()
+                
+                if se_files_result.data and len(se_files_result.data) > 0:
+                    file_data = se_files_result.data[0].get('data', {})
+                    if isinstance(file_data, dict):
+                        # Match logic from pdf_annual_report.py _company_meta:
+                        # name = data.get('company_name') or info.get('company_name') or "Bolag"
+                        se = file_data.get('seFileData', {}) or {}
+                        info = se.get('company_info', {}) or {}
+                        
+                        # Try data.company_name first, then seFileData.company_info.company_name
+                        company_name = (file_data.get('company_name') or 
+                                      info.get('company_name') or 
+                                      se.get('company_name') or 
+                                      '')
+                        if company_name:
+                            print(f"✅ Found company_name for email from se_files: {company_name}")
+            except Exception as e:
+                print(f"⚠️ Could not fetch company_name for email: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                # Continue without company_name - will use default "ditt bolag"
+        
+        if not company_name:
+            print(f"ℹ️ No company_name found, will use default 'ditt bolag' in email")
         
         # Always send password email (with existing password for existing users, new password for new users)
         login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")

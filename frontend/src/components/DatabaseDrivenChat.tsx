@@ -731,10 +731,19 @@ interface ChatFlowResponse {
                            dataToUse.seFileData?.company_info?.organization_number ||
                            dataToUse.seFileData?.organization_number;
           
+          // Get company_name using same logic as AnnualReportPreview header
+          const companyName = dataToUse.company_name || 
+                             dataToUse.companyName ||
+                             dataToUse.seFileData?.company_info?.company_name;
+          
           if (username && orgNumber) {
             console.log('📧 Creating account and sending password email for:', username, 'org:', orgNumber);
             // Call in background - don't block UI
-            apiService.createUserAccount(username, orgNumber.replace(/-/g, '').replace(/\s/g, '').trim())
+            apiService.createUserAccount(
+              username, 
+              orgNumber.replace(/-/g, '').replace(/\s/g, '').trim(),
+              companyName
+            )
               .then((result) => {
                 if (result.success) {
                   if (result.user_exist) {
