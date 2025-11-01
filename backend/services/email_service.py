@@ -261,7 +261,7 @@ async def send_email_resend(to_email: str, subject: str, html_content: str) -> b
         traceback.print_exc()
         return False
 
-async def send_password_email(to_email: str, customer_email: str, password: str, login_url: str = "https://www.summare.se") -> bool:
+async def send_password_email(to_email: str, customer_email: str, password: str, login_url: str = "https://www.summare.se", company_name: str = "") -> bool:
     """
     Send password email to user
     
@@ -270,6 +270,7 @@ async def send_password_email(to_email: str, customer_email: str, password: str,
         customer_email: Customer email (used as username)
         password: Generated password
         login_url: URL to login page
+        company_name: Company name to display in email (optional)
         
     Returns:
         True if sent successfully
@@ -278,7 +279,8 @@ async def send_password_email(to_email: str, customer_email: str, password: str,
         variables = {
             "customer_email": customer_email,
             "password": password,
-            "login_url": login_url
+            "login_url": login_url,
+            "company_name": company_name if company_name else "ditt bolag"
         }
         
         html_content = load_email_template("password_email", variables)
