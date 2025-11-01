@@ -2061,9 +2061,35 @@ async def create_user_account(request: dict):
         if not organization_number:
             raise HTTPException(status_code=400, detail="Organization number is required")
         
-        # Validate email format
+        # Validate email format - require TLD with at least 2 characters
         import re
-        email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
+        username = username.strip()
+        
+        # Check basic structure
+        if '@' not in username:
+            raise HTTPException(status_code=400, detail="Invalid email format: missing @ symbol")
+        
+        parts = username.split('@')
+        if len(parts) != 2:
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        
+        local_part, domain = parts
+        
+        # Check local part
+        if not local_part or len(local_part) == 0:
+            raise HTTPException(status_code=400, detail="Invalid email format: missing username part")
+        
+        # Check domain
+        if not domain or '.' not in domain:
+            raise HTTPException(status_code=400, detail="Invalid email format: invalid domain")
+        
+        # Check TLD (last part after dot) must be at least 2 characters
+        tld = domain.split('.')[-1]
+        if not tld or len(tld) < 2:
+            raise HTTPException(status_code=400, detail="Invalid email format: domain must end with at least 2 characters (e.g., .com or .se)")
+        
+        # Final regex check
+        email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$'
         if not re.match(email_pattern, username):
             raise HTTPException(status_code=400, detail="Invalid email format")
         
