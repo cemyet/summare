@@ -375,30 +375,27 @@ interface ChatFlowResponse {
       const response = await apiService.getChatFlowStep(stepNumber) as ChatFlowResponse;
       
       // Special handling for step 512: Fetch customer_email from payments table BEFORE substitution
+      // Look up organization_number in payments table and get customer_email from the most recent row (by created_at)
       let customerEmail: string | null = null;
       let userExists = false;
-      let fetchedOrgNumber: string | null = null;
       if (stepNumber === 512) {
         try {
-          // Get organization number from multiple possible locations
-          let orgNumberRaw = companyData.organizationNumber || 
+          // Get organization number from multiple possible locations (always available)
+          const orgNumberRaw = companyData.organizationNumber || 
                               companyData.seFileData?.company_info?.organization_number ||
                               companyData.seFileData?.organization_number;
           
           // Normalize organization number (same as backend does)
-          let orgNumber = orgNumberRaw ? orgNumberRaw.replace(/-/g, '').replace(/\s/g, '').trim() : null;
+          const orgNumber = orgNumberRaw ? orgNumberRaw.replace(/-/g, '').replace(/\s/g, '').trim() : null;
           
-          if (orgNumber) {
+          if (!orgNumber) {
+            console.error('❌ Organization number not found for step 512');
+            // Continue without customer_email - user can still enter manually
+          } else {
             console.log('🔍 Fetching customer_email for step 512, org:', orgNumber);
             const emailResponse = await apiService.getCustomerEmail(orgNumber);
             if (emailResponse.success && emailResponse.customer_email) {
               customerEmail = emailResponse.customer_email;
-              
-              // Use organization_number from API response if provided (in case it's different format)
-              if (emailResponse.organization_number) {
-                fetchedOrgNumber = emailResponse.organization_number;
-                orgNumber = fetchedOrgNumber.replace(/-/g, '').replace(/\s/g, '').trim();
-              }
               
               // Check if user already exists with this email and org number
               console.log('🔍 Checking if user exists:', customerEmail);
@@ -413,28 +410,14 @@ interface ChatFlowResponse {
               }
               
               // Store in companyData for variable substitution (update immediately)
-              const updateData: any = { 
+              onDataUpdate({ 
                 customer_email: customerEmail,
                 user_exist: userExists
-              };
-              
-              // Also store org number if we fetched it from API
-              if (fetchedOrgNumber && !companyData.organizationNumber) {
-                updateData.organizationNumber = fetchedOrgNumber;
-                console.log('✅ Stored organization_number from API response:', fetchedOrgNumber);
-              }
-              
-              onDataUpdate(updateData);
+              });
               console.log('✅ Fetched customer_email for step 512:', customerEmail);
             } else {
               console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
             }
-          } else {
-            console.warn('⚠️ No organization number found for step 512. Available data:', {
-              organizationNumber: companyData.organizationNumber,
-              seFileData_company_info: companyData.seFileData?.company_info?.organization_number,
-              seFileData_org: companyData.seFileData?.organization_number
-            });
           }
         } catch (error) {
           console.error('❌ Error fetching customer email:', error);
