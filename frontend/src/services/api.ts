@@ -222,6 +222,10 @@ class ApiService {
     return this.makeRequest(API_ENDPOINTS.bolagsverketHealth);
   }
 
+  async getMostRecentPayment(): Promise<{ success: boolean; customer_email: string | null; organization_number: string | null; message?: string }> {
+    return this.makeRequest(`${API_ENDPOINTS.base}/api/payments/get-most-recent`);
+  }
+
   async getCustomerEmail(organizationNumber: string): Promise<{ success: boolean; customer_email: string | null; organization_number?: string | null; message?: string }> {
     return this.makeRequest(`${API_ENDPOINTS.base}/api/payments/get-customer-email?organization_number=${encodeURIComponent(organizationNumber)}`);
   }

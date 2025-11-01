@@ -387,16 +387,32 @@ interface ChatFlowResponse {
       let userExists = false;
       if (stepNumber === 512) {
         try {
-          // Get organization number from multiple possible locations (always available)
-          const orgNumberRaw = companyData.organizationNumber || 
+          // Get organization number from multiple possible locations
+          let orgNumberRaw = companyData.organizationNumber || 
                               companyData.seFileData?.company_info?.organization_number ||
                               companyData.seFileData?.organization_number;
+          
+          // If not found, get from most recent payment
+          if (!orgNumberRaw) {
+            console.log('⚠️ Organization number not in companyData, fetching from most recent payment...');
+            try {
+              const recentPaymentResponse = await apiService.getMostRecentPayment();
+              if (recentPaymentResponse.success && recentPaymentResponse.organization_number) {
+                orgNumberRaw = recentPaymentResponse.organization_number;
+                // Store it for future use
+                onDataUpdate({ organizationNumber: orgNumberRaw });
+                console.log('✅ Got organization_number from most recent payment:', orgNumberRaw);
+              }
+            } catch (error) {
+              console.error('❌ Error fetching most recent payment:', error);
+            }
+          }
           
           // Normalize organization number (same as backend does)
           const orgNumber = orgNumberRaw ? orgNumberRaw.replace(/-/g, '').replace(/\s/g, '').trim() : null;
           
           if (!orgNumber) {
-            console.error('❌ Organization number not found for step 512');
+            console.error('❌ Organization number not found for step 512 - cannot fetch customer_email');
             // Continue without customer_email - user can still enter manually
           } else {
             console.log('🔍 Fetching customer_email for step 512, org:', orgNumber);
@@ -404,12 +420,19 @@ interface ChatFlowResponse {
             if (emailResponse.success && emailResponse.customer_email) {
               customerEmail = emailResponse.customer_email;
               
+              // Store org number if we got it from API and it's not in companyData
+              const updateData: any = { customer_email: customerEmail };
+              if (!companyData.organizationNumber && emailResponse.organization_number) {
+                updateData.organizationNumber = emailResponse.organization_number;
+              }
+              
               // Check if user already exists with this email and org number
               console.log('🔍 Checking if user exists:', customerEmail);
               try {
                 const userCheckResponse = await apiService.checkUserExists(customerEmail, orgNumber);
                 if (userCheckResponse.success) {
                   userExists = userCheckResponse.user_exist;
+                  updateData.user_exist = userExists;
                   console.log(`✅ User check result: user_exist=${userExists}, org_in_user=${userCheckResponse.org_in_user}`);
                 }
               } catch (error) {
@@ -417,10 +440,7 @@ interface ChatFlowResponse {
               }
               
               // Store in companyData for variable substitution (update immediately)
-              onDataUpdate({ 
-                customer_email: customerEmail,
-                user_exist: userExists
-              });
+              onDataUpdate(updateData);
               console.log('✅ Fetched customer_email for step 512:', customerEmail);
             } else {
               console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
@@ -1709,7 +1729,7 @@ const selectiveMergeInk2 = (
   const handleInputSubmit = async () => {
     if (!inputValue.trim()) return;
 
-    const value = inputType === 'amount' 
+    let processedValue: string | number = inputType === 'amount' 
       ? parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0
       : inputValue.trim();
     
@@ -1719,7 +1739,7 @@ const selectiveMergeInk2 = (
     
     // Validate dividend amount (step 424: arets_utdelning)
     if (submitOption?.action_data?.variable === 'arets_utdelning' && inputType === 'amount') {
-      const dividendAmount = value as number;
+      const dividendAmount = processedValue as number;
       const maxDividend = companyData.sumFrittEgetKapital || 0;
       
       if (dividendAmount < 0) {
@@ -1740,7 +1760,7 @@ const selectiveMergeInk2 = (
     
     // Validate email format (step 513: username)
     if (submitOption?.action_data?.variable === 'username' && inputType === 'string') {
-      const emailValue = (value as string).trim();
+      const emailValue = (processedValue as string).trim();
       
       // More strict email validation:
       // - Must have @ symbol
@@ -1794,8 +1814,8 @@ const selectiveMergeInk2 = (
         return;
       }
       
-      // Use trimmed value
-      value = emailValue;
+      // Use trimmed validated email value
+      processedValue = emailValue;
     }
     
     // Hide input immediately to prevent UI flash
@@ -1803,8 +1823,8 @@ const selectiveMergeInk2 = (
 
     // Add user message
     const displayValue = inputType === 'amount' 
-      ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value as number) + ' kr'
-      : value;
+      ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(processedValue as number) + ' kr'
+      : processedValue;
     addMessage(String(displayValue), false);
 
     if (submitOption) {
@@ -1813,7 +1833,7 @@ const selectiveMergeInk2 = (
           // Store dividend input and calculate balanseras for substitution
           if (submitOption.action_data.variable === 'arets_utdelning' && inputType === 'amount') {
             // Use absolute value only after validation passes
-            const dividendAmount = Math.abs(value as number);
+            const dividendAmount = Math.abs(processedValue as number);
             const maxDividend = companyData.sumFrittEgetKapital || 0;
             const balancerasAmount = maxDividend - dividendAmount;
             
@@ -1838,13 +1858,13 @@ const selectiveMergeInk2 = (
             // CRITICAL: Store username before navigating to ensure it's in companyData
             if (submitOption.action_data.variable === 'username') {
               // Update companyData immediately with username
-              onDataUpdate({ username: value });
+              onDataUpdate({ username: processedValue });
               
               // Special handling for username: ensure it's available for step 514 substitution
               if (submitOption.next_step === 514) {
                 const tempData = {
                   ...companyData,
-                  username: value  // Ensure username is in tempData
+                  username: processedValue  // Ensure username is in tempData
                 };
                 setShowInput(false);
                 setInputValue('');
@@ -1853,7 +1873,7 @@ const selectiveMergeInk2 = (
               }
             } else {
               // For non-username variables, store normally
-              onDataUpdate({ [submitOption.action_data.variable]: value });
+              onDataUpdate({ [submitOption.action_data.variable]: processedValue });
             }
           }
 
@@ -1864,7 +1884,7 @@ const selectiveMergeInk2 = (
         // Preserve existing value parsing
         const numericValue = inputType === 'amount' 
           ? Math.abs(parseFloat(inputValue.replace(/\s/g, '').replace(/,/g, '.')) || 0)
-          : (typeof value === 'number' ? value : Number(String(value).replace(/\s/g, '').replace(',', '.')));
+          : (typeof processedValue === 'number' ? processedValue : Number(String(processedValue).replace(/\s/g, '').replace(',', '.')));
 
         // Route into overrides for our two supported variables, regardless of action_type
         if (varFromSql) {
@@ -1892,7 +1912,7 @@ const selectiveMergeInk2 = (
         
         // Special handling for custom pension tax amount
         if (submitOption.action_data.variable === 'sarskildLoneskattCustom') {
-          const amount = value as number;
+          const amount = processedValue as number;
           const sarskildLoneskattPension = companyData.sarskildLoneskattPension || 0;
           const adjustment = amount - sarskildLoneskattPension;
           

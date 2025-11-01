@@ -1831,6 +1831,42 @@ async def get_next_chat_flow_step(current_step: int):
         print(f"Error getting next chat flow step: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting next chat flow step: {str(e)}")
 
+@app.get("/api/payments/get-most-recent")
+async def get_most_recent_payment():
+    """
+    Get the most recent paid payment (for getting org number when it's missing from frontend)
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Get most recent paid payment
+        result = supabase.table('payments')\
+            .select('customer_email,organization_number,created_at')\
+            .eq('payment_status', 'paid')\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+        
+        if not result.data or len(result.data) == 0:
+            return {
+                "success": False,
+                "customer_email": None,
+                "organization_number": None,
+                "message": "No paid payment found"
+            }
+        
+        payment = result.data[0]
+        return {
+            "success": True,
+            "customer_email": payment.get('customer_email'),
+            "organization_number": payment.get('organization_number')
+        }
+    except Exception as e:
+        print(f"Error getting most recent payment: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting most recent payment: {str(e)}")
+
 @app.get("/api/payments/get-customer-email")
 async def get_customer_email(organization_number: str):
     """
