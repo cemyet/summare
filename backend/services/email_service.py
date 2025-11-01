@@ -22,6 +22,7 @@ def generate_password(length: int = 6) -> str:
 def load_email_template(template_name: str, variables: dict) -> str:
     """
     Load an email template and replace variables
+    Also embeds background image as base64 data URI for better deliverability
     
     Args:
         template_name: Name of the template file (without .html)
@@ -38,12 +39,74 @@ def load_email_template(template_name: str, variables: dict) -> str:
     with open(template_path, 'r', encoding='utf-8') as f:
         template_content = f.read()
     
+    # Embed background image as base64 (inline images improve deliverability)
+    background_image_path = Path(__file__).parent.parent.parent / "frontend" / "public" / "mail_background_2.png"
+    if background_image_path.exists():
+        try:
+            import base64
+            with open(background_image_path, 'rb') as img_file:
+                img_data = base64.b64encode(img_file.read()).decode('utf-8')
+                data_uri = f"data:image/png;base64,{img_data}"
+                # Replace URL reference with inline base64
+                template_content = template_content.replace(
+                    "url('https://www.summare.se/mail_background.png')",
+                    f"url('{data_uri}')"
+                )
+                # Also replace if using mail_background_2.png URL
+                template_content = template_content.replace(
+                    "url('https://www.summare.se/mail_background_2.png')",
+                    f"url('{data_uri}')"
+                )
+        except Exception as e:
+            print(f"⚠️ Could not embed background image as base64: {e}")
+            # Fallback to URL if base64 encoding fails
+    
     # Replace variables in template {variable_name}
     for key, value in variables.items():
         placeholder = f"{{{key}}}"
         template_content = template_content.replace(placeholder, str(value))
     
     return template_content
+
+def html_to_text(html_content: str) -> str:
+    """
+    Convert HTML email to plain text version for better deliverability
+    
+    Args:
+        html_content: HTML email content
+    
+    Returns:
+        Plain text version
+    """
+    import re
+    
+    # Remove script and style elements
+    text = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Convert common HTML tags to plain text
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</p>', '\n\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</div>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<h[1-6][^>]*>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</h[1-6]>', '\n\n', text, flags=re.IGNORECASE)
+    
+    # Remove all HTML tags
+    text = re.sub(r'<[^>]+>', '', text)
+    
+    # Decode HTML entities
+    text = text.replace('&nbsp;', ' ')
+    text = text.replace('&amp;', '&')
+    text = text.replace('&lt;', '<')
+    text = text.replace('&gt;', '>')
+    text = text.replace('&quot;', '"')
+    text = text.replace('&#39;', "'")
+    
+    # Clean up whitespace
+    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)  # Multiple blank lines to double
+    text = text.strip()
+    
+    return text
 
 async def send_email(to_email: str, subject: str, html_content: str) -> bool:
     """
@@ -159,7 +222,7 @@ async def send_email_sendgrid(to_email: str, subject: str, html_content: str) ->
         return False
 
 async def send_email_resend(to_email: str, subject: str, html_content: str) -> bool:
-    """Send email via Resend"""
+    """Send email via Resend with improved deliverability"""
     try:
         import requests
         
@@ -168,28 +231,53 @@ async def send_email_resend(to_email: str, subject: str, html_content: str) -> b
             print("⚠️ Resend API key not configured. Email not sent.")
             return False
         
+        # Format "From" with proper name (improves deliverability)
+        from_email = EMAIL_FROM
+        if '@' in from_email and '<' not in from_email:
+            # Add friendly name if not already present
+            email_domain = from_email.split('@')[1] if '@' in from_email else 'summare.se'
+            from_email = f"Summare <{EMAIL_FROM}>"
+        
+        # Generate plain text version for better deliverability
+        text_content = html_to_text(html_content)
+        
+        # Build email payload with both HTML and text versions
+        email_data = {
+            "from": from_email,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+            "text": text_content,  # Plain text version improves deliverability
+            "reply_to": os.getenv("EMAIL_REPLY_TO", "cem@summare.se"),  # Add reply-to
+            # Ensure return-path matches domain for better deliverability
+            "headers": {
+                "Return-Path": EMAIL_FROM if '@' in EMAIL_FROM else f"cem@summare.se"
+            }
+        }
+        
         response = requests.post(
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json"
             },
-            json={
-                "from": EMAIL_FROM,
-                "to": [to_email],
-                "subject": subject,
-                "html": html_content
-            }
+            json=email_data
         )
         
         if response.status_code == 200:
-            print(f"✅ Email sent via Resend to {to_email}")
+            result = response.json()
+            email_id = result.get('id', 'unknown')
+            print(f"✅ Email sent via Resend to {to_email} (ID: {email_id})")
             return True
         else:
-            print(f"❌ Resend API error: {response.status_code} - {response.text}")
+            error_detail = response.text
+            print(f"❌ Resend API error: {response.status_code}")
+            print(f"   Response: {error_detail}")
             return False
     except Exception as e:
         print(f"❌ Error sending email via Resend: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False
 
 async def send_password_email(to_email: str, customer_email: str, password: str, login_url: str = "https://www.summare.se") -> bool:
@@ -213,7 +301,8 @@ async def send_password_email(to_email: str, customer_email: str, password: str,
         }
         
         html_content = load_email_template("password_email", variables)
-        subject = "Välkommen till Summare - Ditt lösenord"
+        # Avoid "lösenord" and "password" in subject to reduce spam score
+        subject = "Välkommen till Summare – dina inloggningsuppgifter"
         
         return await send_email(to_email, subject, html_content)
     except Exception as e:
