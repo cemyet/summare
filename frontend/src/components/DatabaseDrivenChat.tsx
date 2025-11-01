@@ -1139,20 +1139,6 @@ interface ChatFlowResponse {
                 }
               }
               
-              // Special handling for username: ensure it's available for step 514 substitution
-              if (action_data.variable === 'username') {
-                // If navigating to step 514, pass username in temp data for immediate substitution
-                if (next_step === 514) {
-                  const tempData = {
-                    ...companyData,
-                    username: actualValue
-                  };
-                  onDataUpdate(updateData);
-                  setTimeout(() => loadChatStep(next_step, updatedInk2Data, tempData), 300);
-                  return; // Skip normal navigation
-                }
-              }
-              
               onDataUpdate(updateData);
             }
             break;
