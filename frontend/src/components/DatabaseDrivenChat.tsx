@@ -701,29 +701,21 @@ interface ChatFlowResponse {
         // Trigger account creation and email sending when step 514 loads
         // Step 514 message says "credentials have been sent", so account must be created here
         else if (stepNumber === 514) {
-          // Create user account and send password email
-          const username = companyData.username || companyData.customer_email || companyData.customerEmail;
-          const orgNumber = companyData.organizationNumber || 
-                           companyData.seFileData?.company_info?.organization_number ||
-                           companyData.seFileData?.organization_number;
+          // CRITICAL: Use tempCompanyData if available (passed from previous step)
+          // This ensures we have the username that was just set
+          const dataToUse = tempCompanyData || companyData;
           
-          console.log('🔍 Step 514 - Account creation check:', {
-            username,
-            orgNumber,
-            companyData_username: companyData.username,
-            companyData_customer_email: companyData.customer_email,
-            companyData_customerEmail: companyData.customerEmail,
-            companyData_organizationNumber: companyData.organizationNumber,
-            seFileData_company_info: companyData.seFileData?.company_info?.organization_number,
-            seFileData_org: companyData.seFileData?.organization_number
-          });
+          // Create user account and send password email
+          const username = dataToUse.username || dataToUse.customer_email || dataToUse.customerEmail;
+          const orgNumber = dataToUse.organizationNumber || 
+                           dataToUse.seFileData?.company_info?.organization_number ||
+                           dataToUse.seFileData?.organization_number;
           
           if (username && orgNumber) {
             console.log('📧 Creating account and sending password email for:', username, 'org:', orgNumber);
             // Call in background - don't block UI
             apiService.createUserAccount(username, orgNumber.replace(/-/g, '').replace(/\s/g, '').trim())
               .then((result) => {
-                console.log('📧 Account creation result:', result);
                 if (result.success) {
                   if (result.user_exist) {
                     console.log('✅ Existing user - organization number added to account');
@@ -750,7 +742,8 @@ interface ChatFlowResponse {
             console.error('❌ CANNOT CREATE ACCOUNT - Missing required data:', { 
               username: username || 'MISSING', 
               orgNumber: orgNumber || 'MISSING',
-              companyData_keys: Object.keys(companyData)
+              hasTempData: !!tempCompanyData,
+              dataToUse_keys: Object.keys(dataToUse)
             });
           }
         }
