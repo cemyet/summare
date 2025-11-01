@@ -574,10 +574,16 @@ interface ChatFlowResponse {
         
         // Substitute variables in question text (use temp data if available)
         const dataToUse = tempCompanyData || companyData;
-        // For step 512, prioritize freshly fetched customerEmail over dataToUse values
-        const finalCustomerEmail = stepNumber === 512 
-          ? (customerEmail || dataToUse.customer_email || dataToUse.customerEmail || '')
-          : (dataToUse.customer_email || dataToUse.customerEmail || '');
+        // For step 512, CRITICALLY prioritize freshly fetched customerEmail
+        let finalCustomerEmail: string = '';
+        if (stepNumber === 512) {
+          finalCustomerEmail = customerEmail || dataToUse.customer_email || dataToUse.customerEmail || '';
+          console.log('🔍 Step 512 substitution - customerEmail variable:', customerEmail);
+          console.log('🔍 Step 512 substitution - dataToUse.customer_email:', dataToUse.customer_email);
+          console.log('🔍 Step 512 substitution - finalCustomerEmail:', finalCustomerEmail);
+        } else {
+          finalCustomerEmail = dataToUse.customer_email || dataToUse.customerEmail || '';
+        }
         
         const substitutionVars = {
           SumAretsResultat: dataToUse.sumAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sumAretsResultat) : '0',
@@ -595,7 +601,9 @@ interface ChatFlowResponse {
           username: dataToUse.username || '',
           user_exist: dataToUse.user_exist ? 'true' : 'false'
         };
+        console.log('🔍 Substitution vars for step', stepNumber, ':', { customer_email: substitutionVars.customer_email });
         const questionText = substituteVariables(response.question_text, substitutionVars);
+        console.log('🔍 Substituted question text:', questionText);
         
         // Add the question message and show options only after it completes
         addMessage(questionText, true, response.question_icon, () => {
