@@ -1832,9 +1832,10 @@ async def get_next_chat_flow_step(current_step: int):
         raise HTTPException(status_code=500, detail=f"Error getting next chat flow step: {str(e)}")
 
 @app.get("/api/payments/get-customer-email")
-async def get_customer_email(organization_number: str):
+async def get_customer_email(organization_number: str = None):
     """
-    Get the customer_email from the most recent paid payment for an organization
+    Get the customer_email from the most recent paid payment for an organization.
+    If organization_number is not provided, returns the most recent payment.
     """
     try:
         supabase = get_supabase_client()
@@ -1842,21 +1843,31 @@ async def get_customer_email(organization_number: str):
         if not supabase:
             raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
         
-        # Normalize organization number (remove dashes and spaces)
-        org_number = organization_number.replace("-", "").replace(" ", "").strip()
-        
-        if not org_number:
-            raise HTTPException(status_code=400, detail="Organization number is required")
-        
-        # Get all paid payments for this organization
-        all_results = supabase.table('payments')\
-            .select('customer_email,created_at')\
-            .eq('organization_number', org_number)\
-            .eq('payment_status', 'paid')\
-            .execute()
+        # If org_number provided, query by it; otherwise get most recent payment
+        if organization_number:
+            org_number = organization_number.replace("-", "").replace(" ", "").strip()
+            
+            if not org_number:
+                raise HTTPException(status_code=400, detail="Organization number is required")
+            
+            # Get all paid payments for this organization
+            all_results = supabase.table('payments')\
+                .select('customer_email,organization_number,created_at')\
+                .eq('organization_number', org_number)\
+                .eq('payment_status', 'paid')\
+                .execute()
+        else:
+            # Get most recent paid payment (any organization)
+            all_results = supabase.table('payments')\
+                .select('customer_email,organization_number,created_at')\
+                .eq('payment_status', 'paid')\
+                .order('created_at', desc=True)\
+                .limit(1)\
+                .execute()
         
         # Sort by created_at descending (most recent first) and get the first one
         customer_email = None
+        organization_number_return = None
         if all_results.data:
             sorted_results = sorted(
                 all_results.data, 
@@ -1865,17 +1876,20 @@ async def get_customer_email(organization_number: str):
             )
             if sorted_results:
                 customer_email = sorted_results[0].get('customer_email')
+                organization_number_return = sorted_results[0].get('organization_number')
         
         if not customer_email:
             return {
                 "success": False,
                 "customer_email": None,
-                "message": "No paid payment found for this organization"
+                "organization_number": None,
+                "message": "No paid payment found"
             }
         
         return {
             "success": True,
-            "customer_email": customer_email
+            "customer_email": customer_email,
+            "organization_number": organization_number_return
         }
         
     except HTTPException:
