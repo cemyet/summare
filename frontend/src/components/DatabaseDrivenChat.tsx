@@ -280,19 +280,26 @@ interface ChatFlowResponse {
     const fullContext = {
       ...companyData,
       ...context,  // Context values should override companyData values
-      unusedTaxLossAmount: context.unusedTaxLossAmount || companyData.unusedTaxLossAmount || 0,
-      inkBeraknadSkatt: context.inkBeraknadSkatt || companyData.inkBeraknadSkatt || 0,
-      inkBokfordSkatt: context.inkBokfordSkatt || companyData.inkBokfordSkatt || 0,
-      SkattAretsResultat: context.SkattAretsResultat || companyData.skattAretsResultat || 0,
-      pension_premier: context.pension_premier || companyData.pensionPremier || 0,
-      sarskild_loneskatt_pension: context.sarskild_loneskatt_pension || companyData.sarskildLoneskattPension || 0,
-      sarskild_loneskatt_pension_calculated: context.sarskild_loneskatt_pension_calculated || companyData.sarskildLoneskattPensionCalculated || 0,
-      arets_utdelning: context.arets_utdelning || companyData.arets_utdelning || 0,
-      arets_balanseras_nyrakning: context.arets_balanseras_nyrakning || companyData.arets_balanseras_nyrakning || 0,
-      // Ensure customer_email and username from context are included
-      customer_email: context.customer_email !== undefined ? context.customer_email : (companyData.customer_email || companyData.customerEmail || ''),
-      username: context.username !== undefined ? context.username : (companyData.username || '')
+      unusedTaxLossAmount: context.unusedTaxLossAmount !== undefined ? context.unusedTaxLossAmount : (companyData.unusedTaxLossAmount || 0),
+      inkBeraknadSkatt: context.inkBeraknadSkatt !== undefined ? context.inkBeraknadSkatt : (companyData.inkBeraknadSkatt || 0),
+      inkBokfordSkatt: context.inkBokfordSkatt !== undefined ? context.inkBokfordSkatt : (companyData.inkBokfordSkatt || 0),
+      SkattAretsResultat: context.SkattAretsResultat !== undefined ? context.SkattAretsResultat : (companyData.skattAretsResultat || 0),
+      pension_premier: context.pension_premier !== undefined ? context.pension_premier : (companyData.pensionPremier || 0),
+      sarskild_loneskatt_pension: context.sarskild_loneskatt_pension !== undefined ? context.sarskild_loneskatt_pension : (companyData.sarskildLoneskattPension || 0),
+      sarskild_loneskatt_pension_calculated: context.sarskild_loneskatt_pension_calculated !== undefined ? context.sarskild_loneskatt_pension_calculated : (companyData.sarskildLoneskattPensionCalculated || 0),
+      arets_utdelning: context.arets_utdelning !== undefined ? context.arets_utdelning : (companyData.arets_utdelning || 0),
+      arets_balanseras_nyrakning: context.arets_balanseras_nyrakning !== undefined ? context.arets_balanseras_nyrakning : (companyData.arets_balanseras_nyrakning || 0),
+      // CRITICAL: Ensure customer_email and username from context ALWAYS override companyData (even if empty string)
+      customer_email: context.hasOwnProperty('customer_email') ? (context.customer_email || '') : (companyData.customer_email || companyData.customerEmail || ''),
+      username: context.hasOwnProperty('username') ? (context.username || '') : (companyData.username || '')
     };
+    
+    // Debug log for step 512
+    if (text.includes('{customer_email}')) {
+      console.log('🔍 substituteVariables called with text containing {customer_email}');
+      console.log('🔍 context.customer_email:', context.customer_email);
+      console.log('🔍 fullContext.customer_email:', fullContext.customer_email);
+    }
 
     // Replace variables
     for (const [key, value] of Object.entries(fullContext)) {
