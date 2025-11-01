@@ -40,26 +40,49 @@ def load_email_template(template_name: str, variables: dict) -> str:
         template_content = f.read()
     
     # Embed background image as base64 (inline images improve deliverability)
-    background_image_path = Path(__file__).parent.parent.parent / "frontend" / "public" / "mail_background_2.png"
-    if background_image_path.exists():
+    # Try multiple possible paths
+    possible_paths = [
+        Path(__file__).parent.parent.parent / "frontend" / "public" / "mail_background_2.png",
+        Path(__file__).parent.parent / ".." / "frontend" / "public" / "mail_background_2.png",
+        Path("frontend/public/mail_background_2.png"),
+        Path("../frontend/public/mail_background_2.png"),
+    ]
+    
+    background_image_path = None
+    for path in possible_paths:
+        abs_path = path.resolve() if path.exists() else None
+        if abs_path and abs_path.exists():
+            background_image_path = abs_path
+            break
+    
+    if background_image_path and background_image_path.exists():
         try:
             import base64
+            print(f"📸 Embedding background image from: {background_image_path}")
             with open(background_image_path, 'rb') as img_file:
                 img_data = base64.b64encode(img_file.read()).decode('utf-8')
                 data_uri = f"data:image/png;base64,{img_data}"
-                # Replace URL reference with inline base64
-                template_content = template_content.replace(
-                    "url('https://www.summare.se/mail_background.png')",
-                    f"url('{data_uri}')"
-                )
-                # Also replace if using mail_background_2.png URL
-                template_content = template_content.replace(
-                    "url('https://www.summare.se/mail_background_2.png')",
-                    f"url('{data_uri}')"
-                )
+                print(f"✅ Converted to base64 (length: {len(data_uri)})")
+                
+                # Replace all possible URL references with inline base64
+                replacements = [
+                    ("url('https://www.summare.se/mail_background_2.png')", f"url('{data_uri}')"),
+                    ('url("https://www.summare.se/mail_background_2.png")', f'url("{data_uri}")'),
+                    ("url('https://www.summare.se/mail_background.png')", f"url('{data_uri}')"),
+                    ('url("https://www.summare.se/mail_background.png")', f'url("{data_uri}")'),
+                ]
+                
+                for old_url, new_url in replacements:
+                    if old_url in template_content:
+                        template_content = template_content.replace(old_url, new_url)
+                        print(f"✅ Replaced background image URL with base64")
         except Exception as e:
             print(f"⚠️ Could not embed background image as base64: {e}")
+            import traceback
+            traceback.print_exc()
             # Fallback to URL if base64 encoding fails
+    else:
+        print(f"⚠️ Background image not found at any path. Searched: {[str(p) for p in possible_paths]}")
     
     # Replace variables in template {variable_name}
     for key, value in variables.items():
@@ -301,8 +324,8 @@ async def send_password_email(to_email: str, customer_email: str, password: str,
         }
         
         html_content = load_email_template("password_email", variables)
-        # Avoid "lösenord" and "password" in subject to reduce spam score
-        subject = "Välkommen till Summare – dina inloggningsuppgifter"
+        # Simple subject line to reduce spam score
+        subject = "Välkommen till Summare"
         
         return await send_email(to_email, subject, html_content)
     except Exception as e:
