@@ -374,8 +374,9 @@ interface ChatFlowResponse {
       }
       const response = await apiService.getChatFlowStep(stepNumber) as ChatFlowResponse;
       
-      // Special handling for step 512: Fetch customer_email from payments table
+      // Special handling for step 512: Fetch customer_email from payments table and check if user exists
       let customerEmail: string | null = null;
+      let userExists = false;
       if (stepNumber === 512) {
         try {
           // Get organization number from multiple possible locations
@@ -391,8 +392,24 @@ interface ChatFlowResponse {
             const emailResponse = await apiService.getCustomerEmail(orgNumber);
             if (emailResponse.success && emailResponse.customer_email) {
               customerEmail = emailResponse.customer_email;
+              
+              // Check if user already exists with this email and org number
+              console.log('🔍 Checking if user exists:', customerEmail);
+              try {
+                const userCheckResponse = await apiService.checkUserExists(customerEmail, orgNumber);
+                if (userCheckResponse.success) {
+                  userExists = userCheckResponse.user_exist;
+                  console.log(`✅ User check result: user_exist=${userExists}, org_in_user=${userCheckResponse.org_in_user}`);
+                }
+              } catch (error) {
+                console.error('❌ Error checking user existence:', error);
+              }
+              
               // Store in companyData for variable substitution
-              onDataUpdate({ customer_email: customerEmail });
+              onDataUpdate({ 
+                customer_email: customerEmail,
+                user_exist: userExists
+              });
               console.log('✅ Fetched customer_email for step 512:', customerEmail);
             } else {
               console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
@@ -462,7 +479,8 @@ interface ChatFlowResponse {
               arets_utdelning: dataToUseForMessage.arets_utdelning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_utdelning) : '0',
               arets_balanseras_nyrakning: dataToUseForMessage.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUseForMessage.arets_balanseras_nyrakning) : '0',
               customer_email: finalCustomerEmailForMessage,
-              username: dataToUseForMessage.username || ''
+              username: dataToUseForMessage.username || '',
+              user_exist: dataToUseForMessage.user_exist ? 'true' : 'false'
             });
             
             // Special handling for step 506: watch for actual Stripe payment content to be rendered
@@ -576,7 +594,8 @@ interface ChatFlowResponse {
           arets_utdelning: dataToUse.arets_utdelning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.arets_utdelning) : '0',
           arets_balanseras_nyrakning: dataToUse.arets_balanseras_nyrakning ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.arets_balanseras_nyrakning) : '0',
           customer_email: finalCustomerEmail,
-          username: dataToUse.username || ''
+          username: dataToUse.username || '',
+          user_exist: dataToUse.user_exist ? 'true' : 'false'
         };
         const questionText = substituteVariables(response.question_text, substitutionVars);
         
@@ -649,7 +668,45 @@ interface ChatFlowResponse {
           }, 500);
         }
         // Auto-scroll to Signering section for step 515
+        // Also trigger account creation and email sending
         else if (stepNumber === 515) {
+          // Create user account and send password email
+          const username = companyData.username || companyData.customer_email || companyData.customerEmail;
+          const orgNumber = companyData.organizationNumber || 
+                           companyData.seFileData?.company_info?.organization_number ||
+                           companyData.seFileData?.organization_number;
+          
+          if (username && orgNumber) {
+            console.log('📧 Creating account and sending password email for:', username);
+            // Call in background - don't block UI
+            apiService.createUserAccount(username, orgNumber.replace(/-/g, '').replace(/\s/g, '').trim())
+              .then((result) => {
+                if (result.success) {
+                  if (result.user_exist) {
+                    console.log('✅ Existing user - organization number added to account');
+                    if (!result.email_sent) {
+                      console.log('ℹ️ No email sent (user already exists with password)');
+                    }
+                  } else {
+                    console.log('✅ New account created and password email sent successfully');
+                    if (result.email_sent) {
+                      console.log('✅ Password email sent to:', username);
+                    } else {
+                      console.warn('⚠️ Account created but email failed to send');
+                    }
+                  }
+                } else {
+                  console.error('❌ Failed to create account:', result.message);
+                }
+              })
+              .catch((error) => {
+                console.error('❌ Error creating account:', error);
+                console.error('Error details:', JSON.stringify(error, null, 2));
+              });
+          } else {
+            console.warn('⚠️ Cannot create account - missing username or organization number', { username, orgNumber });
+          }
+          
           setTimeout(() => {
             const signeringModule = document.querySelector('[data-section="signering"]');
             const scrollContainer = document.querySelector('.overflow-auto');

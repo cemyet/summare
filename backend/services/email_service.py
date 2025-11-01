@@ -14,10 +14,9 @@ load_dotenv()
 EMAIL_FROM = os.getenv("EMAIL_FROM", "cem@summare.se")
 EMAIL_PROVIDER = os.getenv("EMAIL_PROVIDER", "smtp")  # smtp, sendgrid, resend
 
-def generate_password(length: int = 12) -> str:
-    """Generate a secure random password"""
-    alphabet = string.ascii_letters + string.digits + "!@#$%&*"
-    password = ''.join(secrets.choice(alphabet) for _ in range(length))
+def generate_password(length: int = 6) -> str:
+    """Generate a secure random password - 6 digits"""
+    password = ''.join(secrets.choice(string.digits) for _ in range(length))
     return password
 
 def load_email_template(template_name: str, variables: dict) -> str:

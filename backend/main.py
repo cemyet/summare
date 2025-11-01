@@ -1980,11 +1980,72 @@ async def send_for_digital_signing(request: dict):
         print(f"Error sending for digital signing: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error sending for digital signing: {str(e)}")
 
+@app.get("/api/users/check-exists")
+async def check_user_exists(username: str, organization_number: str):
+    """
+    Check if user exists and if organization_number is associated with them
+    Returns user_exist flag
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Normalize organization number
+        org_number = organization_number.replace("-", "").replace(" ", "").strip()
+        
+        # Check if user exists
+        user_result = supabase.table('users')\
+            .select('id, username, organization_number')\
+            .eq('username', username)\
+            .execute()
+        
+        user_exists = len(user_result.data) > 0
+        org_in_user = False
+        
+        if user_exists:
+            # Check if organization_number is in the user's array
+            user_data = user_result.data[0]
+            org_array = user_data.get('organization_number', [])
+            
+            # Handle JSONB array (PostgreSQL/Supabase returns lists directly)
+            # Also handle legacy single value or string formats
+            if isinstance(org_array, list):
+                # JSONB array - check if org_number is in array (string comparison)
+                org_in_user = any(str(item) == org_number for item in org_array)
+            elif isinstance(org_array, str):
+                # Legacy: If stored as string, parse it
+                try:
+                    import json
+                    if org_array.startswith('['):
+                        parsed = json.loads(org_array)
+                    else:
+                        parsed = [org_array]
+                    org_in_user = any(str(item) == org_number for item in parsed)
+                except:
+                    org_in_user = org_number == org_array
+            else:
+                # Single value - compare as string
+                org_in_user = org_number == str(org_array) if org_array else False
+        
+        return {
+            "success": True,
+            "user_exist": user_exists,
+            "org_in_user": org_in_user
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error checking user existence: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error checking user existence: {str(e)}")
+
 @app.post("/api/users/create-account")
 async def create_user_account(request: dict):
     """
     Create user account and send password email
     Called after step 515 when username is registered
+    Handles both new user creation and adding org number to existing user
     """
     try:
         username = request.get("username")  # Email address
@@ -1993,42 +2054,139 @@ async def create_user_account(request: dict):
         if not username:
             raise HTTPException(status_code=400, detail="Username (email) is required")
         
+        if not organization_number:
+            raise HTTPException(status_code=400, detail="Organization number is required")
+        
         # Validate email format
         import re
         email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]+$'
         if not re.match(email_pattern, username):
             raise HTTPException(status_code=400, detail="Invalid email format")
         
-        # Generate password
-        password = generate_password()
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
         
-        # TODO: Create user account in Supabase Auth or your user management system
-        # For now, we'll just send the email with credentials
-        # You'll need to implement actual user creation based on your auth system
+        # Normalize organization number
+        org_number = organization_number.replace("-", "").replace(" ", "").strip()
         
-        # Send password email
-        login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
-        email_sent = await send_password_email(username, username, password, login_url)
+        # Check if user already exists
+        user_result = supabase.table('users')\
+            .select('id, username, organization_number, password')\
+            .eq('username', username)\
+            .execute()
         
-        if not email_sent:
-            # Email sending failed but don't block - user can request password reset
-            print(f"⚠️ Password email failed to send, but user account can still be created")
+        user_exists = len(user_result.data) > 0
+        password = None
+        email_should_send = False
         
-        # TODO: Store username/password hash in database for login
-        # For security, password should be hashed (never store plain text)
-        # You might want to use Supabase Auth or another auth provider
+        if user_exists:
+            # User exists - check if org number is in their array
+            user_data = user_result.data[0]
+            org_array = user_data.get('organization_number', [])
+            
+            # Handle JSONB array (PostgreSQL/Supabase returns lists directly)
+            # Also handle legacy single value or string formats
+            if isinstance(org_array, list):
+                # JSONB array - check if org_number is already in array
+                org_number_str = str(org_number)  # Ensure string comparison
+                org_in_array = any(str(item) == org_number_str for item in org_array)
+                
+                if not org_in_array:
+                    # Add org number to array (as string)
+                    org_array.append(org_number_str)
+                    supabase.table('users')\
+                        .update({'organization_number': org_array})\
+                        .eq('id', user_data['id'])\
+                        .execute()
+                    print(f"✅ Added organization_number {org_number} to existing user {username}")
+                else:
+                    print(f"ℹ️ Organization number {org_number} already exists for user {username}")
+            elif isinstance(org_array, str):
+                # Legacy: If stored as string, parse and update
+                try:
+                    import json
+                    if org_array.startswith('['):
+                        parsed = json.loads(org_array)
+                    else:
+                        # Single value as string - convert to array
+                        parsed = [org_array] if org_array else []
+                    
+                    if org_number not in parsed:
+                        parsed.append(org_number)
+                        supabase.table('users')\
+                            .update({'organization_number': parsed})\
+                            .eq('id', user_data['id'])\
+                            .execute()
+                        print(f"✅ Added organization_number {org_number} to existing user {username} (converted from string)")
+                    else:
+                        print(f"ℹ️ Organization number {org_number} already exists for user {username}")
+                except Exception as e:
+                    print(f"⚠️ Error parsing organization_number string: {e}, converting to array")
+                    # Convert single value to array
+                    new_array = [org_array, org_number] if org_array != org_number else [org_number]
+                    supabase.table('users')\
+                        .update({'organization_number': new_array})\
+                        .eq('id', user_data['id'])\
+                        .execute()
+                    print(f"✅ Added organization_number {org_number} to existing user {username} (converted)")
+            else:
+                # Single value (number or other), convert to array
+                org_array_str = str(org_array) if org_array else ''
+                if org_array_str != org_number:
+                    new_array = [org_array_str, org_number]
+                    supabase.table('users')\
+                        .update({'organization_number': new_array})\
+                        .eq('id', user_data['id'])\
+                        .execute()
+                    print(f"✅ Added organization_number {org_number} to existing user {username} (converted from single value)")
+                else:
+                    print(f"ℹ️ Organization number {org_number} already exists for user {username}")
+            
+            # Existing user - don't send password email (they already have one)
+            password = "***"  # Don't expose existing password
+            
+        else:
+            # New user - create account
+            password = generate_password()  # 6-digit random password
+            org_array = [org_number]  # JSONB array with single org number
+            
+            supabase.table('users')\
+                .insert({
+                    'username': username,
+                    'password': password,  # TODO: Hash this with bcrypt in production
+                    'organization_number': org_array  # JSONB array format
+                })\
+                .execute()
+            
+            print(f"✅ Created new user account for {username} with password: {password}")
+            email_should_send = True
+        
+        # Send password email only for new users
+        if email_should_send:
+            login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+            email_sent = await send_password_email(username, username, password, login_url)
+            
+            if not email_sent:
+                print(f"⚠️ Password email failed to send for new user {username}")
+                # Still return success since account was created
+            else:
+                print(f"✅ Password email sent to {username}")
         
         return {
             "success": True,
-            "message": "User account created and password email sent",
+            "message": "User account processed successfully",
             "username": username,
-            # Don't return password in response for security
+            "user_exist": user_exists,
+            "email_sent": email_should_send
         }
         
     except HTTPException:
         raise
     except Exception as e:
         print(f"Error creating user account: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error creating user account: {str(e)}")
 
 def substitute_variables(data, context):

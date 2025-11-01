@@ -225,6 +225,17 @@ class ApiService {
   async getCustomerEmail(organizationNumber: string): Promise<{ success: boolean; customer_email: string | null; message?: string }> {
     return this.makeRequest(`${API_ENDPOINTS.base}/api/payments/get-customer-email?organization_number=${encodeURIComponent(organizationNumber)}`);
   }
+
+  async createUserAccount(username: string, organizationNumber: string): Promise<{ success: boolean; message: string; username: string; user_exist: boolean; email_sent: boolean }> {
+    return this.makeRequest(`${API_ENDPOINTS.base}/api/users/create-account`, {
+      method: 'POST',
+      body: JSON.stringify({ username, organization_number: organizationNumber }),
+    });
+  }
+
+  async checkUserExists(username: string, organizationNumber: string): Promise<{ success: boolean; user_exist: boolean; org_in_user: boolean }> {
+    return this.makeRequest(`${API_ENDPOINTS.base}/api/users/check-exists?username=${encodeURIComponent(username)}&organization_number=${encodeURIComponent(organizationNumber)}`);
+  }
 }
 
 export const apiService = new ApiService();
