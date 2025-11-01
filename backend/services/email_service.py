@@ -103,9 +103,30 @@ async def send_email_smtp(to_email: str, subject: str, html_content: str) -> boo
         print(f"✅ Email sent to {to_email} via {smtp_host}")
         return True
     except smtplib.SMTPAuthenticationError as e:
-        print(f"❌ SMTP authentication failed: {str(e)}")
-        print("   Check that SMTP_USER and SMTP_PASSWORD are correct")
-        print("   For Microsoft 365, you may need an app password")
+        error_msg = str(e)
+        print(f"❌ SMTP authentication failed: {error_msg}")
+        
+        # Check for specific Microsoft 365 Security Defaults error
+        if "security defaults" in error_msg.lower() or "locked by your organization" in error_msg.lower():
+            print("\n🔒 Microsoft 365 Security Defaults is blocking SMTP authentication.")
+            print("   This policy blocks basic authentication (SMTP) even with app passwords.")
+            print("\n   Solutions:")
+            print("   1. Use an alternative email provider (recommended):")
+            print("      - Set EMAIL_PROVIDER=resend and add RESEND_API_KEY to .env")
+            print("      - Or use SendGrid with EMAIL_PROVIDER=sendgrid")
+            print("\n   2. Contact your Microsoft 365 admin to:")
+            print("      - Disable Security Defaults (not recommended)")
+            print("      - Create a Conditional Access policy allowing SMTP")
+            print("      - Or use OAuth/Modern Authentication (requires code changes)")
+            print("\n   3. Verify you're using an app password (not regular password):")
+            print("      - Go to: https://account.microsoft.com/security")
+            print("      - Create new app password for 'Mail'")
+            print("      - Use that app password in SMTP_PASSWORD")
+        else:
+            print("   Check that SMTP_USER and SMTP_PASSWORD are correct")
+            print("   For Microsoft 365, you may need an app password")
+            print("   Verify the app password at: https://account.microsoft.com/security")
+        
         return False
     except Exception as e:
         print(f"❌ Error sending email via SMTP: {str(e)}")
