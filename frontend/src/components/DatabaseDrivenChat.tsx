@@ -1729,15 +1729,62 @@ const selectiveMergeInk2 = (
     
     // Validate email format (step 513: username)
     if (submitOption?.action_data?.variable === 'username' && inputType === 'string') {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const emailValue = value as string;
+      const emailValue = (value as string).trim();
       
+      // More strict email validation:
+      // - Must have @ symbol
+      // - Local part (before @) must be at least 1 character
+      // - Domain part (after @) must have at least one dot
+      // - TLD (after last dot) must be at least 2 characters
+      // - No spaces allowed
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+      
+      // Additional check: domain must have valid structure
+      const parts = emailValue.split('@');
+      if (parts.length !== 2) {
+        addMessage('Vänligen ange en giltig e-postadress (felaktigt format).', true, '🤖');
+        setInputValue(''); // Clear the input field
+        setShowInput(true); // Keep input visible
+        return;
+      }
+      
+      const [localPart, domain] = parts;
+      
+      // Check local part
+      if (!localPart || localPart.length === 0) {
+        addMessage('Vänligen ange en giltig e-postadress (saknar användarnamn).', true, '🤖');
+        setInputValue(''); // Clear the input field
+        setShowInput(true); // Keep input visible
+        return;
+      }
+      
+      // Check domain
+      if (!domain || !domain.includes('.')) {
+        addMessage('Vänligen ange en giltig e-postadress (saknar domän).', true, '🤖');
+        setInputValue(''); // Clear the input field
+        setShowInput(true); // Keep input visible
+        return;
+      }
+      
+      // Check TLD (last part after dot)
+      const tld = domain.split('.').pop();
+      if (!tld || tld.length < 2) {
+        addMessage('Vänligen ange en giltig e-postadress (domänen måste sluta med minst två tecken, t.ex. .com eller .se).', true, '🤖');
+        setInputValue(''); // Clear the input field
+        setShowInput(true); // Keep input visible
+        return;
+      }
+      
+      // Final regex check
       if (!emailRegex.test(emailValue)) {
         addMessage('Vänligen ange en giltig e-postadress.', true, '🤖');
         setInputValue(''); // Clear the input field
         setShowInput(true); // Keep input visible
         return;
       }
+      
+      // Use trimmed value
+      value = emailValue;
     }
     
     // Hide input immediately to prevent UI flash
