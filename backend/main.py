@@ -2047,12 +2047,19 @@ async def send_for_digital_signing(request: dict):
             create_signer_from_revisor
         )
         
+        # Build signers list with signature order
         tellustalk_signers = []
-        for person in foretradare:
-            tellustalk_signers.append(create_signer_from_foretradare(person))
+        signature_order = 1
         
+        # Add företrädare first
+        for person in foretradare:
+            tellustalk_signers.append(create_signer_from_foretradare(person, signature_order))
+            signature_order += 1
+        
+        # Add revisor after företrädare
         for person in revisor:
-            tellustalk_signers.append(create_signer_from_revisor(person))
+            tellustalk_signers.append(create_signer_from_revisor(person, signature_order))
+            signature_order += 1
         
         # Create job name from company info
         company_name = (

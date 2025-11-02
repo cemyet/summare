@@ -1,10 +1,12 @@
 """
 TellusTalk eBox API Service for Digital Signatures
-Sends PDFs for digital signing using TellusTalk's WebSign API
+Sends PDFs for digital signing using TellusTalk's eBox API v1
 """
 import os
 import base64
 import requests
+import secrets
+import string
 from typing import List, Dict, Any, Optional
 import logging
 
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # TellusTalk API Configuration
 TELLUSTALK_BASE_URL = "https://k8api.tellustalk.com"
-TELLUSTALK_WEBSIGN_ENDPOINT = f"{TELLUSTALK_BASE_URL}/ebox/websign/v1"
+TELLUSTALK_EBOX_ENDPOINT = f"{TELLUSTALK_BASE_URL}/api/ebox/v1"
 
 def get_tellustalk_credentials() -> tuple[str, str]:
     """
@@ -49,6 +51,50 @@ def create_basic_auth_header(username: str, password: str) -> str:
     return f"Basic {encoded}"
 
 
+def generate_object_id(length: int = 12) -> str:
+    """
+    Generate a unique object ID (member_id or attachment_id)
+    Must be minimum 8 characters, alphanumeric A-Za-z0-9
+    
+    Args:
+        length: Length of ID to generate (default 12)
+        
+    Returns:
+        Unique alphanumeric string
+    """
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(max(length, 8)))
+
+
+def format_personnummer(personnummer: str) -> str:
+    """
+    Format personnummer to YYYYMMDD-XXXX format if needed
+    
+    Args:
+        personnummer: Personnummer in any format
+        
+    Returns:
+        Formatted personnummer (YYYYMMDD-XXXX)
+    """
+    # Remove any existing dashes and spaces
+    cleaned = personnummer.replace("-", "").replace(" ", "").strip()
+    
+    # If it's 10 digits (no century), add century
+    if len(cleaned) == 10:
+        # Assume 1900s for dates > 50, 2000s for dates <= 50
+        year_prefix = cleaned[:2]
+        if int(year_prefix) > 50:
+            cleaned = "19" + cleaned
+        else:
+            cleaned = "20" + cleaned
+    
+    # Format as YYYYMMDD-XXXX
+    if len(cleaned) == 12:
+        return f"{cleaned[:8]}-{cleaned[8:12]}"
+    
+    return personnummer
+
+
 def send_pdf_for_signing(
     pdf_bytes: bytes,
     signers: List[Dict[str, Any]],
@@ -58,14 +104,15 @@ def send_pdf_for_signing(
     report_to_url: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Send PDF document to TellusTalk for digital signing
+    Send PDF document to TellusTalk for digital signing using eBox API v1
     
     Args:
         pdf_bytes: PDF file as bytes
         signers: List of signer dictionaries with:
             - name: Full name of signer
             - email: Email address for signing invitation
-            - signature_methods: List of signature methods (e.g., [{"type": "bankid"}])
+            - personal_id: Personnummer (required for BankID)
+            - signature_order: Order in which to sign (1, 2, 3, etc.)
         job_name: Name of the signing job
         success_redirect_url: URL to redirect after successful signing (optional)
         fail_redirect_url: URL to redirect after failed signing (optional)
@@ -75,8 +122,8 @@ def send_pdf_for_signing(
         Dictionary with:
             - success: Boolean indicating if request was successful
             - job_uuid: Unique identifier for the signing job
-            - redirect_url: URL for recipients to access the job
             - job_name: Name of the job
+            - members: List of members with their URLs
             - message: Success or error message
             
     Raises:
@@ -90,42 +137,91 @@ def send_pdf_for_signing(
         # Encode PDF to base64
         pdf_base64 = base64.b64encode(pdf_bytes).decode('utf-8')
         
-        # Build request payload
-        payload = {
-            "attachment": {
-                "name": "arsredovisning.pdf",
-                "content_transfer_encoding": "base64",
-                "content_type": "application/pdf",
-                "payload": pdf_base64
-            },
+        # Generate unique IDs
+        attachment_id = generate_object_id()
+        
+        # Build config object
+        config = {
             "job_name": job_name,
+            "acl": ["view"]
         }
         
-        # Add members (signers) - TellusTalk supports multiple signers
-        # Note: API structure based on TellusTalk WebSign API documentation
-        # If API uses different structure (e.g., "member" singular or different field name),
-        # this may need adjustment based on actual API response
-        payload["members"] = []
-        for signer in signers:
-            member = {
-                "name": signer.get("name", ""),
-                "email": signer.get("email", ""),
-                "signature_methods": signer.get("signature_methods", [{"type": "bankid"}])
-            }
-            payload["members"].append(member)
-        
-        # Add redirect URLs - success_redirect_url is required by TellusTalk API
-        # Provide default if not specified
-        payload["success_redirect_url"] = success_redirect_url or "https://summare.se/app?signing=success"
-        if fail_redirect_url:
-            payload["fail_redirect_url"] = fail_redirect_url
-        
-        # Add optional callback URL
+        # Add optional redirect URLs if provided (via events.job_completed.report_to)
         if report_to_url:
-            payload["report_to"] = {
-                "url": report_to_url,
-                "events": ["job.completed", "job.failed"]
+            config["events"] = {
+                "job_completed": {
+                    "report_to": [{
+                        "address": report_to_url,
+                        "headers": {
+                            "Content-Type": "application/json"
+                        }
+                    }],
+                    "include_signed_files": True
+                }
             }
+        
+        # Build members array
+        members = []
+        for idx, signer in enumerate(signers):
+            member_id = generate_object_id()
+            personal_id = signer.get("personal_id", "")
+            email = signer.get("email", "")
+            name = signer.get("name", "")
+            signature_order = signer.get("signature_order", idx + 1)
+            
+            if not personal_id:
+                raise ValueError(f"personal_id (personnummer) is required for signer: {name}")
+            
+            if not email:
+                raise ValueError(f"email is required for signer: {name}")
+            
+            # Format personnummer
+            formatted_personal_id = format_personnummer(personal_id)
+            
+            # Build member object according to API spec
+            member = {
+                "member_id": member_id,
+                "acl": ["view"],
+                "authorizations": ["view"],
+                "name": name,
+                "review": False,
+                "edit_file": False,
+                "addresses": [
+                    {
+                        "address": f"email:{email}"
+                    }
+                ],
+                "signature_options": {
+                    "signature_methods": [
+                        {
+                            "type": "bankid",
+                            "personal_id": formatted_personal_id,
+                            "hide_personal_id": False
+                        }
+                    ],
+                    "signature_order": signature_order
+                }
+            }
+            
+            members.append(member)
+        
+        # Build attachment object
+        attachment = {
+            "attachment_id": attachment_id,
+            "acl": ["view"],
+            "name": "arsredovisning.pdf",
+            "content_transfer_encoding": "base64",
+            "content_type": "application/pdf",
+            "payload": pdf_base64,
+            "attachment_purpose": "SIGNATORY"
+        }
+        
+        # Build complete request payload
+        payload = {
+            "config": config,
+            "members": members,
+            "attachments": [attachment]
+        }
         
         # Prepare request headers
         headers = {
@@ -134,11 +230,11 @@ def send_pdf_for_signing(
         }
         
         # Make API request
-        logger.info(f"Sending PDF to TellusTalk for signing: {job_name}")
+        logger.info(f"Sending PDF to TellusTalk eBox API: {job_name}")
         logger.info(f"Number of signers: {len(signers)}")
         
         response = requests.post(
-            TELLUSTALK_WEBSIGN_ENDPOINT,
+            TELLUSTALK_EBOX_ENDPOINT,
             json=payload,
             headers=headers,
             timeout=30
@@ -154,8 +250,9 @@ def send_pdf_for_signing(
         return {
             "success": True,
             "job_uuid": result.get("job_uuid"),
-            "redirect_url": result.get("redirect_url"),
             "job_name": result.get("job_name", job_name),
+            "ebox_job_key": result.get("ebox_job_key"),
+            "members": result.get("members", []),
             "message": "Document sent for digital signing successfully"
         }
         
@@ -191,12 +288,13 @@ def format_signer_name(first_name: str, last_name: str) -> str:
     return f"{first} {last}".strip()
 
 
-def create_signer_from_foretradare(person: Dict[str, Any]) -> Dict[str, Any]:
+def create_signer_from_foretradare(person: Dict[str, Any], signature_order: int = 1) -> Dict[str, Any]:
     """
     Create signer dictionary from företrädare (company representative) data
     
     Args:
         person: Dictionary with signer information from UnderskriftForetradare
+        signature_order: Order in which this person should sign
         
     Returns:
         Dictionary formatted for TellusTalk API
@@ -204,20 +302,23 @@ def create_signer_from_foretradare(person: Dict[str, Any]) -> Dict[str, Any]:
     first_name = person.get("UnderskriftHandlingTilltalsnamn", "")
     last_name = person.get("UnderskriftHandlingEfternamn", "")
     email = person.get("UnderskriftHandlingEmail", "")
+    personal_id = person.get("UnderskriftHandlingPersonnummer", "")
     
     return {
         "name": format_signer_name(first_name, last_name),
         "email": email,
-        "signature_methods": [{"type": "bankid"}]
+        "personal_id": personal_id,
+        "signature_order": signature_order
     }
 
 
-def create_signer_from_revisor(person: Dict[str, Any]) -> Dict[str, Any]:
+def create_signer_from_revisor(person: Dict[str, Any], signature_order: int = 1) -> Dict[str, Any]:
     """
     Create signer dictionary from revisor (auditor) data
     
     Args:
         person: Dictionary with signer information from UnderskriftAvRevisor
+        signature_order: Order in which this person should sign
         
     Returns:
         Dictionary formatted for TellusTalk API
@@ -225,10 +326,11 @@ def create_signer_from_revisor(person: Dict[str, Any]) -> Dict[str, Any]:
     first_name = person.get("UnderskriftHandlingTilltalsnamn", "")
     last_name = person.get("UnderskriftHandlingEfternamn", "")
     email = person.get("UnderskriftHandlingEmail", "")
+    personal_id = person.get("UnderskriftHandlingPersonnummer", "")
     
     return {
         "name": format_signer_name(first_name, last_name),
         "email": email,
-        "signature_methods": [{"type": "bankid"}]
+        "personal_id": personal_id,
+        "signature_order": signature_order
     }
-
