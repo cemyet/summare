@@ -83,6 +83,27 @@ CREATE TABLE user_preferences (
 );
 ```
 
+### `signing_status` tabell:
+```sql
+CREATE TABLE signing_status (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  job_uuid TEXT NOT NULL UNIQUE,
+  organization_number TEXT,
+  job_name TEXT,
+  ebox_job_key TEXT,
+  event TEXT NOT NULL, -- 'created', 'job_started', 'signature_completed', 'job_completed'
+  signing_details JSONB, -- Contains member info, signed/pending counts, etc.
+  signed_pdf_download_url TEXT,
+  status_data JSONB, -- Full status data from webhook
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_signing_status_job_uuid ON signing_status(job_uuid);
+CREATE INDEX idx_signing_status_org_number ON signing_status(organization_number);
+CREATE INDEX idx_signing_status_event ON signing_status(event);
+```
+
 ## 🔧 Utveckling
 
 ### Projektstruktur:

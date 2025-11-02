@@ -2111,6 +2111,27 @@ async def send_for_digital_signing(request: dict):
             print(line)
         print(f"✅ TellusTalk job_uuid: {tellustalk_result.get('job_uuid')}")
         
+        # Store initial job info in database (link job_uuid to organization_number)
+        try:
+            supabase = get_supabase_client()
+            if supabase and organization_number:
+                supabase.table('signing_status').upsert({
+                    'job_uuid': tellustalk_result.get("job_uuid"),
+                    'organization_number': organization_number,
+                    'job_name': tellustalk_result.get("job_name", job_name),
+                    'ebox_job_key': tellustalk_result.get("ebox_job_key"),
+                    'event': 'created',
+                    'status_data': {
+                        'created_at': datetime.now().isoformat(),
+                        'members': tellustalk_result.get("members", [])
+                    },
+                    'created_at': datetime.now().isoformat(),
+                    'updated_at': datetime.now().isoformat()
+                }).execute()
+        except Exception as db_error:
+            print(f"⚠️ Could not save initial job to database: {str(db_error)}")
+            # Continue - not critical for sending
+        
         # Return success response with TellusTalk job info
         return {
             "success": True,
@@ -2118,8 +2139,9 @@ async def send_for_digital_signing(request: dict):
             "signing_summary": signing_summary,
             "organization_number": organization_number,
             "tellustalk_job_uuid": tellustalk_result.get("job_uuid"),
-            "tellustalk_redirect_url": tellustalk_result.get("redirect_url"),
-            "job_name": tellustalk_result.get("job_name")
+            "ebox_job_key": tellustalk_result.get("ebox_job_key"),
+            "job_name": tellustalk_result.get("job_name"),
+            "members": tellustalk_result.get("members", [])
         }
         
     except HTTPException:
@@ -2132,6 +2154,183 @@ async def send_for_digital_signing(request: dict):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error sending for digital signing: {str(e)}")
+
+@app.post("/webhooks/tellustalk-status")
+async def tellustalk_webhook(request: Request):
+    """
+    Webhook endpoint to receive TellusTalk signing status updates
+    
+    Events received:
+    - job_started: When emails have been sent to signers
+    - signature_completed: When each signer has signed
+    - job_completed: When all signers have signed
+    
+    Returns 200 OK to acknowledge receipt (required by TellusTalk)
+    """
+    try:
+        payload = await request.json()
+        
+        job_uuid = payload.get("job_uuid")
+        job_name = payload.get("job_name")
+        ebox_job_key = payload.get("ebox_job_key")
+        event = payload.get("event")
+        signed_files_list = payload.get("signed_files_list", [])
+        
+        print(f"📬 TellusTalk webhook received: event={event}, job_uuid={job_uuid}")
+        print(f"   Job name: {job_name}")
+        
+        # Get signing status from signed_files_list
+        signing_status = {
+            "job_uuid": job_uuid,
+            "job_name": job_name,
+            "ebox_job_key": ebox_job_key,
+            "event": event,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Extract member signing details if available
+        if signed_files_list and len(signed_files_list) > 0:
+            file_data = signed_files_list[0]
+            members_info = file_data.get("members", {})
+            members_expected = file_data.get("members_expected_to_sign_ids", [])
+            members_signed = file_data.get("members_signed_ids", [])
+            members_pending = file_data.get("members_pending_to_sign_ids", [])
+            
+            signing_status["signing_details"] = {
+                "expected_count": len(members_expected),
+                "signed_count": len(members_signed),
+                "pending_count": len(members_pending),
+                "members_expected": members_expected,
+                "members_signed": members_signed,
+                "members_pending": members_pending,
+                "members_info": members_info
+            }
+            
+            print(f"   Signing progress: {len(members_signed)}/{len(members_expected)} signed")
+            for member_id, member_data in members_info.items():
+                has_signed = member_data.get("has_signed")
+                name = member_data.get("name", "Unknown")
+                if has_signed:
+                    print(f"   ✅ {name} signed at {has_signed}")
+                else:
+                    print(f"   ⏳ {name} pending")
+            
+            # If job is completed, get download URL for signed PDF
+            if event == "job_completed" and file_data.get("download_url"):
+                signing_status["signed_pdf_download_url"] = file_data.get("download_url")
+                print(f"   📄 Signed PDF available at: {file_data.get('download_url')}")
+        
+        # Store signing status in database (if Supabase is available)
+        try:
+            supabase = get_supabase_client()
+            if supabase:
+                # Upsert signing status - store by job_uuid
+                supabase.table('signing_status').upsert({
+                    'job_uuid': job_uuid,
+                    'organization_number': None,  # Will be updated if we track this
+                    'job_name': job_name,
+                    'ebox_job_key': ebox_job_key,
+                    'event': event,
+                    'signing_details': signing_status.get('signing_details', {}),
+                    'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
+                    'status_data': signing_status,
+                    'updated_at': datetime.now().isoformat()
+                }).execute()
+                print(f"   💾 Signing status saved to database")
+        except Exception as db_error:
+            print(f"   ⚠️ Could not save to database: {str(db_error)}")
+            # Continue - webhook should still return 200
+        
+        # Always return 200 OK to acknowledge receipt
+        # TellusTalk will retry if we don't return 200
+        return {"status": "received", "event": event, "job_uuid": job_uuid}
+        
+    except Exception as e:
+        print(f"❌ Error processing TellusTalk webhook: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Still return 200 to prevent TellusTalk from retrying invalid requests
+        # But log the error for debugging
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/signing-status/{job_uuid}")
+async def get_signing_status(job_uuid: str):
+    """
+    Get current signing status for a TellusTalk job by job_uuid
+    
+    Returns:
+        - Event type (job_started, signature_completed, job_completed)
+        - Signing progress (signed/pending counts)
+        - Member details and signing timestamps
+        - Download URL for signed PDF (if job_completed)
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service unavailable")
+        
+        result = supabase.table('signing_status').select('*').eq('job_uuid', job_uuid).order('updated_at', desc=True).limit(1).execute()
+        
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(status_code=404, detail="Signing job not found")
+        
+        status_data = result.data[0]
+        
+        return {
+            "success": True,
+            "job_uuid": status_data.get("job_uuid"),
+            "job_name": status_data.get("job_name"),
+            "event": status_data.get("event"),
+            "signing_details": status_data.get("signing_details", {}),
+            "signed_pdf_download_url": status_data.get("signed_pdf_download_url"),
+            "updated_at": status_data.get("updated_at")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting signing status: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting signing status: {str(e)}")
+
+
+@app.get("/api/signing-status/by-org/{organization_number}")
+async def get_signing_status_by_org(organization_number: str):
+    """
+    Get latest signing status for an organization by organization_number
+    
+    Returns the most recent signing job status for the organization
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service unavailable")
+        
+        # Normalize organization number (remove hyphens/spaces)
+        org_normalized = organization_number.replace("-", "").replace(" ", "").strip()
+        
+        result = supabase.table('signing_status').select('*').eq('organization_number', org_normalized).order('updated_at', desc=True).limit(1).execute()
+        
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(status_code=404, detail="No signing job found for this organization")
+        
+        status_data = result.data[0]
+        
+        return {
+            "success": True,
+            "job_uuid": status_data.get("job_uuid"),
+            "job_name": status_data.get("job_name"),
+            "event": status_data.get("event"),
+            "signing_details": status_data.get("signing_details", {}),
+            "signed_pdf_download_url": status_data.get("signed_pdf_download_url"),
+            "updated_at": status_data.get("updated_at")
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting signing status by org: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting signing status: {str(e)}")
 
 @app.get("/api/users/check-exists")
 async def check_user_exists(username: str, organization_number: str):

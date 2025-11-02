@@ -146,9 +146,26 @@ def send_pdf_for_signing(
             "acl": ["view"]
         }
         
-        # Add optional redirect URLs if provided (via events.job_completed.report_to)
+        # Configure webhook callbacks for signing status updates
         if report_to_url:
             config["events"] = {
+                "job_started": {
+                    "report_to": [{
+                        "address": report_to_url,
+                        "headers": {
+                            "Content-Type": "application/json"
+                        }
+                    }]
+                },
+                "signature_completed": {
+                    "report_to": [{
+                        "address": report_to_url,
+                        "headers": {
+                            "Content-Type": "application/json"
+                        }
+                    }],
+                    "include_signed_files": False  # Don't include files in each signature callback
+                },
                 "job_completed": {
                     "report_to": [{
                         "address": report_to_url,
@@ -156,7 +173,7 @@ def send_pdf_for_signing(
                             "Content-Type": "application/json"
                         }
                     }],
-                    "include_signed_files": True
+                    "include_signed_files": True  # Include final signed PDF when job completes
                 }
             }
         
