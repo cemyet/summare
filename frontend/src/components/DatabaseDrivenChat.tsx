@@ -380,6 +380,16 @@ interface ChatFlowResponse {
         );
       }
       const response = await apiService.getChatFlowStep(stepNumber) as ChatFlowResponse;
+
+      // Step 201 must respect pension tax show conditions stored in CSV
+      if (stepNumber === 201 && response.show_conditions) {
+        const shouldShowStep = evaluateConditions(response.show_conditions);
+        if (!shouldShowStep) {
+          console.log('⏭️ Skipping step 201 because pension tax condition is not met.');
+          await loadChatStep(301, updatedInk2Data, tempCompanyData);
+          return;
+        }
+      }
       
       // Special handling for step 512: Fetch customer_email from payments table BEFORE substitution
       // Look up organization_number in payments table and get customer_email from the most recent row (by created_at)
