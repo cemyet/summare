@@ -114,9 +114,9 @@ def send_pdf_for_signing(
             }
             payload["members"].append(member)
         
-        # Add optional redirect URLs
-        if success_redirect_url:
-            payload["success_redirect_url"] = success_redirect_url
+        # Add redirect URLs - success_redirect_url is required by TellusTalk API
+        # Provide default if not specified
+        payload["success_redirect_url"] = success_redirect_url or "https://summare.se/app?signing=success"
         if fail_redirect_url:
             payload["fail_redirect_url"] = fail_redirect_url
         
