@@ -383,13 +383,16 @@ interface ChatFlowResponse {
 
       // Step 201 must respect pension tax show conditions stored in database
       if (stepNumber === 201 && response.show_conditions) {
-        const shouldShowStep = evaluateConditions(response.show_conditions);
+        console.log('🔍 Step 201 condition check (with temp override):', {
+          show_conditions: response.show_conditions,
+          usingTemp: !!tempCompanyData
+        });
+        const shouldShowStep = evaluateConditions(response.show_conditions, tempCompanyData);
+        console.log('🔍 Step 201 shouldShowStep:', shouldShowStep);
         if (!shouldShowStep) {
-          console.log('⏭️ Skipping step 201 - pension tax adjustment not needed (no premiums or calculated <= booked)');
+          console.log('⏭️ Skipping step 201 because pension tax condition is not met.');
           await loadChatStep(301, updatedInk2Data, tempCompanyData);
           return;
-        } else {
-          console.log('✅ Showing step 201 - pension tax adjustment needed');
         }
       }
       
@@ -873,38 +876,46 @@ interface ChatFlowResponse {
   };
 
   // Evaluate conditions for showing a step
-  const evaluateConditions = (conditions: any): boolean => {
+  const evaluateConditions = (conditions: any, dataOverride?: any): boolean => {
     if (!conditions) return true;
 
     try {
-      // Parse JSON conditions if string
-      const parsedConditions = typeof conditions === 'string' ? JSON.parse(conditions) : conditions;
-      
-      // Check for complex mathematical conditions  
-      if (parsedConditions.formula) {
-        // For step 201: Should show if sarskild_loneskatt_pension_calculated > sarskild_loneskatt_pension
-        // The calculated amount is already computed by backend using the correct global rate
-        const pensionPremier = companyData.pensionPremier || 0;
-        const sarskildLoneskattPension = companyData.sarskildLoneskattPension || 0;
-        const sarskildLoneskattPensionCalculated = companyData.sarskildLoneskattPensionCalculated || 0;
-        
-        // Show step 201 if there are pension premiums AND calculated tax > booked tax
-        const shouldShow = pensionPremier > 0 && sarskildLoneskattPensionCalculated > sarskildLoneskattPension;
-        return shouldShow;
+      const parsed = typeof conditions === 'string' ? JSON.parse(conditions) : conditions;
+
+      // Prefer temp data when provided to avoid race with React state updates
+      const ctx = { ...companyData, ...(dataOverride || {}) };
+
+      if (parsed.formula) {
+        // Read from both naming styles, coerce to number
+        const pensionPremier =
+          Number(ctx.pensionPremier ?? ctx.pension_premier ?? 0);
+        const sarskildLoneskattPension =
+          Number(ctx.sarskildLoneskattPension ?? ctx.sarskild_loneskatt_pension ?? 0);
+        const sarskildLoneskattPensionCalculated =
+          Number(ctx.sarskildLoneskattPensionCalculated ?? ctx.sarskild_loneskatt_pension_calculated ?? 0);
+
+        console.log('🔍 evaluateConditions formula check:', {
+          formula: parsed.formula,
+          pensionPremier,
+          sarskildLoneskattPension,
+          sarskildLoneskattPensionCalculated,
+          condition1: pensionPremier > 0,
+          condition2: sarskildLoneskattPensionCalculated > sarskildLoneskattPension
+        });
+
+        return pensionPremier > 0 &&
+               sarskildLoneskattPensionCalculated > sarskildLoneskattPension;
       }
 
-      // Simple condition evaluation for backward compatibility
-      for (const [key, condition] of Object.entries(parsedConditions)) {
-        const value = (companyData as any)[key];
+      // Fallback: simple object-style conditions (unchanged)
+      for (const [key, condition] of Object.entries(parsed)) {
+        const value = (ctx as any)[key];
         
-        if (typeof condition === 'object' && condition !== null) {
-          if ('gt' in condition) {
-            const compareValue = typeof condition.gt === 'string' 
-              ? (companyData as any)[condition.gt] 
-              : condition.gt;
-            if (!(value > compareValue)) return false;
-          }
-          // Add more condition types as needed
+        if (typeof condition === 'object' && condition !== null && 'gt' in condition) {
+          const compareValue = typeof condition.gt === 'string'
+            ? (ctx as any)[condition.gt]
+            : condition.gt;
+          if (!(value > compareValue)) return false;
         }
       }
 
@@ -1014,7 +1025,7 @@ interface ChatFlowResponse {
           try {
             const step201Response = await apiService.getChatFlowStep(201) as ChatFlowResponse;
             if (step201Response.success && step201Response.show_conditions) {
-              const shouldShow = evaluateConditions(step201Response.show_conditions);
+              const shouldShow = evaluateConditions(step201Response.show_conditions, companyData);
               
               if (shouldShow) {
                 loadChatStep(201);
