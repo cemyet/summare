@@ -381,20 +381,15 @@ interface ChatFlowResponse {
       }
       const response = await apiService.getChatFlowStep(stepNumber) as ChatFlowResponse;
 
-      // Step 201 must respect pension tax show conditions stored in CSV
+      // Step 201 must respect pension tax show conditions stored in database
       if (stepNumber === 201 && response.show_conditions) {
-        console.log('🔍 Step 201 condition check:', {
-          show_conditions: response.show_conditions,
-          pensionPremier: companyData.pensionPremier,
-          sarskildLoneskattPension: companyData.sarskildLoneskattPension,
-          sarskildLoneskattPensionCalculated: companyData.sarskildLoneskattPensionCalculated
-        });
         const shouldShowStep = evaluateConditions(response.show_conditions);
-        console.log('🔍 Step 201 shouldShowStep:', shouldShowStep);
         if (!shouldShowStep) {
-          console.log('⏭️ Skipping step 201 because pension tax condition is not met.');
+          console.log('⏭️ Skipping step 201 - pension tax adjustment not needed (no premiums or calculated <= booked)');
           await loadChatStep(301, updatedInk2Data, tempCompanyData);
           return;
+        } else {
+          console.log('✅ Showing step 201 - pension tax adjustment needed');
         }
       }
       
@@ -893,19 +888,8 @@ interface ChatFlowResponse {
         const sarskildLoneskattPension = companyData.sarskildLoneskattPension || 0;
         const sarskildLoneskattPensionCalculated = companyData.sarskildLoneskattPensionCalculated || 0;
         
-        console.log('🔍 evaluateConditions formula check:', {
-          formula: parsedConditions.formula,
-          pensionPremier,
-          sarskildLoneskattPension,
-          sarskildLoneskattPensionCalculated,
-          condition1: pensionPremier > 0,
-          condition2: sarskildLoneskattPensionCalculated > sarskildLoneskattPension
-        });
-        
         // Show step 201 if there are pension premiums AND calculated tax > booked tax
         const shouldShow = pensionPremier > 0 && sarskildLoneskattPensionCalculated > sarskildLoneskattPension;
-        
-        console.log('🔍 evaluateConditions result:', shouldShow);
         return shouldShow;
       }
 
