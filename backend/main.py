@@ -1980,13 +1980,27 @@ async def send_for_digital_signing(request: dict):
         company_data = request.get("companyData")
         
         print(f"🖊️ Sending for digital signing: org={organization_number}")
+        print(f"🖊️ Signering data keys: {list(signering_data.keys()) if signering_data else 'None'}")
         print(f"🖊️ Signering data: {signering_data}")
+        print(f"🖊️ Company data keys: {list(company_data.keys()) if company_data else 'None'}")
+        print(f"🖊️ Company data present: {bool(company_data)}")
         
         # Extract företrädare (company representatives) data
         foretradare = signering_data.get("UnderskriftForetradare", [])
         revisor = signering_data.get("UnderskriftAvRevisor", [])
         
         print(f"📋 Found {len(foretradare)} företrädare and {len(revisor)} revisors")
+        
+        # Debug: Print email addresses
+        for i, person in enumerate(foretradare):
+            email = person.get("UnderskriftHandlingEmail", "")
+            name = f"{person.get('UnderskriftHandlingTilltalsnamn', '')} {person.get('UnderskriftHandlingEfternamn', '')}"
+            print(f"  Företrädare {i+1}: {name} - Email: '{email}' (empty: {not email})")
+        
+        for i, person in enumerate(revisor):
+            email = person.get("UnderskriftHandlingEmail", "")
+            name = f"{person.get('UnderskriftHandlingTilltalsnamn', '')} {person.get('UnderskriftHandlingEfternamn', '')}"
+            print(f"  Revisor {i+1}: {name} - Email: '{email}' (empty: {not email})")
         
         # Validate that we have signers with emails
         all_signers = []

@@ -297,7 +297,21 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get error message from response
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.detail || errorData.message || errorMessage;
+        } catch (e) {
+          // If response is not JSON, try text
+          try {
+            const errorText = await response.text();
+            if (errorText) errorMessage = errorText;
+          } catch (e2) {
+            // Keep default error message
+          }
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -312,9 +326,10 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       } else {
         throw new Error(result.message || 'Failed to send signing invitations');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error sending for signing:', error);
-      alert('Ett fel uppstod när signeringsinvitationerna skulle skickas. Försök igen.');
+      const errorMessage = error.message || 'Ett fel uppstod när signeringsinvitationerna skulle skickas. Försök igen.';
+      alert(errorMessage);
     }
   };
 
