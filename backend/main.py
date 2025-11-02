@@ -2270,11 +2270,12 @@ async def get_signing_status(job_uuid: str):
         if not supabase:
             raise HTTPException(status_code=503, detail="Database service unavailable")
         
-        result = supabase.table('signing_status').select('*').eq('job_uuid', job_uuid).order('updated_at', desc=True).limit(1).execute()
+        result = supabase.table('signing_status').select('*').eq('job_uuid', job_uuid).order('updated_at', desc=True).execute()
         
         if not result.data or len(result.data) == 0:
             raise HTTPException(status_code=404, detail="Signing job not found")
         
+        # Get the most recent entry (first in desc order)
         status_data = result.data[0]
         
         return {
@@ -2309,11 +2310,12 @@ async def get_signing_status_by_org(organization_number: str):
         # Normalize organization number (remove hyphens/spaces)
         org_normalized = organization_number.replace("-", "").replace(" ", "").strip()
         
-        result = supabase.table('signing_status').select('*').eq('organization_number', org_normalized).order('updated_at', desc=True).limit(1).execute()
+        result = supabase.table('signing_status').select('*').eq('organization_number', org_normalized).order('updated_at', desc=True).execute()
         
         if not result.data or len(result.data) == 0:
             raise HTTPException(status_code=404, detail="No signing job found for this organization")
         
+        # Get the most recent entry (first in desc order)
         status_data = result.data[0]
         
         return {
