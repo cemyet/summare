@@ -1972,11 +1972,12 @@ async def process_chat_choice(request: dict):
 @app.post("/api/send-for-digital-signing")
 async def send_for_digital_signing(request: dict):
     """
-    Send annual report for digital signing with BankID
+    Send annual report for digital signing with BankID using TellusTalk
     """
     try:
         signering_data = request.get("signeringData", {})
         organization_number = request.get("organizationNumber")
+        company_data = request.get("companyData")
         
         print(f"🖊️ Sending for digital signing: org={organization_number}")
         print(f"🖊️ Signering data: {signering_data}")
@@ -1987,37 +1988,128 @@ async def send_for_digital_signing(request: dict):
         
         print(f"📋 Found {len(foretradare)} företrädare and {len(revisor)} revisors")
         
-        # TODO: Implement actual BankID integration
-        # For now, return a success response
+        # Validate that we have signers with emails
+        all_signers = []
+        for person in foretradare:
+            email = person.get("UnderskriftHandlingEmail", "")
+            if not email:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Missing email for företrädare: {person.get('UnderskriftHandlingTilltalsnamn', '')} {person.get('UnderskriftHandlingEfternamn', '')}"
+                )
+            all_signers.append(person)
         
-        # Log the signing request
+        for person in revisor:
+            email = person.get("UnderskriftHandlingEmail", "")
+            if not email:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Missing email for revisor: {person.get('UnderskriftHandlingTilltalsnamn', '')} {person.get('UnderskriftHandlingEfternamn', '')}"
+                )
+            all_signers.append(person)
+        
+        if not all_signers:
+            raise HTTPException(
+                status_code=400,
+                detail="No signers with email addresses found"
+            )
+        
+        # Generate annual report PDF
+        if not company_data:
+            raise HTTPException(
+                status_code=400,
+                detail="companyData is required to generate the annual report PDF"
+            )
+        
+        print("📄 Generating annual report PDF...")
+        from services.pdf_annual_report import generate_full_annual_report_pdf
+        pdf_bytes = generate_full_annual_report_pdf(company_data)
+        print(f"✅ PDF generated: {len(pdf_bytes)} bytes")
+        
+        # Prepare signers for TellusTalk
+        from services.tellustalk_service import (
+            send_pdf_for_signing,
+            create_signer_from_foretradare,
+            create_signer_from_revisor
+        )
+        
+        tellustalk_signers = []
+        for person in foretradare:
+            tellustalk_signers.append(create_signer_from_foretradare(person))
+        
+        for person in revisor:
+            tellustalk_signers.append(create_signer_from_revisor(person))
+        
+        # Create job name from company info
+        company_name = (
+            company_data.get('company_name') or 
+            (company_data.get('seFileData') or {}).get('company_info', {}).get('company_name') or 
+            'Bolag'
+        )
+        fiscal_year = (
+            company_data.get('fiscalYear') or 
+            (company_data.get('seFileData') or {}).get('company_info', {}).get('fiscal_year') or 
+            ''
+        )
+        job_name = f"Årsredovisning {company_name} {fiscal_year}"
+        
+        # Optional redirect URLs (can be configured via environment variables)
+        success_url = os.getenv("TELLUSTALK_SUCCESS_REDIRECT_URL")
+        fail_url = os.getenv("TELLUSTALK_FAIL_REDIRECT_URL")
+        report_to_url = os.getenv("TELLUSTALK_REPORT_TO_URL")
+        
+        # Send PDF to TellusTalk
+        print(f"📤 Sending PDF to TellusTalk with {len(tellustalk_signers)} signers...")
+        tellustalk_result = send_pdf_for_signing(
+            pdf_bytes=pdf_bytes,
+            signers=tellustalk_signers,
+            job_name=job_name,
+            success_redirect_url=success_url,
+            fail_redirect_url=fail_url,
+            report_to_url=report_to_url
+        )
+        
+        # Log the signing request for summary
         signing_summary = []
         for i, person in enumerate(foretradare):
             name = f"{person.get('UnderskriftHandlingTilltalsnamn', '')} {person.get('UnderskriftHandlingEfternamn', '')}"
             role = person.get('UnderskriftHandlingRoll', '')
-            signing_summary.append(f"  {i+1}. {name} ({role})")
+            email = person.get('UnderskriftHandlingEmail', '')
+            signing_summary.append(f"  {i+1}. {name} ({role}) - {email}")
         
         for i, person in enumerate(revisor):
             name = f"{person.get('UnderskriftHandlingTilltalsnamn', '')} {person.get('UnderskriftHandlingEfternamn', '')}"
             title = person.get('UnderskriftHandlingTitel', '')
+            email = person.get('UnderskriftHandlingEmail', '')
             is_main = person.get('UnderskriftRevisorspateckningRevisorHuvudansvarig', False)
             main_text = " - Huvudansvarig" if is_main else ""
-            signing_summary.append(f"  R{i+1}. {name} ({title}){main_text}")
+            signing_summary.append(f"  R{i+1}. {name} ({title}){main_text} - {email}")
         
-        print(f"📝 Sending signing invitations to:")
+        print(f"📝 Signing invitations sent to:")
         for line in signing_summary:
             print(line)
+        print(f"✅ TellusTalk job_uuid: {tellustalk_result.get('job_uuid')}")
         
-        # Return success response
+        # Return success response with TellusTalk job info
         return {
             "success": True,
             "message": "Signing invitations sent successfully",
             "signing_summary": signing_summary,
-            "organization_number": organization_number
+            "organization_number": organization_number,
+            "tellustalk_job_uuid": tellustalk_result.get("job_uuid"),
+            "tellustalk_redirect_url": tellustalk_result.get("redirect_url"),
+            "job_name": tellustalk_result.get("job_name")
         }
         
+    except HTTPException:
+        raise
+    except ValueError as e:
+        print(f"❌ Validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        print(f"Error sending for digital signing: {str(e)}")
+        print(f"❌ Error sending for digital signing: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error sending for digital signing: {str(e)}")
 
 @app.get("/api/users/check-exists")

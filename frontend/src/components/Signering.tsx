@@ -291,7 +291,8 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
         },
         body: JSON.stringify({
           signeringData: data,
-          organizationNumber: companyData?.organizationNumber
+          organizationNumber: companyData?.organizationNumber,
+          companyData: companyData
         }),
       });
 

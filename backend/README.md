@@ -15,6 +15,23 @@ cp env.example .env
 # Redigera .env med dina Supabase-credentials
 ```
 
+### TellusTalk Digital Signing Configuration
+
+For digital signature functionality using TellusTalk, add these environment variables:
+
+```bash
+# TellusTalk eBox API credentials (required)
+TELLUSTALK_USERNAME=your_tellustalk_username
+TELLUSTALK_PASSWORD=your_tellustalk_password
+
+# Optional: Redirect URLs after signing
+TELLUSTALK_SUCCESS_REDIRECT_URL=https://summare.se/app?signing=success
+TELLUSTALK_FAIL_REDIRECT_URL=https://summare.se/app?signing=failed
+
+# Optional: Webhook URL for signing status updates
+TELLUSTALK_REPORT_TO_URL=https://api.summare.se/webhooks/tellustalk-status
+```
+
 3. **Starta servern:**
 ```bash
 python main.py
