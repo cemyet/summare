@@ -393,15 +393,21 @@ class DatabaseParser:
             print(f"Formula evaluation error: {e}")
             return 0.0
     
-    def parse_rr_data(self, current_accounts: Dict[str, float], previous_accounts: Dict[str, float] = None) -> List[Dict[str, Any]]:
+    def parse_rr_data(self, current_accounts: Dict[str, float], previous_accounts: Dict[str, float] = None, sie_text: Optional[str] = None) -> List[Dict[str, Any]]:
         """Parse RR (Resultaträkning) data using database mappings"""
         if not self.rr_mappings:
             return []
+        
+        # Parse SIE account descriptions if sie_text is provided (for company-specific account names)
+        if sie_text:
+            self._parse_sie_account_descriptions(sie_text)
         
         results = []
         
         # First pass: Create all rows with direct calculations
         for mapping in self.rr_mappings:
+            show_tag = mapping.get('show_tag', False)
+            
             if not mapping.get('show_amount'):
                 # Header row - no calculation needed
                 results.append({
@@ -418,7 +424,9 @@ class DatabaseParser:
                     'calculation_formula': mapping['calculation_formula'],
                     'show_amount': mapping['show_amount'],
                     'block_group': mapping.get('block_group'),
-                    'always_show': self._normalize_always_show(mapping.get('always_show', False))
+                    'always_show': self._normalize_always_show(mapping.get('always_show', False)),
+                    'show_tag': show_tag,
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
                 })
             else:
                 # Data row - calculate amounts for both years
@@ -445,7 +453,9 @@ class DatabaseParser:
                     'calculation_formula': mapping['calculation_formula'],
                     'show_amount': mapping['show_amount'],
                     'block_group': mapping.get('block_group'),
-                    'always_show': self._normalize_always_show(mapping.get('always_show', False))
+                    'always_show': self._normalize_always_show(mapping.get('always_show', False)),
+                    'show_tag': show_tag,
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
                 })
         
         # Second pass: Calculate formulas using all available data
@@ -467,6 +477,9 @@ class DatabaseParser:
                     if result['id'] == mapping['row_id']:
                         result['current_amount'] = current_amount
                         result['previous_amount'] = previous_amount
+                        # Update account_details if show_tag is true (for calculated rows, we still use direct account mapping)
+                        if mapping.get('show_tag', False):
+                            result['account_details'] = self._get_br_account_details(mapping, current_accounts)
                         break
         
         # Store calculated values in database for future use

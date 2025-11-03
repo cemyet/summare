@@ -2044,21 +2044,77 @@ const handleTaxCalculationClick = () => {
                   >
                     <span className="text-muted-foreground flex items-center justify-between">
                       <span>{item.label}</span>
-                      {/* Add SKATTEBERÄKNING button for row_id 277 (Skatt på årets resultat) */}
-                      {(() => {
-                        return item.id === "277" || item.id === 277;
-                      })() && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="ml-2 h-4 px-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700" 
-                          style={{fontSize: '0.75rem'}}
-                          onClick={handleTaxCalculationClick}
-                          title="Visa skatteberäkning"
-                        >
-                          VISA
-                        </Button>
-                      )}
+                      <div className="flex items-center">
+                        {/* Add VISA tag for rows with show_tag */}
+                        {item.show_tag && item.account_details && item.account_details.length > 0 && 
+                         (item.current_amount !== null && item.current_amount !== undefined && Math.abs(item.current_amount) > 0) && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className="ml-2 h-4 px-1.5 text-xs" style={{fontSize: '0.75rem'}}>
+                                VISA
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm table-fixed" style={{tableLayout: 'fixed'}}>
+                                    <thead>
+                                      <tr className="border-b">
+                                        <th className="text-left py-2 w-16">Konto</th>
+                                        <th className="text-left py-2">Kontotext</th>
+                                        <th className="text-right py-2 w-24" style={{minWidth: '80px'}}>{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {item.account_details.map((detail: any, detailIndex: number) => (
+                                        <tr key={detailIndex} className="border-b">
+                                          <td className="py-2 w-16">{detail.account_id}</td>
+                                          <td className="py-2 break-words">{detail.account_text || ''}</td>
+                                          <td className="text-right py-2 w-24 whitespace-nowrap" style={{minWidth: '80px'}}>
+                                            {new Intl.NumberFormat('sv-SE', {
+                                              minimumFractionDigits: 0,
+                                              maximumFractionDigits: 0
+                                            }).format(Math.abs(detail.balance))} kr
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      {/* Sum row */}
+                                      <tr className="border-t border-gray-300 font-semibold">
+                                        <td className="py-2 w-16">Summa</td>
+                                        <td className="py-2"></td>
+                                        <td className="text-right py-2 w-24 whitespace-nowrap" style={{minWidth: '80px'}}>
+                                          {new Intl.NumberFormat('sv-SE', {
+                                            minimumFractionDigits: 0,
+                                            maximumFractionDigits: 0
+                                          }).format(
+                                            Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0))
+                                          )} kr
+                                        </td>
+                                      </tr>
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                        {/* Add SKATTEBERÄKNING button for row_id 277 (Skatt på årets resultat) */}
+                        {(() => {
+                          return item.id === "277" || item.id === 277;
+                        })() && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="ml-2 h-4 px-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700" 
+                            style={{fontSize: '0.75rem'}}
+                            onClick={handleTaxCalculationClick}
+                            title="Visa skatteberäkning"
+                          >
+                            VISA
+                          </Button>
+                        )}
+                      </div>
                     </span>
                     <span className="text-right font-medium">
                       {getNoteValue(item)}
