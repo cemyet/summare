@@ -746,11 +746,21 @@ class DatabaseParser:
                     account_id = account_info.get('account_id')
                     account_id_str = str(account_id) if account_id else None
                     if account_id_str and account_info.get('balance', 0) != 0:
-                        # Use original balance without any manipulation
+                        # Apply sign reversal for accounts 2000-9999
+                        try:
+                            account_id_int = int(account_id_str)
+                            raw_balance = account_info.get('balance', 0)
+                            if 2000 <= account_id_int <= 9999:
+                                display_balance = -raw_balance
+                            else:
+                                display_balance = raw_balance
+                        except (ValueError, TypeError):
+                            display_balance = account_info.get('balance', 0)
+                        
                         account_details_dict[account_id_str] = {
                             'account_id': account_id_str,
                             'account_text': account_info.get('account_text', self._get_account_text(account_id)),
-                            'balance': account_info.get('balance', 0)
+                            'balance': display_balance
                         }
                 
                 # Update account_details with adjusted list
@@ -2721,9 +2731,15 @@ class DatabaseParser:
         """
         Get account details for BR (Balansräkning) variables.
         Handles accounts_included_start/end ranges and accounts_included with ranges/exclusions.
-        Returns original account balances without any sign manipulation.
+        Reverses signs for accounts 2000-9999, keeps 1000-1999 as is.
         """
         details = []
+        
+        def _apply_sign_reversal(account_id: int, balance: float) -> float:
+            """Reverse sign for accounts 2000-9999, keep 1000-1999 as is"""
+            if 2000 <= account_id <= 9999:
+                return -balance
+            return balance
         
         # Get account ranges to include
         start = mapping.get('accounts_included_start')
@@ -2735,10 +2751,11 @@ class DatabaseParser:
                 account_str = str(account_id)
                 balance = accounts.get(account_str, 0.0)
                 if balance != 0:  # Only include accounts with non-zero balance
+                    display_balance = _apply_sign_reversal(account_id, balance)
                     details.append({
                         'account_id': account_str,
                         'account_text': self._get_account_text(account_id),
-                        'balance': balance
+                        'balance': display_balance
                     })
         
         # Include additional specific accounts/ranges from accounts_included
@@ -2761,23 +2778,26 @@ class DatabaseParser:
                             account_str = str(account_id)
                             balance = accounts.get(account_str, 0.0)
                             if balance != 0:  # Only include accounts with non-zero balance
+                                display_balance = _apply_sign_reversal(account_id, balance)
                                 details.append({
                                     'account_id': account_str,
                                     'account_text': self._get_account_text(account_id),
-                                    'balance': balance
+                                    'balance': display_balance
                                 })
                     except ValueError:
                         continue
                 else:
                     # Single account
                     try:
-                        account_id = spec.strip()
-                        balance = accounts.get(account_id, 0.0)
+                        account_id_str = spec.strip()
+                        account_id_int = int(account_id_str)
+                        balance = accounts.get(account_id_str, 0.0)
                         if balance != 0:  # Only include accounts with non-zero balance
+                            display_balance = _apply_sign_reversal(account_id_int, balance)
                             details.append({
-                                'account_id': account_id,
-                                'account_text': self._get_account_text(account_id),
-                                'balance': balance
+                                'account_id': account_id_str,
+                                'account_text': self._get_account_text(account_id_int),
+                                'balance': display_balance
                             })
                     except Exception:
                         continue
