@@ -2075,7 +2075,7 @@ const handleTaxCalculationClick = () => {
                                             {new Intl.NumberFormat('sv-SE', {
                                               minimumFractionDigits: 0,
                                               maximumFractionDigits: 0
-                                            }).format(Math.abs(detail.balance))} kr
+                                            }).format(detail.balance)} kr
                                           </td>
                                         </tr>
                                       ))}
@@ -2087,8 +2087,8 @@ const handleTaxCalculationClick = () => {
                                           {new Intl.NumberFormat('sv-SE', {
                                             minimumFractionDigits: 0,
                                             maximumFractionDigits: 0
-                                          }).format(
-                                            Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0))
+                                          }                                          ).format(
+                                            item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0)
                                           )} kr
                                         </td>
                                       </tr>
@@ -2235,9 +2235,9 @@ const handleTaxCalculationClick = () => {
                                         {new Intl.NumberFormat('sv-SE', {
                                           minimumFractionDigits: 0,
                                           maximumFractionDigits: 0
-                                        }).format(
-                                          Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0))
-                                        )} kr
+                                        }                                          ).format(
+                                            item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0)
+                                          )} kr
                                       </td>
                                     </tr>
                                   </tbody>
