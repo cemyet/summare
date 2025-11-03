@@ -597,6 +597,10 @@ class DatabaseParser:
         if not self.br_mappings:
             return []
         
+        # Parse SIE account descriptions if sie_text is provided (for company-specific account names)
+        if sie_text:
+            self._parse_sie_account_descriptions(sie_text)
+        
         results = []
         
         # First pass: Create all rows with direct calculations

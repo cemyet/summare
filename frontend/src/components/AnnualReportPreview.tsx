@@ -2136,7 +2136,7 @@ const handleTaxCalculationClick = () => {
                     }`}
                     style={customStyle}
                   >
-                    <span className="text-muted-foreground flex items-center">
+                    <span className="text-muted-foreground flex items-center justify-between">
                       <span>{item.label}</span>
                       {item.show_tag && item.account_details && item.account_details.length > 0 && 
                        (item.current_amount !== null && item.current_amount !== undefined && Math.abs(item.current_amount) > 0) && (
@@ -2161,25 +2161,26 @@ const handleTaxCalculationClick = () => {
                                   <tbody>
                                     {item.account_details.map((detail: any, detailIndex: number) => (
                                       <tr key={detailIndex} className="border-b">
-                                        <td className="font-mono py-2">{detail.account_id}</td>
+                                        <td className="py-2">{detail.account_id}</td>
                                         <td className="py-2">{detail.account_text || ''}</td>
-                                        <td className="text-right font-mono py-2">
+                                        <td className="text-right py-2">
                                           {new Intl.NumberFormat('sv-SE', {
                                             minimumFractionDigits: 0,
                                             maximumFractionDigits: 0
-                                          }).format(detail.balance)} kr
+                                          }).format(Math.abs(detail.balance))} kr
                                         </td>
                                       </tr>
                                     ))}
                                     {/* Sum row */}
                                     <tr className="border-t border-gray-300 font-semibold">
-                                      <td colSpan={2} className="py-2">Summa</td>
-                                      <td className="text-right font-mono py-2">
+                                      <td className="py-2">Summa</td>
+                                      <td className="py-2"></td>
+                                      <td className="text-right py-2">
                                         {new Intl.NumberFormat('sv-SE', {
                                           minimumFractionDigits: 0,
                                           maximumFractionDigits: 0
                                         }).format(
-                                          item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0)
+                                          Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0))
                                         )} kr
                                       </td>
                                     </tr>
