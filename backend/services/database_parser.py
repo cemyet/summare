@@ -692,6 +692,9 @@ class DatabaseParser:
                             result['account_details'] = self._get_br_account_details(mapping, current_accounts)
                         break
         
+        # Track account movements during reclassification for account_details updates
+        account_movements = {}  # {row_id: {'added': [accounts], 'removed': [accounts]}}
+        
         # Apply 168x, 17xx (FKUI) and 296x reclass before storing calculated values
         if sie_text:
             try:
@@ -699,22 +702,58 @@ class DatabaseParser:
                     self._reclassify_168x_short_term_group_receivables(
                         sie_text=sie_text,
                         br_rows=results,
-                        current_accounts=current_accounts
+                        current_accounts=current_accounts,
+                        account_movements=account_movements
                     )
                 if USE_17XX_RECLASS:
                     self._reclassify_17xx_prepaid_and_accrued_group_receivables(
                         sie_text=sie_text,
                         br_rows=results,
-                        current_accounts=current_accounts
+                        current_accounts=current_accounts,
+                        account_movements=account_movements
                     )
                 if USE_296X_RECLASS:
                     self._reclassify_296x_short_term_group_liabilities(
                         sie_text=sie_text,
                         br_rows=results,
-                        current_accounts=current_accounts
+                        current_accounts=current_accounts,
+                        account_movements=account_movements
                     )
             except Exception as e:
                 print(f"BR reclass skipped due to error: {e}")
+        
+        # Update account_details for rows affected by reclassification
+        for result in results:
+            if result.get('show_tag') and result.get('account_details'):
+                row_id = result.get('id')
+                # Normalize row_id to int for consistent lookup
+                row_id_int = int(row_id) if row_id is not None else None
+                
+                # Get movements for this row (try both int and original type)
+                movements = account_movements.get(row_id_int, account_movements.get(row_id, {}))
+                
+                # Get original account_details
+                original_details = result.get('account_details', [])
+                account_details_dict = {d['account_id']: d for d in original_details}
+                
+                # Remove accounts that were moved out
+                for account_id in movements.get('removed', []):
+                    account_id_str = str(account_id)
+                    account_details_dict.pop(account_id_str, None)
+                
+                # Add accounts that were moved in
+                for account_info in movements.get('added', []):
+                    account_id = account_info.get('account_id')
+                    account_id_str = str(account_id) if account_id else None
+                    if account_id_str and account_info.get('balance', 0) != 0:
+                        account_details_dict[account_id_str] = {
+                            'account_id': account_id_str,
+                            'account_text': account_info.get('account_text', self._get_account_text(account_id)),
+                            'balance': account_info.get('balance', 0)
+                        }
+                
+                # Update account_details with adjusted list
+                result['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
         
         # Store calculated values in database for future use
         self.store_calculated_values(results, 'BR')
@@ -825,7 +864,7 @@ class DatabaseParser:
         return br_rows
     
     # ----------------- 168x → 351/352/353 BR RECLASS (uses SIE text) -----------------
-    def _reclassify_168x_short_term_group_receivables(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float]) -> None:
+    def _reclassify_168x_short_term_group_receivables(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float], account_movements: Dict[int, Dict[str, Any]] = None) -> None:
         import re, unicodedata
 
         def _norm(s: str) -> str:
@@ -941,6 +980,7 @@ class DatabaseParser:
 
         # ---- per-account deterministic classification ----
         alloc = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+        account_allocations = {"koncern": [], "intresse": [], "ovriga": []}  # Track which accounts go where
 
         for a in range(1680, 1690):
             ub = float(current_accounts.get(str(a), 0.0))
@@ -953,6 +993,11 @@ class DatabaseParser:
             cat = _classify_by_patterns(nmn)
             if cat:
                 alloc[cat] += ub
+                account_allocations[cat].append({
+                    'account_id': str(a),
+                    'account_text': nm,
+                    'balance': ub
+                })
                 continue
 
             # 2) phrase (company name) matching – unambiguous only
@@ -961,7 +1006,13 @@ class DatabaseParser:
             if any(p and p in nmn for p in intresse_phr):  hits.add("intresse")
             if any(p and p in nmn for p in ovriga_phr):    hits.add("ovriga")
             if len(hits) == 1:
-                alloc[next(iter(hits))] += ub
+                cat = next(iter(hits))
+                alloc[cat] += ub
+                account_allocations[cat].append({
+                    'account_id': str(a),
+                    'account_text': nm,
+                    'balance': ub
+                })
                 continue
             if len(hits) > 1:
                 # ambiguous → leave in 354
@@ -974,7 +1025,13 @@ class DatabaseParser:
             s_o = len(toks & ovriga_keys)
             ranked = sorted([("koncern", s_k), ("intresse", s_i), ("ovriga", s_o)], key=lambda x: x[1], reverse=True)
             if ranked[0][1] > 0 and ranked[0][1] > ranked[1][1]:
-                alloc[ranked[0][0]] += ub
+                cat = ranked[0][0]
+                alloc[cat] += ub
+                account_allocations[cat].append({
+                    'account_id': str(a),
+                    'account_text': nm,
+                    'balance': ub
+                })
             # else ambiguous/no signal → stays in 354
 
         # ---- mutate BR rows (current year only) ----
@@ -1004,17 +1061,45 @@ class DatabaseParser:
         added = 0.0
         if row_351 and alloc["koncern"]:
             row_351["current_amount"] = float(row_351.get("current_amount") or 0.0) + alloc["koncern"]; added += alloc["koncern"]
+            # Track account movements
+            if account_movements is not None:
+                row_id_351 = int(row_351.get('id')) if row_351.get('id') is not None else None
+                if row_id_351 is not None:
+                    if row_id_351 not in account_movements:
+                        account_movements[row_id_351] = {'added': [], 'removed': []}
+                    account_movements[row_id_351]['added'].extend(account_allocations["koncern"])
         if row_352 and alloc["intresse"]:
             row_352["current_amount"] = float(row_352.get("current_amount") or 0.0) + alloc["intresse"]; added += alloc["intresse"]
+            if account_movements is not None:
+                row_id_352 = int(row_352.get('id')) if row_352.get('id') is not None else None
+                if row_id_352 is not None:
+                    if row_id_352 not in account_movements:
+                        account_movements[row_id_352] = {'added': [], 'removed': []}
+                    account_movements[row_id_352]['added'].extend(account_allocations["intresse"])
         if row_353 and alloc["ovriga"]:
             row_353["current_amount"] = float(row_353.get("current_amount") or 0.0) + alloc["ovriga"];   added += alloc["ovriga"]
+            if account_movements is not None:
+                row_id_353 = int(row_353.get('id')) if row_353.get('id') is not None else None
+                if row_id_353 is not None:
+                    if row_id_353 not in account_movements:
+                        account_movements[row_id_353] = {'added': [], 'removed': []}
+                    account_movements[row_id_353]['added'].extend(account_allocations["ovriga"])
 
         if row_354 and added:
             cur = float(row_354.get("current_amount") or 0.0)
             row_354["current_amount"] = max(0.0, cur - added)
+            # Track accounts removed from source row
+            if account_movements is not None:
+                row_id_354 = int(row_354.get('id')) if row_354.get('id') is not None else None
+                if row_id_354 is not None:
+                    if row_id_354 not in account_movements:
+                        account_movements[row_id_354] = {'added': [], 'removed': []}
+                    # All moved accounts come from 168x range
+                    for cat_accounts in account_allocations.values():
+                        account_movements[row_id_354]['removed'].extend([acc['account_id'] for acc in cat_accounts])
     
     # ----------------- 17xx → 351/352/353 BR RECLASS (uses SIE text) -----------------
-    def _reclassify_17xx_prepaid_and_accrued_group_receivables(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float]) -> None:
+    def _reclassify_17xx_prepaid_and_accrued_group_receivables(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float], account_movements: Dict[int, Dict[str, Any]] = None) -> None:
         """
         Reclassify 1700–1799 (Förutbetalda kostnader och upplupna intäkter, etc.) into:
           351 Kortfristiga fordringar hos koncernföretag
@@ -1133,6 +1218,8 @@ class DatabaseParser:
 
         # per-account deterministic allocation (asset side: UB as-is)
         alloc = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+        account_allocations = {"koncern": [], "intresse": [], "ovriga": []}  # Track which accounts go where
+        
         for a in range(1700, 1800):
             ub = float(current_accounts.get(str(a), 0.0))
             if abs(ub) < 0.5:
@@ -1144,6 +1231,11 @@ class DatabaseParser:
             cat = _classify_by_patterns(nmn)
             if cat:
                 alloc[cat] += ub
+                account_allocations[cat].append({
+                    'account_id': str(a),
+                    'account_text': nm,
+                    'balance': ub
+                })
                 continue
 
             # phrase (company name) matching — unambiguous only
@@ -1152,7 +1244,13 @@ class DatabaseParser:
             if any(p and p in nmn for p in intresse_phr):  hits.add("intresse")
             if any(p and p in nmn for p in ovriga_phr):    hits.add("ovriga")
             if len(hits) == 1:
-                alloc[next(iter(hits))] += ub
+                cat = next(iter(hits))
+                alloc[cat] += ub
+                account_allocations[cat].append({
+                    'account_id': str(a),
+                    'account_text': nm,
+                    'balance': ub
+                })
                 continue
             if len(hits) > 1:
                 # ambiguous → leave in source row
@@ -1165,7 +1263,13 @@ class DatabaseParser:
             s_o = len(toks & ovriga_keys)
             ranked = sorted([("koncern", s_k), ("intresse", s_i), ("ovriga", s_o)], key=lambda x: x[1], reverse=True)
             if ranked[0][1] > 0 and ranked[0][1] > ranked[1][1]:
-                alloc[ranked[0][0]] += ub
+                cat = ranked[0][0]
+                alloc[cat] += ub
+                account_allocations[cat].append({
+                    'account_id': str(a),
+                    'account_text': nm,
+                    'balance': ub
+                })
             # else ambiguous/no-signal → keep in source row
 
         # --- helpers to find rows ---
@@ -1218,20 +1322,48 @@ class DatabaseParser:
         added = 0.0
         if row_351 and alloc["koncern"]:
             row_351["current_amount"] = float(row_351.get("current_amount") or 0.0) + alloc["koncern"]; added += alloc["koncern"]
+            # Track account movements
+            if account_movements is not None:
+                row_id_351 = int(row_351.get('id')) if row_351.get('id') is not None else None
+                if row_id_351 is not None:
+                    if row_id_351 not in account_movements:
+                        account_movements[row_id_351] = {'added': [], 'removed': []}
+                    account_movements[row_id_351]['added'].extend(account_allocations["koncern"])
         if row_352 and alloc["intresse"]:
             row_352["current_amount"] = float(row_352.get("current_amount") or 0.0) + alloc["intresse"]; added += alloc["intresse"]
+            if account_movements is not None:
+                row_id_352 = int(row_352.get('id')) if row_352.get('id') is not None else None
+                if row_id_352 is not None:
+                    if row_id_352 not in account_movements:
+                        account_movements[row_id_352] = {'added': [], 'removed': []}
+                    account_movements[row_id_352]['added'].extend(account_allocations["intresse"])
         if row_353 and alloc["ovriga"]:
             row_353["current_amount"] = float(row_353.get("current_amount") or 0.0) + alloc["ovriga"];   added += alloc["ovriga"]
+            if account_movements is not None:
+                row_id_353 = int(row_353.get('id')) if row_353.get('id') is not None else None
+                if row_id_353 is not None:
+                    if row_id_353 not in account_movements:
+                        account_movements[row_id_353] = {'added': [], 'removed': []}
+                    account_movements[row_id_353]['added'].extend(account_allocations["ovriga"])
 
         # reduce source row by same total (not below zero)
         if row_src and added:
             cur = float(row_src.get("current_amount") or 0.0)
             row_src["current_amount"] = max(0.0, cur - added)
+            # Track accounts removed from source row
+            if account_movements is not None:
+                row_id_src = int(row_src.get('id')) if row_src.get('id') is not None else None
+                if row_id_src is not None:
+                    if row_id_src not in account_movements:
+                        account_movements[row_id_src] = {'added': [], 'removed': []}
+                    # All moved accounts come from 17xx range
+                    for cat_accounts in account_allocations.values():
+                        account_movements[row_id_src]['removed'].extend([acc['account_id'] for acc in cat_accounts])
 
         # debug - targets verified
 
     # ----------------- 296x → 410/411/412 BR RECLASS (uses SIE text) -----------------
-    def _reclassify_296x_short_term_group_liabilities(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float]) -> None:
+    def _reclassify_296x_short_term_group_liabilities(self, sie_text: str, br_rows: List[Dict[str, Any]], current_accounts: Dict[str, float], account_movements: Dict[int, Dict[str, Any]] = None) -> None:
         """
         Reclassify accrued interest payables (2960–2969) from generic short-term
         liabilities to:
@@ -1360,6 +1492,8 @@ class DatabaseParser:
 
         # per-account deterministic allocation
         alloc = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+        account_allocations = {"koncern": [], "intresse": [], "ovriga": []}  # Track which accounts go where
+        
         for a in range(2960, 2970):
             ub_raw = float(current_accounts.get(str(a), 0.0))
             if abs(ub_raw) < 0.5:
@@ -1372,6 +1506,11 @@ class DatabaseParser:
             cat = _classify_by_patterns(nmn)
             if cat:
                 alloc[cat] += ub_br
+                account_allocations[cat].append({
+                    'account_id': str(a),
+                    'account_text': nm,
+                    'balance': ub_br
+                })
                 continue
 
             # phrase matching first (unambiguous)
@@ -1380,7 +1519,13 @@ class DatabaseParser:
             if any(p and p in nmn for p in intresse_phr):  hits.add("intresse")
             if any(p and p in nmn for p in ovriga_phr):    hits.add("ovriga")
             if len(hits) == 1:
-                alloc[next(iter(hits))] += ub_br
+                cat = next(iter(hits))
+                alloc[cat] += ub_br
+                account_allocations[cat].append({
+                    'account_id': str(a),
+                    'account_text': nm,
+                    'balance': ub_br
+                })
                 continue
             if len(hits) > 1:
                 # ambiguous → leave in source row
@@ -1393,7 +1538,13 @@ class DatabaseParser:
             s_o = len(toks & ovriga_keys)
             rank = sorted([("koncern", s_k), ("intresse", s_i), ("ovriga", s_o)], key=lambda x: x[1], reverse=True)
             if rank[0][1] > 0 and rank[0][1] > rank[1][1]:
-                alloc[rank[0][0]] += ub_br
+                cat = rank[0][0]
+                alloc[cat] += ub_br
+                account_allocations[cat].append({
+                    'account_id': str(a),
+                    'account_text': nm,
+                    'balance': ub_br
+                })
             # else: ambiguous/no signal → no reclass for this account
 
         # --- mutate BR rows ---
@@ -1467,15 +1618,43 @@ class DatabaseParser:
         added = 0.0
         if row_410 and alloc["koncern"]:
             row_410["current_amount"] = float(row_410.get("current_amount") or 0.0) + alloc["koncern"]; added += alloc["koncern"]
+            # Track account movements
+            if account_movements is not None:
+                row_id_410 = int(row_410.get('id')) if row_410.get('id') is not None else None
+                if row_id_410 is not None:
+                    if row_id_410 not in account_movements:
+                        account_movements[row_id_410] = {'added': [], 'removed': []}
+                    account_movements[row_id_410]['added'].extend(account_allocations["koncern"])
         if row_411 and alloc["intresse"]:
             row_411["current_amount"] = float(row_411.get("current_amount") or 0.0) + alloc["intresse"]; added += alloc["intresse"]
+            if account_movements is not None:
+                row_id_411 = int(row_411.get('id')) if row_411.get('id') is not None else None
+                if row_id_411 is not None:
+                    if row_id_411 not in account_movements:
+                        account_movements[row_id_411] = {'added': [], 'removed': []}
+                    account_movements[row_id_411]['added'].extend(account_allocations["intresse"])
         if row_412 and alloc["ovriga"]:
             row_412["current_amount"] = float(row_412.get("current_amount") or 0.0) + alloc["ovriga"];   added += alloc["ovriga"]
+            if account_movements is not None:
+                row_id_412 = int(row_412.get('id')) if row_412.get('id') is not None else None
+                if row_id_412 is not None:
+                    if row_id_412 not in account_movements:
+                        account_movements[row_id_412] = {'added': [], 'removed': []}
+                    account_movements[row_id_412]['added'].extend(account_allocations["ovriga"])
 
         # reduce source row by same total (not below zero)
         if row_src and added:
             cur = float(row_src.get("current_amount") or 0.0)
             row_src["current_amount"] = max(0.0, cur - added)
+            # Track accounts removed from source row
+            if account_movements is not None:
+                row_id_src = int(row_src.get('id')) if row_src.get('id') is not None else None
+                if row_id_src is not None:
+                    if row_id_src not in account_movements:
+                        account_movements[row_id_src] = {'added': [], 'removed': []}
+                    # All moved accounts come from 296x range
+                    for cat_accounts in account_allocations.values():
+                        account_movements[row_id_src]['removed'].extend([acc['account_id'] for acc in cat_accounts])
     
     def _get_level_from_style(self, style: str) -> int:
         """Get hierarchy level from style"""
