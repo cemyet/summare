@@ -732,6 +732,42 @@ class DatabaseParser:
                 # Get movements for this row (try both int and original type)
                 movements = account_movements.get(row_id_int, account_movements.get(row_id, {}))
                 
+                # Get the mapping for this row to determine sign reversal
+                row_mapping = None
+                for mapping in self.br_mappings:
+                    if mapping.get('row_id') == row_id_int:
+                        row_mapping = mapping
+                        break
+                
+                # Determine if sign reversal should be applied for this row
+                should_reverse = False
+                if row_mapping:
+                    start = row_mapping.get('accounts_included_start')
+                    end = row_mapping.get('accounts_included_end')
+                    if start and end and 2000 <= start <= 8989:
+                        should_reverse = True
+                    else:
+                        additional_accounts = row_mapping.get('accounts_included', '')
+                        if additional_accounts:
+                            for account_spec in additional_accounts.split(';'):
+                                account_spec = account_spec.strip()
+                                if '-' in account_spec:
+                                    try:
+                                        range_start = int(account_spec.split('-')[0].strip())
+                                        if 2000 <= range_start <= 8989:
+                                            should_reverse = True
+                                            break
+                                    except ValueError:
+                                        continue
+                                else:
+                                    try:
+                                        account_id = int(account_spec.strip())
+                                        if 2000 <= account_id <= 8989:
+                                            should_reverse = True
+                                            break
+                                    except ValueError:
+                                        continue
+                
                 # Get original account_details
                 original_details = result.get('account_details', [])
                 account_details_dict = {d['account_id']: d for d in original_details}
@@ -746,10 +782,13 @@ class DatabaseParser:
                     account_id = account_info.get('account_id')
                     account_id_str = str(account_id) if account_id else None
                     if account_id_str and account_info.get('balance', 0) != 0:
+                        raw_balance = account_info.get('balance', 0)
+                        # Apply sign reversal if needed for this row
+                        display_balance = -raw_balance if should_reverse else raw_balance
                         account_details_dict[account_id_str] = {
                             'account_id': account_id_str,
                             'account_text': account_info.get('account_text', self._get_account_text(account_id)),
-                            'balance': account_info.get('balance', 0)
+                            'balance': display_balance
                         }
                 
                 # Update account_details with adjusted list
@@ -2720,27 +2759,63 @@ class DatabaseParser:
         """
         Get account details for BR (Balansräkning) variables.
         Handles accounts_included_start/end ranges and accounts_included with ranges/exclusions.
+        Applies the same sign reversal rules as calculate_variable_value.
         """
         details = []
         
-        # Get account ranges to include
+        # Determine if sign reversal should be applied (same logic as calculate_variable_value)
+        should_reverse = False
+        
+        # Check account range
         start = mapping.get('accounts_included_start')
         end = mapping.get('accounts_included_end')
+        if start and end and 2000 <= start <= 8989:
+            should_reverse = True
         
-        # Include accounts in range
+        # Check additional specific accounts
+        additional_accounts = mapping.get('accounts_included', '')
+        if additional_accounts and not should_reverse:
+            account_specs = additional_accounts.split(';')
+            for spec in account_specs:
+                spec = spec.strip()
+                if not spec:
+                    continue
+                
+                if '-' in spec:
+                    # Range specification
+                    try:
+                        range_start, range_end = spec.split('-')
+                        start_num = int(range_start.strip())
+                        if 2000 <= start_num <= 8989:
+                            should_reverse = True
+                            break
+                    except ValueError:
+                        continue
+                else:
+                    # Single account
+                    try:
+                        account_id = int(spec.strip())
+                        if 2000 <= account_id <= 8989:
+                            should_reverse = True
+                            break
+                    except ValueError:
+                        continue
+        
+        # Get account ranges to include
         if start and end:
             for account_id in range(start, end + 1):
                 account_str = str(account_id)
                 balance = accounts.get(account_str, 0.0)
                 if balance != 0:  # Only include accounts with non-zero balance
+                    # Apply sign reversal if needed
+                    display_balance = -balance if should_reverse else balance
                     details.append({
                         'account_id': account_str,
                         'account_text': self._get_account_text(account_id),
-                        'balance': balance
+                        'balance': display_balance
                     })
         
         # Include additional specific accounts/ranges from accounts_included
-        additional_accounts = mapping.get('accounts_included', '')
         if additional_accounts:
             account_specs = additional_accounts.split(';')
             for spec in account_specs:
@@ -2759,10 +2834,12 @@ class DatabaseParser:
                             account_str = str(account_id)
                             balance = accounts.get(account_str, 0.0)
                             if balance != 0:  # Only include accounts with non-zero balance
+                                # Apply sign reversal if needed
+                                display_balance = -balance if should_reverse else balance
                                 details.append({
                                     'account_id': account_str,
                                     'account_text': self._get_account_text(account_id),
-                                    'balance': balance
+                                    'balance': display_balance
                                 })
                     except ValueError:
                         continue
@@ -2772,10 +2849,12 @@ class DatabaseParser:
                         account_id = spec.strip()
                         balance = accounts.get(account_id, 0.0)
                         if balance != 0:  # Only include accounts with non-zero balance
+                            # Apply sign reversal if needed
+                            display_balance = -balance if should_reverse else balance
                             details.append({
                                 'account_id': account_id,
                                 'account_text': self._get_account_text(account_id),
-                                'balance': balance
+                                'balance': display_balance
                             })
                     except Exception:
                         continue
