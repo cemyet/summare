@@ -601,6 +601,8 @@ class DatabaseParser:
         
         # First pass: Create all rows with direct calculations
         for mapping in self.br_mappings:
+            show_tag = mapping.get('show_tag', False)
+            
             if not mapping.get('show_amount'):
                 # Header row - no calculation needed
                 results.append({
@@ -618,7 +620,9 @@ class DatabaseParser:
                     'calculation_formula': mapping['calculation_formula'],
                     'show_amount': mapping['show_amount'],
                     'block_group': mapping.get('block_group'),
-                    'always_show': self._normalize_always_show(mapping.get('always_show', False))
+                    'always_show': self._normalize_always_show(mapping.get('always_show', False)),
+                    'show_tag': show_tag,
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
                 })
             else:
                 # Data row - calculate amounts for both years
@@ -646,7 +650,9 @@ class DatabaseParser:
                     'calculation_formula': mapping['calculation_formula'],
                     'show_amount': mapping['show_amount'],
                     'block_group': mapping.get('block_group'),
-                    'always_show': self._normalize_always_show(mapping.get('always_show', False))
+                    'always_show': self._normalize_always_show(mapping.get('always_show', False)),
+                    'show_tag': show_tag,
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
                 })
         
         # Second pass: Calculate formulas using all available data
@@ -664,6 +670,9 @@ class DatabaseParser:
                     if result['id'] == mapping['row_id']:
                         result['current_amount'] = current_amount
                         result['previous_amount'] = previous_amount
+                        # Update account_details if show_tag is true (for calculated rows, we still use direct account mapping)
+                        if mapping.get('show_tag', False):
+                            result['account_details'] = self._get_br_account_details(mapping, current_accounts)
                         break
         
         # Apply 168x, 17xx (FKUI) and 296x reclass before storing calculated values
@@ -2506,6 +2515,107 @@ class DatabaseParser:
                         })
                 except Exception:
                     continue
+        
+        # Sort by account_id
+        details.sort(key=lambda x: int(x['account_id']))
+        return details
+
+    def _get_br_account_details(self, mapping: Dict[str, Any], accounts: Dict[str, float]) -> List[Dict[str, Any]]:
+        """
+        Get account details for BR (Balansräkning) variables.
+        Handles accounts_included_start/end ranges and accounts_included with ranges/exclusions.
+        """
+        details = []
+        
+        # Get account ranges to include
+        start = mapping.get('accounts_included_start')
+        end = mapping.get('accounts_included_end')
+        
+        # Include accounts in range
+        if start and end:
+            for account_id in range(start, end + 1):
+                account_str = str(account_id)
+                balance = accounts.get(account_str, 0.0)
+                if balance != 0:  # Only include accounts with non-zero balance
+                    details.append({
+                        'account_id': account_str,
+                        'account_text': self._get_account_text(account_id),
+                        'balance': balance
+                    })
+        
+        # Include additional specific accounts/ranges from accounts_included
+        additional_accounts = mapping.get('accounts_included', '')
+        if additional_accounts:
+            account_specs = additional_accounts.split(';')
+            for spec in account_specs:
+                spec = spec.strip()
+                if not spec:
+                    continue
+                
+                if '-' in spec:
+                    # Range format: "1080-1089"
+                    try:
+                        range_start, range_end = spec.split('-')
+                        start_num = int(range_start.strip())
+                        end_num = int(range_end.strip())
+                        
+                        for account_id in range(start_num, end_num + 1):
+                            account_str = str(account_id)
+                            balance = accounts.get(account_str, 0.0)
+                            if balance != 0:  # Only include accounts with non-zero balance
+                                details.append({
+                                    'account_id': account_str,
+                                    'account_text': self._get_account_text(account_id),
+                                    'balance': balance
+                                })
+                    except ValueError:
+                        continue
+                else:
+                    # Single account
+                    try:
+                        account_id = spec.strip()
+                        balance = accounts.get(account_id, 0.0)
+                        if balance != 0:  # Only include accounts with non-zero balance
+                            details.append({
+                                'account_id': account_id,
+                                'account_text': self._get_account_text(account_id),
+                                'balance': balance
+                            })
+                    except Exception:
+                        continue
+        
+        # Exclude accounts in excluded range
+        exclude_start = mapping.get('accounts_excluded_start')
+        exclude_end = mapping.get('accounts_excluded_end')
+        
+        if exclude_start and exclude_end:
+            excluded_accounts = set(str(acc_id) for acc_id in range(exclude_start, exclude_end + 1))
+            details = [d for d in details if d['account_id'] not in excluded_accounts]
+        
+        # Exclude additional specific accounts
+        excluded_accounts_str = mapping.get('accounts_excluded', '')
+        if excluded_accounts_str:
+            excluded_specs = excluded_accounts_str.split(';')
+            excluded_set = set()
+            for spec in excluded_specs:
+                spec = spec.strip()
+                if not spec:
+                    continue
+                
+                if '-' in spec:
+                    # Range format
+                    try:
+                        range_start, range_end = spec.split('-')
+                        start_num = int(range_start.strip())
+                        end_num = int(range_end.strip())
+                        excluded_set.update(str(acc_id) for acc_id in range(start_num, end_num + 1))
+                    except ValueError:
+                        continue
+                else:
+                    # Single account
+                    excluded_set.add(spec.strip())
+            
+            details = [d for d in details if d['account_id'] not in excluded_set]
         
         # Sort by account_id
         details.sort(key=lambda x: int(x['account_id']))
