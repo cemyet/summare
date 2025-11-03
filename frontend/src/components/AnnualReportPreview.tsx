@@ -2150,20 +2150,20 @@ const handleTaxCalculationClick = () => {
                             <div className="space-y-3">
                               <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
                               <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
+                                <table className="w-full text-sm table-fixed" style={{tableLayout: 'fixed'}}>
                                   <thead>
                                     <tr className="border-b">
-                                      <th className="text-left py-2">Konto</th>
+                                      <th className="text-left py-2 w-16">Konto</th>
                                       <th className="text-left py-2">Kontotext</th>
-                                      <th className="text-right py-2">{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
+                                      <th className="text-right py-2 w-24" style={{minWidth: '80px'}}>{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {item.account_details.map((detail: any, detailIndex: number) => (
                                       <tr key={detailIndex} className="border-b">
-                                        <td className="py-2">{detail.account_id}</td>
-                                        <td className="py-2">{detail.account_text || ''}</td>
-                                        <td className="text-right py-2">
+                                        <td className="py-2 w-16">{detail.account_id}</td>
+                                        <td className="py-2 break-words">{detail.account_text || ''}</td>
+                                        <td className="text-right py-2 w-24 whitespace-nowrap" style={{minWidth: '80px'}}>
                                           {new Intl.NumberFormat('sv-SE', {
                                             minimumFractionDigits: 0,
                                             maximumFractionDigits: 0
@@ -2173,9 +2173,9 @@ const handleTaxCalculationClick = () => {
                                     ))}
                                     {/* Sum row */}
                                     <tr className="border-t border-gray-300 font-semibold">
-                                      <td className="py-2">Summa</td>
+                                      <td className="py-2 w-16">Summa</td>
                                       <td className="py-2"></td>
-                                      <td className="text-right py-2">
+                                      <td className="text-right py-2 w-24 whitespace-nowrap" style={{minWidth: '80px'}}>
                                         {new Intl.NumberFormat('sv-SE', {
                                           minimumFractionDigits: 0,
                                           maximumFractionDigits: 0
