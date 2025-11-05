@@ -115,6 +115,17 @@ def build_override_map(company_data: dict) -> dict:
     elif ink4_14a_has_manual:
         pass  # INK4.14a has manual override in acceptedInk2Manuals
 
+    # 7) Apply defaults for radio button fields (INK4.23a/23b and INK4.24a/24b)
+    # Default to "Nej" (No) - set INK4.23b=1 and INK4.24b=1 if not already set
+    # Only set defaults if neither the "a" nor "b" variant is present
+    if _norm('INK4.23a') not in M and _norm('INK4.23b') not in M:
+        M[_norm('INK4.23a')] = 0
+        M[_norm('INK4.23b')] = 1  # Default to "Nej"
+    
+    if _norm('INK4.24a') not in M and _norm('INK4.24b') not in M:
+        M[_norm('INK4.24a')] = 0
+        M[_norm('INK4.24b')] = 1  # Default to "Nej"
+
     return M
 
 try:
