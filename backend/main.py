@@ -2124,25 +2124,57 @@ async def send_for_digital_signing(request: dict):
             supabase = get_supabase_client()
             if supabase and organization_number:
                 try:
-                    supabase.table('signing_status').upsert({
-                        'job_uuid': tellustalk_result.get("job_uuid"),
-                        'organization_number': organization_number,
-                        'job_name': tellustalk_result.get("job_name", job_name),
-                        'ebox_job_key': tellustalk_result.get("ebox_job_key"),
-                        'event': 'created',
-                        'status_data': {
+                    job_uuid_value = tellustalk_result.get("job_uuid")
+                    if job_uuid_value:
+                        # Check if record exists first
+                        existing = supabase.table('signing_status').select('job_uuid').eq('job_uuid', job_uuid_value).execute()
+                        
+                        data_to_save = {
+                            'job_uuid': job_uuid_value,
+                            'organization_number': organization_number,
+                            'job_name': tellustalk_result.get("job_name", job_name),
+                            'ebox_job_key': tellustalk_result.get("ebox_job_key"),
+                            'event': 'created',
+                            'status_data': {
+                                'created_at': datetime.now().isoformat(),
+                                'members': tellustalk_result.get("members", [])
+                            },
                             'created_at': datetime.now().isoformat(),
-                            'members': tellustalk_result.get("members", [])
-                        },
-                        'created_at': datetime.now().isoformat(),
-                        'updated_at': datetime.now().isoformat()
-                    }).execute()
-                    print(f"✅ Initial job saved to database")
+                            'updated_at': datetime.now().isoformat()
+                        }
+                        
+                        if existing.data and len(existing.data) > 0:
+                            # Update existing record
+                            supabase.table('signing_status').update(data_to_save).eq('job_uuid', job_uuid_value).execute()
+                            print(f"✅ Initial job updated in database")
+                        else:
+                            # Insert new record
+                            supabase.table('signing_status').insert(data_to_save).execute()
+                            print(f"✅ Initial job saved to database")
                 except Exception as table_error:
                     error_msg = str(table_error)
                     # Check if it's a table not found error
                     if 'table' in error_msg.lower() and ('not found' in error_msg.lower() or 'PGRST205' in error_msg):
                         print(f"⚠️ Database table 'signing_status' not found. Please create the table using the SQL from README.md")
+                    elif '23505' in error_msg or 'duplicate key' in error_msg.lower():
+                        # Duplicate key error - try update instead
+                        try:
+                            job_uuid_value = tellustalk_result.get("job_uuid")
+                            if job_uuid_value:
+                                supabase.table('signing_status').update({
+                                    'organization_number': organization_number,
+                                    'job_name': tellustalk_result.get("job_name", job_name),
+                                    'ebox_job_key': tellustalk_result.get("ebox_job_key"),
+                                    'event': 'created',
+                                    'status_data': {
+                                        'created_at': datetime.now().isoformat(),
+                                        'members': tellustalk_result.get("members", [])
+                                    },
+                                    'updated_at': datetime.now().isoformat()
+                                }).eq('job_uuid', job_uuid_value).execute()
+                                print(f"✅ Initial job updated in database (after duplicate key error)")
+                        except Exception as update_error:
+                            print(f"⚠️ Could not update database after duplicate key error: {str(update_error)}")
                     else:
                         print(f"⚠️ Could not save initial job to database: {error_msg}")
         except Exception as db_error:
@@ -2242,11 +2274,19 @@ async def tellustalk_webhook(request: Request):
             supabase = get_supabase_client()
             if supabase:
                 # Try to upsert signing status - store by job_uuid
-                # Note: If table doesn't exist, this will fail gracefully
+                # Use upsert with on_conflict to handle unique constraint on job_uuid
                 try:
-                    supabase.table('signing_status').upsert({
+                    # First try to check if record exists and get existing organization_number
+                    existing = supabase.table('signing_status').select('job_uuid, organization_number').eq('job_uuid', job_uuid).execute()
+                    
+                    # Preserve organization_number if it exists, otherwise set to None
+                    existing_org_number = None
+                    if existing.data and len(existing.data) > 0:
+                        existing_org_number = existing.data[0].get('organization_number')
+                    
+                    data_to_save = {
                         'job_uuid': job_uuid,
-                        'organization_number': None,  # Will be updated if we track this
+                        'organization_number': existing_org_number,  # Preserve existing or None
                         'job_name': job_name,
                         'ebox_job_key': ebox_job_key,
                         'event': event,
@@ -2254,14 +2294,45 @@ async def tellustalk_webhook(request: Request):
                         'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
                         'status_data': signing_status,
                         'updated_at': datetime.now().isoformat()
-                    }).execute()
-                    print(f"   💾 Signing status saved to database")
+                    }
+                    
+                    if existing.data and len(existing.data) > 0:
+                        # Update existing record
+                        supabase.table('signing_status').update(data_to_save).eq('job_uuid', job_uuid).execute()
+                        print(f"   💾 Signing status updated in database")
+                    else:
+                        # Insert new record
+                        supabase.table('signing_status').insert(data_to_save).execute()
+                        print(f"   💾 Signing status saved to database")
+                        
                 except Exception as table_error:
                     error_msg = str(table_error)
                     # Check if it's a table not found error
                     if 'table' in error_msg.lower() and ('not found' in error_msg.lower() or 'PGRST205' in error_msg):
                         print(f"   ⚠️ Database table 'signing_status' not found. Please create the table using the SQL from README.md")
                         print(f"   Error details: {error_msg}")
+                    elif '23505' in error_msg or 'duplicate key' in error_msg.lower():
+                        # Duplicate key error - try update instead
+                        try:
+                            # Get existing organization_number to preserve it
+                            existing_check = supabase.table('signing_status').select('organization_number').eq('job_uuid', job_uuid).execute()
+                            existing_org = None
+                            if existing_check.data and len(existing_check.data) > 0:
+                                existing_org = existing_check.data[0].get('organization_number')
+                            
+                            supabase.table('signing_status').update({
+                                'organization_number': existing_org,  # Preserve existing
+                                'job_name': job_name,
+                                'ebox_job_key': ebox_job_key,
+                                'event': event,
+                                'signing_details': signing_status.get('signing_details', {}),
+                                'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
+                                'status_data': signing_status,
+                                'updated_at': datetime.now().isoformat()
+                            }).eq('job_uuid', job_uuid).execute()
+                            print(f"   💾 Signing status updated in database (after duplicate key error)")
+                        except Exception as update_error:
+                            print(f"   ⚠️ Could not update database after duplicate key error: {str(update_error)}")
                     else:
                         print(f"   ⚠️ Could not save to database: {error_msg}")
             else:
