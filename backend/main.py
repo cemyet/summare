@@ -909,9 +909,13 @@ async def upload_se_file(file: UploadFile = File(...)):
             abs(float(current_accounts.get('7532', 0.0))) +
             abs(float(current_accounts.get('7533', 0.0)))
         )
+        # Round to 0 decimals for consistency with tax module comparison
+        sarskild_loneskatt_pension = round(sarskild_loneskatt_pension, 0)
         # Get sarskild_loneskatt rate from global variables
         sarskild_loneskatt_rate = float(parser.global_variables.get('sarskild_loneskatt', 0.0))
         sarskild_loneskatt_pension_calculated = pension_premier * sarskild_loneskatt_rate
+        # Round to 0 decimals for consistency with tax module calculation
+        sarskild_loneskatt_pension_calculated = round(sarskild_loneskatt_pension_calculated, 0)
         
         # Store financial data in database (but don't fail if storage fails)
         stored_ids = {}
@@ -1176,8 +1180,12 @@ async def upload_two_se_files(
             abs(float(current_accounts.get('7532', 0.0))) +
             abs(float(current_accounts.get('7533', 0.0)))
         )
+        # Round to 0 decimals for consistency with tax module comparison
+        sarskild_loneskatt_pension = round(sarskild_loneskatt_pension, 0)
         # Get sarskild_loneskatt rate from global variables
         sarskild_loneskatt_pension_calculated = pension_premier * 0.2431
+        # Round to 0 decimals for consistency with tax module calculation
+        sarskild_loneskatt_pension_calculated = round(sarskild_loneskatt_pension_calculated, 0)
         
         # Store original values in company_info so they're part of seFileData
         company_info['arets_resultat_original'] = arets_resultat_original

@@ -2349,7 +2349,13 @@ const handleTaxCalculationClick = () => {
                     const pensionPremier = companyData.pensionPremier || 0;
                     const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
                     const actual = companyData.sarskildLoneskattPension || 0;
-                    return item.toggle_show === true && (pensionPremier > 0 && calculated > actual);
+                    // Round both values to 0 decimals for comparison (consistent with tax module)
+                    // Use a threshold of 0.5 to account for floating-point precision issues
+                    const roundedActual = Math.round(actual);
+                    const roundedCalculated = Math.round(calculated);
+                    const threshold = 0.5;
+                    const difference = roundedCalculated - roundedActual;
+                    return item.toggle_show === true && (pensionPremier > 0 && difference > threshold);
                   }
                   return item.toggle_show === true;
                 }

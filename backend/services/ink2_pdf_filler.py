@@ -820,38 +820,34 @@ class INK2PdfFiller:
         # SPECIAL HANDLING: INK4.23a/23b radio buttons (Uppdragstagare)
         # When Ja selected: INK4.23a=1, INK4.23b=0 → PDF: 23a=Yes, 23b=Off
         # When Nej selected: INK4.23a=0, INK4.23b=1 → PDF: 23a=Off, 23b=Yes
+        # Default to "Nej" (No)" if neither is explicitly set to 1
         ink4_23a_value = self.resolver.get('INK4.23a')
         ink4_23b_value = self.resolver.get('INK4.23b')
         
+        # Default to "Nej" (23b checked) unless explicitly set to "Ja" (23a=1)
         if ink4_23a_value == 1:
             # Ja selected
             assignments['23a'] = 'Yes'
             assignments['23b'] = 'Off'
-        elif ink4_23b_value == 1:
-            # Nej selected
-            assignments['23a'] = 'Off'
-            assignments['23b'] = 'Yes'
         else:
-            # Default to "Nej" (23b checked)
+            # Default to "Nej" (23b checked) - this covers None, 0, or any non-1 value
             assignments['23a'] = 'Off'
             assignments['23b'] = 'Yes'
         
         # SPECIAL HANDLING: INK4.24a/24b radio buttons (Revision)
         # When Ja selected: INK4.24a=1, INK4.24b=0 → PDF: 24a=Yes, 24b=Off
         # When Nej selected: INK4.24a=0, INK4.24b=1 → PDF: 24a=Off, 24b=Yes
+        # Default to "Nej" (No) if neither is explicitly set to 1
         ink4_24a_value = self.resolver.get('INK4.24a')
         ink4_24b_value = self.resolver.get('INK4.24b')
         
+        # Default to "Nej" (24b checked) unless explicitly set to "Ja" (24a=1)
         if ink4_24a_value == 1:
             # Ja selected
             assignments['24a'] = 'Yes'
             assignments['24b'] = 'Off'
-        elif ink4_24b_value == 1:
-            # Nej selected
-            assignments['24a'] = 'Off'
-            assignments['24b'] = 'Yes'
         else:
-            # Default to "Nej" (24b checked)
+            # Default to "Nej" (24b checked) - this covers None, 0, or any non-1 value
             assignments['24a'] = 'Off'
             assignments['24b'] = 'Yes'
         

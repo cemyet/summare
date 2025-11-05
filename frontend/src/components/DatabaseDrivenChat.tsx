@@ -894,17 +894,31 @@ interface ChatFlowResponse {
         const sarskildLoneskattPensionCalculated =
           Number(ctx.sarskildLoneskattPensionCalculated ?? ctx.sarskild_loneskatt_pension_calculated ?? 0);
 
+        // Round both values to 0 decimals for comparison (consistent with tax module)
+        // Use a threshold of 0.5 to account for floating-point precision issues
+        const roundedPension = Math.round(sarskildLoneskattPension);
+        const roundedCalculated = Math.round(sarskildLoneskattPensionCalculated);
+        const threshold = 0.5; // Treat values as equal if difference is less than 0.5 after rounding
+
+        // Only show step if calculated value is significantly greater than booked value
+        const difference = roundedCalculated - roundedPension;
+        const shouldShow = pensionPremier > 0 && difference > threshold;
+
         console.log('🔍 evaluateConditions formula check:', {
           formula: parsed.formula,
           pensionPremier,
           sarskildLoneskattPension,
           sarskildLoneskattPensionCalculated,
+          roundedPension,
+          roundedCalculated,
+          difference,
+          threshold,
           condition1: pensionPremier > 0,
-          condition2: sarskildLoneskattPensionCalculated > sarskildLoneskattPension
+          condition2: difference > threshold,
+          shouldShow
         });
 
-        return pensionPremier > 0 &&
-               sarskildLoneskattPensionCalculated > sarskildLoneskattPension;
+        return shouldShow;
       }
 
       // Fallback: simple object-style conditions (unchanged)
