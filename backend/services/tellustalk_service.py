@@ -7,6 +7,7 @@ import base64
 import requests
 import secrets
 import string
+import time
 from typing import List, Dict, Any, Optional
 import logging
 
@@ -246,32 +247,73 @@ def send_pdf_for_signing(
             "Content-Type": "application/json"
         }
         
-        # Make API request
+        # Make API request with retry logic and increased timeout
         logger.info(f"Sending PDF to TellusTalk eBox API: {job_name}")
         logger.info(f"Number of signers: {len(signers)}")
         
-        response = requests.post(
-            TELLUSTALK_EBOX_ENDPOINT,
-            json=payload,
-            headers=headers,
-            timeout=30
-        )
+        # Retry configuration
+        max_retries = 3
+        retry_delays = [2, 5, 10]  # Exponential backoff delays in seconds
+        connect_timeout = 30  # Connection timeout
+        read_timeout = 120    # Read timeout (increased from 30 to handle slow responses)
         
-        # Check response
-        response.raise_for_status()
+        last_exception = None
         
-        result = response.json()
+        for attempt in range(max_retries):
+            try:
+                if attempt > 0:
+                    delay = retry_delays[min(attempt - 1, len(retry_delays) - 1)]
+                    logger.info(f"Retrying TellusTalk API request (attempt {attempt + 1}/{max_retries}) after {delay}s delay...")
+                    time.sleep(delay)
+                
+                # Use tuple for timeout: (connect_timeout, read_timeout)
+                response = requests.post(
+                    TELLUSTALK_EBOX_ENDPOINT,
+                    json=payload,
+                    headers=headers,
+                    timeout=(connect_timeout, read_timeout)
+                )
+                
+                # Check response
+                response.raise_for_status()
+                
+                result = response.json()
+                
+                logger.info(f"TellusTalk response: job_uuid={result.get('job_uuid')}")
+                
+                return {
+                    "success": True,
+                    "job_uuid": result.get("job_uuid"),
+                    "job_name": result.get("job_name", job_name),
+                    "ebox_job_key": result.get("ebox_job_key"),
+                    "members": result.get("members", []),
+                    "message": "Document sent for digital signing successfully"
+                }
+                
+            except (requests.exceptions.Timeout, requests.exceptions.ReadTimeout) as e:
+                last_exception = e
+                logger.warning(f"TellusTalk API timeout (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt == max_retries - 1:
+                    # Last attempt failed, raise the exception
+                    raise
+            except requests.exceptions.RequestException as e:
+                # For non-timeout errors, check if we should retry
+                # Retry on connection errors, but not on 4xx client errors
+                if hasattr(e, 'response') and e.response is not None:
+                    status_code = e.response.status_code
+                    if 400 <= status_code < 500:
+                        # Client error (4xx), don't retry
+                        raise
+                
+                last_exception = e
+                logger.warning(f"TellusTalk API error (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt == max_retries - 1:
+                    # Last attempt failed, raise the exception
+                    raise
         
-        logger.info(f"TellusTalk response: job_uuid={result.get('job_uuid')}")
-        
-        return {
-            "success": True,
-            "job_uuid": result.get("job_uuid"),
-            "job_name": result.get("job_name", job_name),
-            "ebox_job_key": result.get("ebox_job_key"),
-            "members": result.get("members", []),
-            "message": "Document sent for digital signing successfully"
-        }
+        # If we get here, all retries failed
+        if last_exception:
+            raise last_exception
         
     except requests.RequestException as e:
         error_msg = f"TellusTalk API error: {str(e)}"

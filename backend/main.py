@@ -2123,21 +2123,30 @@ async def send_for_digital_signing(request: dict):
         try:
             supabase = get_supabase_client()
             if supabase and organization_number:
-                supabase.table('signing_status').upsert({
-                    'job_uuid': tellustalk_result.get("job_uuid"),
-                    'organization_number': organization_number,
-                    'job_name': tellustalk_result.get("job_name", job_name),
-                    'ebox_job_key': tellustalk_result.get("ebox_job_key"),
-                    'event': 'created',
-                    'status_data': {
+                try:
+                    supabase.table('signing_status').upsert({
+                        'job_uuid': tellustalk_result.get("job_uuid"),
+                        'organization_number': organization_number,
+                        'job_name': tellustalk_result.get("job_name", job_name),
+                        'ebox_job_key': tellustalk_result.get("ebox_job_key"),
+                        'event': 'created',
+                        'status_data': {
+                            'created_at': datetime.now().isoformat(),
+                            'members': tellustalk_result.get("members", [])
+                        },
                         'created_at': datetime.now().isoformat(),
-                        'members': tellustalk_result.get("members", [])
-                    },
-                    'created_at': datetime.now().isoformat(),
-                    'updated_at': datetime.now().isoformat()
-                }).execute()
+                        'updated_at': datetime.now().isoformat()
+                    }).execute()
+                    print(f"✅ Initial job saved to database")
+                except Exception as table_error:
+                    error_msg = str(table_error)
+                    # Check if it's a table not found error
+                    if 'table' in error_msg.lower() and ('not found' in error_msg.lower() or 'PGRST205' in error_msg):
+                        print(f"⚠️ Database table 'signing_status' not found. Please create the table using the SQL from README.md")
+                    else:
+                        print(f"⚠️ Could not save initial job to database: {error_msg}")
         except Exception as db_error:
-            print(f"⚠️ Could not save initial job to database: {str(db_error)}")
+            print(f"⚠️ Database error when saving initial job: {str(db_error)}")
             # Continue - not critical for sending
         
         # Return success response with TellusTalk job info
@@ -2232,21 +2241,33 @@ async def tellustalk_webhook(request: Request):
         try:
             supabase = get_supabase_client()
             if supabase:
-                # Upsert signing status - store by job_uuid
-                supabase.table('signing_status').upsert({
-                    'job_uuid': job_uuid,
-                    'organization_number': None,  # Will be updated if we track this
-                    'job_name': job_name,
-                    'ebox_job_key': ebox_job_key,
-                    'event': event,
-                    'signing_details': signing_status.get('signing_details', {}),
-                    'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
-                    'status_data': signing_status,
-                    'updated_at': datetime.now().isoformat()
-                }).execute()
-                print(f"   💾 Signing status saved to database")
+                # Try to upsert signing status - store by job_uuid
+                # Note: If table doesn't exist, this will fail gracefully
+                try:
+                    supabase.table('signing_status').upsert({
+                        'job_uuid': job_uuid,
+                        'organization_number': None,  # Will be updated if we track this
+                        'job_name': job_name,
+                        'ebox_job_key': ebox_job_key,
+                        'event': event,
+                        'signing_details': signing_status.get('signing_details', {}),
+                        'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
+                        'status_data': signing_status,
+                        'updated_at': datetime.now().isoformat()
+                    }).execute()
+                    print(f"   💾 Signing status saved to database")
+                except Exception as table_error:
+                    error_msg = str(table_error)
+                    # Check if it's a table not found error
+                    if 'table' in error_msg.lower() and ('not found' in error_msg.lower() or 'PGRST205' in error_msg):
+                        print(f"   ⚠️ Database table 'signing_status' not found. Please create the table using the SQL from README.md")
+                        print(f"   Error details: {error_msg}")
+                    else:
+                        print(f"   ⚠️ Could not save to database: {error_msg}")
+            else:
+                print(f"   ⚠️ Supabase client not available - skipping database save")
         except Exception as db_error:
-            print(f"   ⚠️ Could not save to database: {str(db_error)}")
+            print(f"   ⚠️ Database error: {str(db_error)}")
             # Continue - webhook should still return 200
         
         # Always return 200 OK to acknowledge receipt
