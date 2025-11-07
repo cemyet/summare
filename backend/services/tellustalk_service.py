@@ -254,8 +254,9 @@ def send_pdf_for_signing(
         # Retry configuration
         max_retries = 3
         retry_delays = [2, 5, 10]  # Exponential backoff delays in seconds
-        connect_timeout = 30  # Connection timeout
-        read_timeout = 120    # Read timeout (increased from 30 to handle slow responses)
+        connect_timeout = 10  # Connection timeout (reduced for faster initial response)
+        read_timeout_initial = 30  # Initial read timeout (reasonable for normal responses)
+        read_timeout_retry = 60   # Read timeout for retries (longer for slow responses)
         
         last_exception = None
         
@@ -266,12 +267,15 @@ def send_pdf_for_signing(
                     logger.info(f"Retrying TellusTalk API request (attempt {attempt + 1}/{max_retries}) after {delay}s delay...")
                     time.sleep(delay)
                 
+                # Use shorter timeout for initial attempt, longer for retries
+                current_read_timeout = read_timeout_retry if attempt > 0 else read_timeout_initial
+                
                 # Use tuple for timeout: (connect_timeout, read_timeout)
                 response = requests.post(
                     TELLUSTALK_EBOX_ENDPOINT,
                     json=payload,
                     headers=headers,
-                    timeout=(connect_timeout, read_timeout)
+                    timeout=(connect_timeout, current_read_timeout)
                 )
                 
                 # Check response

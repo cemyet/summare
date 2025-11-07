@@ -2120,68 +2120,73 @@ async def send_for_digital_signing(request: dict):
         print(f"✅ TellusTalk job_uuid: {tellustalk_result.get('job_uuid')}")
         
         # Store initial job info in database (link job_uuid to organization_number)
-        try:
-            supabase = get_supabase_client()
-            if supabase and organization_number:
-                try:
-                    job_uuid_value = tellustalk_result.get("job_uuid")
-                    if job_uuid_value:
-                        # Check if record exists first
-                        existing = supabase.table('signing_status').select('job_uuid').eq('job_uuid', job_uuid_value).execute()
-                        
-                        data_to_save = {
-                            'job_uuid': job_uuid_value,
-                            'organization_number': organization_number,
-                            'job_name': tellustalk_result.get("job_name", job_name),
-                            'ebox_job_key': tellustalk_result.get("ebox_job_key"),
-                            'event': 'created',
-                            'status_data': {
+        # Do this in background thread to not delay the response
+        import threading
+        def save_job_to_db():
+            try:
+                supabase = get_supabase_client()
+                if supabase and organization_number:
+                    try:
+                        job_uuid_value = tellustalk_result.get("job_uuid")
+                        if job_uuid_value:
+                            # Check if record exists first
+                            existing = supabase.table('signing_status').select('job_uuid').eq('job_uuid', job_uuid_value).execute()
+                            
+                            data_to_save = {
+                                'job_uuid': job_uuid_value,
+                                'organization_number': organization_number,
+                                'job_name': tellustalk_result.get("job_name", job_name),
+                                'ebox_job_key': tellustalk_result.get("ebox_job_key"),
+                                'event': 'created',
+                                'status_data': {
+                                    'created_at': datetime.now().isoformat(),
+                                    'members': tellustalk_result.get("members", [])
+                                },
                                 'created_at': datetime.now().isoformat(),
-                                'members': tellustalk_result.get("members", [])
-                            },
-                            'created_at': datetime.now().isoformat(),
-                            'updated_at': datetime.now().isoformat()
-                        }
-                        
-                        if existing.data and len(existing.data) > 0:
-                            # Update existing record
-                            supabase.table('signing_status').update(data_to_save).eq('job_uuid', job_uuid_value).execute()
-                            print(f"✅ Initial job updated in database")
+                                'updated_at': datetime.now().isoformat()
+                            }
+                            
+                            if existing.data and len(existing.data) > 0:
+                                # Update existing record
+                                supabase.table('signing_status').update(data_to_save).eq('job_uuid', job_uuid_value).execute()
+                                print(f"✅ Initial job updated in database")
+                            else:
+                                # Insert new record
+                                supabase.table('signing_status').insert(data_to_save).execute()
+                                print(f"✅ Initial job saved to database")
+                    except Exception as table_error:
+                        error_msg = str(table_error)
+                        # Check if it's a table not found error
+                        if 'table' in error_msg.lower() and ('not found' in error_msg.lower() or 'PGRST205' in error_msg):
+                            print(f"⚠️ Database table 'signing_status' not found. Please create the table using the SQL from README.md")
+                        elif '23505' in error_msg or 'duplicate key' in error_msg.lower():
+                            # Duplicate key error - try update instead
+                            try:
+                                job_uuid_value = tellustalk_result.get("job_uuid")
+                                if job_uuid_value:
+                                    supabase.table('signing_status').update({
+                                        'organization_number': organization_number,
+                                        'job_name': tellustalk_result.get("job_name", job_name),
+                                        'ebox_job_key': tellustalk_result.get("ebox_job_key"),
+                                        'event': 'created',
+                                        'status_data': {
+                                            'created_at': datetime.now().isoformat(),
+                                            'members': tellustalk_result.get("members", [])
+                                        },
+                                        'updated_at': datetime.now().isoformat()
+                                    }).eq('job_uuid', job_uuid_value).execute()
+                                    print(f"✅ Initial job updated in database (after duplicate key error)")
+                            except Exception as update_error:
+                                print(f"⚠️ Could not update database after duplicate key error: {str(update_error)}")
                         else:
-                            # Insert new record
-                            supabase.table('signing_status').insert(data_to_save).execute()
-                            print(f"✅ Initial job saved to database")
-                except Exception as table_error:
-                    error_msg = str(table_error)
-                    # Check if it's a table not found error
-                    if 'table' in error_msg.lower() and ('not found' in error_msg.lower() or 'PGRST205' in error_msg):
-                        print(f"⚠️ Database table 'signing_status' not found. Please create the table using the SQL from README.md")
-                    elif '23505' in error_msg or 'duplicate key' in error_msg.lower():
-                        # Duplicate key error - try update instead
-                        try:
-                            job_uuid_value = tellustalk_result.get("job_uuid")
-                            if job_uuid_value:
-                                supabase.table('signing_status').update({
-                                    'organization_number': organization_number,
-                                    'job_name': tellustalk_result.get("job_name", job_name),
-                                    'ebox_job_key': tellustalk_result.get("ebox_job_key"),
-                                    'event': 'created',
-                                    'status_data': {
-                                        'created_at': datetime.now().isoformat(),
-                                        'members': tellustalk_result.get("members", [])
-                                    },
-                                    'updated_at': datetime.now().isoformat()
-                                }).eq('job_uuid', job_uuid_value).execute()
-                                print(f"✅ Initial job updated in database (after duplicate key error)")
-                        except Exception as update_error:
-                            print(f"⚠️ Could not update database after duplicate key error: {str(update_error)}")
-                    else:
-                        print(f"⚠️ Could not save initial job to database: {error_msg}")
-        except Exception as db_error:
-            print(f"⚠️ Database error when saving initial job: {str(db_error)}")
-            # Continue - not critical for sending
+                            print(f"⚠️ Could not save initial job to database: {error_msg}")
+            except Exception as db_error:
+                print(f"⚠️ Database error when saving initial job: {str(db_error)}")
         
-        # Return success response with TellusTalk job info
+        # Start background thread for database save (don't wait - return immediately)
+        threading.Thread(target=save_job_to_db, daemon=True).start()
+        
+        # Return success response with TellusTalk job info immediately
         return {
             "success": True,
             "message": "Signing invitations sent successfully",
