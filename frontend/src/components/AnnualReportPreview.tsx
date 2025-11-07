@@ -1842,10 +1842,9 @@ const handleTaxCalculationClick = () => {
       return false;
     }
     
-    // Special logic for "Anläggningstillgångar" (row 313) - only show if child sums have values
-    // Check by row_id to avoid matching sub-headings like "Immateriella anläggningstillgångar"
-    if ((item.id && Number(item.id) === 313) || 
-        (item.label && item.label.toUpperCase().trim() === 'ANLÄGGNINGSTILLGÅNGAR')) {
+    // Special logic for "Anläggningstillgångar" - only show if child sums have values
+    // Skip this for sub-headings like "Immateriella anläggningstillgångar" (row 314) which have block_group
+    if (item.label && item.label.toUpperCase().includes('ANLÄGGNINGSTILLGÅNGAR') && !item.block_group) {
       const sumImmateriella = data.find(row => 
         row.label && row.label.toUpperCase().includes('SUMMA IMMATERIELLA')
       );
@@ -1916,6 +1915,24 @@ const handleTaxCalculationClick = () => {
       }
       // NEW: Even headings without block_group must follow always_show rule
       return item.always_show === true;
+    }
+    
+    // Check if this is a sum row (S3) - show if its block group heading is visible
+    const isSumRow = item.style && ['S3'].includes(item.style);
+    if (isSumRow && item.block_group) {
+      // Find the heading for this block group
+      const blockGroupHeading = data.find(row => 
+        row.block_group === item.block_group && 
+        row.style && ['H3'].includes(row.style)
+      );
+      
+      // If heading exists and would be shown, show the sum row too
+      if (blockGroupHeading) {
+        const headingShouldShow = blockGroupHasContent(data, item.block_group);
+        if (headingShouldShow) {
+          return true;
+        }
+      }
     }
     
     // NEW LOGIC: If amount is 0 for both years, hide unless always_show = true OR has note number
