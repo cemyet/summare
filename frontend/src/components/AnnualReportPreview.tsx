@@ -1798,6 +1798,7 @@ const handleTaxCalculationClick = () => {
   };
 
   // Helper function to check if a block group has any content
+  // Uses the same visibility logic as shouldShowRow for non-headings to ensure consistency
   const blockGroupHasContent = (data: any[], blockGroup: string): boolean => {
     if (!blockGroup) return true; // Show items without block_group
     
@@ -1807,11 +1808,14 @@ const handleTaxCalculationClick = () => {
       const isHeading = item.style && ['H0', 'H1', 'H2', 'H3', 'S1', 'S2', 'S3'].includes(item.style);
       if (isHeading) continue; // Skip headings when checking block content
       
+      // Use the same visibility logic as shouldShowRow for non-headings
       const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0) ||
                               (item.previous_amount !== null && item.previous_amount !== 0);
       const isAlwaysShow = item.always_show === true; // Use database field
+      const hasNoteNumber = item.note_number !== undefined && item.note_number !== null; // Has note reference
       
-      if (hasNonZeroAmount || isAlwaysShow) {
+      // Show if: (has non-zero amount) OR (always_show = true) OR (has note number)
+      if (hasNonZeroAmount || isAlwaysShow || hasNoteNumber) {
         return true;
       }
     }
@@ -2030,7 +2034,7 @@ const handleTaxCalculationClick = () => {
                 
                 
                 return useRR.map((item, index) => {
-                if (!shouldShowRow(item, showAllRR, rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData)) {
+                if (!shouldShowRow(item, showAllRR, useRR)) {
                   return null;
                 }
                 
@@ -2165,9 +2169,11 @@ const handleTaxCalculationClick = () => {
             {(() => {
               const liveSig = computeCombinedFinancialSig(rrData, brData);
               const useBR = (brDataWithNotes.length > 0 && liveSig === lastSigRef.current) ? brDataWithNotes : brData;
+              // Use useBR (the data we're actually rendering) for visibility checks to ensure consistency
+              // This ensures blockGroupHasContent checks the same data array that contains the rendered items
               return useBR.length > 0 ? (
                 useBR.map((item, index) => {
-                if (!shouldShowRow(item, showAllBR, brDataWithNotes)) {
+                if (!shouldShowRow(item, showAllBR, useBR)) {
                   return null;
                 }
                 
