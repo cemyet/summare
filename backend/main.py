@@ -1896,54 +1896,64 @@ async def get_most_recent_payment():
 @app.get("/api/payments/get-customer-email")
 async def get_customer_email(organization_number: str):
     """
-    Get the customer_email from the most recent paid payment for an organization
+    Return the customer_email from the most recent *paid* payment
+    for the given organization_number.
+    Priority: paid_at desc, then created_at desc.
     """
     try:
-        supabase = get_supabase_client()
-        
-        if not supabase:
-            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
-        
-        # Normalize organization number (remove dashes and spaces)
+        # Normalize incoming org nr
         org_number = organization_number.replace("-", "").replace(" ", "").strip()
         
         if not org_number:
             raise HTTPException(status_code=400, detail="Organization number is required")
         
-        # Get all paid payments for this organization
-        all_results = supabase.table('payments')\
-            .select('customer_email,organization_number,created_at')\
-            .eq('organization_number', org_number)\
-            .eq('payment_status', 'paid')\
+        # Try whichever client is available
+        client = get_supabase_client()
+        if not client:
+            # Fall back to the one you know works in other endpoints
+            from services.supabase_database import db
+            client = db.supabase
+        
+        if not client:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # 1) Try to order by paid_at desc (the column you actually have in payments CSV)
+        result = client.table("payments") \
+            .select("customer_email,organization_number,paid_at,created_at") \
+            .eq("organization_number", org_number) \
+            .eq("payment_status", "paid") \
+            .order("paid_at", desc=True) \
+            .limit(1) \
             .execute()
         
-        # Sort by created_at descending (most recent first) and get the first one
-        customer_email = None
-        organization_number_return = None
-        if all_results.data:
-            sorted_results = sorted(
-                all_results.data, 
-                key=lambda x: x.get('created_at') or '', 
-                reverse=True
-            )
-            if sorted_results:
-                customer_email = sorted_results[0].get('customer_email')
-                organization_number_return = sorted_results[0].get('organization_number')
+        payment_row = None
+        if result.data and len(result.data) > 0:
+            payment_row = result.data[0]
+        else:
+            # 2) Fallback: maybe old rows had no paid_at — sort by created_at
+            fallback = client.table("payments") \
+                .select("customer_email,organization_number,paid_at,created_at") \
+                .eq("organization_number", org_number) \
+                .eq("payment_status", "paid") \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
+            if fallback.data and len(fallback.data) > 0:
+                payment_row = fallback.data[0]
         
-        if not customer_email:
+        if not payment_row:
             return {
                 "success": False,
                 "customer_email": None,
-                "organization_number": None,
+                "organization_number": org_number,
                 "message": "No paid payment found for this organization"
             }
         
         return {
             "success": True,
-            "customer_email": customer_email,
-            "organization_number": organization_number_return
+            "customer_email": payment_row.get("customer_email"),
+            "organization_number": payment_row.get("organization_number") or org_number,
         }
-        
     except HTTPException:
         raise
     except Exception as e:
