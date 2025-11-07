@@ -407,20 +407,20 @@ interface ChatFlowResponse {
                               companyData.seFileData?.company_info?.organization_number ||
                               companyData.seFileData?.organization_number;
           
-          // If not found, get from most recent payment
+          // REMOVED: Unsafe fallback to most recent payment
+          // This was problematic because:
+          // 1. Multiple users could get the same payment in parallel (race condition)
+          // 2. No user session/authentication tied to the lookup
+          // 3. Could assign wrong organization number to wrong user
+          // 
+          // Organization number should always be available from:
+          // - SE file upload (seFileData.company_info.organization_number)
+          // - Payment completion (stored in companyData.organizationNumber)
+          // If missing, we'll fail gracefully and let user enter manually
+          
           if (!orgNumberRaw) {
-            console.log('⚠️ Organization number not in companyData, fetching from most recent payment...');
-            try {
-              const recentPaymentResponse = await apiService.getMostRecentPayment();
-              if (recentPaymentResponse.success && recentPaymentResponse.organization_number) {
-                orgNumberRaw = recentPaymentResponse.organization_number;
-                // Store it for future use
-                onDataUpdate({ organizationNumber: orgNumberRaw });
-                console.log('✅ Got organization_number from most recent payment:', orgNumberRaw);
-              }
-            } catch (error) {
-              console.error('❌ Error fetching most recent payment:', error);
-            }
+            console.warn('⚠️ Organization number not found in companyData');
+            console.warn('⚠️ Organization number should be set from SE file upload or payment completion');
           }
           
           // Normalize organization number (same as backend does)
