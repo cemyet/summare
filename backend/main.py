@@ -855,27 +855,41 @@ async def upload_se_file(file: UploadFile = File(...)):
         current_accounts, previous_accounts, current_ib_accounts, previous_ib_accounts = parser.parse_account_balances(se_content)
         company_info = parser.extract_company_info(se_content)
         
-        # CRITICAL: Validate that organization number was extracted
-        # SE files MUST contain #ORGNR tag - if missing, it's a parsing error
-        if not company_info.get('organization_number'):
-            raise HTTPException(
-                status_code=400,
-                detail="SE-filen saknar organisationsnummer (#ORGNR). Kontrollera att filen är en giltig SIE-fil."
-            )
-        
         # Scrape additional company information from rating.se
+        # This function will search for organization number using company name if it's missing from SE file
         scraped_company_data = {}
+        organization_number = company_info.get('organization_number')
+        company_name = company_info.get('company_name')
+        
         try:
-
             scraped_company_data = get_company_info_with_search(
-                orgnr=company_info.get('organization_number'),
-                company_name=company_info.get('company_name')
+                orgnr=organization_number,
+                company_name=company_name
             )
-
             
-
+            # If org number was missing from SE file but found via search, use it
+            if not organization_number and scraped_company_data.get('orgnr'):
+                organization_number = scraped_company_data.get('orgnr')
+                company_info['organization_number'] = organization_number
+                print(f"✅ Found organization number via company name search: {organization_number}")
+            
+            # If search failed and we still don't have an org number, raise an error
+            if not organization_number:
+                error_msg = scraped_company_data.get('error', 'Unknown error')
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Kunde inte hitta organisationsnummer. {error_msg}"
+                )
+                
+        except HTTPException:
+            raise
         except Exception as e:
-
+            # If search failed with exception, check if we have org number from SE file
+            if not organization_number:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Kunde inte hitta organisationsnummer i SE-filen eller via företagsnamn: {str(e)}"
+                )
             scraped_company_data = {"error": str(e)}
         
         rr_data = parser.parse_rr_data(current_accounts, previous_accounts, sie_text=se_content)
@@ -937,8 +951,8 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         # Store financial data in database (but don't fail if storage fails)
         stored_ids = {}
-        if company_info.get('organization_number'):
-            company_id = company_info['organization_number']
+        if organization_number:
+            company_id = organization_number
             fiscal_year = company_info.get('fiscal_year', datetime.now().year)
             
             try:
