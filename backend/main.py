@@ -1910,8 +1910,7 @@ async def get_customer_email(organization_number: str):
         # Try whichever client is available
         client = get_supabase_client()
         if not client:
-            # Fall back to the one you know works in other endpoints
-            from services.supabase_database import db
+            # Fall back to the one you know works in other endpoints (already imported at top)
             client = db.supabase
         
         if not client:
