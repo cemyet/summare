@@ -2085,7 +2085,10 @@ async def send_for_digital_signing(request: dict):
         # Optional redirect URLs (can be configured via environment variables)
         success_url = os.getenv("TELLUSTALK_SUCCESS_REDIRECT_URL")
         fail_url = os.getenv("TELLUSTALK_FAIL_REDIRECT_URL")
-        report_to_url = os.getenv("TELLUSTALK_REPORT_TO_URL")
+        # Only enable webhook if explicitly enabled (can cause API delays)
+        # Set TELLUSTALK_ENABLE_WEBHOOKS=false to disable webhooks for faster response
+        enable_webhooks = os.getenv("TELLUSTALK_ENABLE_WEBHOOKS", "true").lower() == "true"
+        report_to_url = os.getenv("TELLUSTALK_REPORT_TO_URL") if enable_webhooks else None
         
         # Send PDF to TellusTalk
         print(f"📤 Sending PDF to TellusTalk with {len(tellustalk_signers)} signers...")

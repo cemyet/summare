@@ -148,25 +148,13 @@ def send_pdf_for_signing(
         }
         
         # Configure webhook callbacks for signing status updates
+        # Only configure job_completed to avoid delays - we don't need immediate feedback
+        # The job_started and signature_completed events can cause TellusTalk to validate
+        # the webhook URL synchronously, causing delays in the API response
         if report_to_url:
             config["events"] = {
-                "job_started": {
-                    "report_to": [{
-                        "address": report_to_url,
-                        "headers": {
-                            "Content-Type": "application/json"
-                        }
-                    }]
-                },
-                "signature_completed": {
-                    "report_to": [{
-                        "address": report_to_url,
-                        "headers": {
-                            "Content-Type": "application/json"
-                        }
-                    }],
-                    "include_signed_files": False  # Don't include files in each signature callback
-                },
+                # Only configure job_completed event to minimize API response delay
+                # TellusTalk may validate webhook URLs synchronously, causing slow responses
                 "job_completed": {
                     "report_to": [{
                         "address": report_to_url,
