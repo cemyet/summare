@@ -168,7 +168,10 @@ interface ChatFlowResponse {
       }
     };
     const [globalInkBeraknadSkatt, setGlobalInkBeraknadSkatt] = useState<number>(0);
-  const [currentStep, setCurrentStep] = useState<number>(101); // Start with introduction
+    // Local state for organization number - updated immediately when payment succeeds or SE file is processed
+    // This ensures step 512 can access it even if parent prop hasn't updated yet
+    const [localOrgNumber, setLocalOrgNumber] = useState<string | null>(null);
+    const [currentStep, setCurrentStep] = useState<number>(101); // Start with introduction
   const [currentQuestion, setCurrentQuestion] = useState<ChatStep | null>(null);
   const [currentOptions, setCurrentOptions] = useState<ChatOption[]>([]);
   const [lastLoadedOptions, setLastLoadedOptions] = useState<ChatOption[]>([]);
@@ -397,16 +400,34 @@ interface ChatFlowResponse {
       }
       
       // Special handling for step 512: Fetch customer_email from payments table BEFORE substitution
-      // Look up organization_number in payments table and get customer_email from the most recent row (by created_at)
       let customerEmail: string | null = null;
       let userExists = false;
       if (stepNumber === 512) {
-        // Get organization number - it should always be available from SE file upload
-        // Check all possible locations where it might be stored
-        const orgNumberRaw = companyData.organizationNumber || 
-                            companyData.seFileData?.company_info?.organization_number ||
-                            (companyData.seFileData as any)?.organization_number ||
-                            null;
+        // 1) Try to get org nr from the usual places (including local state)
+        let orgNumberRaw = companyData.organizationNumber || 
+                          localOrgNumber || // Check local state first (updated immediately on payment)
+                          companyData.seFileData?.company_info?.organization_number ||
+                          (companyData.seFileData as any)?.organization_number ||
+                          null;
+        
+        // 2) If still missing, recover it from the most recent paid payment
+        if (!orgNumberRaw) {
+          try {
+            console.log('🔍 Step 512: no org in companyData, fetching most recent paid payment...');
+            const latestPayment = await apiService.getMostRecentPayment();
+            if (latestPayment?.success && latestPayment.organization_number) {
+              orgNumberRaw = latestPayment.organization_number;
+              // Store it locally and in parent so later steps see it
+              setLocalOrgNumber(latestPayment.organization_number);
+              onDataUpdate({ organizationNumber: latestPayment.organization_number });
+              console.log('✅ Step 512: recovered org from payments:', latestPayment.organization_number);
+            } else {
+              console.warn('⚠️ Step 512: could not recover org from payments', latestPayment);
+            }
+          } catch (err) {
+            console.error('❌ Step 512: error fetching most recent payment', err);
+          }
+        }
         
         // Normalize organization number (remove dashes/spaces, same as backend does)
         const orgNumber = orgNumberRaw ? String(orgNumberRaw).replace(/-/g, '').replace(/\s/g, '').trim() : null;
@@ -442,6 +463,8 @@ interface ChatFlowResponse {
           } else {
             console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
           }
+        } else {
+          console.warn('⚠️ Step 512: still no organization number, cannot fetch customer email.');
         }
       }
       
@@ -2126,6 +2149,11 @@ const selectiveMergeInk2 = (
                       fileData.data?.scraped_company_data?.orgnr || 
                       null;
     
+    // Store organization number in local state immediately (for step 512 access)
+    if (orgNumber) {
+      setLocalOrgNumber(orgNumber);
+    }
+    
     onDataUpdate({ 
       seFileData: fileData.data,
       scraped_company_data: fileData.data?.scraped_company_data,
@@ -2321,6 +2349,9 @@ const selectiveMergeInk2 = (
       const orgNumber = event?.detail?.organizationNumber;
       if (orgNumber) {
         console.log('✅ Storing organization number from payment:', orgNumber);
+        // Store in local state immediately so step 512 can access it
+        setLocalOrgNumber(orgNumber);
+        // Also update parent (async, may not be available immediately)
         onDataUpdate({ organizationNumber: orgNumber });
       }
       loadChatStep(510); // Payment success step
