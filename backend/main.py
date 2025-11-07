@@ -491,7 +491,17 @@ async def verify_stripe_session(session_id: str):
     
     try:
         session = _stripe_post(f"/v1/checkout/sessions/{session_id}", {})
-        return {"paid": session["payment_status"] == "paid", "id": session["id"]}
+        paid = session["payment_status"] == "paid"
+        
+        # Extract organization number from metadata if available
+        metadata = session.get("metadata", {})
+        organization_number = metadata.get("organization_number", "")
+        
+        return {
+            "paid": paid,
+            "id": session["id"],
+            "organization_number": organization_number if organization_number else None
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
