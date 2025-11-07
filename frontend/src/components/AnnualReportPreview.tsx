@@ -1842,8 +1842,10 @@ const handleTaxCalculationClick = () => {
       return false;
     }
     
-    // Special logic for "Anläggningstillgångar" - only show if child sums have values
-    if (item.label && item.label.toUpperCase().includes('ANLÄGGNINGSTILLGÅNGAR')) {
+    // Special logic for "Anläggningstillgångar" (row 313) - only show if child sums have values
+    // Check by row_id to avoid matching sub-headings like "Immateriella anläggningstillgångar"
+    if ((item.id && Number(item.id) === 313) || 
+        (item.label && item.label.toUpperCase().trim() === 'ANLÄGGNINGSTILLGÅNGAR')) {
       const sumImmateriella = data.find(row => 
         row.label && row.label.toUpperCase().includes('SUMMA IMMATERIELLA')
       );
