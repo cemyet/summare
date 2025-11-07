@@ -2338,7 +2338,13 @@ const selectiveMergeInk2 = (
 
   // Listen for payment success and failure events
   useEffect(() => {
-    const onPaymentSuccess = () => {
+    const onPaymentSuccess = (event: any) => {
+      // Store organization number from payment if available
+      const orgNumber = event?.detail?.organizationNumber;
+      if (orgNumber) {
+        console.log('✅ Storing organization number from payment:', orgNumber);
+        onDataUpdate({ organizationNumber: orgNumber });
+      }
       loadChatStep(510); // Payment success step
     };
     
