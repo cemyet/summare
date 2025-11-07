@@ -855,6 +855,14 @@ async def upload_se_file(file: UploadFile = File(...)):
         current_accounts, previous_accounts, current_ib_accounts, previous_ib_accounts = parser.parse_account_balances(se_content)
         company_info = parser.extract_company_info(se_content)
         
+        # CRITICAL: Validate that organization number was extracted
+        # SE files MUST contain #ORGNR tag - if missing, it's a parsing error
+        if not company_info.get('organization_number'):
+            raise HTTPException(
+                status_code=400,
+                detail="SE-filen saknar organisationsnummer (#ORGNR). Kontrollera att filen är en giltig SIE-fil."
+            )
+        
         # Scrape additional company information from rating.se
         scraped_company_data = {}
         try:

@@ -401,69 +401,47 @@ interface ChatFlowResponse {
       let customerEmail: string | null = null;
       let userExists = false;
       if (stepNumber === 512) {
-        try {
-          // Get organization number from multiple possible locations
-          let orgNumberRaw = companyData.organizationNumber || 
-                              companyData.seFileData?.company_info?.organization_number ||
-                              companyData.seFileData?.organization_number;
-          
-          // REMOVED: Unsafe fallback to most recent payment
-          // This was problematic because:
-          // 1. Multiple users could get the same payment in parallel (race condition)
-          // 2. No user session/authentication tied to the lookup
-          // 3. Could assign wrong organization number to wrong user
-          // 
-          // Organization number should always be available from:
-          // - SE file upload (seFileData.company_info.organization_number)
-          // - Payment completion (stored in companyData.organizationNumber)
-          // If missing, we'll fail gracefully and let user enter manually
-          
-          if (!orgNumberRaw) {
-            console.warn('⚠️ Organization number not found in companyData');
-            console.warn('⚠️ Organization number should be set from SE file upload or payment completion');
-          }
-          
-          // Normalize organization number (same as backend does)
-          const orgNumber = orgNumberRaw ? orgNumberRaw.replace(/-/g, '').replace(/\s/g, '').trim() : null;
-          
-          if (!orgNumber) {
-            console.error('❌ Organization number not found for step 512 - cannot fetch customer_email');
-            // Continue without customer_email - user can still enter manually
-          } else {
-            console.log('🔍 Fetching customer_email for step 512, org:', orgNumber);
-            const emailResponse = await apiService.getCustomerEmail(orgNumber);
-            if (emailResponse.success && emailResponse.customer_email) {
-              customerEmail = emailResponse.customer_email;
-              
-              // Store org number if we got it from API and it's not in companyData
-              const updateData: any = { customer_email: customerEmail };
-              if (!companyData.organizationNumber && emailResponse.organization_number) {
-                updateData.organizationNumber = emailResponse.organization_number;
-              }
-              
-              // Check if user already exists with this email and org number
-              console.log('🔍 Checking if user exists:', customerEmail);
-              try {
-                const userCheckResponse = await apiService.checkUserExists(customerEmail, orgNumber);
-                if (userCheckResponse.success) {
-                  userExists = userCheckResponse.user_exist;
-                  updateData.user_exist = userExists;
-                  console.log(`✅ User check result: user_exist=${userExists}, org_in_user=${userCheckResponse.org_in_user}`);
-                }
-              } catch (error) {
-                console.error('❌ Error checking user existence:', error);
-              }
-              
-              // Store in companyData for variable substitution (update immediately)
-              onDataUpdate(updateData);
-              console.log('✅ Fetched customer_email for step 512:', customerEmail);
-            } else {
-              console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
+        // Get organization number - it should always be available from SE file upload
+        // Check all possible locations where it might be stored
+        const orgNumberRaw = companyData.organizationNumber || 
+                            companyData.seFileData?.company_info?.organization_number ||
+                            (companyData.seFileData as any)?.organization_number ||
+                            null;
+        
+        // Normalize organization number (remove dashes/spaces, same as backend does)
+        const orgNumber = orgNumberRaw ? String(orgNumberRaw).replace(/-/g, '').replace(/\s/g, '').trim() : null;
+        
+        if (orgNumber) {
+          console.log('🔍 Fetching customer_email for step 512, org:', orgNumber);
+          const emailResponse = await apiService.getCustomerEmail(orgNumber);
+          if (emailResponse.success && emailResponse.customer_email) {
+            customerEmail = emailResponse.customer_email;
+            
+            // Ensure organization number is stored in companyData (defensive)
+            const updateData: any = { customer_email: customerEmail };
+            if (!companyData.organizationNumber && orgNumber) {
+              updateData.organizationNumber = orgNumber;
             }
+            
+            // Check if user already exists with this email and org number
+            console.log('🔍 Checking if user exists:', customerEmail);
+            try {
+              const userCheckResponse = await apiService.checkUserExists(customerEmail, orgNumber);
+              if (userCheckResponse.success) {
+                userExists = userCheckResponse.user_exist;
+                updateData.user_exist = userExists;
+                console.log(`✅ User check result: user_exist=${userExists}, org_in_user=${userCheckResponse.org_in_user}`);
+              }
+            } catch (error) {
+              console.error('❌ Error checking user existence:', error);
+            }
+            
+            // Store in companyData for variable substitution (update immediately)
+            onDataUpdate(updateData);
+            console.log('✅ Fetched customer_email for step 512:', customerEmail);
+          } else {
+            console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
           }
-        } catch (error) {
-          console.error('❌ Error fetching customer email:', error);
-          // Continue without customer_email - user can still enter manually
         }
       }
       
@@ -2143,14 +2121,14 @@ const selectiveMergeInk2 = (
     }
     
     // Update company data with all extracted information
-    // Priority: SE file org number > scraped org number
+    // Organization number is extracted from SE file (#ORGNR tag)
     const orgNumber = fileData.data?.company_info?.organization_number || 
                       fileData.data?.scraped_company_data?.orgnr || 
-                      '';
+                      null;
     
     onDataUpdate({ 
       seFileData: fileData.data,
-      scraped_company_data: fileData.data?.scraped_company_data, // Add scraped company data
+      scraped_company_data: fileData.data?.scraped_company_data,
       results: extractedResults,
       sumAretsResultat: sumAretsResultat,
       sumFrittEgetKapital: sumFrittEgetKapital,
@@ -2166,7 +2144,7 @@ const selectiveMergeInk2 = (
       sarskildLoneskattPensionCalculated: sarskildLoneskattPensionCalculated,
       fiscalYear: fileData.data?.company_info?.fiscal_year || new Date().getFullYear(),
       companyName: fileData.data?.company_info?.company_name || fileData.data?.scraped_company_data?.company_name || 'Företag AB',
-      organizationNumber: orgNumber,
+      organizationNumber: orgNumber, // Always set from SE file
       showRRBR: true // Show RR and BR data in preview
     });
     
