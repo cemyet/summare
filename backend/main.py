@@ -381,6 +381,43 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
+@app.get("/debug/supabase")
+async def debug_supabase():
+    """Debug endpoint to test Supabase connection"""
+    import os
+    
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    
+    result = {
+        "url_set": bool(url),
+        "url_value": url[:30] + "..." if url else None,
+        "url_length": len(url) if url else 0,
+        "key_set": bool(key),
+        "key_length": len(key) if key else 0,
+        "key_preview": key[:30] + "..." if key else None,
+    }
+    
+    # Try to connect
+    if url and key:
+        try:
+            supabase = get_supabase_client()
+            if supabase:
+                # Try actual query
+                test_result = supabase.table('chat_flow').select('step_number').limit(1).execute()
+                result["connection"] = "SUCCESS"
+                result["data_count"] = len(test_result.data) if test_result.data else 0
+            else:
+                result["connection"] = "NO_CLIENT"
+        except Exception as e:
+            result["connection"] = "FAILED"
+            result["error"] = str(e)
+            result["error_type"] = type(e).__name__
+    else:
+        result["connection"] = "MISSING_VARS"
+    
+    return result
+
 # --- Embedded Checkout endpoint (pure HTTP, no SDK issues) - v2 ---
 import os
 import requests
