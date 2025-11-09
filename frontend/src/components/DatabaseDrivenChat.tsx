@@ -509,7 +509,8 @@ interface ChatFlowResponse {
               : (dataToUseForMessage.customer_email || dataToUseForMessage.customerEmail || '');
             
             // For step 110, reverse the sign of SkattAretsResultat to show as positive (consistent with inkBeraknadSkatt)
-            const skattAretsResultatValue = stepNumber === 110 && dataToUseForMessage.skattAretsResultat
+            // But don't reverse if the value is 0 to avoid showing "−0"
+            const skattAretsResultatValue = stepNumber === 110 && dataToUseForMessage.skattAretsResultat !== null && dataToUseForMessage.skattAretsResultat !== undefined && dataToUseForMessage.skattAretsResultat !== 0
               ? -dataToUseForMessage.skattAretsResultat
               : dataToUseForMessage.skattAretsResultat;
             
@@ -634,7 +635,8 @@ interface ChatFlowResponse {
         }
         
         // For step 110, reverse the sign of SkattAretsResultat to show as positive (consistent with inkBeraknadSkatt)
-        const skattAretsResultatValueForSubstitution = stepNumber === 110 && dataToUse.skattAretsResultat
+        // But don't reverse if the value is 0 to avoid showing "−0"
+        const skattAretsResultatValueForSubstitution = stepNumber === 110 && dataToUse.skattAretsResultat !== null && dataToUse.skattAretsResultat !== undefined && dataToUse.skattAretsResultat !== 0
           ? -dataToUse.skattAretsResultat
           : dataToUse.skattAretsResultat;
         
@@ -2225,7 +2227,8 @@ const selectiveMergeInk2 = (
         try {
           const step110Response = await apiService.getChatFlowStep(110) as ChatFlowResponse;
           // Reverse the sign of skattAretsResultat for step 110 to show as positive (consistent with inkBeraknadSkatt)
-          const reversedTaxAmount = skattAretsResultat !== null ? -skattAretsResultat : 0;
+          // But don't reverse if the value is 0 to avoid showing "−0"
+          const reversedTaxAmount = skattAretsResultat !== null && skattAretsResultat !== 0 ? -skattAretsResultat : (skattAretsResultat || 0);
           const taxAmount = new Intl.NumberFormat('sv-SE').format(reversedTaxAmount);
           const beraknadSkattAmount = new Intl.NumberFormat('sv-SE').format(inkBeraknadSkatt);
           const taxText = substituteVariables(
