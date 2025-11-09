@@ -508,9 +508,14 @@ interface ChatFlowResponse {
               ? (customerEmail || dataToUseForMessage.customer_email || dataToUseForMessage.customerEmail || '')
               : (dataToUseForMessage.customer_email || dataToUseForMessage.customerEmail || '');
             
+            // For step 110, reverse the sign of SkattAretsResultat to show as positive (consistent with inkBeraknadSkatt)
+            const skattAretsResultatValue = stepNumber === 110 && dataToUseForMessage.skattAretsResultat
+              ? -dataToUseForMessage.skattAretsResultat
+              : dataToUseForMessage.skattAretsResultat;
+            
             const questionText = substituteVariables(response.question_text, {
               SumAretsResultat: dataToUseForMessage.sumAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.sumAretsResultat) : '0',
-              SkattAretsResultat: dataToUseForMessage.skattAretsResultat ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.skattAretsResultat) : '0',
+              SkattAretsResultat: skattAretsResultatValue ? new Intl.NumberFormat('sv-SE').format(skattAretsResultatValue) : '0',
               pension_premier: dataToUseForMessage.pensionPremier ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.pensionPremier) : '0',
               sarskild_loneskatt_pension_calculated: dataToUseForMessage.sarskildLoneskattPensionCalculated ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.sarskildLoneskattPensionCalculated) : '0',
               sarskild_loneskatt_pension: dataToUseForMessage.sarskildLoneskattPension ? new Intl.NumberFormat('sv-SE').format(dataToUseForMessage.sarskildLoneskattPension) : '0',
@@ -628,9 +633,14 @@ interface ChatFlowResponse {
           finalCustomerEmail = dataToUse.customer_email || dataToUse.customerEmail || '';
         }
         
+        // For step 110, reverse the sign of SkattAretsResultat to show as positive (consistent with inkBeraknadSkatt)
+        const skattAretsResultatValueForSubstitution = stepNumber === 110 && dataToUse.skattAretsResultat
+          ? -dataToUse.skattAretsResultat
+          : dataToUse.skattAretsResultat;
+        
         const substitutionVars = {
           SumAretsResultat: dataToUse.sumAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sumAretsResultat) : '0',
-          SkattAretsResultat: dataToUse.skattAretsResultat ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.skattAretsResultat) : '0',
+          SkattAretsResultat: skattAretsResultatValueForSubstitution ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(skattAretsResultatValueForSubstitution) : '0',
           pension_premier: dataToUse.pensionPremier ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.pensionPremier) : '0',
           sarskild_loneskatt_pension_calculated: dataToUse.sarskildLoneskattPensionCalculated ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sarskildLoneskattPensionCalculated) : '0',
           sarskild_loneskatt_pension: dataToUse.sarskildLoneskattPension ? new Intl.NumberFormat('sv-SE', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(dataToUse.sarskildLoneskattPension) : '0',
@@ -2214,7 +2224,9 @@ const selectiveMergeInk2 = (
       if (skattAretsResultat !== null) {
         try {
           const step110Response = await apiService.getChatFlowStep(110) as ChatFlowResponse;
-          const taxAmount = new Intl.NumberFormat('sv-SE').format(skattAretsResultat);
+          // Reverse the sign of skattAretsResultat for step 110 to show as positive (consistent with inkBeraknadSkatt)
+          const reversedTaxAmount = skattAretsResultat !== null ? -skattAretsResultat : 0;
+          const taxAmount = new Intl.NumberFormat('sv-SE').format(reversedTaxAmount);
           const beraknadSkattAmount = new Intl.NumberFormat('sv-SE').format(inkBeraknadSkatt);
           const taxText = substituteVariables(
             step110Response.question_text,
