@@ -1853,6 +1853,14 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             for it in items:
                 it["always_show"] = True
         
+        # For OVRIGA, force always_show for items with variable_text (user-edited text content)
+        # This ensures text-only items aren't filtered out by build_visible_with_headings_pdf
+        if is_ovriga:
+            for it in items:
+                if it.get('variable_text') and str(it.get('variable_text')).strip():
+                    it["always_show"] = True
+                    print(f"[OVRIGA-FORCE-SHOW] Setting always_show=True for row_id={it.get('row_id')}, variable_text={it.get('variable_text')[:30]}")
+        
         # For EVENTUAL and SAKERHET blocks, DON'T use toggle for visibility in PDF
         # The toggle is only used to show the block, not to show zero-value rows within it
         # Zero-value toggle_show rows are only for editing, not for final PDF
