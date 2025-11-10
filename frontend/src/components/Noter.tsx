@@ -7267,19 +7267,42 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                 setIsEditingOVRIGA(false);
                 
                 // Update noterData items and bubble up to parent
-                const updatedItems = blockItems.map(item => {
-                  if (item.variable_name === 'ovriga_upplysningar' || (item.variable_text && item === textItem)) {
-                    return { ...item, variable_text: String(newCommittedValues['ovriga_upplysningar'] || fullOriginalText) };
-                  }
-                  return item;
-                });
+                const newText = String(newCommittedValues['ovriga_upplysningar'] || fullOriginalText);
+                
+                let updatedItems: NoterItem[];
+                if (textItem) {
+                  // If we found a text item, update it
+                  updatedItems = blockItems.map(item => {
+                    if (item === textItem || item.variable_name === 'ovriga_upplysningar') {
+                      return { 
+                        ...item, 
+                        variable_text: newText,
+                        variable_name: 'ovriga_upplysningar'  // Ensure variable_name is set
+                      };
+                    }
+                    return item;
+                  });
+                } else {
+                  // If no text item found, update the first item in the block
+                  updatedItems = blockItems.map((item, idx) => {
+                    if (idx === 0) {
+                      return { 
+                        ...item, 
+                        variable_text: newText,
+                        variable_name: 'ovriga_upplysningar'  // Ensure variable_name is set
+                      };
+                    }
+                    return item;
+                  });
+                }
                 
                 console.log('✅ [OVRIGA-APPROVE] Updating items with edits:', { 
                   editedCount: Object.keys(editedValues).length,
                   updatedItems: updatedItems.length,
                   textItem: textItem,
-                  newText: String(newCommittedValues['ovriga_upplysningar'] || fullOriginalText),
-                  blockItems: blockItems.map(i => ({ row_id: i.row_id, variable_name: i.variable_name, variable_text: i.variable_text }))
+                  newText: newText,
+                  blockItems: blockItems.map(i => ({ row_id: i.row_id, variable_name: i.variable_name, variable_text: i.variable_text })),
+                  updatedBlockItems: updatedItems.map(i => ({ row_id: i.row_id, variable_name: i.variable_name, variable_text: i.variable_text }))
                 });
                 
                 // Merge updated items back into full noterData

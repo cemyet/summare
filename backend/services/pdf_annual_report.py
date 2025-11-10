@@ -1818,7 +1818,12 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                 )
                 has_content = has_text_content or has_amount_content
                 
+                print(f"[OVRIGA-VISIBILITY] block_visible={block_visible}, moderbolag={moderbolag}, has_text_content={has_text_content}, has_amount_content={has_amount_content}, item_count={len(items)}")
+                if items and has_text_content:
+                    print(f"[OVRIGA-VISIBILITY] Items with variable_text: {[{'row_id': it.get('row_id'), 'variable_name': it.get('variable_name'), 'text_len': len(it.get('variable_text', ''))} for it in items if it.get('variable_text')]}")
+                
                 if not has_content:
+                    print(f"[OVRIGA-VISIBILITY] Skipping OVRIGA - no content, toggle off, no moderbolag")
                     continue
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
@@ -1941,12 +1946,15 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
         for item in visible:
             variable_text = item.get('variable_text', '').strip()
             if variable_text:
+                print(f"[OVRIGA-PDF] Rendering variable_text: {variable_text[:50]}... (variable_name={item.get('variable_name')})")
                 # Render the variable_text (may include moderbolag text if it was edited)
                 # Replace newlines with <br/> tags for proper rendering in PDF
                 variable_text_html = variable_text.replace('\n', '<br/>')
                 note_flow.append(Paragraph(variable_text_html, P))
                 note_flow.append(Spacer(1, 10))
                 has_variable_text = True
+        
+        print(f"[OVRIGA-PDF] has_variable_text={has_variable_text}, moderbolag={moderbolag}, visible_count={len(visible)}")
         
         # If no variable_text but moderbolag exists, render default moderbolag text
         if not has_variable_text and moderbolag:
