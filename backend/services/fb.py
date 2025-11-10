@@ -324,10 +324,10 @@ class ForvaltningsberattelseFB:
         # Calculate balanseras_nyrakning
         # Simple: inject previous year's "Årets resultat" directly
         # Row "Balanseras i ny räkning":
-        #   - Column "Årets resultat": previous year's "Årets resultat"
-        #   - Column "Balanserat resultat": negative of previous year's "Årets resultat"
-        arets_resultat_balanseras_final = arets_resultat_prev_ub
-        balansresultat_balanseras_final = -arets_resultat_prev_ub
+        #   - Column "Balanserat resultat": previous year's "Årets resultat"
+        #   - Column "Årets resultat": negative of previous year's "Årets resultat"
+        balansresultat_balanseras_final = arets_resultat_prev_ub
+        arets_resultat_balanseras_final = -arets_resultat_prev_ub
         
         # Calculate årets resultat
         arets_resultat_calculated = (arets_resultat_ib + arets_resultat_balanseras_final)
