@@ -323,12 +323,35 @@ class ForvaltningsberattelseFB:
         uppskrfond_calculated_ub = (uppskrfond_ib + uppskrivning_anl - aterforing_uppskr)
         
         # Calculate balanseras_nyrakning
-        balansresultat_balanseras = (balansresultat_ib - utdelning + erhallna_tillskott - 
-                                   aterbetalda_tillskott + reservfond_change)
-        arets_resultat_balanseras = -balansresultat_balanseras
+        # The "Balanseras i ny räkning" represents how much of the previous year's "Årets resultat"
+        # is transferred to "Balanserat resultat". This should be calculated as:
+        # Previous year's "Årets resultat" minus any dividends paid
+        expected_balanseras = arets_resultat_prev_ub - utdelning
+        
+        # Formula-based calculation: balance change in "Balanserat resultat" from IB to UB,
+        # minus dividends, plus other adjustments (tillskott, reservfond changes)
+        # This is used as a validation/fallback
+        balansresultat_balanseras_formula = (balansresultat_ib - utdelning + erhallna_tillskott - 
+                                           aterbetalda_tillskott + reservfond_change)
+        
+        # Use voucher-based value if it's close to expected, otherwise use expected value
+        # Allow small tolerance for rounding differences (100 kr)
+        if abs(balanseras_nyrakning_voucher - expected_balanseras) < 100:
+            # Voucher value is valid and matches expected, use it
+            balansresultat_balanseras_final = balanseras_nyrakning_voucher
+        elif abs(balanseras_nyrakning_voucher) < 0.01:
+            # No voucher value found, use expected value (previous year's result minus dividends)
+            balansresultat_balanseras_final = expected_balanseras
+        else:
+            # Voucher value exists but doesn't match expected - this might indicate an error
+            # Use expected value (previous year's result minus dividends) as it's the correct calculation
+            balansresultat_balanseras_final = expected_balanseras
+        
+        # The "Årets resultat" column gets the negative of this value
+        arets_resultat_balanseras_final = -balansresultat_balanseras_final
         
         # Calculate årets resultat
-        arets_resultat_calculated = (arets_resultat_ib + arets_resultat_balanseras)
+        arets_resultat_calculated = (arets_resultat_ib + arets_resultat_balanseras_final)
         
         # Store all calculated variables
         variables = {
@@ -360,14 +383,14 @@ class ForvaltningsberattelseFB:
             'fb_balansresultat_aterbetalda_aktieagartillskott': -aterbetalda_tillskott,
             'fb_balansresultat_forandring_reservfond': 0.0,  # Editable field, default 0
             'fb_balansresultat_fondemission': 0.0,  # Editable field, default 0
-            'fb_balansresultat_balanseras_nyrakning': balanseras_nyrakning_voucher,
+            'fb_balansresultat_balanseras_nyrakning': balansresultat_balanseras_final,
             'fb_balansresultat_uppskrfond_aterforing': uppskrfond_aterforing_balanserat_resultat,
             
             # Årets resultat
             'fb_aretsresultat_ib': arets_resultat_ib,
             'fb_aretsresultat_utdelning': 0.0,  # Editable field, default 0
             'fb_aretsresultat_aterbetalda_aktieagartillskott': 0.0,  # Editable field, default 0
-            'fb_aretsresultat_balanseras_nyrakning': -balanseras_nyrakning_voucher,
+            'fb_aretsresultat_balanseras_nyrakning': arets_resultat_balanseras_final,
             'fb_aretsresultat_forandring_reservfond': 0.0,  # Editable field, default 0
             'fb_aretsresultat_fondemission': 0.0,  # Editable field, default 0
             'fb_aretsresultat_arets_resultat': arets_resultat_ub,
