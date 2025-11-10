@@ -6767,8 +6767,8 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               if (block === 'OVRIGA') {
                 const ovrigaToggleKey = `ovriga-visibility`;
                 const isOvrigaVisible = blockToggles[ovrigaToggleKey] === true;
-                // OVRIGA can get a note number if visible (restore numbering functionality)
-                // Don't exclude it from numbering
+                // Only get number if toggle is on (like EVENTUAL/SAKERHET)
+                if (!isOvrigaVisible) shouldGetNumber = false;
               }
               
               if (shouldGetNumber) {
