@@ -297,7 +297,6 @@ class ForvaltningsberattelseFB:
         nyemission = self._calculate_nyemission_from_verifications(verifications)
         erhallna_tillskott, aterbetalda_tillskott = self._calculate_aktieagartillskott_from_verifications(verifications)
         uppskrivning_anl, aterforing_uppskr = self._calculate_uppskrivning_from_verifications(verifications)
-        balanseras_nyrakning_voucher = self._calculate_balanseras_nyrakning_from_verifications(verifications)
         uppskrfond_aterforing_balanserat_resultat = self._calculate_uppskrfond_aterforing_balanserat_resultat_from_verifications(verifications)
         
         # Extract BR values using correct variable names from CSV
@@ -323,32 +322,12 @@ class ForvaltningsberattelseFB:
         uppskrfond_calculated_ub = (uppskrfond_ib + uppskrivning_anl - aterforing_uppskr)
         
         # Calculate balanseras_nyrakning
-        # The "Balanseras i ny räkning" represents how much of the previous year's "Årets resultat"
-        # is transferred to "Balanserat resultat". This should be calculated as:
-        # Previous year's "Årets resultat" minus any dividends paid
-        expected_balanseras = arets_resultat_prev_ub - utdelning
-        
-        # Formula-based calculation: balance change in "Balanserat resultat" from IB to UB,
-        # minus dividends, plus other adjustments (tillskott, reservfond changes)
-        # This is used as a validation/fallback
-        balansresultat_balanseras_formula = (balansresultat_ib - utdelning + erhallna_tillskott - 
-                                           aterbetalda_tillskott + reservfond_change)
-        
-        # Use voucher-based value if it's close to expected, otherwise use expected value
-        # Allow small tolerance for rounding differences (100 kr)
-        if abs(balanseras_nyrakning_voucher - expected_balanseras) < 100:
-            # Voucher value is valid and matches expected, use it
-            balansresultat_balanseras_final = balanseras_nyrakning_voucher
-        elif abs(balanseras_nyrakning_voucher) < 0.01:
-            # No voucher value found, use expected value (previous year's result minus dividends)
-            balansresultat_balanseras_final = expected_balanseras
-        else:
-            # Voucher value exists but doesn't match expected - this might indicate an error
-            # Use expected value (previous year's result minus dividends) as it's the correct calculation
-            balansresultat_balanseras_final = expected_balanseras
-        
-        # The "Årets resultat" column gets the negative of this value
-        arets_resultat_balanseras_final = -balansresultat_balanseras_final
+        # Simple: inject previous year's "Årets resultat" directly
+        # Row "Balanseras i ny räkning":
+        #   - Column "Årets resultat": previous year's "Årets resultat"
+        #   - Column "Balanserat resultat": negative of previous year's "Årets resultat"
+        arets_resultat_balanseras_final = arets_resultat_prev_ub
+        balansresultat_balanseras_final = -arets_resultat_prev_ub
         
         # Calculate årets resultat
         arets_resultat_calculated = (arets_resultat_ib + arets_resultat_balanseras_final)
