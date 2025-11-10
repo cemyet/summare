@@ -724,13 +724,17 @@ class DatabaseParser:
         
         # Update account_details for rows affected by reclassification
         for result in results:
-            if result.get('show_tag') and result.get('account_details'):
+            if result.get('show_tag'):
                 row_id = result.get('id')
                 # Normalize row_id to int for consistent lookup
                 row_id_int = int(row_id) if row_id is not None else None
                 
                 # Get movements for this row (try both int and original type)
                 movements = account_movements.get(row_id_int, account_movements.get(row_id, {}))
+                
+                # Initialize account_details if it doesn't exist yet (for rows that get accounts via reclassification)
+                if not result.get('account_details'):
+                    result['account_details'] = []
                 
                 # Get original account_details
                 original_details = result.get('account_details', [])
@@ -746,14 +750,19 @@ class DatabaseParser:
                     account_id = account_info.get('account_id')
                     account_id_str = str(account_id) if account_id else None
                     if account_id_str and account_info.get('balance', 0) != 0:
-                        # Apply sign reversal for accounts 2000-9999
+                        # The balance in account_info is already in BR sign format (positive for liabilities, positive for assets)
+                        # For 296x accounts: balance is already converted to BR sign (ub_br = -ub_raw)
+                        # For 168x/17xx accounts: balance is already in asset sign (positive for assets)
+                        # We should use the balance as-is, but need to check if it's already in the correct format
                         try:
                             account_id_int = int(account_id_str)
                             raw_balance = account_info.get('balance', 0)
-                            if 2000 <= account_id_int <= 9999:
-                                display_balance = -raw_balance
-                            else:
-                                display_balance = raw_balance
+                            
+                            # For accounts 2000-9999 (liabilities/equity), the balance from reclassification
+                            # is already in BR sign (positive for liabilities). We should use it as-is.
+                            # For accounts 1000-1999 (assets), the balance is already positive for assets.
+                            # So we use the balance directly from account_info
+                            display_balance = raw_balance
                         except (ValueError, TypeError):
                             display_balance = account_info.get('balance', 0)
                         
