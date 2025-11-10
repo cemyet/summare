@@ -7310,6 +7310,22 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   const updated = updatedItems.find(u => u.row_id === item.row_id && u.block === 'OVRIGA');
                   return updated || item;
                 });
+                
+                console.log('📝 [NOTER-UPDATE] Block edited: OVRIGA', {
+                  updatedItemsCount: updatedItems.length,
+                  totalNoterDataItems: updatedNoterData.length,
+                  ovrigaItemsInUpdate: updatedNoterData.filter(i => i.block === 'OVRIGA').map(i => ({ 
+                    row_id: i.row_id, 
+                    variable_name: i.variable_name, 
+                    variable_text: i.variable_text?.substring(0, 50) 
+                  }))
+                });
+                
+                console.log('📝 [NOTER-UPDATE] Bubbling updated noterData to parent:', {
+                  changedBlock: 'OVRIGA',
+                  totalItems: updatedNoterData.length
+                });
+                
                 onDataUpdate?.({ noterData: updatedNoterData });
               };
               
