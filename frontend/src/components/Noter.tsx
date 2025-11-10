@@ -5488,7 +5488,8 @@ const EventualNote: React.FC<{
             /* Edit mode: Show dynamic rows with add/remove buttons */
             <div className="space-y-2">
               {dynamicRows.map((row, index) => (
-                <div key={row.id} className="grid gap-4" style={{ gridTemplateColumns: '4fr 1fr 1fr 60px' }}>
+                <div key={row.id} className="flex gap-4 items-start">
+                  <div className="grid gap-4 flex-1" style={{ gridTemplateColumns: '4fr 1fr 1fr' }}>
                   <Input
                     value={row.row_title}
                     onChange={(e) => updateRow(index, 'row_title', e.target.value)}
@@ -5527,7 +5528,8 @@ const EventualNote: React.FC<{
                       MozAppearance: 'textfield'
                     } as React.CSSProperties}
                   />
-                  <div className="flex gap-1">
+                  </div>
+                  <div className="flex gap-1 shrink-0">
                     {index === dynamicRows.length - 1 && (
                       <Button
                         variant="outline"
@@ -6663,8 +6665,23 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
     groupedItems[block].sort((a, b) => (a.row_id || 0) - (b.row_id || 0));
   });
 
-  // Get unique blocks for toggle controls
-  const blocks = Object.keys(groupedItems);
+  // Get unique blocks for toggle controls, sorted in proper note order
+  const noteOrder = [
+    'NOT1', 'NOT2',
+    'BYGG', 'MASKIN', 'INV', 'MAT',
+    'KONCERN', 'INTRESSEFTG',
+    'FORDR_KONCERN', 'FORDRKONC',
+    'LVP',
+    'FORDR_INTRESSE', 'FORDR_OVRIG',
+    'SAKERHET', 'EVENTUAL',  // SAKERHET before EVENTUAL
+    'OVRIGA', 'OTHER'  // OVRIGA last
+  ];
+  
+  const allBlocks = Object.keys(groupedItems);
+  const blocks = [
+    ...noteOrder.filter(b => allBlocks.includes(b)),
+    ...allBlocks.filter(b => !noteOrder.includes(b))
+  ];
 
   // Filter items based on toggle states
   const getVisibleItems = (items: NoterItem[], block?: string) => {
