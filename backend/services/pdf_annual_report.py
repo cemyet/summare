@@ -1878,8 +1878,8 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         # Apply visibility logic
         visible = build_visible_with_headings_pdf(items, toggle_on=effective_toggle)
         
-        # Skip rows before first heading (but not for NOT1/NOT2, SAKERHET, EVENTUAL which may not have headings)
-        if block_name not in ['NOT1', 'NOT2'] and not (is_eventual or is_sakerhet):
+        # Skip rows before first heading (but not for NOT1/NOT2, SAKERHET, EVENTUAL, OVRIGA which may not have headings)
+        if block_name not in ['NOT1', 'NOT2'] and not (is_eventual or is_sakerhet or is_ovriga):
             pruned = []
             seen_heading = False
             for r in visible:
