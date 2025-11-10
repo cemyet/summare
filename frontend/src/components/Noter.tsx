@@ -6712,6 +6712,16 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                 blockHeading = `Not 1 ${firstRowTitle}`;
               } else if (block === 'NOT2') {
                 blockHeading = `Not 2 ${firstRowTitle}`;
+              } else if (block === 'OVRIGA') {
+                // OVRIGA: only show note number if toggle is on or moderbolag exists (like EVENTUAL/SAKERHET)
+                const scrapedData = (companyData as any)?.scraped_company_data;
+                const moderbolag = scrapedData?.moderbolag;
+                const ovrigaToggleOn = blockToggles['ovriga-visibility'] === true;
+                if ((ovrigaToggleOn || moderbolag) && visibility.noteNumber) {
+                  blockHeading = `Not ${visibility.noteNumber} ${firstRowTitle}`;
+                } else {
+                  blockHeading = `Not ${firstRowTitle}`;
+                }
               } else if (visibility.noteNumber) {
                 blockHeading = `Not ${visibility.noteNumber} ${firstRowTitle}`;
               }
@@ -7188,6 +7198,14 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                                    blockItems.find(item => item.variable_text)?.variable_text || 
                                    '';
               
+              // Build the full text including moderbolag if it exists
+              const moderbolagText = moderbolag 
+                ? `Företaget är ett dotterbolag till ${moderbolag} med organisationsnummer ${moderbolagOrgnr} med säte i ${sate}, som upprättar koncernredovisning.`
+                : '';
+              
+              // Combine moderbolag text with additional text (if any)
+              const fullOriginalText = moderbolagText + (originalText && moderbolagText ? '\n\n' + originalText : originalText);
+              
               // Local edit state for OVRIGA - similar to NOT1
               const [isEditingOVRIGA, setIsEditingOVRIGA] = useState(false);
               const [editedValues, setEditedValues] = useState<Record<string, string>>({});
@@ -7201,16 +7219,16 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                 if (Object.keys(originalBaselineOVRIGA.current).length > 0) return;
                 
                 originalBaselineOVRIGA.current = { 
-                  'ovriga_upplysningar': originalText
+                  'ovriga_upplysningar': fullOriginalText
                 };
-              }, [originalText]);
+              }, [fullOriginalText]);
               
               // getVal function - similar to NOT1
               const getVal = (vn: string) => {
                 if (editedValues[vn] !== undefined) return editedValues[vn];
                 if (committedValues[vn] !== undefined) return committedValues[vn];
-                // Fallback to original values
-                if (vn === 'ovriga_upplysningar') return originalText;
+                // Fallback to original values (including moderbolag text)
+                if (vn === 'ovriga_upplysningar') return fullOriginalText;
                 return '';
               };
               
@@ -7251,7 +7269,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                 // Update noterData items and bubble up to parent
                 const updatedItems = blockItems.map(item => {
                   if (item.variable_name === 'ovriga_upplysningar' || (item.variable_text && item === textItem)) {
-                    return { ...item, variable_text: String(newCommittedValues['ovriga_upplysningar'] || originalText) };
+                    return { ...item, variable_text: String(newCommittedValues['ovriga_upplysningar'] || fullOriginalText) };
                   }
                   return item;
                 });
@@ -7306,15 +7324,9 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                   
                   {/* Always show content (like EVENTUAL/SAKERHET), but with opacity when toggle is off */}
                   <div className={!isOvrigaContentVisible ? 'opacity-35' : ''}>
-                    {/* Always show moderbolag text at the start if company has parent company */}
-                    {moderbolag && (
-                      <div className="text-sm leading-relaxed">
-                        Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolagOrgnr} med säte i {sate}, som upprättar koncernredovisning.
-                      </div>
-                    )}
-
                     {/* Editable text field - replace display with textarea when editing (like NOT1) */}
-                    <div className="text-sm leading-relaxed">
+                    {/* Includes moderbolag text as part of the editable content */}
+                    <div className="text-sm leading-relaxed" style={{ whiteSpace: 'pre-wrap' }}>
                       {isEditingOVRIGA ? (
                         <textarea
                           ref={textareaRefOVRIGA}
@@ -7330,7 +7342,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                           placeholder="Skriv övriga upplysningar..."
                         />
                       ) : (
-                        getVal('ovriga_upplysningar') as string || (moderbolag ? '' : 'Inga övriga upplysningar angivna')
+                        getVal('ovriga_upplysningar') as string || ''
                       )}
                     </div>
 
