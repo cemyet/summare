@@ -5251,6 +5251,9 @@ const EventualNote: React.FC<{
   
   // Dynamic rows for add/remove functionality in edit mode
   const [dynamicRows, setDynamicRows] = useState<EventualRow[]>([]);
+  
+  // Store initial state for undo functionality
+  const initialRowsRef = React.useRef<EventualRow[]>([]);
 
   // Sign enforcement - all flexible for EVENTUAL
   const expectedSignFor = (vn?: string): '+' | '-' | null => {
@@ -5285,25 +5288,29 @@ const EventualNote: React.FC<{
     // Initialize dynamic rows from existing items
     const dataRows = items.filter(it => it.variable_name && !isHeadingStyle(it.style) && it.style !== 'S2');
     
+    let initialRows: EventualRow[];
     if (dataRows.length > 0) {
       // Initialize from existing items
-      const rows: EventualRow[] = dataRows.map((it, idx) => ({
+      initialRows = dataRows.map((it, idx) => ({
         id: `eventual_${idx}`,
         row_title: it.row_title || '',
         current_amount: it.current_amount || 0,
         previous_amount: it.previous_amount || 0,
         row_id: it.row_id,  // Preserve original row_id
       }));
-      setDynamicRows(rows);
     } else {
       // No existing items, start with one empty row
-      setDynamicRows([{
+      initialRows = [{
         id: 'eventual_0',
         row_title: '',
         current_amount: 0,
         previous_amount: 0,
-      }]);
+      }];
     }
+    
+    // Store initial state for undo functionality
+    initialRowsRef.current = JSON.parse(JSON.stringify(initialRows));
+    setDynamicRows(initialRows);
     
     setIsEditing(true);
     setToggle?.(true);
@@ -5321,32 +5328,14 @@ const EventualNote: React.FC<{
   };
 
   const undoEdit = () => {
-    // Reset dynamic rows to original baseline
-    const dataRows = items.filter(it => it.variable_name && !isHeadingStyle(it.style) && it.style !== 'S2');
-    
-    if (dataRows.length > 0) {
-      const rows: EventualRow[] = dataRows.map((it, idx) => ({
-        id: `eventual_${idx}`,
-        row_title: it.row_title || '',
-        current_amount: originalBaselineRef.current.cur[it.variable_name!] ?? it.current_amount ?? 0,
-        previous_amount: originalBaselineRef.current.prev[it.variable_name!] ?? it.previous_amount ?? 0,
-        row_id: it.row_id,
-      }));
-      setDynamicRows(rows);
-    } else {
-      setDynamicRows([{
-        id: 'eventual_0',
-        row_title: '',
-        current_amount: 0,
-        previous_amount: 0,
-      }]);
+    // Reset to initial state when edit was started
+    if (initialRowsRef.current.length > 0) {
+      setDynamicRows(JSON.parse(JSON.stringify(initialRowsRef.current)));
     }
     
     blurAllEditableInputs();
     setEditedValues({});
     setEditedPrevValues({});
-    setCommittedValues({ ...originalBaselineRef.current.cur });
-    setCommittedPrevValues({ ...originalBaselineRef.current.prev });
     setShowValidationMessage(false);
   };
 
@@ -5504,19 +5493,39 @@ const EventualNote: React.FC<{
                     value={row.row_title}
                     onChange={(e) => updateRow(index, 'row_title', e.target.value)}
                     placeholder="Beskrivning av eventualförpliktelse"
-                    className="h-8 text-sm"
+                    className="h-8 text-sm placeholder:text-gray-400"
                   />
-                  <Input
-                    type="number"
-                    value={row.current_amount || ''}
-                    onChange={(e) => updateRow(index, 'current_amount', parseFloat(e.target.value) || 0)}
-                    className="h-8 text-sm text-right"
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={row.current_amount === 0 ? '' : row.current_amount}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^\d-]/g, '');
+                      updateRow(index, 'current_amount', val === '' || val === '-' ? 0 : parseFloat(val));
+                    }}
+                    placeholder="0"
+                    className="h-8 text-sm text-right border border-gray-300 rounded px-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    style={{
+                      /* Hide number input spinners */
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'textfield'
+                    } as React.CSSProperties}
                   />
-                  <Input
-                    type="number"
-                    value={row.previous_amount || ''}
-                    onChange={(e) => updateRow(index, 'previous_amount', parseFloat(e.target.value) || 0)}
-                    className="h-8 text-sm text-right"
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={row.previous_amount === 0 ? '' : row.previous_amount}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^\d-]/g, '');
+                      updateRow(index, 'previous_amount', val === '' || val === '-' ? 0 : parseFloat(val));
+                    }}
+                    placeholder="0"
+                    className="h-8 text-sm text-right border border-gray-300 rounded px-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    style={{
+                      /* Hide number input spinners */
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'textfield'
+                    } as React.CSSProperties}
                   />
                   <div className="flex gap-1">
                     {index === dynamicRows.length - 1 && (
@@ -6744,13 +6753,15 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               if (block === 'EVENTUAL') {
                 const eventualToggleKey = `eventual-visibility`;
                 const isEventualVisible = blockToggles[eventualToggleKey] === true;
-                if (!isEventualVisible) shouldGetNumber = false;
+                // Only get number if toggle is on AND has items
+                if (!isEventualVisible || visibleItems.length === 0) shouldGetNumber = false;
               }
               
               if (block === 'SAKERHET') {
                 const sakerhetToggleKey = `sakerhet-visibility`;
                 const isSakerhetVisible = blockToggles[sakerhetToggleKey] === true;
-                if (!isSakerhetVisible) shouldGetNumber = false;
+                // Only get number if toggle is on AND has items
+                if (!isSakerhetVisible || visibleItems.length === 0) shouldGetNumber = false;
               }
               
               if (block === 'OVRIGA') {
