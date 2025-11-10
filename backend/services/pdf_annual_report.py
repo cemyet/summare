@@ -1802,17 +1802,24 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             ]
             block_visible = any(bool(block_toggles.get(k)) for k in alt_keys)
             
-            # Show if: moderbolag exists OR toggle is on OR has content (text or amounts)
-            has_content = any(
-                _num(it.get('current_amount', 0)) != 0 or 
-                _num(it.get('previous_amount', 0)) != 0 or
-                (it.get('variable_text') and it.get('variable_text').strip())  # Check for text content
-                for it in items
-            )
-            
-            # If none of these conditions are met, skip the block
-            if not moderbolag and not block_visible and not has_content:
-                continue
+            # Show if: toggle is on OR moderbolag exists
+            # When toggle is on, always show (even if no content yet)
+            # When moderbolag exists, show even if toggle is off (backwards compatibility)
+            if not block_visible and not moderbolag:
+                # Also check for content as a fallback (for existing data without toggle info)
+                has_text_content = any(
+                    (it.get('variable_text') and it.get('variable_text').strip())
+                    for it in items
+                )
+                has_amount_content = any(
+                    _num(it.get('current_amount', 0)) != 0 or 
+                    _num(it.get('previous_amount', 0)) != 0
+                    for it in items
+                )
+                has_content = has_text_content or has_amount_content
+                
+                if not has_content:
+                    continue
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
         # These blocks require explicit toggle to be visible
@@ -1830,15 +1837,8 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             ]
             block_visible = any(bool(block_toggles.get(k)) for k in alt_keys)
             
-            # Fallback: also show if there's any non-zero content (even if toggle is missing)
-            has_nonzero_content = any(
-                _num(it.get('current_amount', 0)) != 0 or
-                _num(it.get('previous_amount', 0)) != 0
-                for it in items
-            )
-            
-            # If neither toggle nor data says it should show, skip it
-            if not block_visible and not has_nonzero_content:
+            # ONLY show if toggle is on - ignore content (toggle controls visibility)
+            if not block_visible:
                 continue
         
         # Force always_show for NOT1 and NOT2
