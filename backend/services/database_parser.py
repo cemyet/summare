@@ -783,7 +783,7 @@ class DatabaseParser:
            
         return results
     
-    def reclass_using_koncern_note(self, br_rows: list[dict], koncern_note: dict, *, verbose: bool = True) -> list[dict]:
+    def reclass_using_koncern_note(self, br_rows: list[dict], koncern_note: dict, current_accounts: Dict[str, float] = None, sie_text: str = None, *, verbose: bool = True) -> list[dict]:
         """
         Make BR consistent with KONCERN note (K2):
         - Force 'Andelar i koncernföretag' to match NOTE 'red_varde_koncern'
@@ -792,6 +792,7 @@ class DatabaseParser:
           first 'FordringarKoncernForetagLang' (row_id 330), then
           'FordringarKoncernForetagKort' (row_id 351).
         - Only current year is adjusted; previous_amount is left as-is.
+        - Updates account_details for row 329 to include accounts from koncern note calculation.
         """
 
         def _find(var: str = None, rid: int | None = None):
@@ -852,6 +853,102 @@ class DatabaseParser:
 
         if verbose and abs(remaining) >= 0.5:
             pass
+        
+        # 3) Update account_details for row 329 to include accounts from koncern note calculation
+        # The koncern note includes accounts 1310-1318 (shares and AAT) and also accounts 1320-1329 
+        # if they're classified as AAT accounts (without receivables keywords)
+        if row_andelar.get('show_tag') and current_accounts and sie_text:
+            # Initialize account_details if it doesn't exist
+            if not row_andelar.get('account_details'):
+                row_andelar['account_details'] = []
+            
+            # Get existing account_details
+            account_details_dict = {d['account_id']: d for d in row_andelar.get('account_details', [])}
+            
+            # Parse account names from SIE to identify AAT accounts in 1320-1329
+            import re
+            import unicodedata
+            konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"', re.IGNORECASE)
+            account_names = {}
+            for line in sie_text.splitlines():
+                m = konto_re.match(line.strip())
+                if m:
+                    acct = int(m.group(1))
+                    name = m.group(2) or ""
+                    account_names[acct] = name
+            
+            # Helper functions matching koncern parser logic
+            def _normalize(s: str) -> str:
+                if not s:
+                    return ""
+                s = unicodedata.normalize("NFKD", s)
+                s = "".join(ch for ch in s if not unicodedata.combining(ch))
+                s = s.lower().replace("\u00a0", " ").replace("\t", " ")
+                s = re.sub(r"[^a-z0-9 ]+", " ", s)
+                return re.sub(r"\s+", " ", s).strip()
+            
+            def _tokens(t: str) -> set[str]:
+                words = re.findall(r"[a-zåäö]{3,}", t)
+                stop = {
+                    "aktie", "aktier", "andel", "andelar",
+                    "koncern", "koncernforetag", "koncernföretag", "dotter", "ab", "kb", "hb",
+                    "holding", "group", "ack", "ackumulerade", "nedskrivningar", "nedskrivning",
+                    "sv", "ovriga", "övriga", "and", "utl", "ftg", "foretag", "företag"
+                }
+                return {w for w in words if w not in stop}
+            
+            # Extract brand tokens from 131x accounts (matching koncern parser logic)
+            brand_tokens_131x = set()
+            for acct in range(1310, 1318+1):
+                t = account_names.get(acct, "")
+                if t:
+                    brand_tokens_131x |= _tokens(_normalize(t))
+            
+            # Check accounts 1320-1329 that might be included in koncern note
+            # Accounts 1310-1319 are already in the mapping, but we need to check 1320-1329
+            # for AAT accounts that are included in the koncern note calculation
+            for acct in range(1320, 1330):
+                acct_str = str(acct)
+                balance = float(current_accounts.get(acct_str, 0.0))
+                if abs(balance) < 0.5:
+                    continue
+                
+                t = account_names.get(acct, "")
+                if not t:
+                    continue
+                
+                t_norm = _normalize(t)
+                
+                # Check if this account is classified as AAT (not receivable) by koncern parser
+                # The koncern parser includes 132x accounts if:
+                # 1. They have AAT text and no receivables keywords, OR
+                # 2. They have shares text and no receivables keywords, OR
+                # 3. They have tokens matching brand tokens from 131x accounts
+                has_receivables_text = bool(re.search(r"\b(fordran|fordringar|lan|lån|ranta|ränta|amort|avbetal)\b", t_norm))
+                if has_receivables_text:
+                    continue
+                
+                has_aat_text = any(w in t_norm for w in ("tillsk", "aktieagartillskott", "aktiengartillskott", "villkorat", "ovillkorat"))
+                has_shares_text = (
+                    any(w in t_norm for w in ("koncern", "koncernforetag", "koncernföretag", "dotter", "subsidiary"))
+                    and any(w in t_norm for w in ("andel", "andelar", "aktie", "aktier"))
+                )
+                has_matching_tokens = bool(_tokens(t_norm) & brand_tokens_131x)
+                
+                # If it's an AAT or shares account (not receivable), include it in account_details
+                if has_aat_text or has_shares_text or has_matching_tokens:
+                    # Apply sign reversal for accounts 2000-9999 (but 1321 is in 1000-1999, so no reversal needed)
+                    display_balance = balance
+                    
+                    account_details_dict[acct_str] = {
+                        'account_id': acct_str,
+                        'account_text': account_names.get(acct, self._get_account_text(acct)),
+                        'balance': display_balance
+                    }
+            
+            # Update account_details with adjusted list
+            row_andelar['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
+        
         return br_rows
 
     def parse_br_data_with_koncern(self,
@@ -879,7 +976,7 @@ class DatabaseParser:
             return br_rows
 
         if os.getenv("BR_USE_KONCERN_NOTE", "true").lower() == "true":
-            br_rows = self.reclass_using_koncern_note(br_rows, koncern_note, verbose=True)
+            br_rows = self.reclass_using_koncern_note(br_rows, koncern_note, current_accounts=current_accounts, sie_text=se_content, verbose=True)
 
         return br_rows
     
