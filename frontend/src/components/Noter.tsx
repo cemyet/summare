@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Check, X } from 'lucide-react';
+import { Pencil, Check, X, Plus, Minus } from 'lucide-react';
 
 interface NoterItem {
   row_id: number;
@@ -5183,7 +5184,16 @@ const FordringarOvrigaNote: React.FC<{
   );
 };
 
-// Eventualförpliktelser editor component
+// Interface for dynamic Eventual rows
+interface EventualRow {
+  id: string;  // Will use index-based IDs: eventual_0, eventual_1, etc.
+  row_title: string;
+  current_amount: number;
+  previous_amount: number;
+  row_id?: number;  // Original row_id if it exists
+}
+
+// Eventualförpliktelser editor component with add/remove row functionality
 const EventualNote: React.FC<{
   items: NoterItem[];
   heading: string;
@@ -5238,6 +5248,9 @@ const EventualNote: React.FC<{
   const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
   const [committedPrevValues, setCommittedPrevValues] = useState<Record<string, number>>({});
   const [showValidationMessage, setShowValidationMessage] = useState(false);
+  
+  // Dynamic rows for add/remove functionality in edit mode
+  const [dynamicRows, setDynamicRows] = useState<EventualRow[]>([]);
 
   // Sign enforcement - all flexible for EVENTUAL
   const expectedSignFor = (vn?: string): '+' | '-' | null => {
@@ -5269,6 +5282,29 @@ const EventualNote: React.FC<{
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
   const startEdit = () => {
+    // Initialize dynamic rows from existing items
+    const dataRows = items.filter(it => it.variable_name && !isHeadingStyle(it.style) && it.style !== 'S2');
+    
+    if (dataRows.length > 0) {
+      // Initialize from existing items
+      const rows: EventualRow[] = dataRows.map((it, idx) => ({
+        id: `eventual_${idx}`,
+        row_title: it.row_title || '',
+        current_amount: it.current_amount || 0,
+        previous_amount: it.previous_amount || 0,
+        row_id: it.row_id,  // Preserve original row_id
+      }));
+      setDynamicRows(rows);
+    } else {
+      // No existing items, start with one empty row
+      setDynamicRows([{
+        id: 'eventual_0',
+        row_title: '',
+        current_amount: 0,
+        previous_amount: 0,
+      }]);
+    }
+    
     setIsEditing(true);
     setToggle?.(true);
     // Also enable the visibility toggle to show the note
@@ -5280,10 +5316,32 @@ const EventualNote: React.FC<{
     setEditedValues({});
     setEditedPrevValues({});
     setShowValidationMessage(false);
+    setDynamicRows([]);  // Clear dynamic rows
     setToggle?.(false);
   };
 
   const undoEdit = () => {
+    // Reset dynamic rows to original baseline
+    const dataRows = items.filter(it => it.variable_name && !isHeadingStyle(it.style) && it.style !== 'S2');
+    
+    if (dataRows.length > 0) {
+      const rows: EventualRow[] = dataRows.map((it, idx) => ({
+        id: `eventual_${idx}`,
+        row_title: it.row_title || '',
+        current_amount: originalBaselineRef.current.cur[it.variable_name!] ?? it.current_amount ?? 0,
+        previous_amount: originalBaselineRef.current.prev[it.variable_name!] ?? it.previous_amount ?? 0,
+        row_id: it.row_id,
+      }));
+      setDynamicRows(rows);
+    } else {
+      setDynamicRows([{
+        id: 'eventual_0',
+        row_title: '',
+        current_amount: 0,
+        previous_amount: 0,
+      }]);
+    }
+    
     blurAllEditableInputs();
     setEditedValues({});
     setEditedPrevValues({});
@@ -5293,33 +5351,53 @@ const EventualNote: React.FC<{
   };
 
   const approveEdit = () => {
-    // No balance validation for EVENTUAL - just commit the values
-    const newCommittedValues = { ...committedValues, ...editedValues };
-    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    // Convert dynamic rows to NoterItem format
+    const updatedItems: NoterItem[] = dynamicRows.map((row, idx) => ({
+      row_id: row.row_id || 10000 + idx,  // Use original row_id if exists, otherwise generate new
+      row_title: row.row_title,
+      current_amount: row.current_amount,
+      previous_amount: row.previous_amount,
+      variable_name: row.id,  // Use the id as variable_name for consistency
+      block: 'EVENTUAL',
+      always_show: row.current_amount !== 0 || row.previous_amount !== 0,
+      toggle_show: true,
+      style: 'NORMAL',
+    }));
     
-    setCommittedValues(newCommittedValues);
-    setCommittedPrevValues(newCommittedPrevValues);
-    setEditedValues({});
-    setEditedPrevValues({});
     setIsEditing(false);
+    setDynamicRows([]);  // Clear after save
     setToggle?.(false);
     
-    // Update items with new values and bubble up to parent
-    const updatedItems = items.map(item => {
-      if (!item.variable_name) return item;
-      const newCurrent = newCommittedValues[item.variable_name];
-      const newPrevious = newCommittedPrevValues[item.variable_name];
-      return {
-        ...item,
-        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
-        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
-      };
-    });
-    
-    console.log('✅ [EVENTUAL-APPROVE] Updating items with edits:', { 
-      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
-    });
+    console.log('✅ [EVENTUAL-APPROVE] Saving dynamic rows as items:', updatedItems);
     onItemsUpdate?.(updatedItems);
+  };
+
+  // Add/remove row functions
+  const addRow = () => {
+    const newIndex = dynamicRows.length;
+    setDynamicRows([...dynamicRows, {
+      id: `eventual_${newIndex}`,
+      row_title: '',
+      current_amount: 0,
+      previous_amount: 0,
+    }]);
+  };
+
+  const removeRow = (index: number) => {
+    if (dynamicRows.length > 1) {
+      setDynamicRows(dynamicRows.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateRow = (index: number, field: keyof EventualRow, value: any) => {
+    const updated = [...dynamicRows];
+    updated[index] = { ...updated[index], [field]: value };
+    setDynamicRows(updated);
+  };
+
+  const formatCurrency = (amount: number | null) => {
+    if (amount === null || amount === undefined) return '0';
+    return new Intl.NumberFormat('sv-SE').format(amount);
   };
 
   // Helper functions
@@ -5417,92 +5495,72 @@ const EventualNote: React.FC<{
           </div>
 
           {/* Rows */}
-          {(() => {
-            let ordCounter = 0;
-            return visible.map((it, idx) => {
-              const getStyleClasses = (style?: string) => {
-                const baseClasses = 'grid gap-4';
-                let additionalClasses = '';
-                const s = style || 'NORMAL';
-                
-                const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
-                if (boldStyles.includes(s)) {
-                  additionalClasses += ' font-semibold';
-                }
-                
-                const lineStyles = ['S2','S3','TS2','TS3'];
-                if (lineStyles.includes(s)) {
-                  additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
-                }
-                
-                return {
-                  className: `${baseClasses}${additionalClasses}`,
-                  style: { gridTemplateColumns: '4fr 1fr 1fr' }
-                };
-              };
-
-              const currentStyle = it.style || 'NORMAL';
-              const isHeadingRow = isHeadingStyle(currentStyle);
-              const isS2 = isSumRow(it);
-              const editable = isEditing && isFlowVar(it.variable_name);
-              
-              const ordCur  = editable ? ++ordCounter : undefined;
-              const ordPrev = editable ? ++ordCounter : undefined;
-              
-              const curVal = isS2 ? sumGroupAbove(visible, idx, 'cur') : getVal(it.variable_name ?? '', 'cur');
-              const prevVal = isS2 ? sumGroupAbove(visible, idx, 'prev') : getVal(it.variable_name ?? '', 'prev');
-              
-              const gc = getStyleClasses(currentStyle);
-              
-              return (
-                <div 
-                  key={`${it.row_id}-${idx}`}
-                  className={gc.className}
-                  style={gc.style}
-                >
-                  <span className="text-muted-foreground">{it.row_title}</span>
-                  
-                  {/* Current year amount */}
-                  <span className="text-right font-medium">
-                    {isHeadingRow ? '' : (
-                      <AmountCell
-                        year="cur"
-                        varName={it.variable_name!}
-                        baseVar={it.variable_name!}
-                        label={it.row_title}
-                        editable={editable}
-                        value={curVal}
-                        ord={ordCur}
-                        onCommit={(n) => setEditedValues(p => ({ ...p, [it.variable_name!]: n }))}
-                        onTabNavigate={(el, dir) => focusByOrd(el, dir)}
-                        onSignForced={(e) => pushSignNotice(e)}
-                        expectedSignFor={expectedSignFor}
-                      />
+          {isEditing ? (
+            /* Edit mode: Show dynamic rows with add/remove buttons */
+            <div className="space-y-2">
+              {dynamicRows.map((row, index) => (
+                <div key={row.id} className="grid gap-4" style={{ gridTemplateColumns: '4fr 1fr 1fr 60px' }}>
+                  <Input
+                    value={row.row_title}
+                    onChange={(e) => updateRow(index, 'row_title', e.target.value)}
+                    placeholder="Beskrivning av eventualförpliktelse"
+                    className="h-8 text-sm"
+                  />
+                  <Input
+                    type="number"
+                    value={row.current_amount || ''}
+                    onChange={(e) => updateRow(index, 'current_amount', parseFloat(e.target.value) || 0)}
+                    className="h-8 text-sm text-right"
+                  />
+                  <Input
+                    type="number"
+                    value={row.previous_amount || ''}
+                    onChange={(e) => updateRow(index, 'previous_amount', parseFloat(e.target.value) || 0)}
+                    className="h-8 text-sm text-right"
+                  />
+                  <div className="flex gap-1">
+                    {index === dynamicRows.length - 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={addRow}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
                     )}
-                  </span>
-                  
-                  {/* Previous year amount */}
-                  <span className="text-right font-medium">
-                    {isHeadingRow ? '' : (
-                      <AmountCell
-                        year="prev"
-                        varName={`${it.variable_name!}_prev`}
-                        baseVar={it.variable_name!}
-                        label={it.row_title}
-                        editable={editable}
-                        value={prevVal}
-                        ord={ordPrev}
-                        onCommit={(n) => setEditedPrevValues(p => ({ ...p, [it.variable_name!]: n }))}
-                        onTabNavigate={(el, dir) => focusByOrd(el, dir)}
-                        onSignForced={(e) => pushSignNotice(e)}
-                        expectedSignFor={expectedSignFor}
-                      />
+                    {dynamicRows.length > 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeRow(index)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
                     )}
-                  </span>
+                  </div>
                 </div>
-              );
-            });
-          })()}
+              ))}
+            </div>
+          ) : (
+            /* View mode: Show visible items */
+            visible.map((it, idx) => (
+              <div 
+                key={`${it.row_id}-${idx}`}
+                className="grid gap-4"
+                style={{ gridTemplateColumns: '4fr 1fr 1fr' }}
+              >
+                <span className="text-muted-foreground">{it.row_title}</span>
+                <span className="text-right font-medium">
+                  {formatAmountDisplay(it.current_amount || 0)}
+                </span>
+                <span className="text-right font-medium">
+                  {formatAmountDisplay(it.previous_amount || 0)}
+                </span>
+              </div>
+            ))
+          )}
 
           {/* Action buttons - only show when editing */}
           {isEditing && (
@@ -6539,12 +6597,24 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
   const handleItemsUpdate = (blockName: string, updatedItems: NoterItem[]) => {
     console.log('📝 [NOTER-UPDATE] Block edited:', blockName, 'Items:', updatedItems.length);
     
-    // Update noterData by replacing items for this block
-    const updatedNoterData = noterData.map(item => {
-      // Find if this item is in the updated block
-      const updatedItem = updatedItems.find(ui => ui.row_id === item.row_id && ui.block === item.block);
-      return updatedItem || item;
-    });
+    let updatedNoterData: NoterItem[];
+    
+    // Special handling for EVENTUAL block - replace entire block instead of merging by row_id
+    if (blockName === 'EVENTUAL') {
+      // Remove all existing EVENTUAL items and add the new ones
+      updatedNoterData = [
+        ...noterData.filter(item => item.block !== 'EVENTUAL'),
+        ...updatedItems
+      ];
+      console.log('📝 [EVENTUAL-UPDATE] Replaced entire EVENTUAL block with:', updatedItems);
+    } else {
+      // For other blocks, merge by row_id as before
+      updatedNoterData = noterData.map(item => {
+        // Find if this item is in the updated block
+        const updatedItem = updatedItems.find(ui => ui.row_id === item.row_id && ui.block === item.block);
+        return updatedItem || item;
+      });
+    }
     
     console.log('📝 [NOTER-UPDATE] Bubbling updated noterData to parent:', {
       totalItems: updatedNoterData.length,
