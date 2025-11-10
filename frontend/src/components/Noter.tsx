@@ -6632,15 +6632,17 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               const blockItems = groupedItems[block];
               const visibleItems = getVisibleItems(blockItems, block);
               
-              // For OVRIGA block, always show if there's moderbolag data
+              // For OVRIGA block, always show if there's moderbolag data, or if toggle is on
               const scrapedData = (companyData as any)?.scraped_company_data;
               const moderbolag = scrapedData?.moderbolag;
               const shouldShowOvrigaForModerbolag = block === 'OVRIGA' && moderbolag;
+              const ovrigaToggleKey = 'ovriga-visibility';
+              const shouldShowOvrigaForToggle = block === 'OVRIGA' && blockToggles[ovrigaToggleKey] === true;
               
               // Check if block should be visible
               let isVisible = true;
               
-              if (visibleItems.length === 0 && !shouldShowOvrigaForModerbolag) {
+              if (visibleItems.length === 0 && !shouldShowOvrigaForModerbolag && !shouldShowOvrigaForToggle) {
                 isVisible = false;
               }
               
@@ -6674,6 +6676,13 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                 const sakerhetToggleKey = `sakerhet-visibility`;
                 const isSakerhetVisible = blockToggles[sakerhetToggleKey] === true;
                 if (!isSakerhetVisible) shouldGetNumber = false;
+              }
+              
+              if (block === 'OVRIGA') {
+                const ovrigaToggleKey = `ovriga-visibility`;
+                const isOvrigaVisible = blockToggles[ovrigaToggleKey] === true;
+                // OVRIGA should not get a note number (like in AnnualReportPreview)
+                shouldGetNumber = false;
               }
               
               if (shouldGetNumber) {
@@ -7154,7 +7163,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               );
             }
             
-            // Special handling for OVRIGA block - no toggle, add moderbolag text after row 534
+            // Special handling for OVRIGA block - with toggle and edit functionality
             if (block === 'OVRIGA') {
               // Get moderbolag information from scraped data
               const scrapedData = (companyData as any)?.scraped_company_data;
@@ -7162,76 +7171,241 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               const moderbolagOrgnr = scrapedData?.moderbolag_orgnr;
               const sate = scrapedData?.säte;
               
+              // Find text item for editing (similar to NOT1)
+              const textItem = blockItems.find(item => item.variable_text || item.variable_name === 'ovriga_upplysningar');
+              const originalText = textItem?.variable_text || '';
+              
+              // Local edit state for OVRIGA - similar to NOT1
+              const [isEditingOVRIGA, setIsEditingOVRIGA] = useState(false);
+              const [editedValues, setEditedValues] = useState<Record<string, string>>({});
+              const [committedValues, setCommittedValues] = useState<Record<string, string>>({});
+              const textareaRefOVRIGA = React.useRef<HTMLTextAreaElement>(null);
+              
+              // Track original baseline for proper undo (only once, never overwrite)
+              const originalBaselineOVRIGA = React.useRef<Record<string, string>>({});
+              React.useEffect(() => {
+                // Only initialize if not already set (preserve original values even after Godkänn)
+                if (Object.keys(originalBaselineOVRIGA.current).length > 0) return;
+                
+                originalBaselineOVRIGA.current = { 
+                  'ovriga_upplysningar': originalText
+                };
+              }, [originalText]);
+              
+              // getVal function - similar to NOT1
+              const getVal = (vn: string) => {
+                if (editedValues[vn] !== undefined) return editedValues[vn];
+                if (committedValues[vn] !== undefined) return committedValues[vn];
+                // Fallback to original values
+                if (vn === 'ovriga_upplysningar') return originalText;
+                return '';
+              };
+              
+              // Auto-resize textarea when entering edit mode or content changes
+              React.useEffect(() => {
+                if (isEditingOVRIGA && textareaRefOVRIGA.current) {
+                  const textarea = textareaRefOVRIGA.current;
+                  textarea.style.height = 'auto';
+                  textarea.style.height = textarea.scrollHeight + 'px';
+                }
+              }, [isEditingOVRIGA, editedValues['ovriga_upplysningar'], committedValues['ovriga_upplysningar'], originalText]);
+              
+              const startEditOVRIGA = () => {
+                setIsEditingOVRIGA(true);
+                // Also enable the visibility toggle to show the note
+                wrappedSetBlockToggles(prev => ({ ...prev, 'ovriga-visibility': true }));
+              };
+              
+              const cancelEditOVRIGA = () => {
+                setIsEditingOVRIGA(false);
+                setEditedValues({});
+              };
+              
+              const undoEditOVRIGA = () => {
+                // Clear edits and reset committed to baseline
+                setEditedValues({});
+                setCommittedValues({ ...originalBaselineOVRIGA.current });
+                // IMPORTANT: do NOT setIsEditingOVRIGA(false); stay in edit mode
+              };
+              
+              const approveEditOVRIGA = () => {
+                // Commit edits and close
+                const newCommittedValues = { ...committedValues, ...editedValues };
+                setCommittedValues(newCommittedValues);
+                setEditedValues({});
+                setIsEditingOVRIGA(false);
+                
+                // Update noterData items and bubble up to parent
+                const updatedItems = blockItems.map(item => {
+                  if (item.variable_name === 'ovriga_upplysningar' || (item.variable_text && item === textItem)) {
+                    return { ...item, variable_text: String(newCommittedValues['ovriga_upplysningar'] || originalText) };
+                  }
+                  return item;
+                });
+                
+                console.log('✅ [OVRIGA-APPROVE] Updating items with edits:', { 
+                  editedCount: Object.keys(editedValues).length,
+                  updatedItems: updatedItems.length
+                });
+                
+                // Merge updated items back into full noterData
+                const updatedNoterData = noterData.map(item => {
+                  const updated = updatedItems.find(u => u.row_id === item.row_id && u.block === 'OVRIGA');
+                  return updated || item;
+                });
+                onDataUpdate?.({ noterData: updatedNoterData });
+              };
+              
+              const ovrigaToggleKey = 'ovriga-visibility';
+              const isOvrigaVisible = blockToggles[ovrigaToggleKey] === true || moderbolag;
+              
               return (
                 <div key={block} className="space-y-2 pt-4">
-                  {/* OVRIGA heading without toggle */}
-                  <div className="border-b pb-1">
-                    <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
+                  {/* OVRIGA heading with toggle and edit button */}
+                  <div className="flex items-center justify-between border-b pb-1">
+                    <div className="flex items-center">
+                      <h3 className={`font-semibold text-lg ${!isOvrigaVisible ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
+                        {blockHeading}
+                      </h3>
+                      <button
+                        onClick={() => isEditingOVRIGA ? cancelEditOVRIGA() : startEditOVRIGA()}
+                        className={`ml-3 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                          isEditingOVRIGA ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                        } ${!isOvrigaVisible ? 'opacity-35' : ''}`}
+                        title={isEditingOVRIGA ? 'Avsluta redigering' : 'Redigera värden'}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                      </button>
+                      <div className={`ml-2 flex items-center ${!isOvrigaVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
+                        <Switch
+                          checked={isOvrigaVisible}
+                          onCheckedChange={(checked) => 
+                            wrappedSetBlockToggles(prev => ({ ...prev, [ovrigaToggleKey]: checked }))
+                          }
+                        />
+                        <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
+                      </div>
+                    </div>
                   </div>
                   
-                  {/* Always show moderbolag text at the start if company has parent company */}
-                  {moderbolag && (
-                    <div className="text-sm leading-relaxed">
-                      Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolagOrgnr} med säte i {sate}, som upprättar koncernredovisning.
-                    </div>
-                  )}
-
-                  {/* Noter Rows */}
-                  {visibleItems.map((item, index) => {
-                    // Use same style system as BR/RR
-                    const getStyleClasses = (style?: string) => {
-                      const baseClasses = 'grid gap-4';
-                      let additionalClasses = '';
-                      const s = style || 'NORMAL';
-                      
-                      // Bold styles
-                      const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
-                      if (boldStyles.includes(s)) {
-                        additionalClasses += ' font-semibold';
-                      }
-                      
-                      // Line styles
-                      const lineStyles = ['S2','S3','TS2','TS3'];
-                      if (lineStyles.includes(s)) {
-                        additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
-                      }
-                      
-                      return {
-                        className: `${baseClasses}${additionalClasses}`,
-                        style: { gridTemplateColumns: '1fr' }
-                      };
-                    };
-
-                    const formatAmountDisplay = (amount: number) => {
-                      if (amount === 0) return '0 kr';
-                      const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      });
-                      const sign = amount < 0 ? '-' : '';
-                      return `${sign}${formatted} kr`;
-                    };
-
-                    const currentStyle = item.style || 'NORMAL';
-                    const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(currentStyle);
-                    
-                    return (
-                      <React.Fragment key={index}>
-                        <div 
-                          className={getStyleClasses(currentStyle).className}
-                          style={getStyleClasses(currentStyle).style}
-                        >
-                          <span className="text-muted-foreground">
-                            {item.row_title}
-                            {item.show_tag && (
-                              <AccountDetailsDialog item={item} />
-                            )}
-                          </span>
+                  {/* Only show content if visibility toggle is on or moderbolag exists */}
+                  {isOvrigaVisible && (
+                    <>
+                      {/* Always show moderbolag text at the start if company has parent company */}
+                      {moderbolag && (
+                        <div className="text-sm leading-relaxed">
+                          Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolagOrgnr} med säte i {sate}, som upprättar koncernredovisning.
                         </div>
+                      )}
+
+                      {/* Editable text field - similar to NOT1 */}
+                      <div className="text-sm leading-relaxed">
+                        {isEditingOVRIGA ? (
+                          <textarea
+                            ref={textareaRefOVRIGA}
+                            value={getVal('ovriga_upplysningar') as string}
+                            onChange={(e) => {
+                              setEditedValues(prev => ({ ...prev, 'ovriga_upplysningar': e.target.value }));
+                              // Auto-resize to fit content
+                              e.target.style.height = 'auto';
+                              e.target.style.height = e.target.scrollHeight + 'px';
+                            }}
+                            className="w-full p-2 border border-gray-300 rounded-md resize-y"
+                            style={{ minHeight: '80px' }}
+                            placeholder="Skriv övriga upplysningar..."
+                          />
+                        ) : (
+                          getVal('ovriga_upplysningar') as string || (moderbolag ? '' : 'Inga övriga upplysningar angivna')
+                        )}
+                      </div>
+
+                      {/* Noter Rows */}
+                      {visibleItems.map((item, index) => {
+                        // Use same style system as BR/RR
+                        const getStyleClasses = (style?: string) => {
+                          const baseClasses = 'grid gap-4';
+                          let additionalClasses = '';
+                          const s = style || 'NORMAL';
+                          
+                          // Bold styles
+                          const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
+                          if (boldStyles.includes(s)) {
+                            additionalClasses += ' font-semibold';
+                          }
+                          
+                          // Line styles
+                          const lineStyles = ['S2','S3','TS2','TS3'];
+                          if (lineStyles.includes(s)) {
+                            additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+                          }
+                          
+                          return {
+                            className: `${baseClasses}${additionalClasses}`,
+                            style: { gridTemplateColumns: '1fr' }
+                          };
+                        };
+
+                        const formatAmountDisplay = (amount: number) => {
+                          if (amount === 0) return '0 kr';
+                          const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          });
+                          const sign = amount < 0 ? '-' : '';
+                          return `${sign}${formatted} kr`;
+                        };
+
+                        const currentStyle = item.style || 'NORMAL';
+                        const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(currentStyle);
                         
-                      </React.Fragment>
-                    );
-                  })}
+                        return (
+                          <React.Fragment key={index}>
+                            <div 
+                              className={getStyleClasses(currentStyle).className}
+                              style={getStyleClasses(currentStyle).style}
+                            >
+                              <span className="text-muted-foreground">
+                                {item.row_title}
+                                {item.show_tag && (
+                                  <AccountDetailsDialog item={item} />
+                                )}
+                              </span>
+                            </div>
+                            
+                          </React.Fragment>
+                        );
+                      })}
+                      
+                      {/* Action buttons - only show when editing */}
+                      {isEditingOVRIGA && (
+                        <div className="flex justify-between pt-4 border-t border-gray-200">
+                          <Button 
+                            onClick={undoEditOVRIGA}
+                            variant="outline"
+                            className="flex items-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                            </svg>
+                            Ångra ändringar
+                          </Button>
+                          
+                          <Button 
+                            onClick={approveEditOVRIGA}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+                          >
+                            Godkänn ändringar
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                            </svg>
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               );
             }
