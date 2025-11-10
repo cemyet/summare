@@ -5529,7 +5529,7 @@ const EventualNote: React.FC<{
                     } as React.CSSProperties}
                   />
                   </div>
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex gap-1 shrink-0" style={{ width: '68px', justifyContent: 'flex-end' }}>
                     {index === dynamicRows.length - 1 && (
                       <Button
                         variant="outline"
