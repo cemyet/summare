@@ -1787,19 +1787,31 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         is_sakerhet = (block_name_lower in {"säkerheter", "säkerhet", "sakerhet"} or
                       block_title_lower in {"säkerheter", "säkerhet", "sakerhet"})
         
-        # Special handling for OVRIGA - always show if there's moderbolag data (mirrors frontend logic)
+        # Special handling for OVRIGA - show if moderbolag exists OR toggle is on (mirrors frontend logic)
         moderbolag = scraped_data.get('moderbolag')
         
         if is_ovriga:
-            if not moderbolag:
-                # Check if block has any non-zero content
-                has_content = any(
-                    _num(it.get('current_amount', 0)) != 0 or 
-                    _num(it.get('previous_amount', 0)) != 0 
-                    for it in items
-                )
-                if not has_content:
-                    continue
+            # Check block-specific toggle - accept both legacy and new key styles
+            ovriga_toggle_key = 'ovriga-visibility'
+            alt_keys = [
+                ovriga_toggle_key,
+                ovriga_toggle_key.upper(),
+                ovriga_toggle_key.replace('-visibility', ''),
+                'OVRIGA',
+                'ovriga',
+            ]
+            block_visible = any(bool(block_toggles.get(k)) for k in alt_keys)
+            
+            # Show if: moderbolag exists OR toggle is on OR has non-zero content
+            has_content = any(
+                _num(it.get('current_amount', 0)) != 0 or 
+                _num(it.get('previous_amount', 0)) != 0 
+                for it in items
+            )
+            
+            # If none of these conditions are met, skip the block
+            if not moderbolag and not block_visible and not has_content:
+                continue
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
         # These blocks require explicit toggle to be visible

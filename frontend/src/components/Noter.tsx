@@ -7313,9 +7313,16 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                       <div className={`ml-2 flex items-center ${!isOvrigaContentVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
                         <Switch
                           checked={isOvrigaContentVisible}
-                          onCheckedChange={(checked) => 
-                            wrappedSetBlockToggles(prev => ({ ...prev, [ovrigaToggleKey]: checked }))
-                          }
+                          onCheckedChange={(checked) => {
+                            wrappedSetBlockToggles(prev => ({ ...prev, [ovrigaToggleKey]: checked }));
+                            // Auto-enable editing when toggle is turned on, close editing when turned off
+                            if (checked) {
+                              setIsEditingOVRIGA(true);
+                            } else {
+                              setIsEditingOVRIGA(false);
+                              // Don't clear edits when hiding - preserve them
+                            }
+                          }}
                         />
                         <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
                       </div>
