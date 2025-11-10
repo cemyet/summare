@@ -7276,7 +7276,10 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                 
                 console.log('✅ [OVRIGA-APPROVE] Updating items with edits:', { 
                   editedCount: Object.keys(editedValues).length,
-                  updatedItems: updatedItems.length
+                  updatedItems: updatedItems.length,
+                  textItem: textItem,
+                  newText: String(newCommittedValues['ovriga_upplysningar'] || fullOriginalText),
+                  blockItems: blockItems.map(i => ({ row_id: i.row_id, variable_name: i.variable_name, variable_text: i.variable_text }))
                 });
                 
                 // Merge updated items back into full noterData
