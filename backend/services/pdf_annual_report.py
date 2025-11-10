@@ -1892,14 +1892,17 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         
         # Skip block if no visible items (UNLESS it's OVRIGA with moderbolag or forced blocks)
         ovriga_with_moderbolag = (is_ovriga and moderbolag)
+        ovriga_toggle_on = is_ovriga and block_visible  # OVRIGA toggle is explicitly on
         if not visible:
-            # Allow empty blocks for: OVRIGA with moderbolag, or forced blocks
-            if not (ovriga_with_moderbolag or force_always):
+            # Allow empty blocks for: OVRIGA with moderbolag/toggle, or forced blocks
+            if not (ovriga_with_moderbolag or ovriga_toggle_on or force_always):
                 continue
         
         # Skip block if it has no non-zero content (regardless of toggle state for PDF)
+        # EXCEPT: OVRIGA with toggle on should always show (may have text content)
         # Toggles are for editing in preview only, not for showing empty notes in final PDF
-        if (not force_always) and (not ovriga_with_moderbolag) and (not _has_nonzero_content(visible)):
+        if (not force_always) and (not ovriga_with_moderbolag) and (not ovriga_toggle_on) and (not _has_nonzero_content(visible)):
+            print(f"[OVRIGA-SKIP] Skipping block {block_name} - no nonzero content")
             continue
         
         collected.append((block_name, block_title, visible))
