@@ -5251,9 +5251,6 @@ const EventualNote: React.FC<{
   
   // Dynamic rows for add/remove functionality in edit mode
   const [dynamicRows, setDynamicRows] = useState<EventualRow[]>([]);
-  
-  // Store initial state for undo functionality
-  const initialRowsRef = React.useRef<EventualRow[]>([]);
 
   // Sign enforcement - all flexible for EVENTUAL
   const expectedSignFor = (vn?: string): '+' | '-' | null => {
@@ -5308,8 +5305,6 @@ const EventualNote: React.FC<{
       }];
     }
     
-    // Store initial state for undo functionality
-    initialRowsRef.current = JSON.parse(JSON.stringify(initialRows));
     setDynamicRows(initialRows);
     
     setIsEditing(true);
@@ -5328,10 +5323,13 @@ const EventualNote: React.FC<{
   };
 
   const undoEdit = () => {
-    // Reset to initial state when edit was started
-    if (initialRowsRef.current.length > 0) {
-      setDynamicRows(JSON.parse(JSON.stringify(initialRowsRef.current)));
-    }
+    // Reset to single empty row
+    setDynamicRows([{
+      id: 'eventual_0',
+      row_title: '',
+      current_amount: 0,
+      previous_amount: 0,
+    }]);
     
     blurAllEditableInputs();
     setEditedValues({});
