@@ -1802,10 +1802,11 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             ]
             block_visible = any(bool(block_toggles.get(k)) for k in alt_keys)
             
-            # Show if: moderbolag exists OR toggle is on OR has non-zero content
+            # Show if: moderbolag exists OR toggle is on OR has content (text or amounts)
             has_content = any(
                 _num(it.get('current_amount', 0)) != 0 or 
-                _num(it.get('previous_amount', 0)) != 0 
+                _num(it.get('previous_amount', 0)) != 0 or
+                (it.get('variable_text') and it.get('variable_text').strip())  # Check for text content
                 for it in items
             )
             
@@ -1928,14 +1929,27 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     note_flow.append(Paragraph(title, H1))
     note_flow.append(Spacer(1, 10))  # 10pt after heading
     
-    # For OVRIGA (text note with moderbolag info), render text first
+    # For OVRIGA (text note with moderbolag info and/or user-edited text), render text first
     if block_name == 'OVRIGA':
         scraped_data = company_data.get('scraped_company_data', {})
         moderbolag = scraped_data.get('moderbolag')
         moderbolag_orgnr = scraped_data.get('moderbolag_orgnr')
         sate = scraped_data.get('säte')
         
-        if moderbolag:
+        # Check if there's any variable_text from items (user-edited text)
+        has_variable_text = False
+        for item in visible:
+            variable_text = item.get('variable_text', '').strip()
+            if variable_text:
+                # Render the variable_text (may include moderbolag text if it was edited)
+                # Replace newlines with <br/> tags for proper rendering in PDF
+                variable_text_html = variable_text.replace('\n', '<br/>')
+                note_flow.append(Paragraph(variable_text_html, P))
+                note_flow.append(Spacer(1, 10))
+                has_variable_text = True
+        
+        # If no variable_text but moderbolag exists, render default moderbolag text
+        if not has_variable_text and moderbolag:
             text = f"Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolag_orgnr} med säte i {sate}, som upprättar koncernredovisning."
             note_flow.append(Paragraph(text, P))
             note_flow.append(Spacer(1, 10))
