@@ -1945,6 +1945,8 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
         moderbolag_orgnr = scraped_data.get('moderbolag_orgnr')
         sate = scraped_data.get('säte')
         
+        print(f"[OVRIGA-PDF-ITEMS] visible_count={len(visible)}, items={[{'row_id': it.get('row_id'), 'variable_name': it.get('variable_name'), 'variable_text': it.get('variable_text', '')[:30] if it.get('variable_text') else None} for it in visible]}")
+        
         # Check if there's any variable_text from items (user-edited text)
         has_variable_text = False
         for item in visible:
