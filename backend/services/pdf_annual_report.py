@@ -1801,6 +1801,7 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
                 'ovriga',
             ]
             block_visible = any(bool(block_toggles.get(k)) for k in alt_keys)
+            print(f"[OVRIGA-TOGGLE] Checking toggles - received keys: {list(block_toggles.keys())}, checking: {alt_keys}, block_visible={block_visible}")
             
             # Show if: toggle is on OR moderbolag exists
             # When toggle is on, always show (even if no content yet)
