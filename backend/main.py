@@ -3595,6 +3595,31 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         new_skatteskulder = base_skatteskulder + slp_in_skatteskulder + ink_calc
         _set_current(br_tax_liab, new_skatteskulder)
         
+        # Update account_details for Skatteskulder to include tax account 2512
+        if br_tax_liab.get('show_tag'):
+            # Initialize account_details if it doesn't exist
+            if not br_tax_liab.get('account_details'):
+                br_tax_liab['account_details'] = []
+            
+            # Get existing account_details as a dict for easy lookup
+            account_details_dict = {d['account_id']: d for d in br_tax_liab.get('account_details', [])}
+            
+            # Add or update account 2512 with calculated tax (positive because it's a liability)
+            if ink_calc > 0:
+                # The calculated tax replaces any existing 2512 balance from SIE file
+                # because this is the calculated adjustment, not the raw account balance
+                account_details_dict['2512'] = {
+                    'account_id': '2512',
+                    'account_text': parser._get_account_text('2512'),
+                    'balance': ink_calc  # Positive because it's a liability
+                }
+            else:
+                # Remove account 2512 if calculated tax is 0
+                account_details_dict.pop('2512', None)
+            
+            # Update account_details with sorted list
+            br_tax_liab['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
+        
         # Calculate only the tax delta (not including SLP) - just the change in tax
         d_tax_only = ink_calc - old_tax_calc
         # Calculate total delta for BR 416 ripple
