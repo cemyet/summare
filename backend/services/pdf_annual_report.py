@@ -632,6 +632,28 @@ def _render_resultatdisposition(elems, company_data, H1, P):
         elems.append(Paragraph(dividend_text, P))
         elems.append(Spacer(1, 8))
 
+def _sanitize_rr_data_for_pdf(rr_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Sanitize RR data for PDF generation by whitelisting allowed fields.
+    This mirrors the implicit sanitization that _merge_br_data provides for BR.
+    Removes UI-specific fields like 'show_tag' and 'account_details' which can
+    cause issues with ReportLab rendering if not handled carefully.
+    """
+    if not isinstance(rr_data, list):
+        return []
+    sanitized_data = []
+    allowed_fields = {
+        'id', 'label', 'current_amount', 'previous_amount', 'level', 'section',
+        'bold', 'style', 'variable_name', 'is_calculated', 'calculation_formula',
+        'show_amount', 'block_group', 'always_show', 'note_number', 'variable_text'
+    }
+    for row in rr_data:
+        if not isinstance(row, dict):
+            continue
+        sanitized_row = {k: v for k, v in row.items() if k in allowed_fields}
+        sanitized_data.append(sanitized_row)
+    return sanitized_data
+
 def _merge_br_data(se_br: list, overlay: list) -> list:
     """Overlay posted/edited BR rows onto seFileData baseline, preserving all baseline rows."""
     if not overlay:
@@ -729,9 +751,20 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     
     # Extract data sections - PREFER posted/edited data over parsing
     # RR: Check for edited data first, fallback to seFileData
-    rr_data = (company_data.get('rrData') or 
-               company_data.get('rrRows') or 
-               company_data.get('seFileData', {}).get('rr_data', []))
+    rr_data_raw = (company_data.get('rrData') or 
+                   company_data.get('rrRows') or 
+                   company_data.get('seFileData', {}).get('rr_data', []))
+    
+    # Filter RR data first (respect show_tag), then sanitize for PDF
+    # Filter logic: respect show_tag (skip rows where show_tag is explicitly False)
+    rr_data_filtered = []
+    for row in rr_data_raw:
+        if row.get('show_tag') == False:
+            continue  # Skip rows where show_tag is explicitly False
+        rr_data_filtered.append(row)
+    
+    # Sanitize RR data for PDF rendering (remove UI-specific fields)
+    rr_data = _sanitize_rr_data_for_pdf(rr_data_filtered)
     
     # BR: Merge overlay onto baseline to preserve all baseline rows (Kassa och bank, Varulager, etc.)
     se_br = (company_data.get('seFileData', {}) or {}).get('br_data', []) or []
@@ -866,10 +899,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     seen_rorelseresultat = False  # Track to skip the first (duplicate) Rörelseresultat
     
     for row in rr_data:
-        # Filter logic: respect show_tag
-        if row.get('show_tag') == False:
-            continue
-        
+        # Note: show_tag filtering already done before sanitization
         label = row.get('label', '')
         block_group = row.get('block_group', '')
         

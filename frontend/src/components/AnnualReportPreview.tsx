@@ -2068,8 +2068,8 @@ const handleTaxCalculationClick = () => {
                     <span className="text-muted-foreground flex items-center justify-between">
                       <span>{item.label}</span>
                       <div className="flex items-center">
-                        {/* Add VISA tag for rows with show_tag */}
-                        {item.show_tag && item.account_details && item.account_details.length > 0 && 
+                        {/* General VISA popover for all RR rows with show_tag (except row 277) */}
+                        {!(item.id === "277" || item.id === 277) && item.show_tag && item.account_details && item.account_details.length > 0 && 
                          (item.current_amount !== null && item.current_amount !== undefined && Math.abs(item.current_amount) > 0) && (
                           <Popover>
                             <PopoverTrigger asChild>
@@ -2122,10 +2122,8 @@ const handleTaxCalculationClick = () => {
                             </PopoverContent>
                           </Popover>
                         )}
-                        {/* Add SKATTEBERÄKNING button for row_id 277 (Skatt på årets resultat) */}
-                        {(() => {
-                          return item.id === "277" || item.id === 277;
-                        })() && (
+                        {/* Special SKATTEBERÄKNING button for row_id 277 (Skatt på årets resultat) */}
+                        {(item.id === "277" || item.id === 277) && (
                           <Button 
                             variant="outline" 
                             size="sm" 
