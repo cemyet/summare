@@ -755,16 +755,9 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
                    company_data.get('rrRows') or 
                    company_data.get('seFileData', {}).get('rr_data', []))
     
-    # Filter RR data first (respect show_tag), then sanitize for PDF
-    # Filter logic: respect show_tag (skip rows where show_tag is explicitly False)
-    rr_data_filtered = []
-    for row in rr_data_raw:
-        if row.get('show_tag') == False:
-            continue  # Skip rows where show_tag is explicitly False
-        rr_data_filtered.append(row)
-    
-    # Sanitize RR data for PDF rendering (remove UI-specific fields)
-    rr_data = _sanitize_rr_data_for_pdf(rr_data_filtered)
+    # Sanitize RR data for PDF rendering (remove UI-specific fields like show_tag and account_details)
+    # Note: show_tag is a UI-only flag - PDF should show all rows based on amounts/always_show, not show_tag
+    rr_data = _sanitize_rr_data_for_pdf(rr_data_raw)
     
     # BR: Merge overlay onto baseline to preserve all baseline rows (Kassa och bank, Varulager, etc.)
     se_br = (company_data.get('seFileData', {}) or {}).get('br_data', []) or []
@@ -899,7 +892,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     seen_rorelseresultat = False  # Track to skip the first (duplicate) Rörelseresultat
     
     for row in rr_data:
-        # Note: show_tag filtering already done before sanitization
+        # Note: show_tag has been removed by sanitization - PDF shows rows based on amounts/always_show
         label = row.get('label', '')
         block_group = row.get('block_group', '')
         
