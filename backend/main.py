@@ -3354,6 +3354,9 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_slp = 0.0
 
         # Always run SLP section, even when 0 (to reset values to base)
+        # Create parser instance once for account text lookups
+        parser = DatabaseParser()
+        
         if slp_accepted >= 0:
             rr_personal = _find_rr_personalkostnader(rr)
             if not rr_personal:
@@ -3373,6 +3376,33 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                 delta_rr252 = _set_current(rr_personal, new_rr252)
                 after = _num(rr_personal.get("current_amount"))
                 rr_personal["slp_injected"] = slp_accepted
+                
+                # Update account_details for Personalkostnader to include SLP account 7533
+                if rr_personal.get('show_tag'):
+                    # Initialize account_details if it doesn't exist
+                    if not rr_personal.get('account_details'):
+                        rr_personal['account_details'] = []
+                    
+                    # Get existing account_details as a dict for easy lookup
+                    account_details_dict = {d['account_id']: d for d in rr_personal.get('account_details', [])}
+                    
+                    # Add or update account 7533 with SLP delta (negative because it's a cost)
+                    if slp_accepted > 0:
+                        # The SLP adjustment replaces any existing 7533 balance from SIE file
+                        # because SLP is a calculated adjustment, not the raw account balance
+                        account_details_dict['7533'] = {
+                            'account_id': '7533',
+                            'account_text': parser._get_account_text('7533'),
+                            'balance': -slp_accepted  # Negative because SLP is a cost
+                        }
+                    else:
+                        # Remove account 7533 if SLP is 0 (but only if it was added by SLP adjustment)
+                        # We can't easily distinguish, so we remove it if SLP is 0
+                        # This might remove an existing account, but SLP=0 means no adjustment
+                        account_details_dict.pop('7533', None)
+                    
+                    # Update account_details with sorted list
+                    rr_personal['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
 
                 # Use current SLP level (not delta magnitude) for idempotent ripples
                 applied_slp = slp_accepted
@@ -3447,6 +3477,33 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                         _set_current(br_tax_liab_for_slp, new_skatteskulder)
                         after_skatteskulder = _num(br_tax_liab_for_slp.get("current_amount"))
                         br_tax_liab_for_slp["slp_injected_skatteskulder"] = slp_accepted
+                        
+                        # Update account_details for Skatteskulder to include SLP account 2514
+                        if br_tax_liab_for_slp.get('show_tag'):
+                            # Initialize account_details if it doesn't exist
+                            if not br_tax_liab_for_slp.get('account_details'):
+                                br_tax_liab_for_slp['account_details'] = []
+                            
+                            # Get existing account_details as a dict for easy lookup
+                            account_details_dict = {d['account_id']: d for d in br_tax_liab_for_slp.get('account_details', [])}
+                            
+                            # Add or update account 2514 with SLP delta (positive because it's a liability)
+                            if slp_accepted > 0:
+                                # The SLP adjustment replaces any existing 2514 balance from SIE file
+                                # because SLP is a calculated adjustment, not the raw account balance
+                                account_details_dict['2514'] = {
+                                    'account_id': '2514',
+                                    'account_text': parser._get_account_text('2514'),
+                                    'balance': slp_accepted  # Positive because SLP is a liability
+                                }
+                            else:
+                                # Remove account 2514 if SLP is 0 (but only if it was added by SLP adjustment)
+                                # We can't easily distinguish, so we remove it if SLP is 0
+                                # This might remove an existing account, but SLP=0 means no adjustment
+                                account_details_dict.pop('2514', None)
+                            
+                            # Update account_details with sorted list
+                            br_tax_liab_for_slp['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
                         
                         # Calculate only the SLP delta (not total delta) for reporting
                         d_slp = slp_accepted - slp_already_in_skatteskulder
