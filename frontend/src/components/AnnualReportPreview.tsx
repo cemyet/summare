@@ -1798,6 +1798,7 @@ const handleTaxCalculationClick = () => {
   };
 
   // Helper function to check if a block group has any content
+  // Uses the same visibility logic as shouldShowRow for non-headings to ensure consistency
   const blockGroupHasContent = (data: any[], blockGroup: string): boolean => {
     if (!blockGroup) return true; // Show items without block_group
     
@@ -1807,11 +1808,14 @@ const handleTaxCalculationClick = () => {
       const isHeading = item.style && ['H0', 'H1', 'H2', 'H3', 'S1', 'S2', 'S3'].includes(item.style);
       if (isHeading) continue; // Skip headings when checking block content
       
+      // Use the same visibility logic as shouldShowRow for non-headings
       const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0) ||
                               (item.previous_amount !== null && item.previous_amount !== 0);
       const isAlwaysShow = item.always_show === true; // Use database field
+      const hasNoteNumber = item.note_number !== undefined && item.note_number !== null; // Has note reference
       
-      if (hasNonZeroAmount || isAlwaysShow) {
+      // Show if: (has non-zero amount) OR (always_show = true) OR (has note number)
+      if (hasNonZeroAmount || isAlwaysShow || hasNoteNumber) {
         return true;
       }
     }
@@ -1839,7 +1843,8 @@ const handleTaxCalculationClick = () => {
     }
     
     // Special logic for "Anläggningstillgångar" - only show if child sums have values
-    if (item.label && item.label.toUpperCase().includes('ANLÄGGNINGSTILLGÅNGAR')) {
+    // Skip this for sub-headings like "Immateriella anläggningstillgångar" (row 314) which have block_group
+    if (item.label && item.label.toUpperCase().includes('ANLÄGGNINGSTILLGÅNGAR') && !item.block_group) {
       const sumImmateriella = data.find(row => 
         row.label && row.label.toUpperCase().includes('SUMMA IMMATERIELLA')
       );
@@ -1910,6 +1915,24 @@ const handleTaxCalculationClick = () => {
       }
       // NEW: Even headings without block_group must follow always_show rule
       return item.always_show === true;
+    }
+    
+    // Check if this is a sum row (S3) - show if its block group heading is visible
+    const isSumRow = item.style && ['S3'].includes(item.style);
+    if (isSumRow && item.block_group) {
+      // Find the heading for this block group
+      const blockGroupHeading = data.find(row => 
+        row.block_group === item.block_group && 
+        row.style && ['H3'].includes(row.style)
+      );
+      
+      // If heading exists and would be shown, show the sum row too
+      if (blockGroupHeading) {
+        const headingShouldShow = blockGroupHasContent(data, item.block_group);
+        if (headingShouldShow) {
+          return true;
+        }
+      }
     }
     
     // NEW LOGIC: If amount is 0 for both years, hide unless always_show = true OR has note number
@@ -2030,7 +2053,7 @@ const handleTaxCalculationClick = () => {
                 
                 
                 return useRR.map((item, index) => {
-                if (!shouldShowRow(item, showAllRR, rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData)) {
+                if (!shouldShowRow(item, showAllRR, useRR)) {
                   return null;
                 }
                 
@@ -2044,73 +2067,75 @@ const handleTaxCalculationClick = () => {
                   >
                     <span className="text-muted-foreground flex items-center justify-between">
                       <span>{item.label}</span>
-                      {/* Special SKATTEBERÄKNING button for row_id 277 (Skatt på årets resultat) */}
-                      {(item.id === "277" || item.id === 277) && (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="ml-2 h-4 px-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700" 
-                          style={{fontSize: '0.75rem'}}
-                          onClick={handleTaxCalculationClick}
-                          title="Visa skatteberäkning"
-                        >
-                          VISA
-                        </Button>
-                      )}
-                      {/* General VISA popover for all other RR rows with show_tag=true */}
-                      {!(item.id === "277" || item.id === 277) && item.show_tag && item.account_details && item.account_details.length > 0 && 
-                       (item.current_amount !== null && item.current_amount !== undefined && Math.abs(item.current_amount) > 0) && (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" className="ml-2 h-4 px-1.5 text-xs" style={{fontSize: '0.75rem'}}>
-                              VISA
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
-                            <div className="space-y-3">
-                              <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-sm table-fixed" style={{tableLayout: 'fixed'}}>
-                                  <thead>
-                                    <tr className="border-b">
-                                      <th className="text-left py-2 w-16">Konto</th>
-                                      <th className="text-left py-2">Kontotext</th>
-                                      <th className="text-right py-2 w-24" style={{minWidth: '80px'}}>{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {item.account_details.map((detail: any, detailIndex: number) => (
-                                      <tr key={detailIndex} className="border-b">
-                                        <td className="py-2 w-16">{detail.account_id}</td>
-                                        <td className="py-2 break-words">{detail.account_text || ''}</td>
+                      <div className="flex items-center">
+                        {/* General VISA popover for all RR rows with show_tag (except row 277) */}
+                        {!(item.id === "277" || item.id === 277) && item.show_tag && item.account_details && item.account_details.length > 0 && 
+                         (item.current_amount !== null && item.current_amount !== undefined && Math.abs(item.current_amount) > 0) && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="outline" size="sm" className="ml-2 h-4 px-1.5 text-xs" style={{fontSize: '0.75rem'}}>
+                                VISA
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm table-fixed" style={{tableLayout: 'fixed'}}>
+                                    <thead>
+                                      <tr className="border-b">
+                                        <th className="text-left py-2 w-16">Konto</th>
+                                        <th className="text-left py-2">Kontotext</th>
+                                        <th className="text-right py-2 w-24" style={{minWidth: '80px'}}>{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {item.account_details.map((detail: any, detailIndex: number) => (
+                                        <tr key={detailIndex} className="border-b">
+                                          <td className="py-2 w-16">{detail.account_id}</td>
+                                          <td className="py-2 break-words">{detail.account_text || ''}</td>
+                                          <td className="text-right py-2 w-24 whitespace-nowrap" style={{minWidth: '80px'}}>
+                                            {new Intl.NumberFormat('sv-SE', {
+                                              minimumFractionDigits: 0,
+                                              maximumFractionDigits: 0
+                                            }).format(detail.balance)} kr
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      {/* Sum row */}
+                                      <tr className="border-t border-gray-300 font-semibold">
+                                        <td className="py-2 w-16">Summa</td>
+                                        <td className="py-2"></td>
                                         <td className="text-right py-2 w-24 whitespace-nowrap" style={{minWidth: '80px'}}>
                                           {new Intl.NumberFormat('sv-SE', {
                                             minimumFractionDigits: 0,
                                             maximumFractionDigits: 0
-                                          }).format(Math.abs(detail.balance))} kr
+                                          }                                          ).format(
+                                            item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0)
+                                          )} kr
                                         </td>
                                       </tr>
-                                    ))}
-                                    {/* Sum row */}
-                                    <tr className="border-t border-gray-300 font-semibold">
-                                      <td className="py-2 w-16">Summa</td>
-                                      <td className="py-2"></td>
-                                      <td className="text-right py-2 w-24 whitespace-nowrap" style={{minWidth: '80px'}}>
-                                        {new Intl.NumberFormat('sv-SE', {
-                                          minimumFractionDigits: 0,
-                                          maximumFractionDigits: 0
-                                        }).format(
-                                          Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0))
-                                        )} kr
-                                      </td>
-                                    </tr>
-                                  </tbody>
-                                </table>
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      )}
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                        {/* Special SKATTEBERÄKNING button for row_id 277 (Skatt på årets resultat) */}
+                        {(item.id === "277" || item.id === 277) && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="ml-2 h-4 px-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700" 
+                            style={{fontSize: '0.75rem'}}
+                            onClick={handleTaxCalculationClick}
+                            title="Visa skatteberäkning"
+                          >
+                            VISA
+                          </Button>
+                        )}
+                      </div>
                     </span>
                     <span className="text-right font-medium">
                       {getNoteValue(item)}
@@ -2161,9 +2186,11 @@ const handleTaxCalculationClick = () => {
             {(() => {
               const liveSig = computeCombinedFinancialSig(rrData, brData);
               const useBR = (brDataWithNotes.length > 0 && liveSig === lastSigRef.current) ? brDataWithNotes : brData;
+              // Use useBR (the data we're actually rendering) for visibility checks to ensure consistency
+              // This ensures blockGroupHasContent checks the same data array that contains the rendered items
               return useBR.length > 0 ? (
                 useBR.map((item, index) => {
-                if (!shouldShowRow(item, showAllBR, brDataWithNotes)) {
+                if (!shouldShowRow(item, showAllBR, useBR)) {
                   return null;
                 }
                 
@@ -2219,7 +2246,7 @@ const handleTaxCalculationClick = () => {
                                           {new Intl.NumberFormat('sv-SE', {
                                             minimumFractionDigits: 0,
                                             maximumFractionDigits: 0
-                                          }).format(Math.abs(detail.balance))} kr
+                                          }).format(detail.balance)} kr
                                         </td>
                                       </tr>
                                     ))}
@@ -2232,8 +2259,8 @@ const handleTaxCalculationClick = () => {
                                           minimumFractionDigits: 0,
                                           maximumFractionDigits: 0
                                         }).format(
-                                          Math.abs(item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0))
-                                        )} kr
+                                            item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0)
+                                          )} kr
                                       </td>
                                     </tr>
                                   </tbody>
@@ -2345,7 +2372,13 @@ const handleTaxCalculationClick = () => {
                     const pensionPremier = companyData.pensionPremier || 0;
                     const calculated = companyData.sarskildLoneskattPensionCalculated || 0;
                     const actual = companyData.sarskildLoneskattPension || 0;
-                    return item.toggle_show === true && (pensionPremier > 0 && calculated > actual);
+                    // Round both values to 0 decimals for comparison (consistent with tax module)
+                    // Use a threshold of 0.5 to account for floating-point precision issues
+                    const roundedActual = Math.round(actual);
+                    const roundedCalculated = Math.round(calculated);
+                    const threshold = 0.5;
+                    const difference = roundedCalculated - roundedActual;
+                    return item.toggle_show === true && (pensionPremier > 0 && difference > threshold);
                   }
                   return item.toggle_show === true;
                 }

@@ -257,6 +257,27 @@ def _org_digits(company_data: Dict[str, Any]) -> str:
 
 def _choose_rows(company_data: Dict[str, Any]) -> ResolverContext:
     accepted = company_data.get("acceptedInk2Manuals") or {}
+    
+    # Apply defaults for radio button fields (INK4.23a/23b and INK4.24a/24b)
+    # Default to "Nej" (No) - set INK4.23b=1 and INK4.24b=1 if not already set
+    if 'INK4.23a' not in accepted and 'INK4.23b' not in accepted:
+        # Check if values exist in ink2Data
+        ink2_data = company_data.get("ink2Data") or (company_data.get("seFileData") or {}).get("ink2_data") or []
+        has_23a = any(r.get('variable_name') == 'INK4.23a' for r in ink2_data)
+        has_23b = any(r.get('variable_name') == 'INK4.23b' for r in ink2_data)
+        if not has_23a and not has_23b:
+            accepted['INK4.23a'] = 0
+            accepted['INK4.23b'] = 1  # Default to "Nej"
+    
+    if 'INK4.24a' not in accepted and 'INK4.24b' not in accepted:
+        # Check if values exist in ink2Data
+        ink2_data = company_data.get("ink2Data") or (company_data.get("seFileData") or {}).get("ink2_data") or []
+        has_24a = any(r.get('variable_name') == 'INK4.24a' for r in ink2_data)
+        has_24b = any(r.get('variable_name') == 'INK4.24b' for r in ink2_data)
+        if not has_24a and not has_24b:
+            accepted['INK4.24a'] = 0
+            accepted['INK4.24b'] = 1  # Default to "Nej"
+    
     ink2_rows = (
         company_data.get("ink2Data")
         or (company_data.get("seFileData") or {}).get("ink2_data")

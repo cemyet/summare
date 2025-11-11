@@ -256,31 +256,6 @@ def _get_year_headers(data: Dict[str, Any], fiscal_year: int, prev_year: int) ->
     
     return current_header, previous_header
 
-def _sanitize_rr_data(rr_rows: list) -> list:
-    """
-    Sanitize RR rows for PDF rendering by whitelisting only fields the PDF needs.
-    This mirrors the BR merge behavior which implicitly strips UI-only fields
-    like account_details/show_tag that could break PDF rendering.
-    """
-    if not isinstance(rr_rows, list):
-        return []
-    allowed = {
-        'id', 'label', 'style', 'level', 'section', 'bold',
-        'variable_name', 'current_amount', 'previous_amount',
-        'block_group', 'always_show', 'note_number'
-    }
-    sanitized = []
-    for r in rr_rows:
-        if not isinstance(r, dict):
-            continue
-        cleaned = {}
-        for k in allowed:
-            v = r.get(k)
-            if v is not None:
-                cleaned[k] = v
-        sanitized.append(cleaned)
-    return sanitized
-
 def _extract_fb_texts(cd: Dict[str, Any]) -> Tuple[str, str]:
     """Extract Förvaltningsberättelse text fields"""
     scraped = (cd or {}).get('scraped_company_data') or {}
@@ -657,6 +632,28 @@ def _render_resultatdisposition(elems, company_data, H1, P):
         elems.append(Paragraph(dividend_text, P))
         elems.append(Spacer(1, 8))
 
+def _sanitize_rr_data_for_pdf(rr_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Sanitize RR data for PDF generation by whitelisting allowed fields.
+    This mirrors the implicit sanitization that _merge_br_data provides for BR.
+    Removes UI-specific fields like 'show_tag' and 'account_details' which can
+    cause issues with ReportLab rendering if not handled carefully.
+    """
+    if not isinstance(rr_data, list):
+        return []
+    sanitized_data = []
+    allowed_fields = {
+        'id', 'label', 'current_amount', 'previous_amount', 'level', 'section',
+        'bold', 'style', 'variable_name', 'is_calculated', 'calculation_formula',
+        'show_amount', 'block_group', 'always_show', 'note_number', 'variable_text'
+    }
+    for row in rr_data:
+        if not isinstance(row, dict):
+            continue
+        sanitized_row = {k: v for k, v in row.items() if k in allowed_fields}
+        sanitized_data.append(sanitized_row)
+    return sanitized_data
+
 def _merge_br_data(se_br: list, overlay: list) -> list:
     """Overlay posted/edited BR rows onto seFileData baseline, preserving all baseline rows."""
     if not overlay:
@@ -754,11 +751,20 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     
     # Extract data sections - PREFER posted/edited data over parsing
     # RR: Check for edited data first, fallback to seFileData
-    rr_data = (company_data.get('rrData') or 
-               company_data.get('rrRows') or 
-               company_data.get('seFileData', {}).get('rr_data', []))
-    # Sanitize RR for PDF (strip UI-only fields like account_details/show_tag)
-    rr_data = _sanitize_rr_data(rr_data)
+    rr_data_raw = (company_data.get('rrData') or 
+                   company_data.get('rrRows') or 
+                   company_data.get('seFileData', {}).get('rr_data', []))
+    
+    # Filter RR data first (respect show_tag), then sanitize for PDF
+    # Filter logic: respect show_tag (skip rows where show_tag is explicitly False)
+    rr_data_filtered = []
+    for row in rr_data_raw:
+        if row.get('show_tag') == False:
+            continue  # Skip rows where show_tag is explicitly False
+        rr_data_filtered.append(row)
+    
+    # Sanitize RR data for PDF rendering (remove UI-specific fields)
+    rr_data = _sanitize_rr_data_for_pdf(rr_data_filtered)
     
     # BR: Merge overlay onto baseline to preserve all baseline rows (Kassa och bank, Varulager, etc.)
     se_br = (company_data.get('seFileData', {}) or {}).get('br_data', []) or []
@@ -893,10 +899,7 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     seen_rorelseresultat = False  # Track to skip the first (duplicate) Rörelseresultat
     
     for row in rr_data:
-        # Filter logic: respect show_tag
-        if row.get('show_tag') == False:
-            continue
-        
+        # Note: show_tag filtering already done before sanitization
         label = row.get('label', '')
         block_group = row.get('block_group', '')
         
@@ -1814,18 +1817,44 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         is_sakerhet = (block_name_lower in {"säkerheter", "säkerhet", "sakerhet"} or
                       block_title_lower in {"säkerheter", "säkerhet", "sakerhet"})
         
-        # Special handling for OVRIGA - always show if there's moderbolag data (mirrors frontend logic)
+        # Special handling for OVRIGA - show if moderbolag exists OR toggle is on (mirrors frontend logic)
         moderbolag = scraped_data.get('moderbolag')
         
         if is_ovriga:
-            if not moderbolag:
-                # Check if block has any non-zero content
-                has_content = any(
-                    _num(it.get('current_amount', 0)) != 0 or 
-                    _num(it.get('previous_amount', 0)) != 0 
+            # Check block-specific toggle - accept both legacy and new key styles
+            ovriga_toggle_key = 'ovriga-visibility'
+            alt_keys = [
+                ovriga_toggle_key,
+                ovriga_toggle_key.upper(),
+                ovriga_toggle_key.replace('-visibility', ''),
+                'OVRIGA',
+                'ovriga',
+            ]
+            block_visible = any(bool(block_toggles.get(k)) for k in alt_keys)
+            print(f"[OVRIGA-TOGGLE] Checking toggles - received keys: {list(block_toggles.keys())}, checking: {alt_keys}, block_visible={block_visible}")
+            
+            # Show if: toggle is on OR moderbolag exists
+            # When toggle is on, always show (even if no content yet)
+            # When moderbolag exists, show even if toggle is off (backwards compatibility)
+            if not block_visible and not moderbolag:
+                # Also check for content as a fallback (for existing data without toggle info)
+                has_text_content = any(
+                    (it.get('variable_text') and it.get('variable_text').strip())
                     for it in items
                 )
+                has_amount_content = any(
+                    _num(it.get('current_amount', 0)) != 0 or 
+                    _num(it.get('previous_amount', 0)) != 0
+                    for it in items
+                )
+                has_content = has_text_content or has_amount_content
+                
+                print(f"[OVRIGA-VISIBILITY] block_visible={block_visible}, moderbolag={moderbolag}, has_text_content={has_text_content}, has_amount_content={has_amount_content}, item_count={len(items)}")
+                if items and has_text_content:
+                    print(f"[OVRIGA-VISIBILITY] Items with variable_text: {[{'row_id': it.get('row_id'), 'variable_name': it.get('variable_name'), 'text_len': len(it.get('variable_text', ''))} for it in items if it.get('variable_text')]}")
+                
                 if not has_content:
+                    print(f"[OVRIGA-VISIBILITY] Skipping OVRIGA - no content, toggle off, no moderbolag")
                     continue
         
         # Check if this block should be hidden (Eventualförpliktelser, Säkerheter)
@@ -1844,15 +1873,8 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
             ]
             block_visible = any(bool(block_toggles.get(k)) for k in alt_keys)
             
-            # Fallback: also show if there's any non-zero content (even if toggle is missing)
-            has_nonzero_content = any(
-                _num(it.get('current_amount', 0)) != 0 or
-                _num(it.get('previous_amount', 0)) != 0
-                for it in items
-            )
-            
-            # If neither toggle nor data says it should show, skip it
-            if not block_visible and not has_nonzero_content:
+            # ONLY show if toggle is on - ignore content (toggle controls visibility)
+            if not block_visible:
                 continue
         
         # Force always_show for NOT1 and NOT2
@@ -1860,6 +1882,14 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         if force_always:
             for it in items:
                 it["always_show"] = True
+        
+        # For OVRIGA, force always_show for items with variable_text (user-edited text content)
+        # This ensures text-only items aren't filtered out by build_visible_with_headings_pdf
+        if is_ovriga:
+            for it in items:
+                if it.get('variable_text') and str(it.get('variable_text')).strip():
+                    it["always_show"] = True
+                    print(f"[OVRIGA-FORCE-SHOW] Setting always_show=True for row_id={it.get('row_id')}, variable_text={it.get('variable_text')[:30]}")
         
         # For EVENTUAL and SAKERHET blocks, DON'T use toggle for visibility in PDF
         # The toggle is only used to show the block, not to show zero-value rows within it
@@ -1886,8 +1916,8 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         # Apply visibility logic
         visible = build_visible_with_headings_pdf(items, toggle_on=effective_toggle)
         
-        # Skip rows before first heading (but not for NOT1/NOT2, SAKERHET, EVENTUAL which may not have headings)
-        if block_name not in ['NOT1', 'NOT2'] and not (is_eventual or is_sakerhet):
+        # Skip rows before first heading (but not for NOT1/NOT2, SAKERHET, EVENTUAL, OVRIGA which may not have headings)
+        if block_name not in ['NOT1', 'NOT2'] and not (is_eventual or is_sakerhet or is_ovriga):
             pruned = []
             seen_heading = False
             for r in visible:
@@ -1900,14 +1930,17 @@ def _collect_visible_note_blocks(blocks, company_data, toggle_on=False, block_to
         
         # Skip block if no visible items (UNLESS it's OVRIGA with moderbolag or forced blocks)
         ovriga_with_moderbolag = (is_ovriga and moderbolag)
+        ovriga_toggle_on = is_ovriga and block_visible  # OVRIGA toggle is explicitly on
         if not visible:
-            # Allow empty blocks for: OVRIGA with moderbolag, or forced blocks
-            if not (ovriga_with_moderbolag or force_always):
+            # Allow empty blocks for: OVRIGA with moderbolag/toggle, or forced blocks
+            if not (ovriga_with_moderbolag or ovriga_toggle_on or force_always):
                 continue
         
         # Skip block if it has no non-zero content (regardless of toggle state for PDF)
+        # EXCEPT: OVRIGA with toggle on should always show (may have text content)
         # Toggles are for editing in preview only, not for showing empty notes in final PDF
-        if (not force_always) and (not ovriga_with_moderbolag) and (not _has_nonzero_content(visible)):
+        if (not force_always) and (not ovriga_with_moderbolag) and (not ovriga_toggle_on) and (not _has_nonzero_content(visible)):
+            print(f"[OVRIGA-SKIP] Skipping block {block_name} - no nonzero content")
             continue
         
         collected.append((block_name, block_title, visible))
@@ -1943,14 +1976,32 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
     note_flow.append(Paragraph(title, H1))
     note_flow.append(Spacer(1, 10))  # 10pt after heading
     
-    # For OVRIGA (text note with moderbolag info), render text first
+    # For OVRIGA (text note with moderbolag info and/or user-edited text), render text first
     if block_name == 'OVRIGA':
         scraped_data = company_data.get('scraped_company_data', {})
         moderbolag = scraped_data.get('moderbolag')
         moderbolag_orgnr = scraped_data.get('moderbolag_orgnr')
         sate = scraped_data.get('säte')
         
-        if moderbolag:
+        print(f"[OVRIGA-PDF-ITEMS] visible_count={len(visible)}, items={[{'row_id': it.get('row_id'), 'variable_name': it.get('variable_name'), 'variable_text': it.get('variable_text', '')[:30] if it.get('variable_text') else None} for it in visible]}")
+        
+        # Check if there's any variable_text from items (user-edited text)
+        has_variable_text = False
+        for item in visible:
+            variable_text = item.get('variable_text', '').strip()
+            if variable_text:
+                print(f"[OVRIGA-PDF] Rendering variable_text: {variable_text[:50]}... (variable_name={item.get('variable_name')})")
+                # Render the variable_text (may include moderbolag text if it was edited)
+                # Replace newlines with <br/> tags for proper rendering in PDF
+                variable_text_html = variable_text.replace('\n', '<br/>')
+                note_flow.append(Paragraph(variable_text_html, P))
+                note_flow.append(Spacer(1, 10))
+                has_variable_text = True
+        
+        print(f"[OVRIGA-PDF] has_variable_text={has_variable_text}, moderbolag={moderbolag}, visible_count={len(visible)}")
+        
+        # If no variable_text but moderbolag exists, render default moderbolag text
+        if not has_variable_text and moderbolag:
             text = f"Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolag_orgnr} med säte i {sate}, som upprättar koncernredovisning."
             note_flow.append(Paragraph(text, P))
             note_flow.append(Spacer(1, 10))

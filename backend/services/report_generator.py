@@ -81,7 +81,7 @@ class ReportGenerator:
             print(f"📊 Parsed {len(current_accounts)} current year accounts, {len(previous_accounts)} previous year accounts")
             
             # Parse RR and BR data using new parser
-            rr_data = self.database_parser.parse_rr_data(current_accounts, previous_accounts)
+            rr_data = self.database_parser.parse_rr_data(current_accounts, previous_accounts, sie_text=se_content)
             # Use koncern-aware BR parsing for automatic reconciliation with K2 notes
             br_data = self.database_parser.parse_br_data_with_koncern(se_content, current_accounts, previous_accounts, rr_data)
             

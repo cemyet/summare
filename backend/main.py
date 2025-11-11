@@ -1,4 +1,5 @@
 # Summare API - Updated 2025-10-26
+# Reset to stable commit for testing
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -380,6 +381,43 @@ async def root():
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
 
+@app.get("/debug/supabase")
+async def debug_supabase():
+    """Debug endpoint to test Supabase connection"""
+    import os
+    
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    
+    result = {
+        "url_set": bool(url),
+        "url_value": url[:30] + "..." if url else None,
+        "url_length": len(url) if url else 0,
+        "key_set": bool(key),
+        "key_length": len(key) if key else 0,
+        "key_preview": key[:30] + "..." if key else None,
+    }
+    
+    # Try to connect
+    if url and key:
+        try:
+            supabase = get_supabase_client()
+            if supabase:
+                # Try actual query
+                test_result = supabase.table('chat_flow').select('step_number').limit(1).execute()
+                result["connection"] = "SUCCESS"
+                result["data_count"] = len(test_result.data) if test_result.data else 0
+            else:
+                result["connection"] = "NO_CLIENT"
+        except Exception as e:
+            result["connection"] = "FAILED"
+            result["error"] = str(e)
+            result["error_type"] = type(e).__name__
+    else:
+        result["connection"] = "MISSING_VARS"
+    
+    return result
+
 # --- Embedded Checkout endpoint (pure HTTP, no SDK issues) - v2 ---
 import os
 import requests
@@ -491,7 +529,17 @@ async def verify_stripe_session(session_id: str):
     
     try:
         session = _stripe_post(f"/v1/checkout/sessions/{session_id}", {})
-        return {"paid": session["payment_status"] == "paid", "id": session["id"]}
+        paid = session["payment_status"] == "paid"
+        
+        # Extract organization number from metadata if available
+        metadata = session.get("metadata", {})
+        organization_number = metadata.get("organization_number", "")
+        
+        return {
+            "paid": paid,
+            "id": session["id"],
+            "organization_number": organization_number if organization_number else None
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -909,9 +957,13 @@ async def upload_se_file(file: UploadFile = File(...)):
             abs(float(current_accounts.get('7532', 0.0))) +
             abs(float(current_accounts.get('7533', 0.0)))
         )
+        # Round to 0 decimals for consistency with tax module comparison
+        sarskild_loneskatt_pension = round(sarskild_loneskatt_pension, 0)
         # Get sarskild_loneskatt rate from global variables
         sarskild_loneskatt_rate = float(parser.global_variables.get('sarskild_loneskatt', 0.0))
         sarskild_loneskatt_pension_calculated = pension_premier * sarskild_loneskatt_rate
+        # Round to 0 decimals for consistency with tax module calculation
+        sarskild_loneskatt_pension_calculated = round(sarskild_loneskatt_pension_calculated, 0)
         
         # Store financial data in database (but don't fail if storage fails)
         stored_ids = {}
@@ -1176,8 +1228,12 @@ async def upload_two_se_files(
             abs(float(current_accounts.get('7532', 0.0))) +
             abs(float(current_accounts.get('7533', 0.0)))
         )
+        # Round to 0 decimals for consistency with tax module comparison
+        sarskild_loneskatt_pension = round(sarskild_loneskatt_pension, 0)
         # Get sarskild_loneskatt rate from global variables
         sarskild_loneskatt_pension_calculated = pension_premier * 0.2431
+        # Round to 0 decimals for consistency with tax module calculation
+        sarskild_loneskatt_pension_calculated = round(sarskild_loneskatt_pension_calculated, 0)
         
         # Store original values in company_info so they're part of seFileData
         company_info['arets_resultat_original'] = arets_resultat_original
@@ -1870,54 +1926,63 @@ async def get_most_recent_payment():
 @app.get("/api/payments/get-customer-email")
 async def get_customer_email(organization_number: str):
     """
-    Get the customer_email from the most recent paid payment for an organization
+    Return the customer_email from the most recent *paid* payment
+    for the given organization_number.
+    Priority: paid_at desc, then created_at desc.
     """
     try:
-        supabase = get_supabase_client()
-        
-        if not supabase:
-            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
-        
-        # Normalize organization number (remove dashes and spaces)
+        # Normalize incoming org nr
         org_number = organization_number.replace("-", "").replace(" ", "").strip()
         
         if not org_number:
             raise HTTPException(status_code=400, detail="Organization number is required")
         
-        # Get all paid payments for this organization
-        all_results = supabase.table('payments')\
-            .select('customer_email,organization_number,created_at')\
-            .eq('organization_number', org_number)\
-            .eq('payment_status', 'paid')\
+        # Try whichever client is available
+        client = get_supabase_client()
+        if not client:
+            # Fall back to the one you know works in other endpoints (already imported at top)
+            client = db.supabase
+        
+        if not client:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # 1) Try to order by paid_at desc (the column you actually have in payments CSV)
+        result = client.table("payments") \
+            .select("customer_email,organization_number,paid_at,created_at") \
+            .eq("organization_number", org_number) \
+            .eq("payment_status", "paid") \
+            .order("paid_at", desc=True) \
+            .limit(1) \
             .execute()
         
-        # Sort by created_at descending (most recent first) and get the first one
-        customer_email = None
-        organization_number_return = None
-        if all_results.data:
-            sorted_results = sorted(
-                all_results.data, 
-                key=lambda x: x.get('created_at') or '', 
-                reverse=True
-            )
-            if sorted_results:
-                customer_email = sorted_results[0].get('customer_email')
-                organization_number_return = sorted_results[0].get('organization_number')
+        payment_row = None
+        if result.data and len(result.data) > 0:
+            payment_row = result.data[0]
+        else:
+            # 2) Fallback: maybe old rows had no paid_at — sort by created_at
+            fallback = client.table("payments") \
+                .select("customer_email,organization_number,paid_at,created_at") \
+                .eq("organization_number", org_number) \
+                .eq("payment_status", "paid") \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
+            if fallback.data and len(fallback.data) > 0:
+                payment_row = fallback.data[0]
         
-        if not customer_email:
+        if not payment_row:
             return {
                 "success": False,
                 "customer_email": None,
-                "organization_number": None,
+                "organization_number": org_number,
                 "message": "No paid payment found for this organization"
             }
         
         return {
             "success": True,
-            "customer_email": customer_email,
-            "organization_number": organization_number_return
+            "customer_email": payment_row.get("customer_email"),
+            "organization_number": payment_row.get("organization_number") or org_number,
         }
-        
     except HTTPException:
         raise
     except Exception as e:
@@ -2047,19 +2112,17 @@ async def send_for_digital_signing(request: dict):
             create_signer_from_revisor
         )
         
-        # Build signers list with signature order
+        # Build signers list - set all to same order (1) for parallel signing
+        # All signers will receive invitations simultaneously and can sign in any order
         tellustalk_signers = []
-        signature_order = 1
         
-        # Add företrädare first
+        # Add företrädare
         for person in foretradare:
-            tellustalk_signers.append(create_signer_from_foretradare(person, signature_order))
-            signature_order += 1
+            tellustalk_signers.append(create_signer_from_foretradare(person, signature_order=1))
         
-        # Add revisor after företrädare
+        # Add revisor
         for person in revisor:
-            tellustalk_signers.append(create_signer_from_revisor(person, signature_order))
-            signature_order += 1
+            tellustalk_signers.append(create_signer_from_revisor(person, signature_order=1))
         
         # Create job name from company info
         company_name = (
@@ -2077,7 +2140,10 @@ async def send_for_digital_signing(request: dict):
         # Optional redirect URLs (can be configured via environment variables)
         success_url = os.getenv("TELLUSTALK_SUCCESS_REDIRECT_URL")
         fail_url = os.getenv("TELLUSTALK_FAIL_REDIRECT_URL")
-        report_to_url = os.getenv("TELLUSTALK_REPORT_TO_URL")
+        # Only enable webhook if explicitly enabled (can cause API delays)
+        # Set TELLUSTALK_ENABLE_WEBHOOKS=false to disable webhooks for faster response
+        enable_webhooks = os.getenv("TELLUSTALK_ENABLE_WEBHOOKS", "true").lower() == "true"
+        report_to_url = os.getenv("TELLUSTALK_REPORT_TO_URL") if enable_webhooks else None
         
         # Send PDF to TellusTalk
         print(f"📤 Sending PDF to TellusTalk with {len(tellustalk_signers)} signers...")
@@ -2112,27 +2178,73 @@ async def send_for_digital_signing(request: dict):
         print(f"✅ TellusTalk job_uuid: {tellustalk_result.get('job_uuid')}")
         
         # Store initial job info in database (link job_uuid to organization_number)
-        try:
-            supabase = get_supabase_client()
-            if supabase and organization_number:
-                supabase.table('signing_status').upsert({
-                    'job_uuid': tellustalk_result.get("job_uuid"),
-                    'organization_number': organization_number,
-                    'job_name': tellustalk_result.get("job_name", job_name),
-                    'ebox_job_key': tellustalk_result.get("ebox_job_key"),
-                    'event': 'created',
-                    'status_data': {
-                        'created_at': datetime.now().isoformat(),
-                        'members': tellustalk_result.get("members", [])
-                    },
-                    'created_at': datetime.now().isoformat(),
-                    'updated_at': datetime.now().isoformat()
-                }).execute()
-        except Exception as db_error:
-            print(f"⚠️ Could not save initial job to database: {str(db_error)}")
-            # Continue - not critical for sending
+        # Do this in background thread to not delay the response
+        import threading
+        def save_job_to_db():
+            try:
+                supabase = get_supabase_client()
+                if supabase and organization_number:
+                    try:
+                        job_uuid_value = tellustalk_result.get("job_uuid")
+                        if job_uuid_value:
+                            # Check if record exists first
+                            existing = supabase.table('signing_status').select('job_uuid').eq('job_uuid', job_uuid_value).execute()
+                            
+                            data_to_save = {
+                                'job_uuid': job_uuid_value,
+                                'organization_number': organization_number,
+                                'job_name': tellustalk_result.get("job_name", job_name),
+                                'ebox_job_key': tellustalk_result.get("ebox_job_key"),
+                                'event': 'created',
+                                'status_data': {
+                                    'created_at': datetime.now().isoformat(),
+                                    'members': tellustalk_result.get("members", [])
+                                },
+                                'created_at': datetime.now().isoformat(),
+                                'updated_at': datetime.now().isoformat()
+                            }
+                            
+                            if existing.data and len(existing.data) > 0:
+                                # Update existing record
+                                supabase.table('signing_status').update(data_to_save).eq('job_uuid', job_uuid_value).execute()
+                                print(f"✅ Initial job updated in database")
+                            else:
+                                # Insert new record
+                                supabase.table('signing_status').insert(data_to_save).execute()
+                                print(f"✅ Initial job saved to database")
+                    except Exception as table_error:
+                        error_msg = str(table_error)
+                        # Check if it's a table not found error
+                        if 'table' in error_msg.lower() and ('not found' in error_msg.lower() or 'PGRST205' in error_msg):
+                            print(f"⚠️ Database table 'signing_status' not found. Please create the table using the SQL from README.md")
+                        elif '23505' in error_msg or 'duplicate key' in error_msg.lower():
+                            # Duplicate key error - try update instead
+                            try:
+                                job_uuid_value = tellustalk_result.get("job_uuid")
+                                if job_uuid_value:
+                                    supabase.table('signing_status').update({
+                                        'organization_number': organization_number,
+                                        'job_name': tellustalk_result.get("job_name", job_name),
+                                        'ebox_job_key': tellustalk_result.get("ebox_job_key"),
+                                        'event': 'created',
+                                        'status_data': {
+                                            'created_at': datetime.now().isoformat(),
+                                            'members': tellustalk_result.get("members", [])
+                                        },
+                                        'updated_at': datetime.now().isoformat()
+                                    }).eq('job_uuid', job_uuid_value).execute()
+                                    print(f"✅ Initial job updated in database (after duplicate key error)")
+                            except Exception as update_error:
+                                print(f"⚠️ Could not update database after duplicate key error: {str(update_error)}")
+                        else:
+                            print(f"⚠️ Could not save initial job to database: {error_msg}")
+            except Exception as db_error:
+                print(f"⚠️ Database error when saving initial job: {str(db_error)}")
         
-        # Return success response with TellusTalk job info
+        # Start background thread for database save (don't wait - return immediately)
+        threading.Thread(target=save_job_to_db, daemon=True).start()
+        
+        # Return success response with TellusTalk job info immediately
         return {
             "success": True,
             "message": "Signing invitations sent successfully",
@@ -2224,21 +2336,72 @@ async def tellustalk_webhook(request: Request):
         try:
             supabase = get_supabase_client()
             if supabase:
-                # Upsert signing status - store by job_uuid
-                supabase.table('signing_status').upsert({
-                    'job_uuid': job_uuid,
-                    'organization_number': None,  # Will be updated if we track this
-                    'job_name': job_name,
-                    'ebox_job_key': ebox_job_key,
-                    'event': event,
-                    'signing_details': signing_status.get('signing_details', {}),
-                    'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
-                    'status_data': signing_status,
-                    'updated_at': datetime.now().isoformat()
-                }).execute()
-                print(f"   💾 Signing status saved to database")
+                # Try to upsert signing status - store by job_uuid
+                # Use upsert with on_conflict to handle unique constraint on job_uuid
+                try:
+                    # First try to check if record exists and get existing organization_number
+                    existing = supabase.table('signing_status').select('job_uuid, organization_number').eq('job_uuid', job_uuid).execute()
+                    
+                    # Preserve organization_number if it exists, otherwise set to None
+                    existing_org_number = None
+                    if existing.data and len(existing.data) > 0:
+                        existing_org_number = existing.data[0].get('organization_number')
+                    
+                    data_to_save = {
+                        'job_uuid': job_uuid,
+                        'organization_number': existing_org_number,  # Preserve existing or None
+                        'job_name': job_name,
+                        'ebox_job_key': ebox_job_key,
+                        'event': event,
+                        'signing_details': signing_status.get('signing_details', {}),
+                        'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
+                        'status_data': signing_status,
+                        'updated_at': datetime.now().isoformat()
+                    }
+                    
+                    if existing.data and len(existing.data) > 0:
+                        # Update existing record
+                        supabase.table('signing_status').update(data_to_save).eq('job_uuid', job_uuid).execute()
+                        print(f"   💾 Signing status updated in database")
+                    else:
+                        # Insert new record
+                        supabase.table('signing_status').insert(data_to_save).execute()
+                        print(f"   💾 Signing status saved to database")
+                        
+                except Exception as table_error:
+                    error_msg = str(table_error)
+                    # Check if it's a table not found error
+                    if 'table' in error_msg.lower() and ('not found' in error_msg.lower() or 'PGRST205' in error_msg):
+                        print(f"   ⚠️ Database table 'signing_status' not found. Please create the table using the SQL from README.md")
+                        print(f"   Error details: {error_msg}")
+                    elif '23505' in error_msg or 'duplicate key' in error_msg.lower():
+                        # Duplicate key error - try update instead
+                        try:
+                            # Get existing organization_number to preserve it
+                            existing_check = supabase.table('signing_status').select('organization_number').eq('job_uuid', job_uuid).execute()
+                            existing_org = None
+                            if existing_check.data and len(existing_check.data) > 0:
+                                existing_org = existing_check.data[0].get('organization_number')
+                            
+                            supabase.table('signing_status').update({
+                                'organization_number': existing_org,  # Preserve existing
+                                'job_name': job_name,
+                                'ebox_job_key': ebox_job_key,
+                                'event': event,
+                                'signing_details': signing_status.get('signing_details', {}),
+                                'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
+                                'status_data': signing_status,
+                                'updated_at': datetime.now().isoformat()
+                            }).eq('job_uuid', job_uuid).execute()
+                            print(f"   💾 Signing status updated in database (after duplicate key error)")
+                        except Exception as update_error:
+                            print(f"   ⚠️ Could not update database after duplicate key error: {str(update_error)}")
+                    else:
+                        print(f"   ⚠️ Could not save to database: {error_msg}")
+            else:
+                print(f"   ⚠️ Supabase client not available - skipping database save")
         except Exception as db_error:
-            print(f"   ⚠️ Could not save to database: {str(db_error)}")
+            print(f"   ⚠️ Database error: {str(db_error)}")
             # Continue - webhook should still return 200
         
         # Always return 200 OK to acknowledge receipt
@@ -3191,6 +3354,9 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         d_slp = 0.0
 
         # Always run SLP section, even when 0 (to reset values to base)
+        # Create parser instance once for account text lookups
+        parser = DatabaseParser()
+        
         if slp_accepted >= 0:
             rr_personal = _find_rr_personalkostnader(rr)
             if not rr_personal:
@@ -3210,6 +3376,33 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                 delta_rr252 = _set_current(rr_personal, new_rr252)
                 after = _num(rr_personal.get("current_amount"))
                 rr_personal["slp_injected"] = slp_accepted
+                
+                # Update account_details for Personalkostnader to include SLP account 7533
+                if rr_personal.get('show_tag'):
+                    # Initialize account_details if it doesn't exist
+                    if not rr_personal.get('account_details'):
+                        rr_personal['account_details'] = []
+                    
+                    # Get existing account_details as a dict for easy lookup
+                    account_details_dict = {d['account_id']: d for d in rr_personal.get('account_details', [])}
+                    
+                    # Add or update account 7533 with SLP delta (negative because it's a cost)
+                    if slp_accepted > 0:
+                        # The SLP adjustment replaces any existing 7533 balance from SIE file
+                        # because SLP is a calculated adjustment, not the raw account balance
+                        account_details_dict['7533'] = {
+                            'account_id': '7533',
+                            'account_text': parser._get_account_text('7533'),
+                            'balance': -slp_accepted  # Negative because SLP is a cost
+                        }
+                    else:
+                        # Remove account 7533 if SLP is 0 (but only if it was added by SLP adjustment)
+                        # We can't easily distinguish, so we remove it if SLP is 0
+                        # This might remove an existing account, but SLP=0 means no adjustment
+                        account_details_dict.pop('7533', None)
+                    
+                    # Update account_details with sorted list
+                    rr_personal['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
 
                 # Use current SLP level (not delta magnitude) for idempotent ripples
                 applied_slp = slp_accepted
@@ -3284,6 +3477,33 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                         _set_current(br_tax_liab_for_slp, new_skatteskulder)
                         after_skatteskulder = _num(br_tax_liab_for_slp.get("current_amount"))
                         br_tax_liab_for_slp["slp_injected_skatteskulder"] = slp_accepted
+                        
+                        # Update account_details for Skatteskulder to include SLP account 2514
+                        if br_tax_liab_for_slp.get('show_tag'):
+                            # Initialize account_details if it doesn't exist
+                            if not br_tax_liab_for_slp.get('account_details'):
+                                br_tax_liab_for_slp['account_details'] = []
+                            
+                            # Get existing account_details as a dict for easy lookup
+                            account_details_dict = {d['account_id']: d for d in br_tax_liab_for_slp.get('account_details', [])}
+                            
+                            # Add or update account 2514 with SLP delta (positive because it's a liability)
+                            if slp_accepted > 0:
+                                # The SLP adjustment replaces any existing 2514 balance from SIE file
+                                # because SLP is a calculated adjustment, not the raw account balance
+                                account_details_dict['2514'] = {
+                                    'account_id': '2514',
+                                    'account_text': parser._get_account_text('2514'),
+                                    'balance': slp_accepted  # Positive because SLP is a liability
+                                }
+                            else:
+                                # Remove account 2514 if SLP is 0 (but only if it was added by SLP adjustment)
+                                # We can't easily distinguish, so we remove it if SLP is 0
+                                # This might remove an existing account, but SLP=0 means no adjustment
+                                account_details_dict.pop('2514', None)
+                            
+                            # Update account_details with sorted list
+                            br_tax_liab_for_slp['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
                         
                         # Calculate only the SLP delta (not total delta) for reporting
                         d_slp = slp_accepted - slp_already_in_skatteskulder
@@ -3374,6 +3594,31 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         old_skatteskulder = _num(br_tax_liab.get("current_amount"))
         new_skatteskulder = base_skatteskulder + slp_in_skatteskulder + ink_calc
         _set_current(br_tax_liab, new_skatteskulder)
+        
+        # Update account_details for Skatteskulder to include tax account 2512
+        if br_tax_liab.get('show_tag'):
+            # Initialize account_details if it doesn't exist
+            if not br_tax_liab.get('account_details'):
+                br_tax_liab['account_details'] = []
+            
+            # Get existing account_details as a dict for easy lookup
+            account_details_dict = {d['account_id']: d for d in br_tax_liab.get('account_details', [])}
+            
+            # Add or update account 2512 with calculated tax (positive because it's a liability)
+            if ink_calc > 0:
+                # The calculated tax replaces any existing 2512 balance from SIE file
+                # because this is the calculated adjustment, not the raw account balance
+                account_details_dict['2512'] = {
+                    'account_id': '2512',
+                    'account_text': parser._get_account_text('2512'),
+                    'balance': ink_calc  # Positive because it's a liability
+                }
+            else:
+                # Remove account 2512 if calculated tax is 0
+                account_details_dict.pop('2512', None)
+            
+            # Update account_details with sorted list
+            br_tax_liab['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
         
         # Calculate only the tax delta (not including SLP) - just the change in tax
         d_tax_only = ink_calc - old_tax_calc

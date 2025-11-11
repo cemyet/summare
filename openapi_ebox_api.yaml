@@ -1,0 +1,1331 @@
+# {# ACL: PUBLIC #}
+openapi: 3.1.0
+info:
+  title: ebox api
+  version: '0.1'
+  description: |-
+    ebox is a collaboration tool for signing and sharing documents
+    for multiple users with different roles.
+  contact:
+    name: EBOX API support
+    email: sales@tellustalk.com
+    url: https://www.tellustalk.com
+servers:
+  - url: 'https://k8api.tellustalk.com'
+paths:
+  /api/ebox/v1:
+    parameters: []
+    post:
+      summary: create ebox job
+      operationId: post-create
+      responses:
+        '200':
+          description: 'Returns member list with added acl [key] rights, and editor (owner) job access keys'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_uuid:
+                    type: string
+                  job_name:
+                    type: string
+                  ebox_job_key:
+                    type: string
+                  members:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        member_id:
+                          type: string
+                        url:
+                          type: string
+                          format: uri
+                          description: 'URL the member uses to access the job'
+        '401':
+          description: Unauthorized
+          headers: {}
+          content:
+            text/plain:
+              schema:
+                type: object
+                properties: {}
+        4XX:
+          description: 'Badrequest: Permanent error'
+          headers: {}
+          content:
+            text/plain:
+              schema:
+                type: object
+                properties: {}
+        5XX:
+          description: 'Temporary error: Try again later'
+          headers: {}
+          content:
+            text/plain:
+              schema:
+                type: object
+                properties: {}
+      callbacks: # Callback definition
+        report_to: # Event name
+          "{your report_to url as given under events}": # The callback URL,
+            # Refers to the passed URL
+            post:
+              summary: 'HTTPS report_to Callback'
+              operationId: deliveryStatusCallback
+              description: report_to https schema
+              parameters:
+                - name: headers
+                  in: header
+                  description: 'your report_to headers as given under events'
+                  required: false
+                  schema:
+                    type: object
+              requestBody: # Contents of the callback message
+                required: true
+                content:
+                  application/json:
+                    schema:
+                      $ref: "#/components/schemas/report_to_callback"
+              responses: # Expected responses to the callback message
+                "200":
+                  description: Your server returns this code if it accepts the callback. If any other code is returned (or no code), the callback will be retried.
+
+      description: |-
+        Initiates an ebox job
+        ## Endpoint
+        **Host:** https\://k8api.tellustalk.com/api/ebox/v1<br><br>
+        ## Authorization
+        The `Authorization` header is required. Format:<br>
+        - **Authorization** Basic `username:password` _(base64-encoded)_
+
+        ## Supported Content-Type
+        The API supports `application/json`
+      parameters: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/job_creation_request'
+            examples:
+              basic_setup:
+                summary: Basic job with one signatory member
+                value:
+                  config:
+                    job_name: "Basic Job"
+                    acl: ["view"]
+                  members:
+                    - member_id: "Jk5L8zD2qN0W"
+                      acl: ["view"]
+                      authorizations: ["view"]
+                      name: "John Doe"
+                      review: false
+                      edit_file: false
+                      addresses:
+                        - address: "email:john.doe@company.com"
+                      signature_options:
+                        signature_methods:
+                          - type: "bankid"
+                            personal_id: "20010101-1234"
+                            hide_personal_id: false
+                        signature_order: 1
+                  attachments:
+                    - attachment_id: "Ak6K0cG1eL9T"
+                      acl: ["view"]
+                      name: "attachment_1.pdf"
+                      content_transfer_encoding: "base64"
+                      content_type: "application/pdf"
+                      payload: "base64EncodedPdfAttachment=="
+                      attachment_purpose: "SIGNATORY"
+              member_login:
+                summary: Basic job with one signatory member, LOGIN PROTECTED
+                value:
+                  config:
+                    job_name: "Basic Job"
+                    acl: ["view"]
+                  members:
+                    - member_id: "Jk5L8zD2qN0W"
+                      acl: ["Jk5L8zD2qN0W"]
+                      authorizations: ["login_Jk5L8zD2qN0W"]
+                      name: "John Doe"
+                      review: false
+                      edit_file: false
+                      addresses:
+                        - address: "email:john.doe@company.com"
+                      signature_options:
+                        signature_methods:
+                          - type: "bankid"
+                            personal_id: "20010101-1234"
+                            hide_personal_id: false
+                        signature_order: 1
+                      login_options:
+                        login_methods:
+                          - type: "bankid"
+                            personal_id: "20010101-1234"
+                        login_success_authorizations: ["view"]
+                  attachments:
+                    - attachment_id: "Ak6K0cG1eL9T"
+                      acl: ["view"]
+                      name: "attachment_1.pdf"
+                      content_transfer_encoding: "base64"
+                      content_type: "application/pdf"
+                      payload: "base64EncodedPdfAttachment=="
+                      attachment_purpose: "SIGNATORY"
+              member_custom_message:
+                summary: Basic job with one signatory member, CUSTOM MESSAGES
+                value:
+                  config:
+                    job_name: "Basic Job"
+                    acl: ["view"]
+                  members:
+                    - member_id: "Jk5L8zD2qN0W"
+                      acl: ["view"]
+                      authorizations: ["view"]
+                      name: "John Doe"
+                      review: false
+                      edit_file: false
+                      addresses:
+                        - address: "email:john.doe@company.com"
+                          custom_messages:
+                            invitation_message:
+                              subject: "Custom subject"
+                              html: "Custom html"
+                              email_from_name: "Custom from name"
+                            job_completed:
+                              subject: "Custom subject"
+                              html: "Custom html"
+                              email_from_name: "Custom from name"
+                        - address: "sms:+4670987xxyy"
+                          custom_messages:
+                            invitation_message:
+                              text: "Custom text"
+                              sms_originator_text: "Custom from text"
+                              sms_originator_number: "+4670987xxyy"
+                            job_completed:
+                              text: "Custom text"
+                              sms_originator_text: "Custom from text"
+                              sms_originator_number: "+4670987xxyy"
+                      signature_options:
+                        signature_methods:
+                          - type: "bankid"
+                            personal_id: "20010101-1234"
+                            hide_personal_id: false
+                        signature_order: 1
+                  attachments:
+                    - attachment_id: "Ak6K0cG1eL9T"
+                      acl: ["view"]
+                      name: "attachment_1.pdf"
+                      content_transfer_encoding: "base64"
+                      content_type: "application/pdf"
+                      payload: "base64EncodedPdfAttachment=="
+                      attachment_purpose: "SIGNATORY"
+              advanced_job:
+                summary: Advanced job with optional fields
+                value:
+                  config:
+                    job_name: "Advanced Job"
+                    acl: ["view"]
+                    job_logo:
+                      name: "logo.png"
+                      content_transfer_encoding: "base64"
+                      content_type: "image/png"
+                      payload: "base64EncodedImage=="
+                    validity_time: "2022-01-01T00:00:00Z"
+                    companies:
+                      - company_id: "company_1"
+                        company_name: "Company One Ltd"
+                        acl: ["view"]
+                    language: "en"
+                    reminders: ["+1d 12:00 TZ+0100", "+2d 12:00 TZ+0100"]
+                    events:
+                      job_completed:
+                        report_to:
+                          - address: "https://yourcallback.com"
+
+                  members:
+                    - member_id: "Jk5L8zD2qN0W"
+                      acl: ["view"]
+                      authorizations: ["view"]
+                      name: "John Doe"
+                      company_id: "company_1"
+                      review: false
+                      edit_file: false
+                      addresses:
+                        - address: "email:john.doe@company.com"
+                          custom_messages:
+                            invitation_message:
+                              subject: "Custom subject"
+                              html: "Custom html"
+                              email_from_name: "Custom from name"
+                            reminder_message:
+                              subject: "Custom subject"
+                              html: "Custom html"
+                              email_from_name: "Custom from name"
+                            job_completed:
+                              subject: "Custom subject"
+                              html: "Custom html"
+                              email_from_name: "Custom from name"
+                        - address: "sms:+4670987xxyy"
+                          custom_messages:
+                            invitation_message:
+                              text: "Custom text"
+                              sms_originator_text: "Custom from text"
+                              sms_originator_number: "+4670987xxyy"
+                            reminder_message:
+                              text: "Custom text"
+                              sms_originator_text: "Custom from text"
+                              sms_originator_number: "+4670987xxyy"
+                            job_completed:
+                              text: "Custom text"
+                              sms_originator_text: "Custom from text"
+                              sms_originator_number: "+4670987xxyy"
+                      signature_options:
+                        signature_methods:
+                          - type: "bankid"
+                            personal_id: "20010101-1234"
+                            hide_personal_id: false
+                        signature_order: 1
+                        # invite_in_signature_order: true
+                        # validity_time: "2022-01-01T00:00:00Z"
+                        signature_success_authorizations: ["view"]
+                      member_properties:
+                        acl: ["view"]
+                        any_key_name: "any_value"
+                  attachments:
+                    - attachment_id: "Ak6K0cG1eL9T"
+                      acl: ["view"]
+                      name: "attachment_1.pdf"
+                      content_transfer_encoding: "base64"
+                      content_type: "application/pdf"
+                      payload: "base64EncodedPdfAttachment=="
+                      attachment_purpose: "SIGNATORY"
+                  # chat:
+                  #   acl: ["view"]
+        description: ''
+      security:
+        - basicAuth: []
+  /api/ebox/delete_job_v1:
+    parameters:
+      - name: job_uuid
+        in: query
+        required: true
+        schema:
+          type: string
+        description: 'Required parameter'
+    delete:
+      summary: delete job data
+      operationId: delete-job
+      responses:
+        '200':
+          description: 'Returns a string saying: Delete successful for job_uuid: {job_uuid}'
+          content:
+            text/plain:
+              schema:
+                type: string
+                properties: {}
+        '401':
+          description: Unauthorized
+          headers: {}
+          content:
+            text/plain:
+              schema:
+                type: object
+                properties: {}
+        '404':
+          description: Not found
+          headers: {}
+          content:
+            text/plain:
+              schema:
+                type: object
+                properties: {}
+        4XX:
+          description: 'Badrequest: Permanent error'
+          headers: {}
+          content:
+            text/plain:
+              schema:
+                type: object
+                properties: {}
+        '500':
+          description: 'Returns a string with details of the data that failed to delete'
+          headers: {}
+          content:
+            text/plain:
+              schema:
+                type: object
+                properties: {}
+      description: |- 
+        Deletes the job data
+        ## Endpoint
+        **Host:** https\://k8api.tellustalk.com/api/ebox/delete_job_v1<br><br>
+        ## Authorization
+        The `Authorization` header is required. Format:<br>
+        - **Authorization** Basic `username:password` _(base64-encoded)_
+components:
+  schemas:
+    acl:
+      type: array
+      title: acl
+      description: Any member having any of these strings in his authorizations has access to this object and its children. An acl on any level replaces the acl of its parents.
+      examples:
+        - ["view"]
+      uniqueItems: true
+      items:
+        type: string
+        examples:
+          - ["view"]
+    member_id_address_object:
+      title: address_object
+      type: object
+      description: 'sends an invitation to all addresses of member_id predefined in this job'
+      properties:
+        member_id:
+          $ref: '#/components/schemas/member_id_address'
+        name:
+          type: string
+          default: 'The members name'
+        subject:
+          description: 'Replaces the system generated subject'
+          type: string
+        html:
+          description: 'Replaces the system generated html'
+          type: string
+        text:
+          description: 'Replaces the system generated text'
+          type: string
+        headers:
+          description: 'FUTURE FEATURE'
+          type: object
+          properties:
+            header_name:
+              type: string
+              description: header and value for the target protocol
+      required:
+        - member_id
+
+    member_email_address_object:
+      title: email address
+      type: object
+      description: ''
+      properties:
+        address:
+          $ref: '#/components/schemas/email_address'
+        name:
+          type: string
+          description: 'The recipients name'
+        email_from_name:
+          type: string
+          description: 'The name visible as from in the email client'
+        custom_messages:
+          type: object
+          description: 'Use when ever you like to change the default behavior of the application'
+          properties:
+            job_started:
+              description: 'The message sent when the job starts'
+              $ref: '#/components/schemas/member_email_message_options'
+            invitation_message:
+              description: 'The message sent when its the members turn to be invited'
+              $ref: '#/components/schemas/member_email_message_options'
+            reminder_message:
+              description: 'The message sent to a reviewing or signing member when they are scheduled to be reminded'
+              $ref: '#/components/schemas/member_email_message_options'
+            job_completed:
+              description: 'What is sent when the job is completed'
+              $ref: '#/components/schemas/member_email_message_options'
+      required:
+        - address
+    member_email_message_options:
+      title: email message
+      type: object
+      properties:
+        subject:
+          description: 'Replaces the system generated subject'
+          type: string
+        html:
+          description: 'Replaces the system generated html'
+          type: string
+        email_from_name:
+          type: string
+          description: 'The name visible as from in the email client'
+        headers:
+          type: object
+          description: 'FUTURE FEATURE'
+          properties:
+            header_name:
+              type: string
+              description: header and value for the target protocol
+      required:
+        - subject
+        - html
+    member_sms_address_object:
+      title: SMS address
+      type: object
+      description: ''
+      properties:
+        address:
+          $ref: '#/components/schemas/sms_address'
+        name:
+          type: string
+        sms_originator_text:
+          description: 'The text displayed as from in the mobile phone'
+          type: string
+        sms_originator_number:
+            description: 'The number displayed as from in the mobile phone'
+            type: string
+        custom_messages:
+          type: object
+          description: 'Use when ever you like to change the default behavior of the application'
+          properties:
+            job_started:
+              description: 'Job started message'
+              $ref: '#/components/schemas/member_sms_message_options'
+            invitation_message:
+              description: 'Job started message'
+              $ref: '#/components/schemas/member_sms_message_options'
+            reminder_message:
+              description: 'The message sent to a reviewing or signing member when they are scheduled to be reminded'
+              $ref: '#/components/schemas/member_sms_message_options'
+            job_completed:
+              description: 'Job started message'
+              $ref: '#/components/schemas/member_sms_message_options'
+      required:
+        - address
+    member_sms_message_options:
+      title: email message
+      type: object
+      properties:
+        text:
+          description: 'Replaces the system generated SMS message'
+          type: string
+        sms_originator_text:
+          description: 'The text displayed as from in the mobile phone'
+          type: string
+        sms_originator_number:
+          description: 'The number displayed as from in the mobile phone'
+          type: string
+        headers:
+          type: object
+          description: 'FUTURE FEATURE'
+          properties:
+            header_name:
+              type: string
+              description: header and value for the target protocol
+      required:
+        - text
+    email_address_object:
+      title: email address
+      type: object
+      description: ''
+      properties:
+        address:
+          $ref: '#/components/schemas/email_address'
+        name:
+          type: string
+        subject:
+          description: 'Replaces the system generated subject'
+          type: string
+        html:
+          description: 'Replaces the system generated html'
+          type: string
+        email_from_name:
+          type: string
+          description: 'The name visible as from in the email client'
+        headers:
+          type: object
+          properties:
+            header_name:
+              type: string
+              description: header and value for the target protocol
+      required:
+        - address
+    sms_address_object:
+      title: SMS address
+      type: object
+      description: ''
+      properties:
+        address:
+          $ref: '#/components/schemas/sms_address'
+        name:
+          description: 'The recipients name'
+          type: string
+        text:
+          description: 'Replaces the system generated text'
+          type: string
+        sms_originator_text:
+          description: 'The text displayed as from in the mobile phone'
+          type: string
+        sms_originator_number:
+          description: 'The number displayed as from in the mobile phone'
+          type: string
+        headers:
+          type: object
+          properties:
+            header_name:
+              type: string
+              description: header and value for the target protocol
+      required:
+        - address
+    https_address_object:
+      type: object
+      title: https address
+      description: 'NOTE: the callback expects to receive a 200 OK response. If not, the callback will be retried.'
+      properties:
+        address:
+          $ref: '#/components/schemas/https_address'
+        headers:
+          type: object
+          required:
+            - Content-Type
+          properties:
+            Content-Type:
+              default: application/json
+              type: string
+              enum:
+                - application/json
+                # - text/plain
+                # - text/html
+                # - application/xml
+              description: desired content type of the message body
+
+            header_name:
+              type: string
+              description: header and value for the target protocol
+      required:
+        - address
+
+    address_object:
+      title: address_object
+      type: object
+      description: ''
+      properties:
+        address:
+          anyOf:
+            - $ref: '#/components/schemas/email_address'
+            - $ref: '#/components/schemas/sms_address'
+            - $ref: '#/components/schemas/https_address'
+        name:
+          type: string
+        subject:
+          description: 'Replaces the system generated subject'
+          type: string
+        html:
+          description: 'Replaces the system generated html'
+          type: string
+        text:
+          description: 'Replaces the system generated text'
+          type: string
+        headers:
+          type: object
+          properties:
+            header_name:
+              type: string
+              description: header and value for the target protocol
+      required:
+        - address
+    member_id_address:
+      description: 'sends to all addresses of member_id predefined in this job'
+      type: string
+      title: member_id
+      minLength: 8
+      pattern: '[a-zA-Z0-9]*'
+      examples:
+        - 'Jk5L8zD2qN0W'
+    email_address:
+      description: 'email:one.doe@company.com'
+      type: string
+      title: email_address
+      pattern: '^email:[a-z0-9_\-@]*'
+      examples:
+        - 'email:one.doe@company.com'
+    sms_address:
+      type: string
+      title: sms_address
+      pattern: '^sms:[\+0-9]*'
+      examples:
+        - 'sms:+4670987xxyy'
+      description: 'sms:+countrycodenumber'
+    https_address:
+      type: string
+      title: https_address
+      format: uri
+      examples:
+        - 'https://host.domain.com/path?any=parameter'
+      description: 'https://anyurl?anyquery'
+    callback_signature_https_address:
+      type: string
+      title: https_address
+      format: uri
+      examples:
+        - 'https://host.domain.com/path?any=parameter'
+      description: 'https://anyurl?anyquery'
+    member_object:
+      description: People participating in this job.
+      type: object
+      x-examples:
+        example-1:
+          acl: []
+          authorizations: []
+          company_id: string
+          name: string
+          addresses: []
+          login_options: []
+          sign_options: []
+          extra_fields: {}
+      properties:
+        member_id:
+          $ref: '#/components/schemas/object_id'
+        acl:
+          $ref: '#/components/schemas/acl'
+        authorizations:
+          $ref: '#/components/schemas/acl'
+        name:
+          type: string
+          minLength: 1
+          description: 'The full name of the member'
+        first_name:
+          type: string
+          deprecated: true
+          description: 'Add the full name to "name" instead'
+          minLength: 1
+        last_name:
+          type: string
+          deprecated: true
+          description: 'Add the full name to "name" instead'
+          minLength: 1
+        company_id:
+          description: A company_id defined in the list of companies defined in config
+          type: string
+          examples:
+            - 'company_1'
+          minLength: 1
+        addresses:
+          type: array
+          items:
+            anyOf:
+              - $ref: '#/components/schemas/member_email_address_object'
+              - $ref: '#/components/schemas/member_sms_address_object'
+        send_invitation:
+          type: boolean
+          default: true
+          deprecated: true
+          description: 'use config.events to declare the message scenario instead'
+        review:
+          description: Giving any member(s) review obligation means they will need to approve the job before the signature process can start. 
+          type: boolean
+          default: false
+        edit_file:
+          description: Giving any member(s) edit_file obligation means they will be able to edit and save PDF forms. 
+          type: boolean
+          default: false
+        login_options:
+          $ref: '#/components/schemas/login_options'
+          default: 'can participate without haiving to login'
+        signature_options:
+          $ref: '#/components/schemas/signature_options'
+          default: 'is not required to sign'
+        member_properties:
+          type: object
+          description: optional member information
+          properties:
+            acl:
+              $ref: '#/components/schemas/acl'
+            any_key_name:
+              type: string
+              description: optional key value pairs
+      required:
+        - member_id
+        - acl
+        - authorizations
+        - name
+    job_logo:
+      description: jpeg/png/gif image displayed in every email for this job.
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: filename
+        content_transfer_encoding:
+          type: string
+          minLength: 1
+          enum:
+            - base64
+          description: base64 only supported at this time
+        content_type:
+          type: string
+          minLength: 1
+          enum:
+            - image/jpeg
+            - image/png
+            - image/gif
+          description: Only jpeg/png/gif allowed at this time
+        payload:
+          type: string
+          minLength: 1
+          maxLength: 50000
+          description: base64 encoded content of an image, strict base64 complience, only base64 characters allowed
+      required:
+        - name
+        - content_transfer_encoding
+        - content_type
+        - payload
+
+    attachment:
+      description: PDF-files to sign or as additional information.
+      type: object
+      x-examples:
+        example-1:
+          content_transfer_encoding: base64
+          content_type: application/pdf
+          payload: data_b64
+          file_name: name
+      properties:
+        attachment_id:
+          $ref: '#/components/schemas/object_id'
+        acl:
+          $ref: '#/components/schemas/acl'
+        name:
+          type: string
+          minLength: 1
+          description: filename
+        content_transfer_encoding:
+          type: string
+          minLength: 1
+          enum:
+            - base64
+          description: base64 only supported at this time
+        content_type:
+          type: string
+          minLength: 1
+          enum:
+            - application/pdf
+          description: only application/pdf allowed at this time
+        payload:
+          type: string
+          minLength: 1
+          description: base64 encoded content of an image, strict base64 complience, only base64 characters allowed
+        attachment_purpose:
+          type: string
+          enum:
+            - SIGNATORY
+            - SUPPORTIVE
+          description: SIGNATORY or SUPPORTIVE
+      required:
+        - attachment_id
+        - acl
+        - name
+        - content_transfer_encoding
+        - content_type
+        - payload
+        - attachment_purpose
+    company_object:
+      title: company_object
+      type: object
+      description: A company members are grouped by, by company_id
+      properties:
+        company_id:
+          description: Any string unique amongst company_id's
+          type: string
+          examples:
+            - 'company_1'
+        company_name:
+          description: The name of the company
+          type: string
+          examples:
+            - 'Company One Ltd'
+        acl:
+          $ref: '#/components/schemas/acl'
+      required:
+        - company_id
+        - company_name
+    event_message_send_object:
+      title: event_object
+      type: object
+      description: Future feature
+      properties:
+        to:
+          $ref: '#/components/schemas/address_object'
+    event_object:
+      title: event_object
+      type: object
+      description: Future feature
+      properties:
+        report_to:
+          $ref: '#/components/schemas/address_object'
+        subject:
+          type: string
+        content_type:
+          type: string
+          enum:
+            - text/plain
+            - text/html
+            - application/json
+          description: The content type of the message body
+        body:
+          type: string
+    bankid_object:
+      title: bankid
+      description: 'Bankid swedish electronic identification system'
+      type: object
+      properties:
+        type:
+          description: 'Bankid swedish electronic identification system'
+          type: string
+          enum:
+            - bankid
+        personal_id:
+          description: If omitted anyone can identify themselves
+          type: string
+          examples:
+           - '20010101-1234'
+        hide_personal_id:
+          description: The personal_id will be removed and not visible in the signed document (mask_id)
+          type: boolean
+          default: false
+        acl:
+          $ref: '#/components/schemas/acl'
+      required:
+        - type
+    freja_object:
+      title: freja
+      description: 'Freja+ swedish electronic identification system'
+      type: object
+      properties:
+        type:
+          description: 'Freja+ swedish electronic identification system'
+          type: string
+          enum:
+            - freja
+        hide_personal_id:
+          description: The personal_id will be removed and not visible in the signed document (mask_id)
+          type: boolean
+          default: false
+        acl:
+          $ref: '#/components/schemas/acl'
+      required:
+        - type
+    otp_object:
+      title: otp
+      description: 'One time password'
+      type: object
+      properties:
+        type:
+          description: 'One time password'
+          type: string
+          enum:
+            - otp
+        otp_address:
+          anyOf:
+            - $ref: '#/components/schemas/sms_address'
+            - $ref: '#/components/schemas/email_address'
+        acl:
+          $ref: '#/components/schemas/acl'
+      required:
+        - type
+        - otp_address
+    draw_object:
+      title: draw
+      description: 'Draw a signature on screen'
+      type: object
+      properties:
+        type:
+          description: 'Draw a signature on screen'
+          type: string
+          enum:
+            - draw
+        acl:
+          $ref: '#/components/schemas/acl'
+      required:
+        - type
+
+    object_id:
+      description: 'minimum 8 characters in the range: A-Za-z0-9 must be unique'
+      title: object_id
+      type: string
+      minLength: 8
+      pattern: '[a-zA-Z0-9]*'
+      examples:
+        - 'Jk5L8zD2qN0W'
+    signature_options:
+      title: signature_options
+      type: object
+      x-internal: false
+      properties:
+        signature_methods:
+          description: How to sign the documents
+          type: array
+          items:
+            anyOf:
+              - $ref: '#/components/schemas/bankid_object'
+              - $ref: '#/components/schemas/freja_object'
+              - $ref: '#/components/schemas/otp_object'
+              - $ref: '#/components/schemas/draw_object'
+        signature_order:
+          type: integer
+          minimum: 1
+          description: When to sign before or after
+        # invite_in_signature_order:
+        #   type: boolean
+        #   default: true
+        # validity_time:
+        #   type: string
+        #   format: date-time
+        #   description: After this date-time(ISO 8601) the member won't be able to sign
+        acl:
+          $ref: '#/components/schemas/acl' 
+        signature_success_authorizations:
+          type: array
+          description: Authorizations receivied after signature
+          items:
+            type: string
+      required:
+        - signature_methods
+        - signature_order
+    login_options:
+      title: login_options
+      type: object
+      properties:
+        login_methods:
+          type: array
+          items:
+            anyOf:
+              - $ref: '#/components/schemas/bankid_object'
+              - $ref: '#/components/schemas/freja_object'
+              - $ref: '#/components/schemas/otp_object'
+        # validity_time:
+        #   type: string
+        #   format: date-time
+        #   description: After this date-time(ISO 8601) the member won't be able to login
+        acl:
+          $ref: '#/components/schemas/acl'
+        login_success_authorizations:
+          $ref: '#/components/schemas/acl'
+    report_to_callback:
+      description: 'Stake holders report'
+      type: object
+      properties:
+        job_uuid:
+          type: string
+          description: The job_uuid of the job
+        job_name:
+          type: string
+        ebox_job_key:
+          type: string
+          description: The ebox_id of the job, kan be used for reference
+        event:
+          enum:
+            - job_started
+            # - members_initial_view
+            # - review_process_completed
+            - signature_occured
+            - signature_completed
+            # - signature_level_completed
+            - job_completed
+            # - chat_message
+            # - delivery_report
+        signed_files_list:
+          type: array
+          description: 'Containing all signatures up till this moment'
+          items:
+            type: object
+            properties:
+              file_id:
+                type: string
+                description: 'The attachment_id of the signed file'
+              members:
+                type: object
+                description: 'Sign status details for each member, including their names, addresses and time of signature'
+                additionalProperties:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: 'The unique identifier for the member'
+                    name:
+                      type: string
+                      description: 'The name of the member'
+                    addresses:
+                      type: array
+                      description: 'An array of address strings for the member'
+                      items:
+                        type: string
+                    expected_to_sign:
+                      type: boolean
+                      description: 'Whether the member is expected to sign the document'
+                    has_signed:
+                      type: string or None
+                      description: 'Timestamp of when the member signed, or None if not signed'
+              members_expected_to_sign_ids:
+                type: array
+                description: 'All member_ids expected to sign this document'
+                items:
+                  $ref: '#/components/schemas/member_id_address'
+              members_signed_ids:
+                type: array
+                description: 'member_ids that has signed sign up to this moment'
+                items:
+                  $ref: '#/components/schemas/member_id_address'
+              members_pending_to_sign_ids:
+                type: array
+                description: 'member_ids that has not yet signed'
+                items:
+                  $ref: '#/components/schemas/member_id_address'
+              signatures_list:
+                type: array
+                description: 'All signatures up till this moment'
+                items:
+                  type: object
+                  properties:
+                    member_id:
+                      $ref: '#/components/schemas/member_id_address'
+                    signature_time:
+                      type: string
+                      format: date-time
+                      description: When the signature was made
+              download_url:
+                type: string
+                format: uri
+                description: 'URL to download the signed document. NOTE: authorization Basic username:password (base64-encoded) header is required to download the file.'
+              content_type:
+                type: string
+                enum:
+                  - application/pdf
+              content_transfer_encoding:
+                type: string
+                enum:
+                  - base64
+              payload:
+                type: string
+                description: base64 encoded content of a PDF, strict base64 complience, only base64 characters allowed
+      required: [ebox_id, member_id, event]
+    job_creation_request:
+        type: object
+        properties:
+          config:
+            type: object
+            description: Any settings shared by all users
+            required:
+              - job_name
+              - acl
+            properties:
+              job_name:
+                type: string
+                description: Displayed Job Name
+              sign_together: 
+                type: boolean
+                default: false
+                description: If several uploaded signatory files should be signed together (with one signature) or not
+              job_logo:
+                $ref: '#/components/schemas/job_logo'
+              validity_time:
+                type: string
+                format: date-time
+                description: After this date-time(ISO 8601) the job won't be able to open. To turn off validity time, set to 'no_validity_time'
+              companies:
+                type: array
+                description: Companies members can be grouped by
+                items:
+                  $ref: '#/components/schemas/company_object'
+              coverpage_position:
+                type: string
+                enum:
+                  - front
+                  - back
+                description: The position of the coverpage in the signed document.
+                default: "front"
+              coverpage_language:
+                deprecated: true
+                type: string
+                enum:
+                  - en
+                  - sv
+                  - no
+                  - da
+                  - fi
+                  - de
+                  - fr
+                  - ca
+                  - es
+                description: The language the coverpage of the signed document will be in.
+                default: "The preferred language of the author of the signature request"
+              language:
+                type: string
+                enum:
+                  - en
+                  - sv
+                  - no
+                  - fi
+                  - de
+                description: The language for the sign text and coverpage of the signed document/documents.
+                default: "The user's default settings for signatory jobs (if set), else Swedish"
+              acl:
+                $ref: '#/components/schemas/acl'
+              reminders:
+                type: array
+                description: 'Array with strings in a relative time format "+<days>d <hh:mm> TZ<+/-hhmm>". For example: "+1d 12:00 TZ+0100".'
+                items:
+                  type: string
+              events:
+                type: object
+                description: Future improvement. <mark></mark> ![Beta](https://img.shields.io/badge/Status-Experimental-brightgreen)
+                properties:
+                  job_started:
+                    type: object
+                    default: 'send an invitation to eligble members'
+                    properties:
+                      report_to:
+                        default: 'no action is taken'
+                        description: 'report to stake holders that the job has started. NOTE: https callbacks expect to receive a 200 OK response. If not, the callbacks will be retried.'
+                        type: array
+                        items:
+                          anyOf:
+                            - $ref: '#/components/schemas/https_address_object'
+                            # - $ref: '#/components/schemas/email_address_object'
+                            # - $ref: '#/components/schemas/sms_address_object'
+                  # members_initial_view:
+                  #   type: object
+                  #   default: 'no action is taken'
+                  #   description: 'A member opens the job for the first time'
+                  #   properties:
+                  #     report_to:
+                  #       default: 'no action is taken'
+                  #       description: 'notify stake holders that the review process is completed. NOTE: https callbacks expect to receive a 200 OK response. If not, the callbacks will be retried.'
+                  #       type: array
+                  #       items:
+                  #         anyOf:
+                  #           - $ref: '#/components/schemas/email_address_object'
+                  #           - $ref: '#/components/schemas/sms_address_object'
+                  #           - $ref: '#/components/schemas/https_address_object'
+                  # review_process_completed:
+                  #   default: 'sends an invitation to members in order to sign'
+                  #   description: 'All reviewers has approved the job'
+                  #   type: object
+                  #   properties:
+                  #     report_to:
+                  #       default: 'no action is taken'
+                  #       type: array
+                  #       description: 'NOTE: https callbacks expect to receive a 200 OK response. If not, the callbacks will be retried.'
+                  #       items:
+                  #         anyOf:
+                  #           - $ref: '#/components/schemas/email_address_object'
+                  #           - $ref: '#/components/schemas/sms_address_object'
+                  #           - $ref: '#/components/schemas/https_address_object'
+                  signature_completed:
+                    type: object
+                    default: 'no action is taken'
+                    description: 'A member has signed'
+                    properties:
+                      report_to:
+                        default: 'no action is taken'
+                        description: 'report that somebody has signed. NOTE: https callbacks expect to receive a 200 OK response. If not, the callbacks will be retried.'
+                        type: array
+                        items:
+                          anyOf:
+                            - $ref: '#/components/schemas/https_address_object'
+                            # - $ref: '#/components/schemas/email_address_object'
+                            # - $ref: '#/components/schemas/sms_address_object'
+                      include_signed_files:
+                        type: boolean
+                        default: true
+                        description: 'If true, the signed file will be included in the callback'
+                  signature_occured:
+                    type: object
+                    deprecated: true
+                    default: 'no action is taken'
+                    description: 'Same as signature_completed, deprecated since this name is confusing'
+                    properties:
+                      report_to:
+                        default: 'no action is taken'
+                        description: 'report that somebody has signed. NOTE: https callbacks expect to receive a 200 OK response. If not, the callbacks will be retried.'
+                        type: array
+                        items:
+                          anyOf:
+                            - $ref: '#/components/schemas/https_address_object'
+                            # - $ref: '#/components/schemas/email_address_object'
+                            # - $ref: '#/components/schemas/sms_address_object'           
+                  # signature_level_completed:
+                  #   type: object
+                  #   default: 'sends an invitation to members in the next signing order'
+                  #   description: 'All members in a signature order level has signed'
+                  #   properties:
+                  #     report_to:
+                  #       type: array
+                  #       description: 'notify stake holders that the review process is completed. NOTE: https callbacks expect to receive a 200 OK response. If not, the callbacks will be retried.'
+                  #       items:
+                  #         anyOf:
+                  #           - $ref: '#/components/schemas/https_address_object'
+                  #           - $ref: '#/components/schemas/email_address_object'
+                  #           - $ref: '#/components/schemas/sms_address_object'
+                  #     include_signed_files:
+                  #       type: boolean
+                  #       default: true
+                  #       description: 'If true, the signed file will be included in the callback'
+                  job_completed:
+                    type: object
+                    default: 'sends a job completed message to all invited members'
+                    description: 'notify stake holders that the job is completed'
+                    properties:
+                      report_to:
+                        default: 'no action is taken'
+                        type: array
+                        description: 'NOTE: https callbacks expect to receive a 200 OK response. If not, the callbacks will be retried.'
+                        items:
+                          anyOf:
+                            - $ref: '#/components/schemas/https_address_object'
+                            # - $ref: '#/components/schemas/email_address_object'
+                            # - $ref: '#/components/schemas/sms_address_object'
+                      include_signed_files:
+                        type: boolean
+                        default: true
+                        description: 'If true, the signed file will be included in the callback'
+                  # chat_message:
+                  #   default: 'no action is taken'
+                  #   description: 'A member has commented in the job chat'
+                  #   type: object
+                  #   properties:
+                  #     report_to:
+                  #       type: array
+                  #       description: 'notify stake holders that the review process is completed. NOTE: https callbacks expect to receive a 200 OK response. If not, the callbacks will be retried.'
+                  #       items:
+                  #         anyOf:
+                  #           - $ref: '#/components/schemas/email_address_object'
+                  #           - $ref: '#/components/schemas/sms_address_object'
+                  #           - $ref: '#/components/schemas/https_address_object'
+                  # delivery_report:
+                  #   type: object
+                  #   description: 'A message to a stake holder has reported delivered'
+                  #   default: 'no action is taken'
+                  #   properties:
+                  #     report_to:
+                  #       default: 'no delivery reports are sent'
+                  #       description: 'notify api agents when ever a message is reported delivered. NOTE: https callbacks expect to receive a 200 OK response. If not, the callbacks will be retried.'
+                  #       type: array
+                  #       items:
+                  #         anyOf:
+                  #           - $ref: '#/components/schemas/https_address_object'
+          members:
+            type: array
+            description: People participating
+            items:
+              $ref: '#/components/schemas/member_object'
+          attachments:
+            type: array
+            description: PDF-files to sign or read
+            items:
+              $ref: '#/components/schemas/attachment'
+          # chat:
+          #   type: object
+          #   description: Allowes members to chat with each other. If excluded, the chat tab will not be displayed.
+          #   properties:
+          #     acl:
+          #       $ref: '#/components/schemas/acl'
+        required:
+          - config
+          - members
+
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: Basic

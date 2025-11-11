@@ -297,7 +297,6 @@ class ForvaltningsberattelseFB:
         nyemission = self._calculate_nyemission_from_verifications(verifications)
         erhallna_tillskott, aterbetalda_tillskott = self._calculate_aktieagartillskott_from_verifications(verifications)
         uppskrivning_anl, aterforing_uppskr = self._calculate_uppskrivning_from_verifications(verifications)
-        balanseras_nyrakning_voucher = self._calculate_balanseras_nyrakning_from_verifications(verifications)
         uppskrfond_aterforing_balanserat_resultat = self._calculate_uppskrfond_aterforing_balanserat_resultat_from_verifications(verifications)
         
         # Extract BR values using correct variable names from CSV
@@ -323,12 +322,15 @@ class ForvaltningsberattelseFB:
         uppskrfond_calculated_ub = (uppskrfond_ib + uppskrivning_anl - aterforing_uppskr)
         
         # Calculate balanseras_nyrakning
-        balansresultat_balanseras = (balansresultat_ib - utdelning + erhallna_tillskott - 
-                                   aterbetalda_tillskott + reservfond_change)
-        arets_resultat_balanseras = -balansresultat_balanseras
+        # Simple: inject previous year's "Årets resultat" directly
+        # Row "Balanseras i ny räkning":
+        #   - Column "Balanserat resultat": previous year's "Årets resultat"
+        #   - Column "Årets resultat": negative of previous year's "Årets resultat"
+        balansresultat_balanseras_final = arets_resultat_prev_ub
+        arets_resultat_balanseras_final = -arets_resultat_prev_ub
         
         # Calculate årets resultat
-        arets_resultat_calculated = (arets_resultat_ib + arets_resultat_balanseras)
+        arets_resultat_calculated = (arets_resultat_ib + arets_resultat_balanseras_final)
         
         # Store all calculated variables
         variables = {
@@ -360,14 +362,14 @@ class ForvaltningsberattelseFB:
             'fb_balansresultat_aterbetalda_aktieagartillskott': -aterbetalda_tillskott,
             'fb_balansresultat_forandring_reservfond': 0.0,  # Editable field, default 0
             'fb_balansresultat_fondemission': 0.0,  # Editable field, default 0
-            'fb_balansresultat_balanseras_nyrakning': balanseras_nyrakning_voucher,
+            'fb_balansresultat_balanseras_nyrakning': balansresultat_balanseras_final,
             'fb_balansresultat_uppskrfond_aterforing': uppskrfond_aterforing_balanserat_resultat,
             
             # Årets resultat
             'fb_aretsresultat_ib': arets_resultat_ib,
             'fb_aretsresultat_utdelning': 0.0,  # Editable field, default 0
             'fb_aretsresultat_aterbetalda_aktieagartillskott': 0.0,  # Editable field, default 0
-            'fb_aretsresultat_balanseras_nyrakning': -balanseras_nyrakning_voucher,
+            'fb_aretsresultat_balanseras_nyrakning': arets_resultat_balanseras_final,
             'fb_aretsresultat_forandring_reservfond': 0.0,  # Editable field, default 0
             'fb_aretsresultat_fondemission': 0.0,  # Editable field, default 0
             'fb_aretsresultat_arets_resultat': arets_resultat_ub,

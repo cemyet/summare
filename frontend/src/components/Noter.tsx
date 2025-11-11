@@ -2,10 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Switch } from '@/components/ui/switch';
-import { Pencil, Check, X } from 'lucide-react';
+import { Pencil, Check, X, Plus, Minus } from 'lucide-react';
 
 interface NoterItem {
   row_id: number;
@@ -5183,7 +5184,16 @@ const FordringarOvrigaNote: React.FC<{
   );
 };
 
-// Eventualförpliktelser editor component
+// Interface for dynamic Eventual rows
+interface EventualRow {
+  id: string;  // Will use index-based IDs: eventual_0, eventual_1, etc.
+  row_title: string;
+  current_amount: number;
+  previous_amount: number;
+  row_id?: number;  // Original row_id if it exists
+}
+
+// Eventualförpliktelser editor component with add/remove row functionality
 const EventualNote: React.FC<{
   items: NoterItem[];
   heading: string;
@@ -5238,6 +5248,9 @@ const EventualNote: React.FC<{
   const [committedValues, setCommittedValues] = useState<Record<string, number>>({});
   const [committedPrevValues, setCommittedPrevValues] = useState<Record<string, number>>({});
   const [showValidationMessage, setShowValidationMessage] = useState(false);
+  
+  // Dynamic rows for add/remove functionality in edit mode
+  const [dynamicRows, setDynamicRows] = useState<EventualRow[]>([]);
 
   // Sign enforcement - all flexible for EVENTUAL
   const expectedSignFor = (vn?: string): '+' | '-' | null => {
@@ -5269,6 +5282,31 @@ const EventualNote: React.FC<{
   }, [items, toggleOn, editedValues, editedPrevValues, committedValues, committedPrevValues]);
 
   const startEdit = () => {
+    // Initialize dynamic rows from existing items
+    const dataRows = items.filter(it => it.variable_name && !isHeadingStyle(it.style) && it.style !== 'S2');
+    
+    let initialRows: EventualRow[];
+    if (dataRows.length > 0) {
+      // Initialize from existing items
+      initialRows = dataRows.map((it, idx) => ({
+        id: `eventual_${idx}`,
+        row_title: it.row_title || '',
+        current_amount: it.current_amount || 0,
+        previous_amount: it.previous_amount || 0,
+        row_id: it.row_id,  // Preserve original row_id
+      }));
+    } else {
+      // No existing items, start with one empty row
+      initialRows = [{
+        id: 'eventual_0',
+        row_title: '',
+        current_amount: 0,
+        previous_amount: 0,
+      }];
+    }
+    
+    setDynamicRows(initialRows);
+    
     setIsEditing(true);
     setToggle?.(true);
     // Also enable the visibility toggle to show the note
@@ -5280,46 +5318,73 @@ const EventualNote: React.FC<{
     setEditedValues({});
     setEditedPrevValues({});
     setShowValidationMessage(false);
+    setDynamicRows([]);  // Clear dynamic rows
     setToggle?.(false);
   };
 
   const undoEdit = () => {
+    // Reset to single empty row
+    setDynamicRows([{
+      id: 'eventual_0',
+      row_title: '',
+      current_amount: 0,
+      previous_amount: 0,
+    }]);
+    
     blurAllEditableInputs();
     setEditedValues({});
     setEditedPrevValues({});
-    setCommittedValues({ ...originalBaselineRef.current.cur });
-    setCommittedPrevValues({ ...originalBaselineRef.current.prev });
     setShowValidationMessage(false);
   };
 
   const approveEdit = () => {
-    // No balance validation for EVENTUAL - just commit the values
-    const newCommittedValues = { ...committedValues, ...editedValues };
-    const newCommittedPrevValues = { ...committedPrevValues, ...editedPrevValues };
+    // Convert dynamic rows to NoterItem format
+    const updatedItems: NoterItem[] = dynamicRows.map((row, idx) => ({
+      row_id: row.row_id || 10000 + idx,  // Use original row_id if exists, otherwise generate new
+      row_title: row.row_title,
+      current_amount: row.current_amount,
+      previous_amount: row.previous_amount,
+      variable_name: row.id,  // Use the id as variable_name for consistency
+      block: 'EVENTUAL',
+      always_show: row.current_amount !== 0 || row.previous_amount !== 0,
+      toggle_show: true,
+      style: 'NORMAL',
+    }));
     
-    setCommittedValues(newCommittedValues);
-    setCommittedPrevValues(newCommittedPrevValues);
-    setEditedValues({});
-    setEditedPrevValues({});
     setIsEditing(false);
+    setDynamicRows([]);  // Clear after save
     setToggle?.(false);
     
-    // Update items with new values and bubble up to parent
-    const updatedItems = items.map(item => {
-      if (!item.variable_name) return item;
-      const newCurrent = newCommittedValues[item.variable_name];
-      const newPrevious = newCommittedPrevValues[item.variable_name];
-      return {
-        ...item,
-        current_amount: newCurrent !== undefined ? newCurrent : item.current_amount,
-        previous_amount: newPrevious !== undefined ? newPrevious : item.previous_amount,
-      };
-    });
-    
-    console.log('✅ [EVENTUAL-APPROVE] Updating items with edits:', { 
-      editedCount: Object.keys(editedValues || {}).length + Object.keys(editedPrevValues || {}).length
-    });
+    console.log('✅ [EVENTUAL-APPROVE] Saving dynamic rows as items:', updatedItems);
     onItemsUpdate?.(updatedItems);
+  };
+
+  // Add/remove row functions
+  const addRow = () => {
+    const newIndex = dynamicRows.length;
+    setDynamicRows([...dynamicRows, {
+      id: `eventual_${newIndex}`,
+      row_title: '',
+      current_amount: 0,
+      previous_amount: 0,
+    }]);
+  };
+
+  const removeRow = (index: number) => {
+    if (dynamicRows.length > 1) {
+      setDynamicRows(dynamicRows.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateRow = (index: number, field: keyof EventualRow, value: any) => {
+    const updated = [...dynamicRows];
+    updated[index] = { ...updated[index], [field]: value };
+    setDynamicRows(updated);
+  };
+
+  const formatCurrency = (amount: number | null) => {
+    if (amount === null || amount === undefined) return '0';
+    return new Intl.NumberFormat('sv-SE').format(amount);
   };
 
   // Helper functions
@@ -5417,92 +5482,94 @@ const EventualNote: React.FC<{
           </div>
 
           {/* Rows */}
-          {(() => {
-            let ordCounter = 0;
-            return visible.map((it, idx) => {
-              const getStyleClasses = (style?: string) => {
-                const baseClasses = 'grid gap-4';
-                let additionalClasses = '';
-                const s = style || 'NORMAL';
-                
-                const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
-                if (boldStyles.includes(s)) {
-                  additionalClasses += ' font-semibold';
-                }
-                
-                const lineStyles = ['S2','S3','TS2','TS3'];
-                if (lineStyles.includes(s)) {
-                  additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
-                }
-                
-                return {
-                  className: `${baseClasses}${additionalClasses}`,
-                  style: { gridTemplateColumns: '4fr 1fr 1fr' }
-                };
-              };
-
-              const currentStyle = it.style || 'NORMAL';
-              const isHeadingRow = isHeadingStyle(currentStyle);
-              const isS2 = isSumRow(it);
-              const editable = isEditing && isFlowVar(it.variable_name);
-              
-              const ordCur  = editable ? ++ordCounter : undefined;
-              const ordPrev = editable ? ++ordCounter : undefined;
-              
-              const curVal = isS2 ? sumGroupAbove(visible, idx, 'cur') : getVal(it.variable_name ?? '', 'cur');
-              const prevVal = isS2 ? sumGroupAbove(visible, idx, 'prev') : getVal(it.variable_name ?? '', 'prev');
-              
-              const gc = getStyleClasses(currentStyle);
-              
-              return (
-                <div 
-                  key={`${it.row_id}-${idx}`}
-                  className={gc.className}
-                  style={gc.style}
-                >
-                  <span className="text-muted-foreground">{it.row_title}</span>
-                  
-                  {/* Current year amount */}
-                  <span className="text-right font-medium">
-                    {isHeadingRow ? '' : (
-                      <AmountCell
-                        year="cur"
-                        varName={it.variable_name!}
-                        baseVar={it.variable_name!}
-                        label={it.row_title}
-                        editable={editable}
-                        value={curVal}
-                        ord={ordCur}
-                        onCommit={(n) => setEditedValues(p => ({ ...p, [it.variable_name!]: n }))}
-                        onTabNavigate={(el, dir) => focusByOrd(el, dir)}
-                        onSignForced={(e) => pushSignNotice(e)}
-                        expectedSignFor={expectedSignFor}
-                      />
+          {isEditing ? (
+            /* Edit mode: Show dynamic rows with add/remove buttons */
+            <div className="space-y-2">
+              {dynamicRows.map((row, index) => (
+                <div key={row.id} className="flex gap-4 items-start">
+                  <div className="grid gap-4 flex-1" style={{ gridTemplateColumns: '4fr 1fr 1fr' }}>
+                  <Input
+                    value={row.row_title}
+                    onChange={(e) => updateRow(index, 'row_title', e.target.value)}
+                    placeholder="Beskrivning av eventualförpliktelse"
+                    className="h-8 text-sm placeholder:text-gray-400"
+                  />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={row.current_amount === 0 ? '' : row.current_amount}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^\d-]/g, '');
+                      updateRow(index, 'current_amount', val === '' || val === '-' ? 0 : parseFloat(val));
+                    }}
+                    placeholder="0"
+                    className="h-8 text-sm text-right border border-gray-300 rounded px-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    style={{
+                      /* Hide number input spinners */
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'textfield'
+                    } as React.CSSProperties}
+                  />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={row.previous_amount === 0 ? '' : row.previous_amount}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^\d-]/g, '');
+                      updateRow(index, 'previous_amount', val === '' || val === '-' ? 0 : parseFloat(val));
+                    }}
+                    placeholder="0"
+                    className="h-8 text-sm text-right border border-gray-300 rounded px-2 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    style={{
+                      /* Hide number input spinners */
+                      WebkitAppearance: 'none',
+                      MozAppearance: 'textfield'
+                    } as React.CSSProperties}
+                  />
+                  </div>
+                  <div className="flex gap-1 shrink-0" style={{ width: '68px', justifyContent: 'flex-end' }}>
+                    {index === dynamicRows.length - 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={addRow}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
                     )}
-                  </span>
-                  
-                  {/* Previous year amount */}
-                  <span className="text-right font-medium">
-                    {isHeadingRow ? '' : (
-                      <AmountCell
-                        year="prev"
-                        varName={`${it.variable_name!}_prev`}
-                        baseVar={it.variable_name!}
-                        label={it.row_title}
-                        editable={editable}
-                        value={prevVal}
-                        ord={ordPrev}
-                        onCommit={(n) => setEditedPrevValues(p => ({ ...p, [it.variable_name!]: n }))}
-                        onTabNavigate={(el, dir) => focusByOrd(el, dir)}
-                        onSignForced={(e) => pushSignNotice(e)}
-                        expectedSignFor={expectedSignFor}
-                      />
+                    {dynamicRows.length > 1 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeRow(index)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
                     )}
-                  </span>
+                  </div>
                 </div>
-              );
-            });
-          })()}
+              ))}
+            </div>
+          ) : (
+            /* View mode: Show visible items */
+            visible.map((it, idx) => (
+              <div 
+                key={`${it.row_id}-${idx}`}
+                className="grid gap-4"
+                style={{ gridTemplateColumns: '4fr 1fr 1fr' }}
+              >
+                <span className="text-muted-foreground">{it.row_title}</span>
+                <span className="text-right font-medium">
+                  {formatAmountDisplay(it.current_amount || 0)}
+                </span>
+                <span className="text-right font-medium">
+                  {formatAmountDisplay(it.previous_amount || 0)}
+                </span>
+              </div>
+            ))
+          )}
 
           {/* Action buttons - only show when editing */}
           {isEditing && (
@@ -6539,12 +6606,24 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
   const handleItemsUpdate = (blockName: string, updatedItems: NoterItem[]) => {
     console.log('📝 [NOTER-UPDATE] Block edited:', blockName, 'Items:', updatedItems.length);
     
-    // Update noterData by replacing items for this block
-    const updatedNoterData = noterData.map(item => {
-      // Find if this item is in the updated block
-      const updatedItem = updatedItems.find(ui => ui.row_id === item.row_id && ui.block === item.block);
-      return updatedItem || item;
-    });
+    let updatedNoterData: NoterItem[];
+    
+    // Special handling for EVENTUAL block - replace entire block instead of merging by row_id
+    if (blockName === 'EVENTUAL') {
+      // Remove all existing EVENTUAL items and add the new ones
+      updatedNoterData = [
+        ...noterData.filter(item => item.block !== 'EVENTUAL'),
+        ...updatedItems
+      ];
+      console.log('📝 [EVENTUAL-UPDATE] Replaced entire EVENTUAL block with:', updatedItems);
+    } else {
+      // For other blocks, merge by row_id as before
+      updatedNoterData = noterData.map(item => {
+        // Find if this item is in the updated block
+        const updatedItem = updatedItems.find(ui => ui.row_id === item.row_id && ui.block === item.block);
+        return updatedItem || item;
+      });
+    }
     
     console.log('📝 [NOTER-UPDATE] Bubbling updated noterData to parent:', {
       totalItems: updatedNoterData.length,
@@ -6584,8 +6663,23 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
     groupedItems[block].sort((a, b) => (a.row_id || 0) - (b.row_id || 0));
   });
 
-  // Get unique blocks for toggle controls
-  const blocks = Object.keys(groupedItems);
+  // Get unique blocks for toggle controls, sorted in proper note order
+  const noteOrder = [
+    'NOT1', 'NOT2',
+    'BYGG', 'MASKIN', 'INV', 'MAT',
+    'KONCERN', 'INTRESSEFTG',
+    'FORDR_KONCERN', 'FORDRKONC',
+    'LVP',
+    'FORDR_INTRESSE', 'FORDR_OVRIG',
+    'SAKERHET', 'EVENTUAL',  // SAKERHET before EVENTUAL
+    'OVRIGA', 'OTHER'  // OVRIGA last
+  ];
+  
+  const allBlocks = Object.keys(groupedItems);
+  const blocks = [
+    ...noteOrder.filter(b => allBlocks.includes(b)),
+    ...allBlocks.filter(b => !noteOrder.includes(b))
+  ];
 
   // Filter items based on toggle states
   const getVisibleItems = (items: NoterItem[], block?: string) => {
@@ -6632,15 +6726,22 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               const blockItems = groupedItems[block];
               const visibleItems = getVisibleItems(blockItems, block);
               
-              // For OVRIGA block, always show if there's moderbolag data
+              // For OVRIGA block, always show header (like EVENTUAL/SAKERHET)
+              // Content visibility is controlled by toggle or moderbolag
               const scrapedData = (companyData as any)?.scraped_company_data;
               const moderbolag = scrapedData?.moderbolag;
               const shouldShowOvrigaForModerbolag = block === 'OVRIGA' && moderbolag;
+              const ovrigaToggleKey = 'ovriga-visibility';
+              const shouldShowOvrigaForToggle = block === 'OVRIGA' && blockToggles[ovrigaToggleKey] === true;
               
               // Check if block should be visible
+              // For OVRIGA, always show header (like EVENTUAL/SAKERHET), content visibility is separate
               let isVisible = true;
               
-              if (visibleItems.length === 0 && !shouldShowOvrigaForModerbolag) {
+              if (block === 'OVRIGA') {
+                // Always show OVRIGA header, even if no content (like EVENTUAL/SAKERHET)
+                isVisible = true;
+              } else if (visibleItems.length === 0 && !shouldShowOvrigaForModerbolag && !shouldShowOvrigaForToggle) {
                 isVisible = false;
               }
               
@@ -6667,13 +6768,22 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               if (block === 'EVENTUAL') {
                 const eventualToggleKey = `eventual-visibility`;
                 const isEventualVisible = blockToggles[eventualToggleKey] === true;
-                if (!isEventualVisible) shouldGetNumber = false;
+                // Only get number if toggle is on AND has items
+                if (!isEventualVisible || visibleItems.length === 0) shouldGetNumber = false;
               }
               
               if (block === 'SAKERHET') {
                 const sakerhetToggleKey = `sakerhet-visibility`;
                 const isSakerhetVisible = blockToggles[sakerhetToggleKey] === true;
-                if (!isSakerhetVisible) shouldGetNumber = false;
+                // Only get number if toggle is on AND has items
+                if (!isSakerhetVisible || visibleItems.length === 0) shouldGetNumber = false;
+              }
+              
+              if (block === 'OVRIGA') {
+                const ovrigaToggleKey = `ovriga-visibility`;
+                const isOvrigaVisible = blockToggles[ovrigaToggleKey] === true;
+                // Only get number if toggle is on (like EVENTUAL/SAKERHET)
+                if (!isOvrigaVisible) shouldGetNumber = false;
               }
               
               if (shouldGetNumber) {
@@ -6698,6 +6808,16 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                 blockHeading = `Not 1 ${firstRowTitle}`;
               } else if (block === 'NOT2') {
                 blockHeading = `Not 2 ${firstRowTitle}`;
+              } else if (block === 'OVRIGA') {
+                // OVRIGA: only show note number if toggle is on or moderbolag exists (like EVENTUAL/SAKERHET)
+                const scrapedData = (companyData as any)?.scraped_company_data;
+                const moderbolag = scrapedData?.moderbolag;
+                const ovrigaToggleOn = blockToggles['ovriga-visibility'] === true;
+                if ((ovrigaToggleOn || moderbolag) && visibility.noteNumber) {
+                  blockHeading = `Not ${visibility.noteNumber} ${firstRowTitle}`;
+                } else {
+                  blockHeading = `Not ${firstRowTitle}`;
+                }
               } else if (visibility.noteNumber) {
                 blockHeading = `Not ${visibility.noteNumber} ${firstRowTitle}`;
               }
@@ -7154,7 +7274,7 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               );
             }
             
-            // Special handling for OVRIGA block - no toggle, add moderbolag text after row 534
+            // Special handling for OVRIGA block - with toggle and edit functionality
             if (block === 'OVRIGA') {
               // Get moderbolag information from scraped data
               const scrapedData = (companyData as any)?.scraped_company_data;
@@ -7162,76 +7282,298 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
               const moderbolagOrgnr = scrapedData?.moderbolag_orgnr;
               const sate = scrapedData?.säte;
               
+              // Find text item for editing (similar to NOT1)
+              // Look for item with variable_text or variable_name matching ovriga_upplysningar
+              const textItem = blockItems.find(item => 
+                item.variable_text || 
+                item.variable_name === 'ovriga_upplysningar' ||
+                item.variable_name?.toLowerCase().includes('ovriga')
+              );
+              // Get original text from variable_text field or from first item with text
+              const originalText = textItem?.variable_text || 
+                                   blockItems.find(item => item.variable_text)?.variable_text || 
+                                   '';
+              
+              // Build the full text including moderbolag if it exists
+              const moderbolagText = moderbolag 
+                ? `Företaget är ett dotterbolag till ${moderbolag} med organisationsnummer ${moderbolagOrgnr} med säte i ${sate}, som upprättar koncernredovisning.`
+                : '';
+              
+              // Combine moderbolag text with additional text (if any)
+              const fullOriginalText = moderbolagText + (originalText && moderbolagText ? '\n\n' + originalText : originalText);
+              
+              // Local edit state for OVRIGA - similar to NOT1
+              const [isEditingOVRIGA, setIsEditingOVRIGA] = useState(false);
+              const [editedValues, setEditedValues] = useState<Record<string, string>>({});
+              const [committedValues, setCommittedValues] = useState<Record<string, string>>({});
+              const textareaRefOVRIGA = React.useRef<HTMLTextAreaElement>(null);
+              
+              // Track original baseline for proper undo (only once, never overwrite)
+              const originalBaselineOVRIGA = React.useRef<Record<string, string>>({});
+              React.useEffect(() => {
+                // Only initialize if not already set (preserve original values even after Godkänn)
+                if (Object.keys(originalBaselineOVRIGA.current).length > 0) return;
+                
+                originalBaselineOVRIGA.current = { 
+                  'ovriga_upplysningar': fullOriginalText
+                };
+              }, [fullOriginalText]);
+              
+              // getVal function - similar to NOT1
+              const getVal = (vn: string) => {
+                if (editedValues[vn] !== undefined) return editedValues[vn];
+                if (committedValues[vn] !== undefined) return committedValues[vn];
+                // Fallback to original values (including moderbolag text)
+                if (vn === 'ovriga_upplysningar') return fullOriginalText;
+                return '';
+              };
+              
+              // Auto-resize textarea when entering edit mode or content changes
+              React.useEffect(() => {
+                if (isEditingOVRIGA && textareaRefOVRIGA.current) {
+                  const textarea = textareaRefOVRIGA.current;
+                  textarea.style.height = 'auto';
+                  textarea.style.height = textarea.scrollHeight + 'px';
+                }
+              }, [isEditingOVRIGA, editedValues['ovriga_upplysningar'], committedValues['ovriga_upplysningar'], originalText]);
+              
+              const startEditOVRIGA = () => {
+                setIsEditingOVRIGA(true);
+                // Also enable the visibility toggle to show the note
+                wrappedSetBlockToggles(prev => ({ ...prev, 'ovriga-visibility': true }));
+              };
+              
+              const cancelEditOVRIGA = () => {
+                setIsEditingOVRIGA(false);
+                setEditedValues({});
+              };
+              
+              const undoEditOVRIGA = () => {
+                // Clear edits and reset committed to baseline
+                setEditedValues({});
+                setCommittedValues({ ...originalBaselineOVRIGA.current });
+                // IMPORTANT: do NOT setIsEditingOVRIGA(false); stay in edit mode
+              };
+              
+              const approveEditOVRIGA = () => {
+                // Commit edits and close
+                const newCommittedValues = { ...committedValues, ...editedValues };
+                setCommittedValues(newCommittedValues);
+                setEditedValues({});
+                setIsEditingOVRIGA(false);
+                
+                // Update noterData items and bubble up to parent
+                const newText = String(newCommittedValues['ovriga_upplysningar'] || fullOriginalText);
+                
+                let updatedItems: NoterItem[];
+                if (textItem) {
+                  // If we found a text item, update it
+                  updatedItems = blockItems.map(item => {
+                    if (item === textItem || item.variable_name === 'ovriga_upplysningar') {
+                      return { 
+                        ...item, 
+                        variable_text: newText,
+                        variable_name: 'ovriga_upplysningar'  // Ensure variable_name is set
+                      };
+                    }
+                    return item;
+                  });
+                } else {
+                  // If no text item found, update the first item in the block
+                  updatedItems = blockItems.map((item, idx) => {
+                    if (idx === 0) {
+                      return { 
+                        ...item, 
+                        variable_text: newText,
+                        variable_name: 'ovriga_upplysningar'  // Ensure variable_name is set
+                      };
+                    }
+                    return item;
+                  });
+                }
+                
+                console.log('✅ [OVRIGA-APPROVE] Updating items with edits:', { 
+                  editedCount: Object.keys(editedValues).length,
+                  updatedItems: updatedItems.length,
+                  textItem: textItem,
+                  newText: newText,
+                  blockItems: blockItems.map(i => ({ row_id: i.row_id, variable_name: i.variable_name, variable_text: i.variable_text })),
+                  updatedBlockItems: updatedItems.map(i => ({ row_id: i.row_id, variable_name: i.variable_name, variable_text: i.variable_text }))
+                });
+                
+                // Merge updated items back into full noterData
+                const updatedNoterData = noterData.map(item => {
+                  const updated = updatedItems.find(u => u.row_id === item.row_id && u.block === 'OVRIGA');
+                  return updated || item;
+                });
+                
+                console.log('📝 [NOTER-UPDATE] Block edited: OVRIGA', {
+                  updatedItemsCount: updatedItems.length,
+                  totalNoterDataItems: updatedNoterData.length,
+                  ovrigaItemsInUpdate: updatedNoterData.filter(i => i.block === 'OVRIGA').map(i => ({ 
+                    row_id: i.row_id, 
+                    variable_name: i.variable_name, 
+                    variable_text: i.variable_text?.substring(0, 50) 
+                  }))
+                });
+                
+                console.log('📝 [NOTER-UPDATE] Bubbling updated noterData to parent:', {
+                  changedBlock: 'OVRIGA',
+                  totalItems: updatedNoterData.length
+                });
+                
+                onDataUpdate?.({ noterData: updatedNoterData });
+              };
+              
+              const ovrigaToggleKey = 'ovriga-visibility';
+              const isOvrigaContentVisible = blockToggles[ovrigaToggleKey] === true || moderbolag;
+              
               return (
                 <div key={block} className="space-y-2 pt-4">
-                  {/* OVRIGA heading without toggle */}
-                  <div className="border-b pb-1">
-                    <h3 className="font-semibold text-lg" style={{paddingTop: '7px'}}>{blockHeading}</h3>
+                  {/* OVRIGA heading with toggle and edit button */}
+                  <div className="flex items-center justify-between border-b pb-1">
+                    <div className="flex items-center">
+                      <h3 className={`font-semibold text-lg ${!isOvrigaContentVisible ? 'opacity-35' : ''}`} style={{paddingTop: '7px'}}>
+                        {blockHeading}
+                      </h3>
+                      <button
+                        onClick={() => isEditingOVRIGA ? cancelEditOVRIGA() : startEditOVRIGA()}
+                        className={`ml-3 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+                          isEditingOVRIGA ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                        } ${!isOvrigaContentVisible ? 'opacity-35' : ''}`}
+                        title={isEditingOVRIGA ? 'Avsluta redigering' : 'Redigera värden'}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        </svg>
+                      </button>
+                      <div className={`ml-2 flex items-center ${!isOvrigaContentVisible ? 'opacity-35' : ''}`} style={{transform: 'scale(0.75)', marginTop: '5px'}}>
+                        <Switch
+                          checked={isOvrigaContentVisible}
+                          onCheckedChange={(checked) => {
+                            wrappedSetBlockToggles(prev => ({ ...prev, [ovrigaToggleKey]: checked }));
+                            // Auto-enable editing when toggle is turned on, close editing when turned off
+                            if (checked) {
+                              setIsEditingOVRIGA(true);
+                            } else {
+                              setIsEditingOVRIGA(false);
+                              // Don't clear edits when hiding - preserve them
+                            }
+                          }}
+                        />
+                        <span className="ml-2 font-medium" style={{fontSize: '17px'}}>Visa not</span>
+                      </div>
+                    </div>
                   </div>
                   
-                  {/* Always show moderbolag text at the start if company has parent company */}
-                  {moderbolag && (
-                    <div className="text-sm leading-relaxed">
-                      Företaget är ett dotterbolag till {moderbolag} med organisationsnummer {moderbolagOrgnr} med säte i {sate}, som upprättar koncernredovisning.
+                  {/* Always show content (like EVENTUAL/SAKERHET), but with opacity when toggle is off */}
+                  <div className={!isOvrigaContentVisible ? 'opacity-35' : ''}>
+                    {/* Editable text field - replace display with textarea when editing (like NOT1) */}
+                    {/* Includes moderbolag text as part of the editable content */}
+                    <div className="text-sm leading-relaxed" style={{ whiteSpace: 'pre-wrap' }}>
+                      {isEditingOVRIGA ? (
+                        <textarea
+                          ref={textareaRefOVRIGA}
+                          value={getVal('ovriga_upplysningar') as string}
+                          onChange={(e) => {
+                            setEditedValues(prev => ({ ...prev, 'ovriga_upplysningar': e.target.value }));
+                            // Auto-resize to fit content
+                            e.target.style.height = 'auto';
+                            e.target.style.height = e.target.scrollHeight + 'px';
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-md resize-y"
+                          style={{ minHeight: '80px' }}
+                          placeholder="Skriv övriga upplysningar..."
+                        />
+                      ) : (
+                        getVal('ovriga_upplysningar') as string || ''
+                      )}
                     </div>
-                  )}
 
-                  {/* Noter Rows */}
-                  {visibleItems.map((item, index) => {
-                    // Use same style system as BR/RR
-                    const getStyleClasses = (style?: string) => {
-                      const baseClasses = 'grid gap-4';
-                      let additionalClasses = '';
-                      const s = style || 'NORMAL';
-                      
-                      // Bold styles
-                      const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
-                      if (boldStyles.includes(s)) {
-                        additionalClasses += ' font-semibold';
-                      }
-                      
-                      // Line styles
-                      const lineStyles = ['S2','S3','TS2','TS3'];
-                      if (lineStyles.includes(s)) {
-                        additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
-                      }
-                      
-                      return {
-                        className: `${baseClasses}${additionalClasses}`,
-                        style: { gridTemplateColumns: '1fr' }
-                      };
-                    };
+                    {/* Noter Rows */}
+                    {visibleItems.map((item, index) => {
+                        // Use same style system as BR/RR
+                        const getStyleClasses = (style?: string) => {
+                          const baseClasses = 'grid gap-4';
+                          let additionalClasses = '';
+                          const s = style || 'NORMAL';
+                          
+                          // Bold styles
+                          const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
+                          if (boldStyles.includes(s)) {
+                            additionalClasses += ' font-semibold';
+                          }
+                          
+                          // Line styles
+                          const lineStyles = ['S2','S3','TS2','TS3'];
+                          if (lineStyles.includes(s)) {
+                            additionalClasses += ' border-t border-b border-gray-200 pt-1 pb-1';
+                          }
+                          
+                          return {
+                            className: `${baseClasses}${additionalClasses}`,
+                            style: { gridTemplateColumns: '1fr' }
+                          };
+                        };
 
-                    const formatAmountDisplay = (amount: number) => {
-                      if (amount === 0) return '0 kr';
-                      const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      });
-                      const sign = amount < 0 ? '-' : '';
-                      return `${sign}${formatted} kr`;
-                    };
+                        const formatAmountDisplay = (amount: number) => {
+                          if (amount === 0) return '0 kr';
+                          const formatted = Math.abs(amount).toLocaleString('sv-SE', { 
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          });
+                          const sign = amount < 0 ? '-' : '';
+                          return `${sign}${formatted} kr`;
+                        };
 
-                    const currentStyle = item.style || 'NORMAL';
-                    const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(currentStyle);
-                    
-                    return (
-                      <React.Fragment key={index}>
-                        <div 
-                          className={getStyleClasses(currentStyle).className}
-                          style={getStyleClasses(currentStyle).style}
-                        >
-                          <span className="text-muted-foreground">
-                            {item.row_title}
-                            {item.show_tag && (
-                              <AccountDetailsDialog item={item} />
-                            )}
-                          </span>
-                        </div>
+                        const currentStyle = item.style || 'NORMAL';
+                        const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(currentStyle);
                         
-                      </React.Fragment>
-                    );
-                  })}
+                        return (
+                          <React.Fragment key={index}>
+                            <div 
+                              className={getStyleClasses(currentStyle).className}
+                              style={getStyleClasses(currentStyle).style}
+                            >
+                              <span className="text-muted-foreground">
+                                {item.row_title}
+                                {item.show_tag && (
+                                  <AccountDetailsDialog item={item} />
+                                )}
+                              </span>
+                            </div>
+                            
+                          </React.Fragment>
+                        );
+                      })}
+                      
+                    {/* Action buttons - only show when editing */}
+                    {isEditingOVRIGA && (
+                      <div className="flex justify-between pt-4 border-t border-gray-200">
+                        <Button 
+                          onClick={undoEditOVRIGA}
+                          variant="outline"
+                          className="flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                          </svg>
+                          Ångra ändringar
+                        </Button>
+                        
+                        <Button 
+                          onClick={approveEditOVRIGA}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+                        >
+                          Godkänn ändringar
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                          </svg>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             }

@@ -115,6 +115,17 @@ def build_override_map(company_data: dict) -> dict:
     elif ink4_14a_has_manual:
         pass  # INK4.14a has manual override in acceptedInk2Manuals
 
+    # 7) Apply defaults for radio button fields (INK4.23a/23b and INK4.24a/24b)
+    # Default to "Nej" (No) - set INK4.23b=1 and INK4.24b=1 if not already set
+    # Only set defaults if neither the "a" nor "b" variant is present
+    if _norm('INK4.23a') not in M and _norm('INK4.23b') not in M:
+        M[_norm('INK4.23a')] = 0
+        M[_norm('INK4.23b')] = 1  # Default to "Nej"
+    
+    if _norm('INK4.24a') not in M and _norm('INK4.24b') not in M:
+        M[_norm('INK4.24a')] = 0
+        M[_norm('INK4.24b')] = 1  # Default to "Nej"
+
     return M
 
 try:
@@ -529,8 +540,13 @@ def fill_ink2_with_pymupdf(pdf_bytes: bytes, assignments: Dict[str, str], compan
         for page, widget in hits:
             try:
                 if is_checkbox:
-                    # Set checkbox state
-                    widget.button_set(bool(value in (True, 1, "Yes", "/Yes", "On")))
+                    # For checkboxes, set both button state and field value
+                    # Support both "/Yes" and "Yes" formats, plus numeric 1/0 and boolean True/False
+                    is_checked = value in (True, 1, "Yes", "/Yes", "On") or (isinstance(value, str) and value.lower() in ("yes", "/yes", "on", "1"))
+                    # Set button state (boolean)
+                    widget.button_set(is_checked)
+                    # Also set field value directly (PDF standard format)
+                    widget.field_value = "/Yes" if is_checked else "/Off"
                 else:
                     # Set text value; PyMuPDF will create the appearance stream
                     widget.field_value = str(value)
@@ -820,40 +836,36 @@ class INK2PdfFiller:
         # SPECIAL HANDLING: INK4.23a/23b radio buttons (Uppdragstagare)
         # When Ja selected: INK4.23a=1, INK4.23b=0 → PDF: 23a=Yes, 23b=Off
         # When Nej selected: INK4.23a=0, INK4.23b=1 → PDF: 23a=Off, 23b=Yes
+        # Default to "Nej" (No)" if neither is explicitly set to 1
         ink4_23a_value = self.resolver.get('INK4.23a')
         ink4_23b_value = self.resolver.get('INK4.23b')
         
+        # Default to "Nej" (23b checked) unless explicitly set to "Ja" (23a=1)
         if ink4_23a_value == 1:
             # Ja selected
-            assignments['23a'] = 'Yes'
-            assignments['23b'] = 'Off'
-        elif ink4_23b_value == 1:
-            # Nej selected
-            assignments['23a'] = 'Off'
-            assignments['23b'] = 'Yes'
+            assignments['23a'] = '/Yes'  # PDF standard format for checked checkbox
+            assignments['23b'] = '/Off'  # PDF standard format for unchecked checkbox
         else:
-            # Default to "Nej" (23b checked)
-            assignments['23a'] = 'Off'
-            assignments['23b'] = 'Yes'
+            # Default to "Nej" (23b checked) - this covers None, 0, or any non-1 value
+            assignments['23a'] = '/Off'  # PDF standard format for unchecked checkbox
+            assignments['23b'] = '/Yes'  # PDF standard format for checked checkbox
         
         # SPECIAL HANDLING: INK4.24a/24b radio buttons (Revision)
         # When Ja selected: INK4.24a=1, INK4.24b=0 → PDF: 24a=Yes, 24b=Off
         # When Nej selected: INK4.24a=0, INK4.24b=1 → PDF: 24a=Off, 24b=Yes
+        # Default to "Nej" (No) if neither is explicitly set to 1
         ink4_24a_value = self.resolver.get('INK4.24a')
         ink4_24b_value = self.resolver.get('INK4.24b')
         
+        # Default to "Nej" (24b checked) unless explicitly set to "Ja" (24a=1)
         if ink4_24a_value == 1:
             # Ja selected
-            assignments['24a'] = 'Yes'
-            assignments['24b'] = 'Off'
-        elif ink4_24b_value == 1:
-            # Nej selected
-            assignments['24a'] = 'Off'
-            assignments['24b'] = 'Yes'
+            assignments['24a'] = '/Yes'  # PDF standard format for checked checkbox
+            assignments['24b'] = '/Off'  # PDF standard format for unchecked checkbox
         else:
-            # Default to "Nej" (24b checked)
-            assignments['24a'] = 'Off'
-            assignments['24b'] = 'Yes'
+            # Default to "Nej" (24b checked) - this covers None, 0, or any non-1 value
+            assignments['24a'] = '/Off'  # PDF standard format for unchecked checkbox
+            assignments['24b'] = '/Yes'  # PDF standard format for checked checkbox
         
         # Load template PDF
         with open(pdf_path, 'rb') as f:
