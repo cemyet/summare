@@ -451,7 +451,19 @@ class DatabaseParser:
             has_direct_accounts = bool(mapping.get('accounts_included')) or (
                 mapping.get('accounts_included_start') is not None and mapping.get('accounts_included_end') is not None
             )
-            show_tag = mapping.get('show_tag', has_direct_accounts)
+            raw_show_tag = mapping.get('show_tag')
+            # DEBUG: Check what type/value show_tag is
+            if mapping.get('row_id') in [243, 252, 259]:  # Sample rows to debug
+                print(f"DEBUG RR row {mapping.get('row_id')}: raw_show_tag={raw_show_tag!r} (type={type(raw_show_tag).__name__}), has_direct_accounts={has_direct_accounts}")
+            # Handle boolean-like values: True, "true", "True", 1, etc.
+            if isinstance(raw_show_tag, bool):
+                show_tag = raw_show_tag
+            elif isinstance(raw_show_tag, str):
+                show_tag = raw_show_tag.lower() in ('true', '1', 'yes')
+            elif raw_show_tag is not None:
+                show_tag = bool(raw_show_tag)
+            else:
+                show_tag = has_direct_accounts
             if not mapping.get('show_amount'):
                 # Header row - no calculation needed
                 results.append({
@@ -524,7 +536,16 @@ class DatabaseParser:
                         result['current_amount'] = current_amount
                         result['previous_amount'] = previous_amount
                         # Refresh account_details for calculated rows if VISA is enabled
-                        if mapping.get('show_tag', False):
+                        # Handle show_tag robustly (could be bool, string, or None)
+                        raw_show_tag_calc = mapping.get('show_tag')
+                        show_tag_calc = False
+                        if isinstance(raw_show_tag_calc, bool):
+                            show_tag_calc = raw_show_tag_calc
+                        elif isinstance(raw_show_tag_calc, str):
+                            show_tag_calc = raw_show_tag_calc.lower() in ('true', '1', 'yes')
+                        elif raw_show_tag_calc is not None:
+                            show_tag_calc = bool(raw_show_tag_calc)
+                        if show_tag_calc:
                             result['account_details'] = _safe_get_account_details(mapping)
                         break
         
