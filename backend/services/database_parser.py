@@ -1,6 +1,7 @@
 """
 Database-driven parser for SE files
 Replaces hardcoded BR_STRUCTURE and RR_STRUCTURE with database queries
+(Testing commit 62b651f - before VISA RR)
 """
 
 import os
