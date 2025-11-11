@@ -446,7 +446,12 @@ class DatabaseParser:
         
         # First pass: Create all rows with direct calculations
         for mapping in self.rr_mappings:
-            show_tag = mapping.get('show_tag', False)
+            # Enable VISA by default for rows that have direct account inclusions,
+            # even if the DB mapping doesn't yet have show_tag set.
+            has_direct_accounts = bool(mapping.get('accounts_included')) or (
+                mapping.get('accounts_included_start') is not None and mapping.get('accounts_included_end') is not None
+            )
+            show_tag = mapping.get('show_tag', has_direct_accounts)
             if not mapping.get('show_amount'):
                 # Header row - no calculation needed
                 results.append({
