@@ -401,69 +401,13 @@ class DatabaseParser:
         
         # Parse SIE account descriptions if sie_text is provided (for company-specific account names)
         if sie_text:
-            try:
-                self._parse_sie_account_descriptions(sie_text)
-            except Exception as e:
-                print(f"Warning: failed to parse SIE account descriptions for RR: {e}")
-        
-        def _safe_get_account_details(mapping: Dict[str, Any]) -> List[Dict[str, Any]]:
-            """Build a safe, sanitized account_details list suitable for UI (never breaks PDF)."""
-            try:
-                raw = self._get_br_account_details(mapping, current_accounts) or []
-            except Exception as e:
-                print(f"Warning: _get_br_account_details failed for RR row {mapping.get('row_id')}: {e}")
-                return []
-            safe_list: List[Dict[str, Any]] = []
-            for item in raw:
-                try:
-                    if not isinstance(item, dict):
-                        continue
-                    acc_id = str(item.get('account_id', '')).strip()
-                    if not acc_id or not acc_id.isdigit():
-                        continue
-                    acc_text = str(item.get('account_text', '')).strip()
-                    bal_val = item.get('balance', 0)
-                    try:
-                        bal_num = float(bal_val or 0)
-                    except Exception:
-                        bal_num = 0.0
-                    safe_list.append({
-                        'account_id': acc_id,
-                        'account_text': acc_text,
-                        'balance': bal_num
-                    })
-                except Exception:
-                    # Skip any malformed entry
-                    continue
-            # Sort by numeric account id
-            try:
-                safe_list.sort(key=lambda x: int(x.get('account_id', '0')))
-            except Exception:
-                pass
-            return safe_list
+            self._parse_sie_account_descriptions(sie_text)
         
         results = []
         
         # First pass: Create all rows with direct calculations
         for mapping in self.rr_mappings:
-            # Enable VISA by default for rows that have direct account inclusions,
-            # even if the DB mapping doesn't yet have show_tag set.
-            has_direct_accounts = bool(mapping.get('accounts_included')) or (
-                mapping.get('accounts_included_start') is not None and mapping.get('accounts_included_end') is not None
-            )
-            raw_show_tag = mapping.get('show_tag')
-            # DEBUG: Check what type/value show_tag is
-            if mapping.get('row_id') in [243, 252, 259]:  # Sample rows to debug
-                print(f"DEBUG RR row {mapping.get('row_id')}: raw_show_tag={raw_show_tag!r} (type={type(raw_show_tag).__name__}), has_direct_accounts={has_direct_accounts}")
-            # Handle boolean-like values: True, "true", "True", 1, etc.
-            if isinstance(raw_show_tag, bool):
-                show_tag = raw_show_tag
-            elif isinstance(raw_show_tag, str):
-                show_tag = raw_show_tag.lower() in ('true', '1', 'yes')
-            elif raw_show_tag is not None:
-                show_tag = bool(raw_show_tag)
-            else:
-                show_tag = has_direct_accounts
+            show_tag = mapping.get('show_tag', False)
             if not mapping.get('show_amount'):
                 # Header row - no calculation needed
                 results.append({
@@ -481,9 +425,9 @@ class DatabaseParser:
                     'show_amount': mapping['show_amount'],
                     'block_group': mapping.get('block_group'),
                     'always_show': self._normalize_always_show(mapping.get('always_show', False)),
-                    # VISA support (UI only) - safe structure
+                    # VISA support (UI only)
                     'show_tag': show_tag,
-                    'account_details': _safe_get_account_details(mapping) if show_tag else None
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
                 })
             else:
                 # Data row - calculate amounts for both years
@@ -511,9 +455,9 @@ class DatabaseParser:
                     'show_amount': mapping['show_amount'],
                     'block_group': mapping.get('block_group'),
                     'always_show': self._normalize_always_show(mapping.get('always_show', False)),
-                    # VISA support (UI only) - safe structure
+                    # VISA support (UI only)
                     'show_tag': show_tag,
-                    'account_details': _safe_get_account_details(mapping) if show_tag else None
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
                 })
         
         # Second pass: Calculate formulas using all available data
@@ -536,17 +480,8 @@ class DatabaseParser:
                         result['current_amount'] = current_amount
                         result['previous_amount'] = previous_amount
                         # Refresh account_details for calculated rows if VISA is enabled
-                        # Handle show_tag robustly (could be bool, string, or None)
-                        raw_show_tag_calc = mapping.get('show_tag')
-                        show_tag_calc = False
-                        if isinstance(raw_show_tag_calc, bool):
-                            show_tag_calc = raw_show_tag_calc
-                        elif isinstance(raw_show_tag_calc, str):
-                            show_tag_calc = raw_show_tag_calc.lower() in ('true', '1', 'yes')
-                        elif raw_show_tag_calc is not None:
-                            show_tag_calc = bool(raw_show_tag_calc)
-                        if show_tag_calc:
-                            result['account_details'] = _safe_get_account_details(mapping)
+                        if mapping.get('show_tag', False):
+                            result['account_details'] = self._get_br_account_details(mapping, current_accounts)
                         break
         
         # Store calculated values in database for future use
