@@ -394,15 +394,59 @@ class DatabaseParser:
             print(f"Formula evaluation error: {e}")
             return 0.0
     
-    def parse_rr_data(self, current_accounts: Dict[str, float], previous_accounts: Dict[str, float] = None) -> List[Dict[str, Any]]:
+    def parse_rr_data(self, current_accounts: Dict[str, float], previous_accounts: Dict[str, float] = None, sie_text: Optional[str] = None) -> List[Dict[str, Any]]:
         """Parse RR (Resultaträkning) data using database mappings"""
         if not self.rr_mappings:
             return []
+        
+        # Parse SIE account descriptions if sie_text is provided (for company-specific account names)
+        if sie_text:
+            try:
+                self._parse_sie_account_descriptions(sie_text)
+            except Exception as e:
+                print(f"Warning: failed to parse SIE account descriptions for RR: {e}")
+        
+        def _safe_get_account_details(mapping: Dict[str, Any]) -> List[Dict[str, Any]]:
+            """Build a safe, sanitized account_details list suitable for UI (never breaks PDF)."""
+            try:
+                raw = self._get_br_account_details(mapping, current_accounts) or []
+            except Exception as e:
+                print(f"Warning: _get_br_account_details failed for RR row {mapping.get('row_id')}: {e}")
+                return []
+            safe_list: List[Dict[str, Any]] = []
+            for item in raw:
+                try:
+                    if not isinstance(item, dict):
+                        continue
+                    acc_id = str(item.get('account_id', '')).strip()
+                    if not acc_id or not acc_id.isdigit():
+                        continue
+                    acc_text = str(item.get('account_text', '')).strip()
+                    bal_val = item.get('balance', 0)
+                    try:
+                        bal_num = float(bal_val or 0)
+                    except Exception:
+                        bal_num = 0.0
+                    safe_list.append({
+                        'account_id': acc_id,
+                        'account_text': acc_text,
+                        'balance': bal_num
+                    })
+                except Exception:
+                    # Skip any malformed entry
+                    continue
+            # Sort by numeric account id
+            try:
+                safe_list.sort(key=lambda x: int(x.get('account_id', '0')))
+            except Exception:
+                pass
+            return safe_list
         
         results = []
         
         # First pass: Create all rows with direct calculations
         for mapping in self.rr_mappings:
+            show_tag = mapping.get('show_tag', False)
             if not mapping.get('show_amount'):
                 # Header row - no calculation needed
                 results.append({
@@ -419,7 +463,10 @@ class DatabaseParser:
                     'calculation_formula': mapping['calculation_formula'],
                     'show_amount': mapping['show_amount'],
                     'block_group': mapping.get('block_group'),
-                    'always_show': self._normalize_always_show(mapping.get('always_show', False))
+                    'always_show': self._normalize_always_show(mapping.get('always_show', False)),
+                    # VISA support (UI only) - safe structure
+                    'show_tag': show_tag,
+                    'account_details': _safe_get_account_details(mapping) if show_tag else None
                 })
             else:
                 # Data row - calculate amounts for both years
@@ -446,7 +493,10 @@ class DatabaseParser:
                     'calculation_formula': mapping['calculation_formula'],
                     'show_amount': mapping['show_amount'],
                     'block_group': mapping.get('block_group'),
-                    'always_show': self._normalize_always_show(mapping.get('always_show', False))
+                    'always_show': self._normalize_always_show(mapping.get('always_show', False)),
+                    # VISA support (UI only) - safe structure
+                    'show_tag': show_tag,
+                    'account_details': _safe_get_account_details(mapping) if show_tag else None
                 })
         
         # Second pass: Calculate formulas using all available data
@@ -468,6 +518,9 @@ class DatabaseParser:
                     if result['id'] == mapping['row_id']:
                         result['current_amount'] = current_amount
                         result['previous_amount'] = previous_amount
+                        # Refresh account_details for calculated rows if VISA is enabled
+                        if mapping.get('show_tag', False):
+                            result['account_details'] = _safe_get_account_details(mapping)
                         break
         
         # Store calculated values in database for future use

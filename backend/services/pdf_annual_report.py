@@ -256,6 +256,31 @@ def _get_year_headers(data: Dict[str, Any], fiscal_year: int, prev_year: int) ->
     
     return current_header, previous_header
 
+def _sanitize_rr_data(rr_rows: list) -> list:
+    """
+    Sanitize RR rows for PDF rendering by whitelisting only fields the PDF needs.
+    This mirrors the BR merge behavior which implicitly strips UI-only fields
+    like account_details/show_tag that could break PDF rendering.
+    """
+    if not isinstance(rr_rows, list):
+        return []
+    allowed = {
+        'id', 'label', 'style', 'level', 'section', 'bold',
+        'variable_name', 'current_amount', 'previous_amount',
+        'block_group', 'always_show', 'note_number'
+    }
+    sanitized = []
+    for r in rr_rows:
+        if not isinstance(r, dict):
+            continue
+        cleaned = {}
+        for k in allowed:
+            v = r.get(k)
+            if v is not None:
+                cleaned[k] = v
+        sanitized.append(cleaned)
+    return sanitized
+
 def _extract_fb_texts(cd: Dict[str, Any]) -> Tuple[str, str]:
     """Extract Förvaltningsberättelse text fields"""
     scraped = (cd or {}).get('scraped_company_data') or {}
@@ -732,6 +757,8 @@ def generate_full_annual_report_pdf(company_data: Dict[str, Any]) -> bytes:
     rr_data = (company_data.get('rrData') or 
                company_data.get('rrRows') or 
                company_data.get('seFileData', {}).get('rr_data', []))
+    # Sanitize RR for PDF (strip UI-only fields like account_details/show_tag)
+    rr_data = _sanitize_rr_data(rr_data)
     
     # BR: Merge overlay onto baseline to preserve all baseline rows (Kassa och bank, Varulager, etc.)
     se_br = (company_data.get('seFileData', {}) or {}).get('br_data', []) or []
