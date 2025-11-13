@@ -97,11 +97,14 @@ class XBRLGenerator:
         except:
             return date_str
     
-    def _format_monetary_value(self, value: Optional[float]) -> str:
-        """Format monetary value for XBRL"""
+    def _format_monetary_value(self, value: Optional[float], for_display: bool = False) -> str:
+        """Format monetary value for XBRL or display"""
         if value is None:
             return "0"
-        # XBRL uses string representation of numbers
+        if for_display:
+            # Format with thousand separators (space) and 2 decimals for HTML display
+            return f"{value:,.2f}".replace(',', ' ').replace('.', ',')
+        # XBRL uses string representation of numbers (integers)
         return str(int(round(value)))
     
     def _format_decimal_value(self, value: Optional[float], decimals: int = 2) -> str:
@@ -221,18 +224,13 @@ class XBRLGenerator:
         # Create xbrli:xbrl element inside ix:hidden for contexts and units
         xbrl_root = ET.SubElement(ix_hidden, 'xbrli:xbrl')
         
-        # Set schema location
-        schema_location = ' '.join([
-            'http://www.taxonomier.se/se/fr/gen-base/2021-10-31 se-gen-base.xsd',
-            'http://www.taxonomier.se/se/fr/cd-base/2021-10-31 se-cd-base.xsd'
-        ])
-        xbrl_root.set('xsi:schemaLocation', schema_location)
-        
-        # Add link:linkbaseRef elements (references to taxonomy linkbases)
-        linkbase_ref = ET.SubElement(xbrl_root, 'link:linkbaseRef')
-        linkbase_ref.set('xlink:type', 'simple')
-        linkbase_ref.set('xlink:arcrole', 'http://www.w3.org/1999/xlink/properties/linkbase')
-        linkbase_ref.set('xlink:href', 'se-gen-base-label.xml')
+        # Add schemaRef(s) – main K2-all AB RISBS 2024 taxonomy
+        schema_ref = ET.SubElement(xbrl_root, 'link:schemaRef')
+        schema_ref.set('xlink:type', 'simple')
+        schema_ref.set(
+            'xlink:href',
+            'http://www.taxonomier.se/se/fr/gaap/k2-all/ab/risbs/2024-09-12/se-k2-ab-risbs-2024-09-12.xsd'
+        )
         
         # Load mappings to get element_name and namespace
         try:
@@ -580,8 +578,107 @@ class XBRLGenerator:
                 fact_element.set('unitRef', fact['unit_ref'])
             fact_element.text = fact['value']
         
-        # Add visible content in body (you can add formatted tables here if needed)
-        # For now, we'll just have the hidden XBRL data
+        # ------------------------------------------------------------------
+        # Minimal visible HTML so the page is not blank
+        # ------------------------------------------------------------------
+        visible_container = ET.SubElement(body, 'div')
+        visible_container.set(
+            'style',
+            'max-width: 900px; margin: 40px auto; font-family: Arial, sans-serif;'
+        )
+        
+        company_name = (company_info.get('company_name')
+                        or company_data.get('company_name')
+                        or company_data.get('companyName')
+                        or 'Årsredovisning')
+        
+        h1 = ET.SubElement(visible_container, 'h1')
+        h1.text = f'Årsredovisning – {company_name}'
+        
+        if start_date and end_date:
+            p_period = ET.SubElement(visible_container, 'p')
+            p_period.text = f'Räkenskapsår {start_date} – {end_date}'
+        
+        # Very simple RR table (for debugging / visual sanity check)
+        rr_data = (company_data.get('rrData')
+                   or company_data.get('rrRows')
+                   or company_data.get('rr_data')
+                   or (company_data.get('seFileData') or {}).get('rr_data', []))
+        
+        if rr_data and isinstance(rr_data, list) and len(rr_data) > 0:
+            h2_rr = ET.SubElement(visible_container, 'h2')
+            h2_rr.text = 'Resultaträkning (översikt)'
+            
+            rr_table = ET.SubElement(visible_container, 'table')
+            rr_table.set('border', '1')
+            rr_table.set('cellpadding', '4')
+            rr_table.set('style', 'border-collapse:collapse;width:100%;')
+            
+            header_row = ET.SubElement(rr_table, 'tr')
+            for col in ('Post', 'Belopp innevarande år'):
+                th = ET.SubElement(header_row, 'th')
+                th.text = col
+            
+            for item in rr_data:
+                if not item.get('show_amount'):
+                    continue
+                
+                label = (item.get('row_title')
+                         or item.get('label')
+                         or item.get('radrubrik')
+                         or item.get('variable_name'))
+                
+                value = item.get('current_amount')
+                if value is None:
+                    continue
+                
+                row = ET.SubElement(rr_table, 'tr')
+                td_label = ET.SubElement(row, 'td')
+                td_label.text = str(label)
+                
+                td_value = ET.SubElement(row, 'td')
+                # Use plain text here; XBRL facts are already in ix:hidden
+                td_value.text = self._format_monetary_value(value, for_display=True)
+        
+        # Simple BR table
+        br_data = (company_data.get('brData')
+                   or company_data.get('brRows')
+                   or company_data.get('br_data')
+                   or (company_data.get('seFileData') or {}).get('br_data', []))
+        
+        if br_data and isinstance(br_data, list) and len(br_data) > 0:
+            h2_br = ET.SubElement(visible_container, 'h2')
+            h2_br.text = 'Balansräkning (översikt)'
+            
+            br_table = ET.SubElement(visible_container, 'table')
+            br_table.set('border', '1')
+            br_table.set('cellpadding', '4')
+            br_table.set('style', 'border-collapse:collapse;width:100%;')
+            
+            header_row = ET.SubElement(br_table, 'tr')
+            for col in ('Post', 'Belopp innevarande år'):
+                th = ET.SubElement(header_row, 'th')
+                th.text = col
+            
+            for item in br_data:
+                if not item.get('show_amount'):
+                    continue
+                
+                label = (item.get('row_title')
+                         or item.get('label')
+                         or item.get('radrubrik')
+                         or item.get('variable_name'))
+                
+                value = item.get('current_amount')
+                if value is None:
+                    continue
+                
+                row = ET.SubElement(br_table, 'tr')
+                td_label = ET.SubElement(row, 'td')
+                td_label.text = str(label)
+                
+                td_value = ET.SubElement(row, 'td')
+                td_value.text = self._format_monetary_value(value)
         
         # Convert to pretty XML string
         rough_string = ET.tostring(root, encoding='unicode')
