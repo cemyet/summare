@@ -52,6 +52,14 @@ export function Download({ companyData }: DownloadProps) {
       filename: 'bokforingsinstruktion.pdf',
       icon: <FileText className="w-5 h-5" />,
       downloaded: false
+    },
+    {
+      id: 'xbrl',
+      title: 'XBRL',
+      subtitle: 'Ladda ner XHTML-fil',
+      filename: 'arsredovisning.xhtml',
+      icon: <FileText className="w-5 h-5" />,
+      downloaded: false
     }
   ]);
 
@@ -219,6 +227,51 @@ export function Download({ companyData }: DownloadProps) {
         const a = document.createElement('a');
         a.href = url;
         a.download = file.filename;
+        document.body.appendChild(a);
+        a.click();
+        URL.revokeObjectURL(url);
+        a.remove();
+      } else if (fileId === 'xbrl') {
+        // Handle XBRL XHTML file generation
+        if (!companyData) {
+          alert('Företagsdata saknas. Vänligen ladda upp en SIE-fil först.');
+          setIsGenerating(null);
+          return;
+        }
+        
+        const API_BASE = import.meta.env.VITE_API_URL || 'https://api.summare.se';
+        
+        const response = await fetch(`${API_BASE}/api/xbrl/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            companyData
+          }),
+          cache: 'no-store',
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('XBRL file error:', errorText);
+          throw new Error(`Server responded with ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        // Use filename from Content-Disposition header if available, otherwise use default
+        const contentDisposition = response.headers.get('Content-Disposition');
+        if (contentDisposition) {
+          const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+          if (filenameMatch) {
+            a.download = filenameMatch[1];
+          } else {
+            a.download = file.filename;
+          }
+        } else {
+          a.download = file.filename;
+        }
         document.body.appendChild(a);
         a.click();
         URL.revokeObjectURL(url);

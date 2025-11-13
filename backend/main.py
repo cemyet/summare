@@ -3832,6 +3832,63 @@ async def generate_sru(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error generating SRU files: {str(e)}")
 
+@app.post("/api/xbrl/generate")
+async def generate_xbrl(request: Request):
+    """
+    Generate XBRL instance document for Swedish financial reporting
+    Returns XBRL XML file following Swedish XBRL taxonomy standards
+    """
+    try:
+        from services.xbrl_generator import generate_xbrl_instance_document
+        from fastapi.responses import Response
+        
+        payload = await request.json()
+        company_data = payload.get('companyData', {})
+        
+        # Extract organization_number and fiscal_year for validation
+        organization_number = (company_data.get('organization_number') 
+                              or company_data.get('organizationNumber')
+                              or (company_data.get('seFileData') or {}).get('company_info', {}).get('organization_number'))
+        
+        fiscal_year = (company_data.get('fiscalYear')
+                      or company_data.get('fiscal_year')
+                      or (company_data.get('seFileData') or {}).get('company_info', {}).get('fiscal_year'))
+        
+        if not organization_number:
+            raise HTTPException(status_code=400, detail="organization_number is required")
+        if not fiscal_year:
+            raise HTTPException(status_code=400, detail="fiscal_year is required")
+        
+        # Generate XBRL instance document
+        xbrl_xml_bytes = generate_xbrl_instance_document(company_data)
+        
+        # Extract name for filename
+        name = (company_data.get('company_name') 
+                or company_data.get('companyName')
+                or (company_data.get('seFileData') or {}).get('company_info', {}).get('company_name') 
+                or 'bolag')
+        
+        # Remove spaces and special characters from filename
+        import re
+        name_clean = re.sub(r'[^\w\s-]', '', name).strip().replace(' ', '_')
+        xbrl_filename = f'XBRL_{name_clean}_{fiscal_year}.xhtml'
+        
+        return Response(
+            content=xbrl_xml_bytes,
+            media_type='application/xhtml+xml',
+            headers={
+                'Content-Disposition': f'attachment; filename="{xbrl_filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+    except Exception as e:
+        print(f"Error generating XBRL document: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating XBRL document: {str(e)}")
+
 @app.post("/api/pdf/bokforing-instruktion/check")
 async def check_bokforing_instruktion(request: Request):
     """
