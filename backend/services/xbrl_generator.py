@@ -199,14 +199,10 @@ class XBRLGenerator:
         title = ET.SubElement(head, 'title')
         title.text = title_text
         
-        # Add CSS styles (basic styling)
+        # Add comprehensive CSS styles (matching example file)
         style = ET.SubElement(head, 'style')
         style.set('type', 'text/css')
-        style.text = """
-            body { margin: 0; font-family: Arial, sans-serif; }
-            table { margin: auto; border-collapse: collapse; }
-            .blank_row { height: 14px; background-color: #FFFFFF; }
-        """
+        style.text = self._get_css_styles()
         
         # Create body element
         body = ET.SubElement(root, 'body')
@@ -579,111 +575,1364 @@ class XBRLGenerator:
             fact_element.text = fact['value']
         
         # ------------------------------------------------------------------
-        # Minimal visible HTML so the page is not blank
+        # Generate visible HTML content matching PDF structure
         # ------------------------------------------------------------------
-        visible_container = ET.SubElement(body, 'div')
-        visible_container.set(
-            'style',
-            'max-width: 900px; margin: 40px auto; font-family: Arial, sans-serif;'
-        )
-        
-        company_name = (company_info.get('company_name')
-                        or company_data.get('company_name')
-                        or company_data.get('companyName')
-                        or 'Årsredovisning')
-        
-        h1 = ET.SubElement(visible_container, 'h1')
-        h1.text = f'Årsredovisning – {company_name}'
-        
-        if start_date and end_date:
-            p_period = ET.SubElement(visible_container, 'p')
-            p_period.text = f'Räkenskapsår {start_date} – {end_date}'
-        
-        # Very simple RR table (for debugging / visual sanity check)
-        rr_data = (company_data.get('rrData')
-                   or company_data.get('rrRows')
-                   or company_data.get('rr_data')
-                   or (company_data.get('seFileData') or {}).get('rr_data', []))
-        
-        if rr_data and isinstance(rr_data, list) and len(rr_data) > 0:
-            h2_rr = ET.SubElement(visible_container, 'h2')
-            h2_rr.text = 'Resultaträkning (översikt)'
-            
-            rr_table = ET.SubElement(visible_container, 'table')
-            rr_table.set('border', '1')
-            rr_table.set('cellpadding', '4')
-            rr_table.set('style', 'border-collapse:collapse;width:100%;')
-            
-            header_row = ET.SubElement(rr_table, 'tr')
-            for col in ('Post', 'Belopp innevarande år'):
-                th = ET.SubElement(header_row, 'th')
-                th.text = col
-            
-            for item in rr_data:
-                if not item.get('show_amount'):
-                    continue
-                
-                label = (item.get('row_title')
-                         or item.get('label')
-                         or item.get('radrubrik')
-                         or item.get('variable_name'))
-                
-                value = item.get('current_amount')
-                if value is None:
-                    continue
-                
-                row = ET.SubElement(rr_table, 'tr')
-                td_label = ET.SubElement(row, 'td')
-                td_label.text = str(label)
-                
-                td_value = ET.SubElement(row, 'td')
-                # Use plain text here; XBRL facts are already in ix:hidden
-                td_value.text = self._format_monetary_value(value, for_display=True)
-        
-        # Simple BR table
-        br_data = (company_data.get('brData')
-                   or company_data.get('brRows')
-                   or company_data.get('br_data')
-                   or (company_data.get('seFileData') or {}).get('br_data', []))
-        
-        if br_data and isinstance(br_data, list) and len(br_data) > 0:
-            h2_br = ET.SubElement(visible_container, 'h2')
-            h2_br.text = 'Balansräkning (översikt)'
-            
-            br_table = ET.SubElement(visible_container, 'table')
-            br_table.set('border', '1')
-            br_table.set('cellpadding', '4')
-            br_table.set('style', 'border-collapse:collapse;width:100%;')
-            
-            header_row = ET.SubElement(br_table, 'tr')
-            for col in ('Post', 'Belopp innevarande år'):
-                th = ET.SubElement(header_row, 'th')
-                th.text = col
-            
-            for item in br_data:
-                if not item.get('show_amount'):
-                    continue
-                
-                label = (item.get('row_title')
-                         or item.get('label')
-                         or item.get('radrubrik')
-                         or item.get('variable_name'))
-                
-                value = item.get('current_amount')
-                if value is None:
-                    continue
-                
-                row = ET.SubElement(br_table, 'tr')
-                td_label = ET.SubElement(row, 'td')
-                td_label.text = str(label)
-                
-                td_value = ET.SubElement(row, 'td')
-                td_value.text = self._format_monetary_value(value)
+        self._generate_visible_content(body, company_data, start_date, end_date, fiscal_year)
         
         # Convert to pretty XML string
         rough_string = ET.tostring(root, encoding='unicode')
         reparsed = minidom.parseString(rough_string)
         return reparsed.toprettyxml(indent="  ", encoding=None)
+    
+    def _get_css_styles(self) -> str:
+        """Return comprehensive CSS styles matching example file"""
+        return """
+    html { height: 100%; }
+    @media screen {
+      .ar-page0, .ar-page1, .ar-page2, .ar-page3, .ar-page4, .ar-page5, .ar-page6, .ar-page7, .ar-page8 {
+        margin: 10px;
+        padding: 0cm 0cm 0cm 1cm;
+        border: 1px solid rgb(240, 240, 240);
+        border-image: none;
+        line-height: 1.2;
+        min-height: 29.6926cm;
+        max-width: 20.9804cm;
+        box-shadow: 0.25em 0.25em 0.3em #999;
+      }
+    }
+    @media print {
+      .ar-page0, .ar-page1, .ar-page2, .ar-page3, .ar-page4, .ar-page5, .ar-page6, .ar-page7, .ar-page8 {
+        margin: 0px;
+        padding: 0cm 0cm 0cm 1cm;
+      }
+    }
+    .pagebreak_before { page-break-before: always; }
+    p { margin-top: 0pt; margin-bottom: 0pt; }
+    table { margin-left: -2px; margin-top: 0pt; margin-bottom: 0pt; }
+    .tab { border: 0px; border-spacing: 0px; padding: 0px; margin-left: -3px; }
+    .a20, .normal, .a21, .a22 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 11pt; color: #000000; }
+    .a16 { margin-top: 0pt; margin-bottom: 0pt; text-align: center; font-family: Times New Roman; font-size: 11pt; color: #000000; }
+    .a18 { margin-top: 0pt; margin-bottom: 0pt; text-align: center; line-height: 14pt; font-family: Times New Roman; font-size: 24pt; font-weight: bold; color: #000000; }
+    .a19 { margin-top: 0pt; margin-bottom: 0pt; text-align: center; font-family: Times New Roman; font-size: 12pt; font-weight: bold; color: #000000; }
+    .a17 { margin-top: 0pt; margin-bottom: 0pt; text-align: center; line-height: 14pt; font-family: Times New Roman; font-size: 16pt; font-weight: bold; color: #000000; }
+    .rubrik2b { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 14pt; font-weight: bold; color: #000000; }
+    .rubrik2 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 16pt; font-weight: bold; color: #000000; }
+    .rubrik3 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 12pt; font-weight: bold; color: #000000; }
+    .rubrik4 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 11pt; font-weight: bold; color: #000000; }
+    .a25, .a34, .summabelopp { margin-top: 0pt; margin-bottom: 0pt; text-align: right; font-family: Times New Roman; font-size: 11pt; font-weight: bold; color: #000000; }
+    .belopp { margin-top: 0pt; margin-bottom: 0pt; text-align: right; font-family: Times New Roman; font-size: 11pt; color: #000000; }
+    .summatext { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 11pt; font-weight: bold; color: #000000; }
+    .b8 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; line-height: 14pt; font-family: Times New Roman; font-size: 11pt; color: #000000; }
+    .b7, .b13 { margin-top: 0pt; margin-bottom: 0pt; text-align: right; line-height: 14pt; font-family: Times New Roman; font-size: 11pt; color: #000000; }
+    .normalsidhuvud { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 11pt; color: #000000; }
+    .totalsummatext { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 12pt; font-weight: bold; color: #000000; }
+    .totalsummabelopp { margin-top: 0pt; margin-bottom: 0pt; text-align: right; font-family: Times New Roman; font-size: 11pt; font-weight: bold; color: #000000; }
+    body { margin: 0; padding: 0; }
+        """
+    
+    def _num(self, v):
+        """Convert value to float, handling bools, None, empty strings"""
+        try:
+            if isinstance(v, bool): return 0.0
+            if v is None or v == "": return 0.0
+            if isinstance(v, (int, float)): return float(v)
+            s = str(v).replace(" ", "").replace("\u00A0", "").replace(",", ".")
+            return float(s) if s else 0.0
+        except Exception:
+            return 0.0
+    
+    def _should_show_row(self, row: Dict[str, Any], data: List[Dict[str, Any]], section: str = 'rr') -> bool:
+        """Apply show/hide logic matching PDF generation"""
+        # Always show if always_show is True
+        if row.get('always_show'):
+            return True
+        
+        # Check if row has note_number (show even if zero)
+        has_note = row.get('note_number') is not None and row.get('note_number') != ''
+        if has_note:
+            return True
+        
+        # Check if this is a heading or sum row
+        label = row.get('label', '')
+        style = row.get('style', '')
+        is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
+        is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
+        
+        # Headings and sums are shown if their block has content
+        if is_heading or is_sum:
+            block_group = row.get('block_group', '')
+            if block_group:
+                return self._block_has_content(block_group, data, section)
+            return True
+        
+        # For data rows: show if has non-zero amounts
+        curr = self._num(row.get('current_amount', 0))
+        prev = self._num(row.get('previous_amount', 0))
+        return curr != 0 or prev != 0
+    
+    def _block_has_content(self, block_group: str, data: List[Dict[str, Any]], section: str) -> bool:
+        """Check if block group has any non-zero content"""
+        if not block_group:
+            return True
+        
+        for row in data:
+            if row.get('block_group') != block_group:
+                continue
+            
+            # Skip headings and sums
+            label = row.get('label', '')
+            style = row.get('style', '')
+            is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
+            is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
+            
+            if is_heading or is_sum:
+                continue
+            
+            # Check if this row has non-zero amount or always_show
+            if row.get('always_show'):
+                return True
+            curr = self._num(row.get('current_amount', 0))
+            prev = self._num(row.get('previous_amount', 0))
+            if curr != 0 or prev != 0:
+                return True
+        
+        return False
+    
+    def _get_context_refs(self, fiscal_year: int, period_type: str = 'duration') -> tuple:
+        """Get contextRef IDs for current and previous year"""
+        if period_type == 'duration':
+            # Find duration contexts
+            period0_key = None
+            period1_key = None
+            for key, ctx_info in self.contexts.items():
+                if ctx_info['period_type'] == 'duration':
+                    if period0_key is None:
+                        period0_key = ctx_info['id']
+                    elif period1_key is None:
+                        period1_key = ctx_info['id']
+            return (period0_key or 'c1', period1_key or 'c2')
+        else:
+            # Find instant contexts
+            period0_key = None
+            period1_key = None
+            for key, ctx_info in self.contexts.items():
+                if ctx_info['period_type'] == 'instant':
+                    if period0_key is None:
+                        period0_key = ctx_info['id']
+                    elif period1_key is None:
+                        period1_key = ctx_info['id']
+            return (period0_key or 'c3', period1_key or 'c4')
+    
+    def _generate_visible_content(self, body: ET.Element, company_data: Dict[str, Any], 
+                                 start_date: Optional[str], end_date: Optional[str], fiscal_year: Optional[int]):
+        """Generate visible HTML content matching PDF structure"""
+        company_info = company_data.get('seFileData', {}).get('company_info', {})
+        company_name = (company_data.get('company_name') 
+                       or company_data.get('companyName')
+                       or company_info.get('company_name')
+                       or 'Bolag')
+        org_number = (company_data.get('organization_number')
+                     or company_data.get('organizationNumber')
+                     or company_info.get('organization_number')
+                     or '')
+        prev_year = fiscal_year - 1 if fiscal_year else 0
+        
+        # Get context refs
+        period0_ref, period1_ref = self._get_context_refs(fiscal_year or 0, 'duration')
+        balans0_ref, balans1_ref = self._get_context_refs(fiscal_year or 0, 'instant')
+        unit_ref = self._get_or_create_unit('SEK')
+        
+        # Page 0: Cover page
+        self._render_cover_page(body, company_name, org_number, fiscal_year, start_date, end_date, period0_ref)
+        
+        # Page 1: Förvaltningsberättelse
+        self._render_forvaltningsberattelse(body, company_data, company_name, org_number, fiscal_year, prev_year, period0_ref, period1_ref, balans0_ref, balans1_ref, unit_ref)
+        
+        # Page 2: Resultaträkning
+        self._render_resultatrakning(body, company_data, company_name, org_number, fiscal_year, prev_year, period0_ref, period1_ref, unit_ref)
+        
+        # Page 3: Balansräkning (Tillgångar)
+        self._render_balansrakning_tillgangar(body, company_data, company_name, org_number, fiscal_year, prev_year, balans0_ref, balans1_ref, unit_ref)
+        
+        # Page 4: Balansräkning (Eget kapital och skulder)
+        self._render_balansrakning_skulder(body, company_data, company_name, org_number, fiscal_year, prev_year, balans0_ref, balans1_ref, unit_ref)
+        
+        # Page 5+: Noter
+        self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, period0_ref, period1_ref, balans0_ref, balans1_ref, unit_ref)
+    
+    def _render_cover_page(self, body: ET.Element, company_name: str, org_number: str, 
+                          fiscal_year: Optional[int], start_date: Optional[str], end_date: Optional[str],
+                          period0_ref: str):
+        """Render cover page"""
+        page0 = ET.SubElement(body, 'div')
+        page0.set('class', 'ar-page0')
+        
+        # Add spacing
+        for _ in range(8):
+            p = ET.SubElement(page0, 'p')
+            p.set('class', 'normal')
+            p.text = ' '
+        
+        # Center spacing
+        p_center = ET.SubElement(page0, 'p')
+        p_center.set('class', 'a16')
+        p_center.text = '\n' * 8
+        
+        # "Årsredovisning" title
+        p_title = ET.SubElement(page0, 'p')
+        p_title.set('class', 'a18')
+        span_title = ET.SubElement(p_title, 'span')
+        span_title.set('style', 'line-height: 27.59765625pt')
+        span_title.text = 'Årsredovisning'
+        
+        p_center2 = ET.SubElement(page0, 'p')
+        p_center2.set('class', 'a16')
+        p_center2.text = ' '
+        
+        # "för" label
+        p_for = ET.SubElement(page0, 'p')
+        p_for.set('class', 'a19')
+        p_for.text = 'för'
+        
+        p_normal = ET.SubElement(page0, 'p')
+        p_normal.set('class', 'normal')
+        p_normal.text = ' '
+        
+        # Company name
+        p_name = ET.SubElement(page0, 'p')
+        p_name.set('class', 'a18')
+        span_name = ET.SubElement(p_name, 'span')
+        span_name.set('style', 'line-height: 27.59765625pt')
+        ix_name = ET.SubElement(span_name, 'ix:nonNumeric')
+        ix_name.set('name', 'se-cd-base:ForetagetsNamn')
+        ix_name.set('contextRef', period0_ref)
+        ix_name.text = company_name
+        
+        p_center3 = ET.SubElement(page0, 'p')
+        p_center3.set('class', 'a16')
+        p_center3.text = ' '
+        
+        # Organization number
+        p_org = ET.SubElement(page0, 'p')
+        p_org.set('class', 'a16')
+        span_org = ET.SubElement(p_org, 'span')
+        span_org.set('style', 'font-size: 14pt')
+        ix_org = ET.SubElement(span_org, 'ix:nonNumeric')
+        ix_org.set('name', 'se-cd-base:Organisationsnummer')
+        ix_org.set('contextRef', period0_ref)
+        ix_org.text = str(org_number).replace('-', '')
+        
+        # Add more spacing
+        for _ in range(4):
+            p = ET.SubElement(page0, 'p')
+            p.set('class', 'a16')
+            p.text = ' '
+        
+        # "Räkenskapsåret" label
+        p_period_label = ET.SubElement(page0, 'p')
+        p_period_label.set('class', 'a16')
+        span_period_label = ET.SubElement(p_period_label, 'span')
+        span_period_label.set('style', 'font-size: 14pt')
+        span_period_label.text = 'Räkenskapsåret'
+        
+        p_center4 = ET.SubElement(page0, 'p')
+        p_center4.set('class', 'a16')
+        p_center4.text = ' '
+        
+        # Fiscal year
+        p_year = ET.SubElement(page0, 'p')
+        p_year.set('class', 'a17')
+        span_year = ET.SubElement(p_year, 'span')
+        span_year.set('style', 'font-weight: normal; line-height: 18.3984375pt')
+        span_year.text = str(fiscal_year) if fiscal_year else ''
+        
+        # Add remaining spacing
+        for _ in range(10):
+            p = ET.SubElement(page0, 'p')
+            p.set('class', 'normal')
+            p.text = ' '
+    
+    def _render_forvaltningsberattelse(self, body: ET.Element, company_data: Dict[str, Any],
+                                      company_name: str, org_number: str, fiscal_year: Optional[int],
+                                      prev_year: int, period0_ref: str, period1_ref: str,
+                                      balans0_ref: str, balans1_ref: str, unit_ref: str):
+        """Render Förvaltningsberättelse section"""
+        page1 = ET.SubElement(body, 'div')
+        page1.set('class', 'pagebreak_before ar-page1')
+        
+        # Header with company name and page number
+        header_table = ET.SubElement(page1, 'table')
+        header_table.set('style', 'border-collapse: collapse; width: 17cm')
+        tr_header = ET.SubElement(header_table, 'tr')
+        
+        td_name = ET.SubElement(tr_header, 'td')
+        td_name.set('style', 'vertical-align: bottom; width: 13.5cm')
+        p_name1 = ET.SubElement(td_name, 'p')
+        p_name1.set('class', 'b8')
+        p_name1.text = company_name
+        p_org1 = ET.SubElement(td_name, 'p')
+        p_org1.set('class', 'b8')
+        p_org1.text = f'Org.nr {org_number}'
+        
+        td_page = ET.SubElement(tr_header, 'td')
+        td_page.set('style', 'vertical-align: top; width: 3cm')
+        p_page = ET.SubElement(td_page, 'p')
+        p_page.set('class', 'b7')
+        p_page.text = '2 (9)'  # TODO: Calculate actual page numbers
+        
+        # Add spacing
+        p_spacing = ET.SubElement(page1, 'p')
+        p_spacing.set('class', 'normal')
+        p_spacing.text = ' '
+        
+        # Introduction text
+        p_intro = ET.SubElement(page1, 'p')
+        p_intro.set('class', 'a21')
+        p_intro.text = f'Styrelsen för {company_name} avger följande årsredovisning för räkenskapsåret {fiscal_year}.'
+        
+        p_spacing2 = ET.SubElement(page1, 'p')
+        p_spacing2.set('class', 'normal')
+        p_spacing2.text = ' '
+        
+        # Currency note
+        p_currency = ET.SubElement(page1, 'p')
+        p_currency.set('class', 'normal')
+        p_currency.text = 'Årsredovisningen är upprättad i svenska kronor, SEK. Om inte annat särskilt anges, redovisas alla belopp i tusentals kronor (Tkr). Uppgifter inom parentes avser föregående år.'
+        
+        # Add spacing
+        for _ in range(2):
+            p = ET.SubElement(page1, 'p')
+            p.set('class', 'normal')
+            p.text = ' '
+        
+        # "Förvaltningsberättelse" heading
+        p_fb_title = ET.SubElement(page1, 'p')
+        p_fb_title.set('class', 'rubrik2')
+        p_fb_title.text = 'Förvaltningsberättelse'
+        
+        # Add spacing
+        for _ in range(2):
+            p = ET.SubElement(page1, 'p')
+            p.set('class', 'normal')
+            p.text = ' '
+        
+        # Load FB data
+        fb_data_raw = (company_data.get('fbData') or
+                      company_data.get('fb_variables') or
+                      company_data.get('fbVariables') or
+                      company_data.get('forvaltningsberattelse', {}))
+        
+        # Load FB mappings for XBRL tags
+        try:
+            from supabase import create_client
+            import os
+            from dotenv import load_dotenv
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_ANON_KEY")
+            if supabase_url and supabase_key:
+                supabase = create_client(supabase_url, supabase_key)
+                fb_mappings_response = supabase.table('variable_mapping_fb').select('variable_name,element_name,tillhor').execute()
+                fb_mappings_dict = {m['variable_name']: m for m in fb_mappings_response.data if m.get('variable_name')}
+            else:
+                fb_mappings_dict = {}
+        except:
+            fb_mappings_dict = {}
+        
+        if fb_data_raw:
+            # Section: Verksamheten
+            if fb_data_raw.get('fb_beskrivning_verksamhet'):
+                p_heading1 = ET.SubElement(page1, 'p')
+                p_heading1.set('class', 'rubrik3')
+                p_heading1.text = 'Verksamheten'
+                
+                p_content1 = ET.SubElement(page1, 'p')
+                p_content1.set('class', 'normal')
+                verksamhet_text = fb_data_raw.get('fb_beskrivning_verksamhet', '')
+                
+                # Add XBRL tagging if available
+                if 'fb_beskrivning_verksamhet' in fb_mappings_dict:
+                    mapping = fb_mappings_dict['fb_beskrivning_verksamhet']
+                    element_name = mapping.get('element_name')
+                    namespace = mapping.get('tillhor', 'se-gen-base')
+                    namespace_prefix = self._get_namespace_prefix(namespace)
+                    element_qname = f'{namespace_prefix}:{element_name}'
+                    
+                    ix_text = ET.SubElement(p_content1, 'ix:nonNumeric')
+                    ix_text.set('name', element_qname)
+                    ix_text.set('contextRef', period0_ref)
+                    ix_text.text = verksamhet_text
+                else:
+                    p_content1.text = verksamhet_text
+                
+                for _ in range(2):
+                    p = ET.SubElement(page1, 'p')
+                    p.set('class', 'normal')
+                    p.text = ' '
+            
+            # Section: Väsentliga händelser
+            if fb_data_raw.get('fb_vasentliga_handelser'):
+                p_heading2 = ET.SubElement(page1, 'p')
+                p_heading2.set('class', 'rubrik3')
+                p_heading2.text = 'Väsentliga händelser under räkenskapsåret'
+                
+                p_content2 = ET.SubElement(page1, 'p')
+                p_content2.set('class', 'normal')
+                handelser_text = fb_data_raw.get('fb_vasentliga_handelser', '')
+                
+                # Add XBRL tagging if available
+                if 'fb_vasentliga_handelser' in fb_mappings_dict:
+                    mapping = fb_mappings_dict['fb_vasentliga_handelser']
+                    element_name = mapping.get('element_name')
+                    namespace = mapping.get('tillhor', 'se-gen-base')
+                    namespace_prefix = self._get_namespace_prefix(namespace)
+                    element_qname = f'{namespace_prefix}:{element_name}'
+                    
+                    ix_text = ET.SubElement(p_content2, 'ix:nonNumeric')
+                    ix_text.set('name', element_qname)
+                    ix_text.set('contextRef', period0_ref)
+                    ix_text.text = handelser_text
+                else:
+                    p_content2.text = handelser_text
+                
+                for _ in range(2):
+                    p = ET.SubElement(page1, 'p')
+                    p.set('class', 'normal')
+                    p.text = ' '
+            
+            # Section: Flerårsöversikt (Multi-year overview table)
+            p_heading3 = ET.SubElement(page1, 'p')
+            p_heading3.set('class', 'rubrik3')
+            p_heading3.text = 'Flerårsöversikt'
+            
+            multi_year_table = ET.SubElement(page1, 'table')
+            multi_year_table.set('style', 'border-collapse: collapse; width: 17cm')
+            
+            # Table header
+            tr_header = ET.SubElement(multi_year_table, 'tr')
+            td_label = ET.SubElement(tr_header, 'td')
+            td_label.set('style', 'vertical-align: bottom; width: 8cm')
+            p_label = ET.SubElement(td_label, 'p')
+            p_label.set('class', 'rubrik4')
+            p_label.text = 'Tkr'
+            
+            td_year = ET.SubElement(tr_header, 'td')
+            td_year.set('style', 'vertical-align: bottom; width: 3cm')
+            p_year = ET.SubElement(td_year, 'p')
+            p_year.set('class', 'summabelopp')
+            p_year.text = str(fiscal_year) if fiscal_year else ''
+            
+            td_prev_year = ET.SubElement(tr_header, 'td')
+            td_prev_year.set('style', 'vertical-align: bottom; width: 3cm')
+            p_prev_year = ET.SubElement(td_prev_year, 'p')
+            p_prev_year.set('class', 'summabelopp')
+            p_prev_year.text = str(prev_year) if prev_year else ''
+            
+            # Add key metrics rows (example rows - adapt based on actual FB data structure)
+            metrics = [
+                ('Nettoomsättning', fb_data_raw.get('fb_nettoomsattning_curr'), fb_data_raw.get('fb_nettoomsattning_prev')),
+                ('Resultat efter finansiella poster', fb_data_raw.get('fb_resultat_efter_fin_curr'), fb_data_raw.get('fb_resultat_efter_fin_prev')),
+                ('Balansomslutning', fb_data_raw.get('fb_balansomslutning_curr'), fb_data_raw.get('fb_balansomslutning_prev')),
+                ('Soliditet, %', fb_data_raw.get('fb_soliditet_curr'), fb_data_raw.get('fb_soliditet_prev')),
+            ]
+            
+            for label, curr_val, prev_val in metrics:
+                if curr_val is not None or prev_val is not None:
+                    tr = ET.SubElement(multi_year_table, 'tr')
+                    
+                    td_label = ET.SubElement(tr, 'td')
+                    td_label.set('style', 'vertical-align: bottom; width: 8cm')
+                    p_label = ET.SubElement(td_label, 'p')
+                    p_label.set('class', 'normal')
+                    p_label.text = label
+                    
+                    td_curr = ET.SubElement(tr, 'td')
+                    td_curr.set('style', 'vertical-align: bottom; width: 3cm')
+                    p_curr = ET.SubElement(td_curr, 'p')
+                    p_curr.set('class', 'belopp')
+                    if curr_val is not None:
+                        p_curr.text = self._format_monetary_value(self._num(curr_val), for_display=True).replace('.', ',')
+                    else:
+                        p_curr.text = ''
+                    
+                    td_prev = ET.SubElement(tr, 'td')
+                    td_prev.set('style', 'vertical-align: bottom; width: 3cm')
+                    p_prev = ET.SubElement(td_prev, 'p')
+                    p_prev.set('class', 'belopp')
+                    if prev_val is not None:
+                        p_prev.text = self._format_monetary_value(self._num(prev_val), for_display=True).replace('.', ',')
+                    else:
+                        p_prev.text = ''
+            
+            for _ in range(2):
+                p = ET.SubElement(page1, 'p')
+                p.set('class', 'normal')
+                p.text = ' '
+    
+    def _render_resultatrakning(self, body: ET.Element, company_data: Dict[str, Any],
+                                company_name: str, org_number: str, fiscal_year: Optional[int],
+                                prev_year: int, period0_ref: str, period1_ref: str, unit_ref: str):
+        """Render Resultaträkning section"""
+        page2 = ET.SubElement(body, 'div')
+        page2.set('class', 'pagebreak_before ar-page2')
+        
+        # Header
+        header_table = ET.SubElement(page2, 'table')
+        header_table.set('style', 'border-collapse: collapse; width: 17cm')
+        tr_header = ET.SubElement(header_table, 'tr')
+        
+        td_title = ET.SubElement(tr_header, 'td')
+        td_title.set('style', 'vertical-align: top; width: 9cm')
+        p_title = ET.SubElement(td_title, 'p')
+        p_title.set('class', 'rubrik2')
+        p_title.text = 'Resultaträkning'
+        p_tkr = ET.SubElement(td_title, 'p')
+        p_tkr.set('class', 'normal')
+        p_tkr.text = 'Tkr'
+        
+        td_not = ET.SubElement(tr_header, 'td')
+        td_not.set('style', 'vertical-align: top; width: 1.5cm')
+        p_not = ET.SubElement(td_not, 'p')
+        p_not.set('class', 'rubrik3')
+        p_not.text = 'Not'
+        
+        td_year1 = ET.SubElement(tr_header, 'td')
+        td_year1.set('style', 'vertical-align: top; width: 3cm')
+        p_year1_start = ET.SubElement(td_year1, 'p')
+        p_year1_start.set('class', 'belopp')
+        span_year1 = ET.SubElement(p_year1_start, 'span')
+        span_year1.set('style', 'font-weight: bold')
+        span_year1.text = f'{fiscal_year}-01-01' if fiscal_year else ''
+        p_year1_end = ET.SubElement(td_year1, 'p')
+        p_year1_end.set('class', 'summabelopp')
+        p_year1_end.text = f'-{fiscal_year}-12-31' if fiscal_year else ''
+        
+        td_year2 = ET.SubElement(tr_header, 'td')
+        td_year2.set('style', 'vertical-align: top; width: 3cm')
+        p_year2_start = ET.SubElement(td_year2, 'p')
+        p_year2_start.set('class', 'summabelopp')
+        p_year2_start.text = f'{prev_year}-01-01' if prev_year else ''
+        p_year2_end = ET.SubElement(td_year2, 'p')
+        p_year2_end.set('class', 'summabelopp')
+        p_year2_end.text = f'-{prev_year}-12-31' if prev_year else ''
+        
+        # Add spacing
+        p_spacing = ET.SubElement(page2, 'p')
+        p_spacing.set('class', 'normal')
+        p_spacing.text = ' '
+        
+        # RR table
+        rr_data_raw = (company_data.get('rrData') or 
+                      company_data.get('rrRows') or 
+                      company_data.get('seFileData', {}).get('rr_data', []))
+        
+        if rr_data_raw:
+            rr_table = ET.SubElement(page2, 'table')
+            rr_table.set('style', 'border-collapse: collapse; width: 17cm')
+            
+            # Load RR mappings for element names
+            try:
+                from supabase import create_client
+                import os
+                from dotenv import load_dotenv
+                load_dotenv()
+                supabase_url = os.getenv("SUPABASE_URL")
+                supabase_key = os.getenv("SUPABASE_ANON_KEY")
+                if supabase_url and supabase_key:
+                    supabase = create_client(supabase_url, supabase_key)
+                    rr_mappings_response = supabase.table('variable_mapping_rr').select('variable_name,element_name,tillhor').execute()
+                    rr_mappings_dict = {m['variable_name']: m for m in rr_mappings_response.data if m.get('variable_name')}
+                else:
+                    rr_mappings_dict = {}
+            except:
+                rr_mappings_dict = {}
+            
+            # Filter and render RR rows
+            seen_rorelseresultat = False
+            for row in rr_data_raw:
+                # Skip show_tag=False rows (UI-only flag)
+                if row.get('show_tag') == False:
+                    continue
+                
+                label = row.get('label', '')
+                
+                # Skip first occurrence of "Rörelseresultat" (duplicate)
+                if label == 'Rörelseresultat':
+                    if not seen_rorelseresultat:
+                        seen_rorelseresultat = True
+                        continue
+                
+                # Apply show/hide logic
+                if not self._should_show_row(row, rr_data_raw, 'rr'):
+                    continue
+                
+                # Determine if heading or sum
+                style = row.get('style', '')
+                is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
+                is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
+                
+                # Get note number
+                note = str(row.get('note_number', '')) if row.get('note_number') else ''
+                if 'Personalkostnader' in label or 'personalkostnader' in label.lower():
+                    note = '2'
+                
+                # Create table row
+                tr = ET.SubElement(rr_table, 'tr')
+                
+                # Label column
+                td_label = ET.SubElement(tr, 'td')
+                td_label.set('style', 'vertical-align: bottom; width: 9cm')
+                p_label = ET.SubElement(td_label, 'p')
+                if is_heading or is_sum:
+                    p_label.set('class', 'summatext' if is_sum else 'rubrik4')
+                else:
+                    p_label.set('class', 'normal')
+                p_label.text = label
+                
+                # Note column
+                td_note = ET.SubElement(tr, 'td')
+                td_note.set('style', 'vertical-align: bottom; width: 2cm')
+                p_note = ET.SubElement(td_note, 'p')
+                p_note.set('class', 'normal')
+                p_note.text = note
+                
+                # Current year amount
+                td_curr = ET.SubElement(tr, 'td')
+                td_curr.set('style', 'vertical-align: bottom; width: 2.5cm')
+                p_curr = ET.SubElement(td_curr, 'p')
+                if is_sum:
+                    p_curr.set('class', 'summabelopp')
+                else:
+                    p_curr.set('class', 'belopp')
+                
+                if is_heading:
+                    p_curr.text = ''
+                else:
+                    curr_val = self._num(row.get('current_amount', 0))
+                    if curr_val != 0 or row.get('always_show') or note:
+                        variable_name = row.get('variable_name')
+                        if variable_name and variable_name in rr_mappings_dict:
+                            mapping = rr_mappings_dict[variable_name]
+                            element_name = mapping.get('element_name')
+                            namespace = mapping.get('tillhor', 'se-gen-base')
+                            namespace_prefix = self._get_namespace_prefix(namespace)
+                            element_qname = f'{namespace_prefix}:{element_name}'
+                            
+                            # Use ix:nonFraction for monetary values
+                            ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
+                            ix_curr.set('name', element_qname)
+                            ix_curr.set('contextRef', period0_ref)
+                            ix_curr.set('unitRef', unit_ref)
+                            ix_curr.set('format', 'ixt:numdotdecimal')
+                            ix_curr.set('decimals', '0')
+                            ix_curr.set('scale', '3')
+                            ix_curr.text = str(int(round(curr_val)))
+                        else:
+                            # Fallback to plain text
+                            p_curr.text = self._format_monetary_value(curr_val, for_display=True).replace('.', ',').replace(' ', ' ')
+                    else:
+                        p_curr.text = ''
+                
+                # Spacing column
+                td_spacing = ET.SubElement(tr, 'td')
+                td_spacing.set('style', 'vertical-align: bottom; width: 0.5cm')
+                p_spacing = ET.SubElement(td_spacing, 'p')
+                p_spacing.set('class', 'normal')
+                p_spacing.text = ' '
+                
+                # Previous year amount
+                td_prev = ET.SubElement(tr, 'td')
+                td_prev.set('style', 'vertical-align: bottom; width: 2.5cm')
+                p_prev = ET.SubElement(td_prev, 'p')
+                if is_sum:
+                    p_prev.set('class', 'summabelopp')
+                else:
+                    p_prev.set('class', 'belopp')
+                
+                if is_heading:
+                    p_prev.text = ''
+                else:
+                    prev_val = self._num(row.get('previous_amount', 0))
+                    if prev_val != 0 or row.get('always_show') or note:
+                        variable_name = row.get('variable_name')
+                        if variable_name and variable_name in rr_mappings_dict:
+                            mapping = rr_mappings_dict[variable_name]
+                            element_name = mapping.get('element_name')
+                            namespace = mapping.get('tillhor', 'se-gen-base')
+                            namespace_prefix = self._get_namespace_prefix(namespace)
+                            element_qname = f'{namespace_prefix}:{element_name}'
+                            
+                            # Use ix:nonFraction for previous year
+                            ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
+                            ix_prev.set('name', element_qname)
+                            ix_prev.set('contextRef', period1_ref)
+                            ix_prev.set('unitRef', unit_ref)
+                            ix_prev.set('format', 'ixt:numdotdecimal')
+                            ix_prev.set('decimals', '0')
+                            ix_prev.set('scale', '3')
+                            ix_prev.text = str(int(round(prev_val)))
+                        else:
+                            # Fallback to plain text
+                            p_prev.text = self._format_monetary_value(prev_val, for_display=True).replace('.', ',').replace(' ', ' ')
+                    else:
+                        p_prev.text = ''
+                
+                # Final spacing column
+                td_spacing2 = ET.SubElement(tr, 'td')
+                td_spacing2.set('style', 'vertical-align: bottom; width: 0.5cm')
+                p_spacing2 = ET.SubElement(td_spacing2, 'p')
+                p_spacing2.set('class', 'normal')
+                p_spacing2.text = ' '
+    
+    def _render_balansrakning_tillgangar(self, body: ET.Element, company_data: Dict[str, Any],
+                                         company_name: str, org_number: str, fiscal_year: Optional[int],
+                                         prev_year: int, balans0_ref: str, balans1_ref: str, unit_ref: str):
+        """Render Balansräkning (Tillgångar) section"""
+        page3 = ET.SubElement(body, 'div')
+        page3.set('class', 'pagebreak_before ar-page3')
+        
+        # Header
+        header_table = ET.SubElement(page3, 'table')
+        header_table.set('style', 'border-collapse: collapse; width: 17cm')
+        tr_header = ET.SubElement(header_table, 'tr')
+        
+        td_title = ET.SubElement(tr_header, 'td')
+        td_title.set('style', 'vertical-align: top; width: 9cm')
+        p_title = ET.SubElement(td_title, 'p')
+        p_title.set('class', 'rubrik2')
+        p_title.text = 'Balansräkning'
+        p_tkr = ET.SubElement(td_title, 'p')
+        p_tkr.set('class', 'normal')
+        p_tkr.text = 'Tkr'
+        
+        td_not = ET.SubElement(tr_header, 'td')
+        td_not.set('style', 'vertical-align: top; width: 1.5cm')
+        p_not = ET.SubElement(td_not, 'p')
+        p_not.set('class', 'rubrik3')
+        p_not.text = 'Not'
+        
+        td_year1 = ET.SubElement(tr_header, 'td')
+        td_year1.set('style', 'vertical-align: top; width: 3cm')
+        p_year1 = ET.SubElement(td_year1, 'p')
+        p_year1.set('class', 'summabelopp')
+        p_year1.text = f'{fiscal_year}-12-31' if fiscal_year else ''
+        
+        td_year2 = ET.SubElement(tr_header, 'td')
+        td_year2.set('style', 'vertical-align: top; width: 3cm')
+        p_year2 = ET.SubElement(td_year2, 'p')
+        p_year2.set('class', 'summabelopp')
+        p_year2.text = f'{prev_year}-12-31' if prev_year else ''
+        
+        # Add spacing
+        p_spacing = ET.SubElement(page3, 'p')
+        p_spacing.set('class', 'normal')
+        p_spacing.text = ' '
+        
+        # BR table (assets only)
+        br_data_raw = (company_data.get('brData') or 
+                      company_data.get('brRows') or 
+                      company_data.get('seFileData', {}).get('br_data', []))
+        
+        # Load BR mappings
+        try:
+            from supabase import create_client
+            import os
+            from dotenv import load_dotenv
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_ANON_KEY")
+            if supabase_url and supabase_key:
+                supabase = create_client(supabase_url, supabase_key)
+                br_mappings_response = supabase.table('variable_mapping_br').select('variable_name,element_name,tillhor').execute()
+                br_mappings_dict = {m['variable_name']: m for m in br_mappings_response.data if m.get('variable_name')}
+            else:
+                br_mappings_dict = {}
+        except:
+            br_mappings_dict = {}
+        
+        if br_data_raw:
+            br_table = ET.SubElement(page3, 'table')
+            br_table.set('style', 'border-collapse: collapse; width: 17cm')
+            
+            # Filter assets only
+            br_assets = [r for r in br_data_raw if r.get('type') == 'asset']
+            
+            for row in br_assets:
+                # Skip show_tag=False rows
+                if row.get('show_tag') == False:
+                    continue
+                
+                label = row.get('label', '').strip()
+                
+                # Skip "Tillgångar" top-level heading
+                if label == 'Tillgångar':
+                    continue
+                
+                # Skip equity/liability headings
+                if label in ['Eget kapital och skulder', 'Eget kapital', 'Bundet eget kapital', 'Fritt eget kapital', 'Tecknat men ej inbetalt kapital']:
+                    continue
+                
+                # Apply show/hide logic
+                if not self._should_show_row(row, br_assets, 'br'):
+                    continue
+                
+                # Determine if heading or sum
+                style = row.get('style', '')
+                is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
+                is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
+                
+                # Get note number
+                note = str(row.get('note_number', '')) if row.get('note_number') else ''
+                
+                # Create table row
+                tr = ET.SubElement(br_table, 'tr')
+                
+                # Label column
+                td_label = ET.SubElement(tr, 'td')
+                td_label.set('style', 'vertical-align: bottom; width: 9cm')
+                p_label = ET.SubElement(td_label, 'p')
+                if is_heading:
+                    if style == 'H2':
+                        p_label.set('class', 'rubrik3')
+                    else:
+                        p_label.set('class', 'rubrik4')
+                elif is_sum:
+                    p_label.set('class', 'summatext')
+                else:
+                    p_label.set('class', 'normal')
+                p_label.text = label
+                
+                # Note column
+                td_note = ET.SubElement(tr, 'td')
+                td_note.set('style', 'vertical-align: bottom; width: 2cm')
+                p_note = ET.SubElement(td_note, 'p')
+                p_note.set('class', 'normal')
+                p_note.text = note
+                
+                # Current year amount
+                td_curr = ET.SubElement(tr, 'td')
+                td_curr.set('style', 'vertical-align: bottom; width: 2.5cm')
+                p_curr = ET.SubElement(td_curr, 'p')
+                if is_sum:
+                    p_curr.set('class', 'summabelopp')
+                else:
+                    p_curr.set('class', 'belopp')
+                
+                if is_heading:
+                    p_curr.text = ''
+                else:
+                    curr_val = self._num(row.get('current_amount', 0))
+                    if curr_val != 0 or row.get('always_show') or note:
+                        variable_name = row.get('variable_name')
+                        if variable_name and variable_name in br_mappings_dict:
+                            mapping = br_mappings_dict[variable_name]
+                            element_name = mapping.get('element_name')
+                            namespace = mapping.get('tillhor', 'se-gen-base')
+                            namespace_prefix = self._get_namespace_prefix(namespace)
+                            element_qname = f'{namespace_prefix}:{element_name}'
+                            
+                            ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
+                            ix_curr.set('name', element_qname)
+                            ix_curr.set('contextRef', balans0_ref)
+                            ix_curr.set('unitRef', unit_ref)
+                            ix_curr.set('format', 'ixt:numdotdecimal')
+                            ix_curr.set('decimals', '0')
+                            ix_curr.set('scale', '3')
+                            ix_curr.text = str(int(round(curr_val)))
+                        else:
+                            p_curr.text = self._format_monetary_value(curr_val, for_display=True).replace('.', ',')
+                    else:
+                        p_curr.text = ''
+                
+                # Spacing column
+                td_spacing = ET.SubElement(tr, 'td')
+                td_spacing.set('style', 'vertical-align: bottom; width: 0.5cm')
+                p_spacing = ET.SubElement(td_spacing, 'p')
+                p_spacing.set('class', 'normal')
+                p_spacing.text = ' '
+                
+                # Previous year amount
+                td_prev = ET.SubElement(tr, 'td')
+                td_prev.set('style', 'vertical-align: bottom; width: 2.5cm')
+                p_prev = ET.SubElement(td_prev, 'p')
+                if is_sum:
+                    p_prev.set('class', 'summabelopp')
+                else:
+                    p_prev.set('class', 'belopp')
+                
+                if is_heading:
+                    p_prev.text = ''
+                else:
+                    prev_val = self._num(row.get('previous_amount', 0))
+                    if prev_val != 0 or row.get('always_show') or note:
+                        variable_name = row.get('variable_name')
+                        if variable_name and variable_name in br_mappings_dict:
+                            mapping = br_mappings_dict[variable_name]
+                            element_name = mapping.get('element_name')
+                            namespace = mapping.get('tillhor', 'se-gen-base')
+                            namespace_prefix = self._get_namespace_prefix(namespace)
+                            element_qname = f'{namespace_prefix}:{element_name}'
+                            
+                            ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
+                            ix_prev.set('name', element_qname)
+                            ix_prev.set('contextRef', balans1_ref)
+                            ix_prev.set('unitRef', unit_ref)
+                            ix_prev.set('format', 'ixt:numdotdecimal')
+                            ix_prev.set('decimals', '0')
+                            ix_prev.set('scale', '3')
+                            ix_prev.text = str(int(round(prev_val)))
+                        else:
+                            p_prev.text = self._format_monetary_value(prev_val, for_display=True).replace('.', ',')
+                    else:
+                        p_prev.text = ''
+                
+                # Final spacing column
+                td_spacing2 = ET.SubElement(tr, 'td')
+                td_spacing2.set('style', 'vertical-align: bottom; width: 0.5cm')
+                p_spacing2 = ET.SubElement(td_spacing2, 'p')
+                p_spacing2.set('class', 'normal')
+                p_spacing2.text = ' '
+    
+    def _render_balansrakning_skulder(self, body: ET.Element, company_data: Dict[str, Any],
+                                     company_name: str, org_number: str, fiscal_year: Optional[int],
+                                     prev_year: int, balans0_ref: str, balans1_ref: str, unit_ref: str):
+        """Render Balansräkning (Eget kapital och skulder) section"""
+        page4 = ET.SubElement(body, 'div')
+        page4.set('class', 'pagebreak_before ar-page4')
+        
+        # Header (similar to page 3)
+        header_table = ET.SubElement(page4, 'table')
+        header_table.set('style', 'border-collapse: collapse; width: 17cm')
+        tr_header = ET.SubElement(header_table, 'tr')
+        
+        td_name = ET.SubElement(tr_header, 'td')
+        td_name.set('style', 'vertical-align: bottom; width: 9cm')
+        p_name1 = ET.SubElement(td_name, 'p')
+        p_name1.set('class', 'normalsidhuvud')
+        p_name1.text = company_name
+        p_org1 = ET.SubElement(td_name, 'p')
+        p_org1.set('class', 'normalsidhuvud')
+        p_org1.text = f'Org.nr {org_number}'
+        
+        td_not = ET.SubElement(tr_header, 'td')
+        td_not.set('style', 'vertical-align: bottom; width: 1.5cm')
+        p_not = ET.SubElement(td_not, 'p')
+        p_not.set('class', 'normal')
+        p_not.text = ' '
+        
+        td_year1 = ET.SubElement(tr_header, 'td')
+        td_year1.set('style', 'vertical-align: bottom; width: 3cm')
+        p_year1 = ET.SubElement(td_year1, 'p')
+        p_year1.set('class', 'normal')
+        p_year1.text = ' '
+        
+        td_page = ET.SubElement(tr_header, 'td')
+        td_page.set('style', 'vertical-align: top; width: 3cm')
+        p_page = ET.SubElement(td_page, 'p')
+        p_page.set('class', 'b13')
+        p_page.text = '4 (9)'  # TODO: Calculate actual page numbers
+        
+        # Add spacing
+        p_spacing = ET.SubElement(page4, 'p')
+        p_spacing.set('class', 'normal')
+        p_spacing.text = ' '
+        
+        # BR table (equity and liabilities)
+        br_data_raw = (company_data.get('brData') or 
+                      company_data.get('brRows') or 
+                      company_data.get('seFileData', {}).get('br_data', []))
+        
+        # Load BR mappings
+        try:
+            from supabase import create_client
+            import os
+            from dotenv import load_dotenv
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_ANON_KEY")
+            if supabase_url and supabase_key:
+                supabase = create_client(supabase_url, supabase_key)
+                br_mappings_response = supabase.table('variable_mapping_br').select('variable_name,element_name,tillhor').execute()
+                br_mappings_dict = {m['variable_name']: m for m in br_mappings_response.data if m.get('variable_name')}
+            else:
+                br_mappings_dict = {}
+        except:
+            br_mappings_dict = {}
+        
+        if br_data_raw:
+            br_table = ET.SubElement(page4, 'table')
+            br_table.set('style', 'border-collapse: collapse; width: 17cm')
+            
+            # Filter equity and liabilities only
+            br_equity_liabilities = [r for r in br_data_raw if r.get('type') in ['equity', 'liability']]
+            
+            for row in br_equity_liabilities:
+                # Skip show_tag=False rows
+                if row.get('show_tag') == False:
+                    continue
+                
+                label = row.get('label', '').strip()
+                
+                # Apply show/hide logic
+                if not self._should_show_row(row, br_equity_liabilities, 'br'):
+                    continue
+                
+                # Determine if heading or sum
+                style = row.get('style', '')
+                is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
+                is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
+                
+                # Get note number
+                note = str(row.get('note_number', '')) if row.get('note_number') else ''
+                
+                # Create table row (same structure as assets)
+                tr = ET.SubElement(br_table, 'tr')
+                
+                # Label column
+                td_label = ET.SubElement(tr, 'td')
+                td_label.set('style', 'vertical-align: bottom; width: 9cm')
+                p_label = ET.SubElement(td_label, 'p')
+                if is_heading:
+                    if style == 'H2':
+                        p_label.set('class', 'rubrik3')
+                    else:
+                        p_label.set('class', 'rubrik4')
+                elif is_sum:
+                    if label == 'Summa eget kapital och skulder':
+                        p_label.set('class', 'totalsummatext')
+                    else:
+                        p_label.set('class', 'summatext')
+                else:
+                    p_label.set('class', 'normal')
+                p_label.text = label
+                
+                # Note column
+                td_note = ET.SubElement(tr, 'td')
+                td_note.set('style', 'vertical-align: bottom; width: 2cm')
+                p_note = ET.SubElement(td_note, 'p')
+                p_note.set('class', 'normal')
+                p_note.text = note
+                
+                # Current year amount
+                td_curr = ET.SubElement(tr, 'td')
+                td_curr.set('style', 'vertical-align: bottom; width: 2.5cm')
+                p_curr = ET.SubElement(td_curr, 'p')
+                if is_sum:
+                    if label == 'Summa eget kapital och skulder':
+                        p_curr.set('class', 'totalsummabelopp')
+                    else:
+                        p_curr.set('class', 'summabelopp')
+                else:
+                    p_curr.set('class', 'belopp')
+                
+                if is_heading:
+                    p_curr.text = ''
+                else:
+                    curr_val = self._num(row.get('current_amount', 0))
+                    if curr_val != 0 or row.get('always_show') or note:
+                        variable_name = row.get('variable_name')
+                        if variable_name and variable_name in br_mappings_dict:
+                            mapping = br_mappings_dict[variable_name]
+                            element_name = mapping.get('element_name')
+                            namespace = mapping.get('tillhor', 'se-gen-base')
+                            namespace_prefix = self._get_namespace_prefix(namespace)
+                            element_qname = f'{namespace_prefix}:{element_name}'
+                            
+                            ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
+                            ix_curr.set('name', element_qname)
+                            ix_curr.set('contextRef', balans0_ref)
+                            ix_curr.set('unitRef', unit_ref)
+                            ix_curr.set('format', 'ixt:numdotdecimal')
+                            ix_curr.set('decimals', '0')
+                            ix_curr.set('scale', '3')
+                            ix_curr.text = str(int(round(curr_val)))
+                        else:
+                            p_curr.text = self._format_monetary_value(curr_val, for_display=True).replace('.', ',')
+                    else:
+                        p_curr.text = ''
+                
+                # Spacing column
+                td_spacing = ET.SubElement(tr, 'td')
+                td_spacing.set('style', 'vertical-align: bottom; width: 0.5cm')
+                p_spacing = ET.SubElement(td_spacing, 'p')
+                p_spacing.set('class', 'normal')
+                p_spacing.text = ' '
+                
+                # Previous year amount
+                td_prev = ET.SubElement(tr, 'td')
+                td_prev.set('style', 'vertical-align: bottom; width: 2.5cm')
+                p_prev = ET.SubElement(td_prev, 'p')
+                if is_sum:
+                    if label == 'Summa eget kapital och skulder':
+                        p_prev.set('class', 'totalsummabelopp')
+                    else:
+                        p_prev.set('class', 'summabelopp')
+                else:
+                    p_prev.set('class', 'belopp')
+                
+                if is_heading:
+                    p_prev.text = ''
+                else:
+                    prev_val = self._num(row.get('previous_amount', 0))
+                    if prev_val != 0 or row.get('always_show') or note:
+                        variable_name = row.get('variable_name')
+                        if variable_name and variable_name in br_mappings_dict:
+                            mapping = br_mappings_dict[variable_name]
+                            element_name = mapping.get('element_name')
+                            namespace = mapping.get('tillhor', 'se-gen-base')
+                            namespace_prefix = self._get_namespace_prefix(namespace)
+                            element_qname = f'{namespace_prefix}:{element_name}'
+                            
+                            ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
+                            ix_prev.set('name', element_qname)
+                            ix_prev.set('contextRef', balans1_ref)
+                            ix_prev.set('unitRef', unit_ref)
+                            ix_prev.set('format', 'ixt:numdotdecimal')
+                            ix_prev.set('decimals', '0')
+                            ix_prev.set('scale', '3')
+                            ix_prev.text = str(int(round(prev_val)))
+                        else:
+                            p_prev.text = self._format_monetary_value(prev_val, for_display=True).replace('.', ',')
+                    else:
+                        p_prev.text = ''
+                
+                # Final spacing column
+                td_spacing2 = ET.SubElement(tr, 'td')
+                td_spacing2.set('style', 'vertical-align: bottom; width: 0.5cm')
+                p_spacing2 = ET.SubElement(td_spacing2, 'p')
+                p_spacing2.set('class', 'normal')
+                p_spacing2.text = ' '
+    
+    def _render_noter(self, body: ET.Element, company_data: Dict[str, Any],
+                     company_name: str, org_number: str, fiscal_year: Optional[int],
+                     prev_year: int, period0_ref: str, period1_ref: str,
+                     balans0_ref: str, balans1_ref: str, unit_ref: str):
+        """Render Noter section"""
+        page5 = ET.SubElement(body, 'div')
+        page5.set('class', 'pagebreak_before ar-page5')
+        
+        # Header
+        header_table = ET.SubElement(page5, 'table')
+        header_table.set('style', 'border-collapse: collapse; width: 17cm')
+        tr_header = ET.SubElement(header_table, 'tr')
+        
+        td_name = ET.SubElement(tr_header, 'td')
+        td_name.set('style', 'vertical-align: bottom; width: 9cm')
+        p_name = ET.SubElement(td_name, 'p')
+        p_name.set('class', 'normalsidhuvud')
+        p_name.text = company_name
+        p_org = ET.SubElement(td_name, 'p')
+        p_org.set('class', 'normalsidhuvud')
+        p_org.text = f'Org.nr {org_number}'
+        
+        td_not = ET.SubElement(tr_header, 'td')
+        td_not.set('style', 'vertical-align: bottom; width: 1.5cm')
+        p_not = ET.SubElement(td_not, 'p')
+        p_not.set('class', 'normal')
+        p_not.text = ' '
+        
+        td_year1 = ET.SubElement(tr_header, 'td')
+        td_year1.set('style', 'vertical-align: bottom; width: 3cm')
+        p_year1 = ET.SubElement(td_year1, 'p')
+        p_year1.set('class', 'normal')
+        p_year1.text = ' '
+        
+        td_page = ET.SubElement(tr_header, 'td')
+        td_page.set('style', 'vertical-align: top; width: 3cm')
+        p_page = ET.SubElement(td_page, 'p')
+        p_page.set('class', 'b13')
+        p_page.text = '5 (9)'  # TODO: Calculate actual page numbers
+        
+        # Add spacing
+        p_spacing = ET.SubElement(page5, 'p')
+        p_spacing.set('class', 'normal')
+        p_spacing.text = ' '
+        
+        # Noter title
+        p_title = ET.SubElement(page5, 'p')
+        p_title.set('class', 'rubrik2')
+        p_title.text = 'Noter'
+        
+        p_spacing2 = ET.SubElement(page5, 'p')
+        p_spacing2.set('class', 'normal')
+        p_spacing2.text = ' '
+        
+        p_tkr = ET.SubElement(page5, 'p')
+        p_tkr.set('class', 'normal')
+        p_tkr.text = 'Alla belopp i tkr om inget annat anges'
+        
+        p_spacing3 = ET.SubElement(page5, 'p')
+        p_spacing3.set('class', 'normal')
+        p_spacing3.text = ' '
+        
+        # Load noter data
+        noter_data_raw = (company_data.get('noterData') or
+                         company_data.get('noter_data') or
+                         company_data.get('seFileData', {}).get('noter_data', []))
+        
+        # Load noter mappings
+        try:
+            from supabase import create_client
+            import os
+            from dotenv import load_dotenv
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_ANON_KEY")
+            if supabase_url and supabase_key:
+                supabase = create_client(supabase_url, supabase_key)
+                noter_mappings_response = supabase.table('variable_mapping_noter').select('variable_name,element_name,tillhor').execute()
+                noter_mappings_dict = {m['variable_name']: m for m in noter_mappings_response.data if m.get('variable_name')}
+            else:
+                noter_mappings_dict = {}
+        except:
+            noter_mappings_dict = {}
+        
+        if noter_data_raw:
+            # Group notes by note number
+            notes_by_number = {}
+            for row in noter_data_raw:
+                note_num = row.get('note_number')
+                if note_num:
+                    if note_num not in notes_by_number:
+                        notes_by_number[note_num] = []
+                    notes_by_number[note_num].append(row)
+            
+            # Render each note
+            for note_num in sorted(notes_by_number.keys()):
+                rows = notes_by_number[note_num]
+                
+                # Note title
+                p_note_title = ET.SubElement(page5, 'p')
+                p_note_title.set('class', 'rubrik3')
+                note_label = rows[0].get('note_label', f'Not {note_num}')
+                p_note_title.text = f'Not {note_num} {note_label}'
+                
+                # Note table
+                note_table = ET.SubElement(page5, 'table')
+                note_table.set('style', 'border-collapse: collapse; width: 17cm')
+                
+                for row in rows:
+                    # Skip show_tag=False rows
+                    if row.get('show_tag') == False:
+                        continue
+                    
+                    label = row.get('label', '').strip()
+                    
+                    # Skip if no content
+                    if not label:
+                        continue
+                    
+                    # Determine if heading or sum
+                    style = row.get('style', '')
+                    is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
+                    is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
+                    
+                    # Create table row
+                    tr = ET.SubElement(note_table, 'tr')
+                    
+                    # Label column
+                    td_label = ET.SubElement(tr, 'td')
+                    td_label.set('style', 'vertical-align: bottom; width: 10cm')
+                    p_label = ET.SubElement(td_label, 'p')
+                    if is_heading:
+                        p_label.set('class', 'rubrik4')
+                    elif is_sum:
+                        p_label.set('class', 'summatext')
+                    else:
+                        p_label.set('class', 'normal')
+                    p_label.text = label
+                    
+                    # Current year amount
+                    td_curr = ET.SubElement(tr, 'td')
+                    td_curr.set('style', 'vertical-align: bottom; width: 3cm')
+                    p_curr = ET.SubElement(td_curr, 'p')
+                    if is_sum:
+                        p_curr.set('class', 'summabelopp')
+                    else:
+                        p_curr.set('class', 'belopp')
+                    
+                    if is_heading:
+                        p_curr.text = ''
+                    else:
+                        curr_val = self._num(row.get('current_amount', 0))
+                        if curr_val != 0 or row.get('always_show'):
+                            variable_name = row.get('variable_name')
+                            if variable_name and variable_name in noter_mappings_dict:
+                                mapping = noter_mappings_dict[variable_name]
+                                element_name = mapping.get('element_name')
+                                namespace = mapping.get('tillhor', 'se-gen-base')
+                                namespace_prefix = self._get_namespace_prefix(namespace)
+                                element_qname = f'{namespace_prefix}:{element_name}'
+                                
+                                # Determine context based on data type
+                                context_ref = period0_ref
+                                if row.get('period_type') == 'instant':
+                                    context_ref = balans0_ref
+                                
+                                ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
+                                ix_curr.set('name', element_qname)
+                                ix_curr.set('contextRef', context_ref)
+                                ix_curr.set('unitRef', unit_ref)
+                                ix_curr.set('format', 'ixt:numdotdecimal')
+                                ix_curr.set('decimals', '0')
+                                ix_curr.set('scale', '3')
+                                ix_curr.text = str(int(round(curr_val)))
+                            else:
+                                p_curr.text = self._format_monetary_value(curr_val, for_display=True).replace('.', ',')
+                        else:
+                            p_curr.text = ''
+                    
+                    # Spacing column
+                    td_spacing = ET.SubElement(tr, 'td')
+                    td_spacing.set('style', 'vertical-align: bottom; width: 0.5cm')
+                    p_spacing = ET.SubElement(td_spacing, 'p')
+                    p_spacing.set('class', 'normal')
+                    p_spacing.text = ' '
+                    
+                    # Previous year amount
+                    td_prev = ET.SubElement(tr, 'td')
+                    td_prev.set('style', 'vertical-align: bottom; width: 3cm')
+                    p_prev = ET.SubElement(td_prev, 'p')
+                    if is_sum:
+                        p_prev.set('class', 'summabelopp')
+                    else:
+                        p_prev.set('class', 'belopp')
+                    
+                    if is_heading:
+                        p_prev.text = ''
+                    else:
+                        prev_val = self._num(row.get('previous_amount', 0))
+                        if prev_val != 0 or row.get('always_show'):
+                            variable_name = row.get('variable_name')
+                            if variable_name and variable_name in noter_mappings_dict:
+                                mapping = noter_mappings_dict[variable_name]
+                                element_name = mapping.get('element_name')
+                                namespace = mapping.get('tillhor', 'se-gen-base')
+                                namespace_prefix = self._get_namespace_prefix(namespace)
+                                element_qname = f'{namespace_prefix}:{element_name}'
+                                
+                                # Determine context based on data type
+                                context_ref = period1_ref
+                                if row.get('period_type') == 'instant':
+                                    context_ref = balans1_ref
+                                
+                                ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
+                                ix_prev.set('name', element_qname)
+                                ix_prev.set('contextRef', context_ref)
+                                ix_prev.set('unitRef', unit_ref)
+                                ix_prev.set('format', 'ixt:numdotdecimal')
+                                ix_prev.set('decimals', '0')
+                                ix_prev.set('scale', '3')
+                                ix_prev.text = str(int(round(prev_val)))
+                            else:
+                                p_prev.text = self._format_monetary_value(prev_val, for_display=True).replace('.', ',')
+                        else:
+                            p_prev.text = ''
+                
+                # Add spacing after each note
+                p_spacing_note = ET.SubElement(page5, 'p')
+                p_spacing_note.set('class', 'normal')
+                p_spacing_note.text = ' '
     
     def _add_general_info_facts(self, company_data: Dict[str, Any], start_date: Optional[str], end_date: Optional[str]):
         """Add general company information facts (se-cd-base namespace)"""
