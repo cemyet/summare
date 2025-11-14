@@ -299,7 +299,6 @@ class ForvaltningsberattelseFB:
         uppskrivning_anl, aterforing_uppskr = self._calculate_uppskrivning_from_verifications(verifications)
         uppskrfond_aterforing_balanserat_resultat = self._calculate_uppskrfond_aterforing_balanserat_resultat_from_verifications(verifications)
         
-        # Extract BR values using correct variable names from CSV
         # IB = previous_amount (Ingående balans), UB = current_amount (Utgående balans)
         aktiekapital_ib = self._get_br_value(br_data, 'Aktiekapital', use_previous_year=True)
         aktiekapital_ub = self._get_br_value(br_data, 'Aktiekapital', use_previous_year=False)
@@ -602,73 +601,3 @@ class ForvaltningsberattelseFB:
             )
         
         return "\n".join(output)
-
-
-# Test functionality
-def test_fb_module():
-    """Test the FB module with sample data"""
-    
-    # Sample SIE text with utdelning verification
-    sample_sie = """
-#VER A 27 20240628 "utdelning"
-{
-#TRANS 1930 {} -900000.00
-#TRANS 1660 {} -19100000.00
-#TRANS 2091 {} 20000000.00
-}
-
-#VER B 15 20240315 "nyemission"
-{
-#TRANS 1910 {} 500000.00
-#TRANS 2081 {} -500000.00
-}
-
-#VER C 8 20240120 "aktieägartillskott"
-{
-#TRANS 1910 {} 1000000.00
-#TRANS 2093 {} -1000000.00
-}
-
-#VER D 22 20240801 "uppskrivning"
-{
-#TRANS 1210 {} 750000.00
-#TRANS 2085 {} -750000.00
-}
-"""
-    
-    # Sample BR data
-    sample_br_data = {
-        'aktiekapital_ib': 1000000.0,
-        'aktiekapital_ub': 1500000.0,
-        'reservfond_ib': 500000.0,
-        'reservfond_ub': 500000.0,
-        'uppskrivningsfond_ib': 0.0,
-        'uppskrivningsfond_ub': 750000.0,
-        'sum_fritt_eget_kapital_ib': 2000000.0,
-        'sum_fritt_eget_kapital_ub': 1080000.0,
-        'arets_resultat_ib': 0.0,
-        'arets_resultat_ub': 800000.0
-    }
-    
-    # Initialize FB module
-    fb = ForvaltningsberattelseFB()
-    
-    # Calculate variables
-    print("Calculating Förändring i eget kapital...")
-    variables = fb.calculate_forandring_eget_kapital(sample_sie, sample_br_data)
-    
-    print("\nCalculated Variables:")
-    for key, value in variables.items():
-        print(f"{key}: {value:,.0f}")
-    
-    # Generate table
-    table_rows = fb.generate_forandring_eget_kapital_table(variables)
-    
-    # Display table
-    print("\n" + fb.format_table_for_display(table_rows))
-    
-    return variables, table_rows
-
-
-if __name__ == "__main__":
-    test_fb_module()
