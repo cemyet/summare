@@ -105,8 +105,9 @@ class XBRLGenerator:
         if value is None:
             return "0"
         if for_display:
-            # Format with thousand separators (space) and 2 decimals for HTML display
-            return f"{value:,.2f}".replace(',', ' ').replace('.', ',')
+            # Format with thousand separators (space), NO decimals for HTML display
+            # Match PDF format: "1 936 366" not "1 936 365,77"
+            return f"{int(round(value)):,}".replace(',', ' ')
         # XBRL uses string representation of numbers (integers)
         return str(int(round(value)))
     
@@ -1319,36 +1320,36 @@ td, th {
         td_title = ET.SubElement(tr_header, 'td')
         td_title.set('style', 'vertical-align: top; width: 9cm')
         p_title = ET.SubElement(td_title, 'p')
-        p_title.set('class', 'rubrik2')
+        p_title.set('class', 'H0')
         p_title.text = 'Resultaträkning'
-        p_tkr = ET.SubElement(td_title, 'p')
-        p_tkr.set('class', 'normal')
-        p_tkr.text = 'Tkr'
         
         td_not = ET.SubElement(tr_header, 'td')
-        td_not.set('style', 'vertical-align: top; width: 1.5cm')
+        td_not.set('style', 'vertical-align: bottom; width: 1.5cm')
         p_not = ET.SubElement(td_not, 'p')
-        p_not.set('class', 'rubrik3')
+        p_not.set('class', 'H1')
+        p_not.set('style', 'text-align: center; margin-top: 0;')
         p_not.text = 'Not'
         
         td_year1 = ET.SubElement(tr_header, 'td')
-        td_year1.set('style', 'vertical-align: top; width: 3cm')
+        td_year1.set('style', 'vertical-align: bottom; width: 3cm')
         p_year1_start = ET.SubElement(td_year1, 'p')
-        p_year1_start.set('class', 'belopp')
-        span_year1 = ET.SubElement(p_year1_start, 'span')
-        span_year1.set('style', 'font-weight: bold')
-        span_year1.text = f'{fiscal_year}-01-01' if fiscal_year else ''
+        p_year1_start.set('class', 'amount-right-bold')
+        p_year1_start.set('style', 'margin-top: 0; margin-bottom: 0;')
+        p_year1_start.text = f'{fiscal_year}-01-01' if fiscal_year else ''
         p_year1_end = ET.SubElement(td_year1, 'p')
-        p_year1_end.set('class', 'summabelopp')
+        p_year1_end.set('class', 'amount-right-bold')
+        p_year1_end.set('style', 'margin-top: 0; margin-bottom: 0;')
         p_year1_end.text = f'-{fiscal_year}-12-31' if fiscal_year else ''
         
         td_year2 = ET.SubElement(tr_header, 'td')
-        td_year2.set('style', 'vertical-align: top; width: 3cm')
+        td_year2.set('style', 'vertical-align: bottom; width: 3cm')
         p_year2_start = ET.SubElement(td_year2, 'p')
-        p_year2_start.set('class', 'summabelopp')
+        p_year2_start.set('class', 'amount-right-bold')
+        p_year2_start.set('style', 'margin-top: 0; margin-bottom: 0;')
         p_year2_start.text = f'{prev_year}-01-01' if prev_year else ''
         p_year2_end = ET.SubElement(td_year2, 'p')
-        p_year2_end.set('class', 'summabelopp')
+        p_year2_end.set('class', 'amount-right-bold')
+        p_year2_end.set('style', 'margin-top: 0; margin-bottom: 0;')
         p_year2_end.text = f'-{prev_year}-12-31' if prev_year else ''
         
         # Add spacing
@@ -1421,19 +1422,29 @@ td, th {
                 if 'Personalkostnader' in label or 'personalkostnader' in label.lower():
                     note = '2'
                 
-                # Create table row
+                # Create table row with proper spacing
                 tr = ET.SubElement(rr_table, 'tr')
+                
+                # Add row spacing based on type (matching PDF spacing)
+                row_style = ''
+                if is_sum:
+                    row_style = 'padding-bottom: 10pt;'  # 10pt space after sum rows
+                elif is_heading:
+                    row_style = 'padding-top: 2pt;'  # Small space before headings
                 
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
-                td_label.set('style', 'vertical-align: bottom; width: 9cm')
+                td_label.set('style', f'vertical-align: bottom; width: 9cm; {row_style}')
                 p_label = ET.SubElement(td_label, 'p')
                 if is_heading:
                     p_label.set('class', 'H3-table')  # 10pt semibold for RR headings
+                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 elif is_sum:
                     p_label.set('class', 'sum-label')  # Bold sum text
+                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_label.set('class', 'P')  # Normal body text
+                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 p_label.text = label
                 
                 # Note column
@@ -1449,8 +1460,10 @@ td, th {
                 p_curr = ET.SubElement(td_curr, 'p')
                 if is_sum:
                     p_curr.set('class', 'sum-amount')  # Bold right-aligned
+                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_curr.set('class', 'amount-right')  # Normal right-aligned
+                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
                 if is_heading:
                     p_curr.text = ''
@@ -1475,8 +1488,8 @@ td, th {
                             ix_curr.set('scale', '3')
                             ix_curr.text = str(int(round(curr_val)))
                         else:
-                            # Fallback to plain text
-                            p_curr.text = self._format_monetary_value(curr_val, for_display=True).replace('.', ',').replace(' ', ' ')
+                            # Fallback to plain text (no decimals)
+                            p_curr.text = self._format_monetary_value(curr_val, for_display=True)
                     else:
                         p_curr.text = ''
                 
@@ -1493,8 +1506,10 @@ td, th {
                 p_prev = ET.SubElement(td_prev, 'p')
                 if is_sum:
                     p_prev.set('class', 'sum-amount')  # Bold right-aligned
+                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_prev.set('class', 'amount-right')  # Normal right-aligned
+                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
                 if is_heading:
                     p_prev.text = ''
@@ -1519,8 +1534,8 @@ td, th {
                             ix_prev.set('scale', '3')
                             ix_prev.text = str(int(round(prev_val)))
                         else:
-                            # Fallback to plain text
-                            p_prev.text = self._format_monetary_value(prev_val, for_display=True).replace('.', ',').replace(' ', ' ')
+                            # Fallback to plain text (no decimals)
+                            p_prev.text = self._format_monetary_value(prev_val, for_display=True)
                     else:
                         p_prev.text = ''
                 
@@ -1544,30 +1559,30 @@ td, th {
         tr_header = ET.SubElement(header_table, 'tr')
         
         td_title = ET.SubElement(tr_header, 'td')
-        td_title.set('style', 'vertical-align: top; width: 9cm')
+        td_title.set('style', 'vertical-align: bottom; width: 9cm')
         p_title = ET.SubElement(td_title, 'p')
-        p_title.set('class', 'rubrik2')
+        p_title.set('class', 'H0')
         p_title.text = 'Balansräkning'
-        p_tkr = ET.SubElement(td_title, 'p')
-        p_tkr.set('class', 'normal')
-        p_tkr.text = 'Tkr'
         
         td_not = ET.SubElement(tr_header, 'td')
-        td_not.set('style', 'vertical-align: top; width: 1.5cm')
+        td_not.set('style', 'vertical-align: bottom; width: 1.5cm')
         p_not = ET.SubElement(td_not, 'p')
-        p_not.set('class', 'rubrik3')
+        p_not.set('class', 'H1')
+        p_not.set('style', 'text-align: center; margin-top: 0;')
         p_not.text = 'Not'
         
         td_year1 = ET.SubElement(tr_header, 'td')
-        td_year1.set('style', 'vertical-align: top; width: 3cm')
+        td_year1.set('style', 'vertical-align: bottom; width: 3cm')
         p_year1 = ET.SubElement(td_year1, 'p')
-        p_year1.set('class', 'summabelopp')
+        p_year1.set('class', 'amount-right-bold')
+        p_year1.set('style', 'margin-top: 0; margin-bottom: 0;')
         p_year1.text = f'{fiscal_year}-12-31' if fiscal_year else ''
         
         td_year2 = ET.SubElement(tr_header, 'td')
-        td_year2.set('style', 'vertical-align: top; width: 3cm')
+        td_year2.set('style', 'vertical-align: bottom; width: 3cm')
         p_year2 = ET.SubElement(td_year2, 'p')
-        p_year2.set('class', 'summabelopp')
+        p_year2.set('class', 'amount-right-bold')
+        p_year2.set('style', 'margin-top: 0; margin-bottom: 0;')
         p_year2.text = f'{prev_year}-12-31' if prev_year else ''
         
         # Add spacing
@@ -1643,12 +1658,27 @@ td, th {
                 # Get note number
                 note = str(row.get('note_number', '')) if row.get('note_number') else ''
                 
-                # Create table row
+                # Create table row with proper spacing (matching PDF BR spacing)
                 tr = ET.SubElement(br_table, 'tr')
+                
+                # Add row spacing based on type
+                # BR_H2_SPACE_BEFORE = 8pt, BR_H2_SPACE_AFTER = 12pt, sum spacing = 10pt
+                row_padding_top = ''
+                row_padding_bottom = ''
+                if is_heading:
+                    if style in ['H2', 'H0']:
+                        row_padding_top = 'padding-top: 8pt;'  # 8pt before H2 headings
+                        row_padding_bottom = 'padding-bottom: 12pt;'  # 12pt after H2 headings
+                    else:
+                        row_padding_top = 'padding-top: 2pt;'  # Small space before H1/H3
+                elif is_sum:
+                    row_padding_bottom = 'padding-bottom: 10pt;'  # 10pt space after sums
+                
+                row_style = f'{row_padding_top} {row_padding_bottom}'
                 
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
-                td_label.set('style', 'vertical-align: bottom; width: 9cm')
+                td_label.set('style', f'vertical-align: bottom; width: 9cm; {row_style}')
                 p_label = ET.SubElement(td_label, 'p')
                 if is_heading:
                     # H2/H0 → 11pt (larger BR headings like "Anläggningstillgångar")
@@ -1657,10 +1687,13 @@ td, th {
                         p_label.set('class', 'H2-table')  # 11pt semibold
                     else:
                         p_label.set('class', 'H3-table')  # 10pt semibold
+                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 elif is_sum:
                     p_label.set('class', 'sum-label')  # Bold sum text
+                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_label.set('class', 'P')  # Normal body text
+                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 p_label.text = label
                 
                 # Note column
@@ -1668,6 +1701,7 @@ td, th {
                 td_note.set('style', 'vertical-align: bottom; width: 2cm')
                 p_note = ET.SubElement(td_note, 'p')
                 p_note.set('class', 'P')
+                p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
                 p_note.text = note
                 
                 # Current year amount
@@ -1676,8 +1710,10 @@ td, th {
                 p_curr = ET.SubElement(td_curr, 'p')
                 if is_sum:
                     p_curr.set('class', 'sum-amount')  # Bold right-aligned
+                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_curr.set('class', 'amount-right')  # Normal right-aligned
+                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
                 if is_heading:
                     p_curr.text = ''
@@ -1701,7 +1737,8 @@ td, th {
                             ix_curr.set('scale', '3')
                             ix_curr.text = str(int(round(curr_val)))
                         else:
-                            p_curr.text = self._format_monetary_value(curr_val, for_display=True).replace('.', ',')
+                            # Fallback to plain text (no decimals)
+                            p_curr.text = self._format_monetary_value(curr_val, for_display=True)
                     else:
                         p_curr.text = ''
                 
@@ -1718,8 +1755,10 @@ td, th {
                 p_prev = ET.SubElement(td_prev, 'p')
                 if is_sum:
                     p_prev.set('class', 'sum-amount')  # Bold right-aligned
+                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_prev.set('class', 'amount-right')  # Normal right-aligned
+                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
                 if is_heading:
                     p_prev.text = ''
@@ -1743,7 +1782,8 @@ td, th {
                             ix_prev.set('scale', '3')
                             ix_prev.text = str(int(round(prev_val)))
                         else:
-                            p_prev.text = self._format_monetary_value(prev_val, for_display=True).replace('.', ',')
+                            # Fallback to plain text (no decimals)
+                            p_prev.text = self._format_monetary_value(prev_val, for_display=True)
                     else:
                         p_prev.text = ''
                 
