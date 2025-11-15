@@ -1382,14 +1382,14 @@ td, th {
             except:
                 rr_mappings_dict = {}
             
-            # Filter and render RR rows
+            # Filter and render RR rows (mirroring PDF generator logic)
             seen_rorelseresultat = False
             for row in rr_data_raw:
-                # Skip show_tag=False rows (UI-only flag)
-                if row.get('show_tag') == False:
-                    continue
+                # NOTE: Do NOT filter by show_tag - PDF generator ignores this field
+                # Only filter by amounts, always_show, block_group logic, and note_number
                 
                 label = row.get('label', '')
+                block_group = row.get('block_group', '')
                 
                 # Skip first occurrence of "Rörelseresultat" (duplicate)
                 if label == 'Rörelseresultat':
@@ -1397,14 +1397,24 @@ td, th {
                         seen_rorelseresultat = True
                         continue
                 
-                # Apply show/hide logic
-                if not self._should_show_row(row, rr_data_raw, 'rr'):
-                    continue
-                
-                # Determine if heading or sum
+                # Determine if heading or sum based on style field (better than label matching)
                 style = row.get('style', '')
                 is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
                 is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
+                
+                # Block hiding logic: if this row belongs to a block, check if block has content
+                if block_group and not self._block_has_content(block_group, rr_data_raw, 'rr'):
+                    continue
+                
+                # For heading rows: always show (with empty amounts)
+                # For other rows: show if has amounts OR always_show OR is_sum OR has note_number
+                if not is_heading:
+                    has_note = row.get('note_number') is not None and row.get('note_number') != ''
+                    if not row.get('always_show') and not is_sum and not has_note:
+                        curr = self._num(row.get('current_amount', 0))
+                        prev = self._num(row.get('previous_amount', 0))
+                        if curr == 0 and prev == 0:
+                            continue
                 
                 # Get note number
                 note = str(row.get('note_number', '')) if row.get('note_number') else ''
@@ -1418,17 +1428,19 @@ td, th {
                 td_label = ET.SubElement(tr, 'td')
                 td_label.set('style', 'vertical-align: bottom; width: 9cm')
                 p_label = ET.SubElement(td_label, 'p')
-                if is_heading or is_sum:
-                    p_label.set('class', 'summatext' if is_sum else 'rubrik4')
+                if is_heading:
+                    p_label.set('class', 'H3-table')  # 10pt semibold for RR headings
+                elif is_sum:
+                    p_label.set('class', 'sum-label')  # Bold sum text
                 else:
-                    p_label.set('class', 'normal')
+                    p_label.set('class', 'P')  # Normal body text
                 p_label.text = label
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
                 td_note.set('style', 'vertical-align: bottom; width: 2cm')
                 p_note = ET.SubElement(td_note, 'p')
-                p_note.set('class', 'normal')
+                p_note.set('class', 'P')
                 p_note.text = note
                 
                 # Current year amount
@@ -1436,9 +1448,9 @@ td, th {
                 td_curr.set('style', 'vertical-align: bottom; width: 2.5cm')
                 p_curr = ET.SubElement(td_curr, 'p')
                 if is_sum:
-                    p_curr.set('class', 'summabelopp')
+                    p_curr.set('class', 'sum-amount')  # Bold right-aligned
                 else:
-                    p_curr.set('class', 'belopp')
+                    p_curr.set('class', 'amount-right')  # Normal right-aligned
                 
                 if is_heading:
                     p_curr.text = ''
@@ -1472,7 +1484,7 @@ td, th {
                 td_spacing = ET.SubElement(tr, 'td')
                 td_spacing.set('style', 'vertical-align: bottom; width: 0.5cm')
                 p_spacing = ET.SubElement(td_spacing, 'p')
-                p_spacing.set('class', 'normal')
+                p_spacing.set('class', 'P')
                 p_spacing.text = ' '
                 
                 # Previous year amount
@@ -1480,9 +1492,9 @@ td, th {
                 td_prev.set('style', 'vertical-align: bottom; width: 2.5cm')
                 p_prev = ET.SubElement(td_prev, 'p')
                 if is_sum:
-                    p_prev.set('class', 'summabelopp')
+                    p_prev.set('class', 'sum-amount')  # Bold right-aligned
                 else:
-                    p_prev.set('class', 'belopp')
+                    p_prev.set('class', 'amount-right')  # Normal right-aligned
                 
                 if is_heading:
                     p_prev.text = ''
@@ -1593,11 +1605,11 @@ td, th {
             br_assets = [r for r in br_data_raw if r.get('type') == 'asset']
             
             for row in br_assets:
-                # Skip show_tag=False rows
-                if row.get('show_tag') == False:
-                    continue
+                # NOTE: Do NOT filter by show_tag - PDF generator ignores this field
+                # Only filter by amounts, always_show, block_group logic, and note_number
                 
                 label = row.get('label', '').strip()
+                block_group = row.get('block_group', '')
                 
                 # Skip "Tillgångar" top-level heading
                 if label == 'Tillgångar':
@@ -1607,14 +1619,26 @@ td, th {
                 if label in ['Eget kapital och skulder', 'Eget kapital', 'Bundet eget kapital', 'Fritt eget kapital', 'Tecknat men ej inbetalt kapital']:
                     continue
                 
-                # Apply show/hide logic
-                if not self._should_show_row(row, br_assets, 'br'):
+                # Determine if heading or sum based on style field (better than label matching)
+                style = row.get('style', '')
+                is_h2_heading = style == 'H2'
+                is_h1_heading = style in ['H1', 'H3']  # H1 and H3 are treated the same in BR
+                is_heading = is_h2_heading or is_h1_heading
+                is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
+                
+                # Block hiding logic: if this row belongs to a block, check if block has content
+                if block_group and not self._block_has_content(block_group, br_assets, 'br'):
                     continue
                 
-                # Determine if heading or sum
-                style = row.get('style', '')
-                is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
-                is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
+                # For heading rows: always show (with empty amounts)
+                # For other rows: show if has amounts OR always_show OR is_sum OR has note_number
+                if not is_heading:
+                    has_note = row.get('note_number') is not None and row.get('note_number') != ''
+                    if not row.get('always_show') and not is_sum and not has_note:
+                        curr = self._num(row.get('current_amount', 0))
+                        prev = self._num(row.get('previous_amount', 0))
+                        if curr == 0 and prev == 0:
+                            continue
                 
                 # Get note number
                 note = str(row.get('note_number', '')) if row.get('note_number') else ''
@@ -1627,21 +1651,23 @@ td, th {
                 td_label.set('style', 'vertical-align: bottom; width: 9cm')
                 p_label = ET.SubElement(td_label, 'p')
                 if is_heading:
-                    if style == 'H2':
-                        p_label.set('class', 'rubrik3')
+                    # H2/H0 → 11pt (larger BR headings like "Anläggningstillgångar")
+                    # H1/H3 → 10pt (smaller BR headings like "Bundet eget kapital")
+                    if style in ['H2', 'H0']:
+                        p_label.set('class', 'H2-table')  # 11pt semibold
                     else:
-                        p_label.set('class', 'rubrik4')
+                        p_label.set('class', 'H3-table')  # 10pt semibold
                 elif is_sum:
-                    p_label.set('class', 'summatext')
+                    p_label.set('class', 'sum-label')  # Bold sum text
                 else:
-                    p_label.set('class', 'normal')
+                    p_label.set('class', 'P')  # Normal body text
                 p_label.text = label
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
                 td_note.set('style', 'vertical-align: bottom; width: 2cm')
                 p_note = ET.SubElement(td_note, 'p')
-                p_note.set('class', 'normal')
+                p_note.set('class', 'P')
                 p_note.text = note
                 
                 # Current year amount
@@ -1649,9 +1675,9 @@ td, th {
                 td_curr.set('style', 'vertical-align: bottom; width: 2.5cm')
                 p_curr = ET.SubElement(td_curr, 'p')
                 if is_sum:
-                    p_curr.set('class', 'summabelopp')
+                    p_curr.set('class', 'sum-amount')  # Bold right-aligned
                 else:
-                    p_curr.set('class', 'belopp')
+                    p_curr.set('class', 'amount-right')  # Normal right-aligned
                 
                 if is_heading:
                     p_curr.text = ''
@@ -1683,7 +1709,7 @@ td, th {
                 td_spacing = ET.SubElement(tr, 'td')
                 td_spacing.set('style', 'vertical-align: bottom; width: 0.5cm')
                 p_spacing = ET.SubElement(td_spacing, 'p')
-                p_spacing.set('class', 'normal')
+                p_spacing.set('class', 'P')
                 p_spacing.text = ' '
                 
                 # Previous year amount
@@ -1691,9 +1717,9 @@ td, th {
                 td_prev.set('style', 'vertical-align: bottom; width: 2.5cm')
                 p_prev = ET.SubElement(td_prev, 'p')
                 if is_sum:
-                    p_prev.set('class', 'summabelopp')
+                    p_prev.set('class', 'sum-amount')  # Bold right-aligned
                 else:
-                    p_prev.set('class', 'belopp')
+                    p_prev.set('class', 'amount-right')  # Normal right-aligned
                 
                 if is_heading:
                     p_prev.text = ''
