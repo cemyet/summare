@@ -51,16 +51,19 @@ class XBRLGenerator:
         return namespace_map.get(namespace, 'se-gen-base')
     
     def _get_or_create_context(self, period_type: str, start_date: Optional[str] = None, 
-                               end_date: Optional[str] = None, instant_date: Optional[str] = None) -> str:
-        """Get or create a context ID for the given period"""
+                               end_date: Optional[str] = None, instant_date: Optional[str] = None,
+                               is_current: bool = True) -> str:
+        """Get or create a context ID for the given period with semantic naming"""
         if period_type == 'duration':
             key = f"duration_{start_date}_{end_date}"
+            # Use semantic IDs: period0 for current year, period1 for previous
+            context_id = "period0" if is_current else "period1"
         else:
             key = f"instant_{instant_date}"
+            # Use semantic IDs: instant0 for current year end, instant1 for previous
+            context_id = "instant0" if is_current else "instant1"
         
         if key not in self.contexts:
-            self.context_counter += 1
-            context_id = f"c{self.context_counter}"
             self.contexts[key] = {
                 'id': context_id,
                 'period_type': period_type,
@@ -117,11 +120,11 @@ class XBRLGenerator:
                  period_type: str, start_date: Optional[str] = None,
                  end_date: Optional[str] = None, instant_date: Optional[str] = None,
                  data_type: str = 'monetaryItemType', unit_ref: Optional[str] = None,
-                 context_ref: Optional[str] = None):
+                 context_ref: Optional[str] = None, is_current: bool = True):
         """Add a fact to the XBRL document"""
         # Get or create context
         if not context_ref:
-            context_ref = self._get_or_create_context(period_type, start_date, end_date, instant_date)
+            context_ref = self._get_or_create_context(period_type, start_date, end_date, instant_date, is_current)
         
         # Get or create unit (only for monetary items)
         if not unit_ref and data_type == 'monetaryItemType':
@@ -177,6 +180,10 @@ class XBRLGenerator:
         # Create head element
         head = ET.SubElement(root, 'head')
         
+        # Charset MUST be first meta
+        meta_charset = ET.SubElement(head, 'meta')
+        meta_charset.set('charset', 'UTF-8')
+        
         # Add meta tags
         meta_program = ET.SubElement(head, 'meta')
         meta_program.set('name', 'programvara')
@@ -185,6 +192,11 @@ class XBRLGenerator:
         meta_version = ET.SubElement(head, 'meta')
         meta_version.set('name', 'programversion')
         meta_version.set('content', '1.0')
+        
+        # Roboto web font to match PDF typography
+        font_link = ET.SubElement(head, 'link')
+        font_link.set('rel', 'stylesheet')
+        font_link.set('href', 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap')
         
         # Add title
         company_name = (company_data.get('company_name') 
@@ -199,7 +211,7 @@ class XBRLGenerator:
         title = ET.SubElement(head, 'title')
         title.text = title_text
         
-        # Add comprehensive CSS styles (matching example file)
+        # Add CSS styles (defined in _get_css_styles)
         style = ET.SubElement(head, 'style')
         style.set('type', 'text/css')
         style.text = self._get_css_styles()
@@ -207,26 +219,27 @@ class XBRLGenerator:
         # Create body element
         body = ET.SubElement(root, 'body')
         
-        # Create hidden div for iXBRL content
+        # Create hidden div for iXBRL content (Bolagsverket pattern)
         hidden_div = ET.SubElement(body, 'div')
         hidden_div.set('style', 'display:none')
         
-        # Create ix:header element
+        # <ix:header> encloses hidden facts, references and resources
         ix_header = ET.SubElement(hidden_div, 'ix:header')
         
-        # Create ix:hidden element for XBRL facts
+        # ix:hidden – non-visible facts (document metadata, duplicates, etc.)
         ix_hidden = ET.SubElement(ix_header, 'ix:hidden')
         
-        # Create xbrli:xbrl element inside ix:hidden for contexts and units
-        xbrl_root = ET.SubElement(ix_hidden, 'xbrli:xbrl')
-        
-        # Add schemaRef(s) – main K2-all AB RISBS 2024 taxonomy
-        schema_ref = ET.SubElement(xbrl_root, 'link:schemaRef')
+        # ix:references – schemaRef to K2 AB RISBS 2024 taxonomy
+        ix_references = ET.SubElement(ix_header, 'ix:references')
+        schema_ref = ET.SubElement(ix_references, 'link:schemaRef')
         schema_ref.set('xlink:type', 'simple')
         schema_ref.set(
             'xlink:href',
             'http://www.taxonomier.se/se/fr/gaap/k2-all/ab/risbs/2024-09-12/se-k2-ab-risbs-2024-09-12.xsd'
         )
+        
+        # ix:resources – contexts and units live here in Inline XBRL
+        ix_resources = ET.SubElement(ix_header, 'ix:resources')
         
         # Load mappings to get element_name and namespace
         try:
@@ -319,7 +332,8 @@ class XBRLGenerator:
                     period_type='duration',
                     start_date=prev_start,
                     end_date=prev_end,
-                    data_type='monetaryItemType'
+                    data_type='monetaryItemType',
+                    is_current=False
                 )
         
         # Process BR data (Balance Sheet - instant)
@@ -364,7 +378,8 @@ class XBRLGenerator:
                     value=prev_value,
                     period_type='instant',
                     instant_date=prev_end,
-                    data_type='monetaryItemType'
+                    data_type='monetaryItemType',
+                    is_current=False
                 )
         
         # Process General Info (se-cd-base namespace)
@@ -428,7 +443,8 @@ class XBRLGenerator:
                     period_type='duration',
                     start_date=prev_start,
                     end_date=prev_end,
-                    data_type='monetaryItemType'
+                    data_type='monetaryItemType',
+                    is_current=False
                 )
         
         # Process Noter data
@@ -488,7 +504,8 @@ class XBRLGenerator:
                         period_type='duration',
                         start_date=prev_start,
                         end_date=prev_end,
-                        data_type='monetaryItemType'
+                        data_type='monetaryItemType',
+                        is_current=False
                     )
                 else:
                     prev_end = self._format_date(f"{fiscal_year - 1}1231") if fiscal_year else None
@@ -498,18 +515,23 @@ class XBRLGenerator:
                         value=prev_value,
                         period_type='instant',
                         instant_date=prev_end,
-                        data_type='monetaryItemType'
+                        data_type='monetaryItemType',
+                        is_current=False
                     )
         
         # Process Signature info
         self._add_signature_facts(company_data, end_date)
         
-        # Add all contexts to xbrl_root
-        org_number_clean = (company_info.get('organization_number', '') or 
+        # ------------------------------------------------------------------
+        # Contexts and units: must be children of <ix:resources>
+        # ------------------------------------------------------------------
+        org_number_clean = (company_info.get('organization_number', '') or
                            company_data.get('organization_number', '') or
                            company_data.get('organizationNumber', '')).replace('-', '')
+        
+        # Add all contexts to ix:resources
         for context_key, context_info in self.contexts.items():
-            context_element = ET.SubElement(xbrl_root, 'xbrli:context')
+            context_element = ET.SubElement(ix_resources, 'xbrli:context')
             context_element.set('id', context_info['id'])
             
             entity = ET.SubElement(context_element, 'xbrli:entity')
@@ -527,22 +549,20 @@ class XBRLGenerator:
                 instant_elem = ET.SubElement(period, 'xbrli:instant')
                 instant_elem.text = context_info['instant_date']
         
-        # Add all units to xbrl_root
+        # Add all units to ix:resources
         for unit_key, unit_info in self.units.items():
-            unit_element = ET.SubElement(xbrl_root, 'xbrli:unit')
+            unit_element = ET.SubElement(ix_resources, 'xbrli:unit')
             unit_element.set('id', unit_info['id'])
             measure = ET.SubElement(unit_element, 'xbrli:measure')
             measure.text = f'iso4217:{unit_info["currency"]}'
         
-        # Add transformation rules for iXBRL
-        ixt_ns = ET.SubElement(ix_hidden, 'ixt:transform')
-        ixt_ns.set('name', 'numdotdecimal')
-        ixt_ns.set('scale', '0')
-        ixt_ns.set('infinity', 'false')
-        ixt_ns.set('zerotxt', 'false')
-        ixt_ns.set('negativesign', '-')
-        ixt_ns.set('negativenumberformat', 'negparen')
-        ixt_ns.set('trailingzeros', 'false')
+        # ------------------------------------------------------------------
+        # Hidden facts in ix:hidden (metadata, enums, duplicates)
+        # ------------------------------------------------------------------
+        # NOTE: we no longer generate a custom <ixt:transform> element here.
+        # Bolagsverket's examples rely on the standard inline XBRL
+        # transformation registry, so we just use the "format" attribute on
+        # ix:nonFraction facts (e.g. format="ixt:numdotdecimal").
         
         # Add all facts as ix:nonNumeric or ix:nonFraction elements in ix:hidden
         for fact in self.facts:
@@ -565,69 +585,240 @@ class XBRLGenerator:
                 fact_element.set('contextRef', fact['context_ref'])
                 fact_element.text = fact['value']
         
-        # Also add facts to xbrl_root for validation (standard XBRL format)
-        for fact in self.facts:
-            namespace_prefix = self._get_namespace_prefix(fact['namespace'])
-            fact_element = ET.SubElement(xbrl_root, f'{namespace_prefix}:{fact["element_name"]}')
-            fact_element.set('contextRef', fact['context_ref'])
-            if fact['unit_ref']:
-                fact_element.set('unitRef', fact['unit_ref'])
-            fact_element.text = fact['value']
-        
         # ------------------------------------------------------------------
         # Generate visible HTML content matching PDF structure
         # ------------------------------------------------------------------
         self._generate_visible_content(body, company_data, start_date, end_date, fiscal_year)
         
-        # Convert to pretty XML string
+        # Convert to pretty XML string with UTF-8 encoding
         rough_string = ET.tostring(root, encoding='unicode')
         reparsed = minidom.parseString(rough_string)
-        return reparsed.toprettyxml(indent="  ", encoding=None)
+        # Generate XML with proper UTF-8 declaration
+        xml_bytes = reparsed.toprettyxml(indent="  ", encoding='UTF-8')
+        # Convert bytes to string for return
+        return xml_bytes.decode('UTF-8')
     
     def _get_css_styles(self) -> str:
-        """Return comprehensive CSS styles matching example file"""
+        """Return CSS styles that mirror the PDF typography (Roboto, headings, sums)."""
         return """
-    html { height: 100%; }
-    @media screen {
-      .ar-page0, .ar-page1, .ar-page2, .ar-page3, .ar-page4, .ar-page5, .ar-page6, .ar-page7, .ar-page8 {
-        margin: 10px;
-        padding: 0cm 0cm 0cm 1cm;
-        border: 1px solid rgb(240, 240, 240);
-        border-image: none;
-        line-height: 1.2;
-        min-height: 29.6926cm;
-        max-width: 20.9804cm;
-        box-shadow: 0.25em 0.25em 0.3em #999;
-      }
-    }
-    @media print {
-      .ar-page0, .ar-page1, .ar-page2, .ar-page3, .ar-page4, .ar-page5, .ar-page6, .ar-page7, .ar-page8 {
-        margin: 0px;
-        padding: 0cm 0cm 0cm 1cm;
-      }
-    }
-    .pagebreak_before { page-break-before: always; }
-    p { margin-top: 0pt; margin-bottom: 0pt; }
-    table { margin-left: -2px; margin-top: 0pt; margin-bottom: 0pt; }
-    .tab { border: 0px; border-spacing: 0px; padding: 0px; margin-left: -3px; }
-    .a20, .normal, .a21, .a22 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 11pt; color: #000000; }
-    .a16 { margin-top: 0pt; margin-bottom: 0pt; text-align: center; font-family: Times New Roman; font-size: 11pt; color: #000000; }
-    .a18 { margin-top: 0pt; margin-bottom: 0pt; text-align: center; line-height: 14pt; font-family: Times New Roman; font-size: 24pt; font-weight: bold; color: #000000; }
-    .a19 { margin-top: 0pt; margin-bottom: 0pt; text-align: center; font-family: Times New Roman; font-size: 12pt; font-weight: bold; color: #000000; }
-    .a17 { margin-top: 0pt; margin-bottom: 0pt; text-align: center; line-height: 14pt; font-family: Times New Roman; font-size: 16pt; font-weight: bold; color: #000000; }
-    .rubrik2b { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 14pt; font-weight: bold; color: #000000; }
-    .rubrik2 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 16pt; font-weight: bold; color: #000000; }
-    .rubrik3 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 12pt; font-weight: bold; color: #000000; }
-    .rubrik4 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 11pt; font-weight: bold; color: #000000; }
-    .a25, .a34, .summabelopp { margin-top: 0pt; margin-bottom: 0pt; text-align: right; font-family: Times New Roman; font-size: 11pt; font-weight: bold; color: #000000; }
-    .belopp { margin-top: 0pt; margin-bottom: 0pt; text-align: right; font-family: Times New Roman; font-size: 11pt; color: #000000; }
-    .summatext { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 11pt; font-weight: bold; color: #000000; }
-    .b8 { margin-top: 0pt; margin-bottom: 0pt; text-align: left; line-height: 14pt; font-family: Times New Roman; font-size: 11pt; color: #000000; }
-    .b7, .b13 { margin-top: 0pt; margin-bottom: 0pt; text-align: right; line-height: 14pt; font-family: Times New Roman; font-size: 11pt; color: #000000; }
-    .normalsidhuvud { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 11pt; color: #000000; }
-    .totalsummatext { margin-top: 0pt; margin-bottom: 0pt; text-align: left; font-family: Times New Roman; font-size: 12pt; font-weight: bold; color: #000000; }
-    .totalsummabelopp { margin-top: 0pt; margin-bottom: 0pt; text-align: right; font-family: Times New Roman; font-size: 11pt; font-weight: bold; color: #000000; }
-    body { margin: 0; padding: 0; }
+html {
+  height: 100%;
+}
+
+@media screen {
+  .ar-page0,
+  .ar-page1,
+  .ar-page2,
+  .ar-page3,
+  .ar-page4,
+  .ar-page5,
+  .ar-page6,
+  .ar-page7,
+  .ar-page8 {
+    margin: 10px;
+    padding: 0cm 0cm 0cm 1cm;
+    border: 1px solid rgb(240, 240, 240);
+    box-shadow: 0.25em 0.25em 0.3em #999;
+    line-height: 1.2;
+    min-height: 29.6926cm;
+    max-width: 20.9804cm;
+    background-color: #ffffff;
+  }
+}
+
+@media print {
+  html, body {
+    height: 297mm;
+    width: 210mm;
+  }
+
+  .ar-page0,
+  .ar-page1,
+  .ar-page2,
+  .ar-page3,
+  .ar-page4,
+  .ar-page5,
+  .ar-page6,
+  .ar-page7,
+  .ar-page8 {
+    margin: 0;
+    padding: 0cm 0cm 0cm 1cm;
+    border: none;
+    box-shadow: none;
+    page-break-after: always;
+  }
+
+  .ar-page8 {
+    page-break-after: auto;
+  }
+}
+
+.pagebreak_before {
+  page-break-before: always;
+}
+
+/* Base typography */
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Roboto", Arial, sans-serif;
+  font-size: 10pt;
+  line-height: 1.2;
+  color: #000000;
+}
+
+p {
+  margin-top: 0pt;
+  margin-bottom: 0pt;
+}
+
+table {
+  border-collapse: collapse;
+  margin-top: 0pt;
+  margin-bottom: 0pt;
+}
+
+.tab {
+  border: 0;
+  border-spacing: 0;
+  padding: 0;
+  margin-left: -3px;
+}
+
+/* Cover page */
+
+.a16 {
+  text-align: center;
+  font-size: 10pt;
+  font-weight: normal;
+}
+
+.a18 {
+  text-align: center;
+  font-size: 24pt;
+  font-weight: 500;
+}
+
+.a17 {
+  text-align: center;
+  font-size: 16pt;
+  font-weight: 500;
+}
+
+.a19 {
+  text-align: center;
+  font-size: 12pt;
+  font-weight: 500;
+}
+
+/* Headings */
+
+.rubrik2 {
+  margin-top: 0pt;
+  margin-bottom: 0pt;
+  text-align: left;
+  font-size: 16pt; /* H0: e.g. "Förvaltningsberättelse" */
+  font-weight: 500;
+}
+
+.rubrik2b {
+  margin-top: 0pt;
+  margin-bottom: 0pt;
+  text-align: left;
+  font-size: 12pt; /* H1 used in FB headings */
+  font-weight: 500;
+}
+
+.rubrik3 {
+  margin-top: 12pt;
+  margin-bottom: 0pt;
+  text-align: left;
+  font-size: 12pt; /* H1 */
+  font-weight: 500;
+}
+
+.rubrik4 {
+  margin-top: 8pt;
+  margin-bottom: 0pt;
+  text-align: left;
+  font-size: 10pt; /* H2 / note headings */
+  font-weight: 500;
+}
+
+/* Normal body text */
+
+.a20,
+.normal,
+.a21,
+.a22,
+.b7,
+.b8,
+.b13,
+.normalsidhuvud {
+  text-align: left;
+  font-size: 10pt;
+  font-weight: normal;
+}
+
+/* Amount columns */
+
+.b8 {
+  text-align: left;
+}
+
+.b7,
+.b13 {
+  text-align: left;
+}
+
+.belopp {
+  text-align: right;
+  font-size: 10pt;
+}
+
+.summabelopp {
+  text-align: right;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.summatext,
+.totalsummatext {
+  text-align: left;
+  font-size: 10pt;
+  font-weight: 700;
+}
+
+.totalsummabelopp {
+  text-align: right;
+  font-size: 11pt;
+  font-weight: 700;
+}
+
+/* Small annotation text like "Belopp i kr" */
+
+.smalltext {
+  font-size: 8pt;
+}
+
+/* Generic helpers */
+
+.normalsidhuvud {
+  text-align: left;
+}
+
+body .ar-page0 p,
+body .ar-page1 p,
+body .ar-page2 p,
+body .ar-page3 p,
+body .ar-page4 p,
+body .ar-page5 p,
+body .ar-page6 p,
+body .ar-page7 p,
+body .ar-page8 p {
+  line-height: 1.2;
+}
         """
     
     def _num(self, v):
@@ -699,29 +890,11 @@ class XBRLGenerator:
         return False
     
     def _get_context_refs(self, fiscal_year: int, period_type: str = 'duration') -> tuple:
-        """Get contextRef IDs for current and previous year"""
+        """Get contextRef IDs for current and previous year with semantic naming"""
         if period_type == 'duration':
-            # Find duration contexts
-            period0_key = None
-            period1_key = None
-            for key, ctx_info in self.contexts.items():
-                if ctx_info['period_type'] == 'duration':
-                    if period0_key is None:
-                        period0_key = ctx_info['id']
-                    elif period1_key is None:
-                        period1_key = ctx_info['id']
-            return (period0_key or 'c1', period1_key or 'c2')
+            return ('period0', 'period1')
         else:
-            # Find instant contexts
-            period0_key = None
-            period1_key = None
-            for key, ctx_info in self.contexts.items():
-                if ctx_info['period_type'] == 'instant':
-                    if period0_key is None:
-                        period0_key = ctx_info['id']
-                    elif period1_key is None:
-                        period1_key = ctx_info['id']
-            return (period0_key or 'c3', period1_key or 'c4')
+            return ('instant0', 'instant1')
     
     def _generate_visible_content(self, body: ET.Element, company_data: Dict[str, Any], 
                                  start_date: Optional[str], end_date: Optional[str], fiscal_year: Optional[int]):
