@@ -1491,7 +1491,9 @@ td, th {
                     p_curr.text = ''
                 else:
                     curr_val = self._num(row.get('current_amount', 0))
-                    if curr_val != 0 or row.get('always_show') or note:
+                    prev_val = self._num(row.get('previous_amount', 0))
+                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                    if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
                         variable_name = row.get('variable_name')
                         if variable_name and variable_name in rr_mappings_dict:
                             mapping = rr_mappings_dict[variable_name]
@@ -1537,8 +1539,9 @@ td, th {
                 if is_heading:
                     p_prev.text = ''
                 else:
-                    prev_val = self._num(row.get('previous_amount', 0))
-                    if prev_val != 0 or row.get('always_show') or note:
+                    # prev_val already calculated above for current year logic
+                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                    if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
                         variable_name = row.get('variable_name')
                         if variable_name and variable_name in rr_mappings_dict:
                             mapping = rr_mappings_dict[variable_name]
@@ -1750,7 +1753,9 @@ td, th {
                     p_curr.text = ''
                 else:
                     curr_val = self._num(row.get('current_amount', 0))
-                    if curr_val != 0 or row.get('always_show') or note:
+                    prev_val = self._num(row.get('previous_amount', 0))
+                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                    if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
                         variable_name = row.get('variable_name')
                         if variable_name and variable_name in br_mappings_dict:
                             mapping = br_mappings_dict[variable_name]
@@ -1795,8 +1800,9 @@ td, th {
                 if is_heading:
                     p_prev.text = ''
                 else:
-                    prev_val = self._num(row.get('previous_amount', 0))
-                    if prev_val != 0 or row.get('always_show') or note:
+                    # prev_val already calculated above for current year logic
+                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                    if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
                         variable_name = row.get('variable_name')
                         if variable_name and variable_name in br_mappings_dict:
                             mapping = br_mappings_dict[variable_name]
@@ -2029,7 +2035,9 @@ td, th {
                     p_curr.text = ''
                 else:
                     curr_val = self._num(row.get('current_amount', 0))
-                    if curr_val != 0 or row.get('always_show') or note:
+                    prev_val = self._num(row.get('previous_amount', 0))
+                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                    if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
                         variable_name = row.get('variable_name')
                         if variable_name and variable_name in br_mappings_dict:
                             mapping = br_mappings_dict[variable_name]
@@ -2074,8 +2082,9 @@ td, th {
                 if is_heading:
                     p_prev.text = ''
                 else:
-                    prev_val = self._num(row.get('previous_amount', 0))
-                    if prev_val != 0 or row.get('always_show') or note:
+                    # prev_val already calculated above for current year logic
+                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                    if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
                         variable_name = row.get('variable_name')
                         if variable_name and variable_name in br_mappings_dict:
                             mapping = br_mappings_dict[variable_name]
