@@ -1407,6 +1407,10 @@ td, th {
                 label = row.get('label', '')
                 block_group = row.get('block_group', '')
                 
+                # Skip "Resultaträkning" heading (duplicate - we have it as top heading)
+                if label == 'Resultaträkning':
+                    continue
+                
                 # Skip first occurrence of "Rörelseresultat" (duplicate)
                 if label == 'Rörelseresultat':
                     if not seen_rorelseresultat:
@@ -1442,7 +1446,9 @@ td, th {
                 
                 # Add row spacing based on type (matching PDF spacing)
                 row_style = ''
-                if is_sum:
+                if label == 'Årets resultat':
+                    row_style = 'padding-top: 18pt;'  # Extra space before final result
+                elif is_sum:
                     row_style = 'padding-bottom: 10pt;'  # 10pt space after sum rows
                 elif is_heading:
                     row_style = 'padding-top: 2pt;'  # Small space before headings
