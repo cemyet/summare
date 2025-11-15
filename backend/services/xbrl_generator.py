@@ -1109,13 +1109,12 @@ td, th {
         p_fb_title.set('style', 'margin-bottom: 18pt;')
         p_fb_title.text = 'Förvaltningsberättelse'
         
-        # Load FB data
-        fb_data_raw = (company_data.get('fbData') or
-                      company_data.get('fb_variables') or
-                      company_data.get('fbVariables') or
-                      company_data.get('forvaltningsberattelse', {}))
+        # Get company and FB data
+        scraped_company_data = company_data.get('scraped_company_data', {})
+        fb_variables = company_data.get('fbVariables', {})
+        fb_table = company_data.get('fbTable', [])
         
-        # Load FB mappings for XBRL tags
+        # Load FB mappings from Supabase
         try:
             from supabase import create_client
             import os
@@ -1125,142 +1124,465 @@ td, th {
             supabase_key = os.getenv("SUPABASE_ANON_KEY")
             if supabase_url and supabase_key:
                 supabase = create_client(supabase_url, supabase_key)
-                fb_mappings_response = supabase.table('variable_mapping_fb').select('variable_name,element_name,tillhor').execute()
-                fb_mappings_dict = {m['variable_name']: m for m in fb_mappings_response.data if m.get('variable_name')}
+                fb_mappings_response = supabase.table('variable_mapping_fb').select('*').execute()
+                fb_mappings = fb_mappings_response.data
             else:
-                fb_mappings_dict = {}
+                fb_mappings = []
         except:
-            fb_mappings_dict = {}
+            fb_mappings = []
         
-        if fb_data_raw:
-            # Section: Verksamheten
-            if fb_data_raw.get('fb_beskrivning_verksamhet'):
-                p_heading1 = ET.SubElement(page1, 'p')
-                p_heading1.set('class', 'rubrik3')
-                p_heading1.text = 'Verksamheten'
-                
-                p_content1 = ET.SubElement(page1, 'p')
-                p_content1.set('class', 'normal')
-                verksamhet_text = fb_data_raw.get('fb_beskrivning_verksamhet', '')
-                
-                # Add XBRL tagging if available
-                if 'fb_beskrivning_verksamhet' in fb_mappings_dict:
-                    mapping = fb_mappings_dict['fb_beskrivning_verksamhet']
-                    element_name = mapping.get('element_name')
-                    namespace = mapping.get('tillhor', 'se-gen-base')
-                    namespace_prefix = self._get_namespace_prefix(namespace)
-                    element_qname = f'{namespace_prefix}:{element_name}'
-                    
-                    ix_text = ET.SubElement(p_content1, 'ix:nonNumeric')
-                    ix_text.set('name', element_qname)
-                    ix_text.set('contextRef', period0_ref)
-                    ix_text.text = verksamhet_text
-                else:
-                    p_content1.text = verksamhet_text
-                
-                for _ in range(2):
-                    p = ET.SubElement(page1, 'p')
-                    p.set('class', 'normal')
-                    p.text = ' '
+        # Section: Verksamheten
+        verksamhet_text = company_data.get('verksamhetContent')
+        if not verksamhet_text:
+            # Build from scraped data (mirrors PDF generator logic)
+            verksamhetsbeskrivning = (scraped_company_data.get('verksamhetsbeskrivning') or 
+                                     scraped_company_data.get('Verksamhetsbeskrivning') or '').strip()
+            sate = (scraped_company_data.get('säte') or 
+                   scraped_company_data.get('sate') or 
+                   scraped_company_data.get('Säte') or '').strip()
+            moderbolag = (scraped_company_data.get('moderbolag') or 
+                         scraped_company_data.get('Moderbolag') or '').strip()
+            moderbolag_orgnr = (scraped_company_data.get('moderbolag_orgnr') or 
+                               scraped_company_data.get('ModerbolagOrgNr') or '').strip()
             
-            # Section: Väsentliga händelser
-            if fb_data_raw.get('fb_vasentliga_handelser'):
-                p_heading2 = ET.SubElement(page1, 'p')
-                p_heading2.set('class', 'rubrik3')
-                p_heading2.text = 'Väsentliga händelser under räkenskapsåret'
-                
-                p_content2 = ET.SubElement(page1, 'p')
-                p_content2.set('class', 'normal')
-                handelser_text = fb_data_raw.get('fb_vasentliga_handelser', '')
-                
-                # Add XBRL tagging if available
-                if 'fb_vasentliga_handelser' in fb_mappings_dict:
-                    mapping = fb_mappings_dict['fb_vasentliga_handelser']
-                    element_name = mapping.get('element_name')
-                    namespace = mapping.get('tillhor', 'se-gen-base')
-                    namespace_prefix = self._get_namespace_prefix(namespace)
-                    element_qname = f'{namespace_prefix}:{element_name}'
-                    
-                    ix_text = ET.SubElement(p_content2, 'ix:nonNumeric')
-                    ix_text.set('name', element_qname)
-                    ix_text.set('contextRef', period0_ref)
-                    ix_text.text = handelser_text
-                else:
-                    p_content2.text = handelser_text
-                
-                for _ in range(2):
-                    p = ET.SubElement(page1, 'p')
-                    p.set('class', 'normal')
-                    p.text = ' '
+            verksamhet_text = verksamhetsbeskrivning
+            if sate:
+                verksamhet_text += (' ' if verksamhet_text else '') + f"Bolaget har sitt säte i {sate}."
+            if moderbolag:
+                moder_sate = (scraped_company_data.get('moderbolag_säte') or 
+                             scraped_company_data.get('moderbolag_sate') or sate).strip()
+                verksamhet_text += f" Bolaget är dotterbolag till {moderbolag}"
+                if moderbolag_orgnr:
+                    verksamhet_text += f" med organisationsnummer {moderbolag_orgnr}"
+                verksamhet_text += f", som har sitt säte i {moder_sate or sate}."
             
-            # Section: Flerårsöversikt (Multi-year overview table)
-            p_heading3 = ET.SubElement(page1, 'p')
-            p_heading3.set('class', 'rubrik3')
-            p_heading3.text = 'Flerårsöversikt'
-            
-            multi_year_table = ET.SubElement(page1, 'table')
-            multi_year_table.set('style', 'border-collapse: collapse; width: 17cm')
-            
-            # Table header
-            tr_header = ET.SubElement(multi_year_table, 'tr')
-            td_label = ET.SubElement(tr_header, 'td')
-            td_label.set('style', 'vertical-align: bottom; width: 8cm')
-            p_label = ET.SubElement(td_label, 'p')
-            p_label.set('class', 'rubrik4')
-            p_label.text = 'Tkr'
-            
+            if not verksamhet_text:
+                verksamhet_text = "Bolaget bedriver verksamhet enligt bolagsordningen."
+        
+        p_h_verksamhet = ET.SubElement(page1, 'p')
+        p_h_verksamhet.set('class', 'H1')
+        p_h_verksamhet.text = 'Verksamheten'
+        
+        p_verksamhet = ET.SubElement(page1, 'p')
+        p_verksamhet.set('class', 'P')
+        p_verksamhet.text = verksamhet_text
+        
+        # Väsentliga händelser
+        vasentliga_text = company_data.get('vasentligaHandelser')
+        if not vasentliga_text:
+            vasentliga_text = "Inga väsentliga händelser under året."
+        
+        p_h_vasentliga = ET.SubElement(page1, 'p')
+        p_h_vasentliga.set('class', 'H1')
+        p_h_vasentliga.set('style', 'margin-top: 18pt;')
+        p_h_vasentliga.text = 'Väsentliga händelser under räkenskapsåret'
+        
+        p_vasentliga = ET.SubElement(page1, 'p')
+        p_vasentliga.set('class', 'P')
+        p_vasentliga.text = vasentliga_text
+        
+        # Flerårsöversikt - render with proper logic
+        self._render_flerarsoversikt_xbrl(page1, company_data, fiscal_year, prev_year, fb_variables, fb_mappings, period0_ref, balans0_ref, balans1_ref, unit_ref)
+        
+        # Förändringar i eget kapital - render with show/hide logic
+        self._render_forandringar_eget_kapital_xbrl(page1, fb_table, fiscal_year, prev_year, fb_variables, fb_mappings, balans0_ref, balans1_ref, period0_ref, unit_ref)
+        
+        # Resultatdisposition - render with proper formatting
+        self._render_resultatdisposition_xbrl(page1, fb_table, company_data, fb_mappings, balans0_ref, unit_ref)
+    
+    def _render_flerarsoversikt_xbrl(self, page: ET.Element, company_data: dict, fiscal_year: int, prev_year: int,
+                                     fb_variables: dict, fb_mappings: list, period0_ref: str, balans0_ref: str, 
+                                     balans1_ref: str, unit_ref: str) -> None:
+        """Render Flerårsöversikt table with 3 years"""
+        p_heading = ET.SubElement(page, 'p')
+        p_heading.set('class', 'H1')
+        p_heading.set('style', 'margin-top: 18pt;')
+        p_heading.text = 'Flerårsöversikt'
+        
+        p_tkr = ET.SubElement(page, 'p')
+        p_tkr.set('class', 'SMALL')
+        p_tkr.text = 'Belopp i tkr'
+        
+        # Get flerårsöversikt data
+        flerars = company_data.get('flerarsoversikt', {})
+        
+        # Build years list (3 years: fiscal_year, prev_year, prev_year-1)
+        years = [str(fiscal_year), str(prev_year), str(prev_year - 1)]
+        
+        # Helper to get variable value
+        def get_var(var_names):
+            if isinstance(var_names, str):
+                var_names = [v.strip() for v in var_names.split(';')]
+            for var in var_names:
+                if var in fb_variables:
+                    val = fb_variables[var]
+                    return self._num(val) if val is not None else 0
+            return 0
+        
+        # Get scraped nyckeltal as fallback
+        scraped = company_data.get('scraped_company_data', {})
+        nyckeltal = scraped.get('nyckeltal', {})
+        
+        def get_scraped_values(key_variants):
+            for key in key_variants:
+                arr = nyckeltal.get(key)
+                if arr and isinstance(arr, list):
+                    return [self._num(x) for x in arr[:3]]
+            return [0, 0, 0]
+        
+        # Build rows with proper variable mapping from CSV
+        # oms1;oms2;oms3 -> current, prev, prev-1
+        rows_data = []
+        
+        # Nettoomsättning (row 31 in CSV)
+        oms_vals = [get_var('oms1'), get_var('oms2'), get_var('oms3')]
+        if all(v == 0 for v in oms_vals):
+            scraped_oms = get_scraped_values(['Omsättning', 'Total omsättning', 'omsättning'])
+            oms_vals = scraped_oms
+        rows_data.append(('Nettoomsättning', oms_vals, False))
+        
+        # Resultat efter finansiella poster (row 34)
+        ref_vals = [get_var('ref1'), get_var('ref2'), get_var('ref3')]
+        if all(v == 0 for v in ref_vals):
+            scraped_ref = get_scraped_values(['Resultat efter finansnetto', 'Resultat efter finansiella poster'])
+            ref_vals = scraped_ref
+        rows_data.append(('Resultat efter finansiella poster', ref_vals, False))
+        
+        # Balansomslutning (row 39)
+        bal_vals = [get_var('bal1'), get_var('bal2'), get_var('bal3')]
+        if all(v == 0 for v in bal_vals):
+            scraped_bal = get_scraped_values(['Summa tillgångar', 'Balansomslutning'])
+            bal_vals = scraped_bal
+        rows_data.append(('Balansomslutning', bal_vals, False))
+        
+        # Soliditet (row 41) - percentage
+        sol_vals = [get_var('sol1'), get_var('sol2'), get_var('sol3')]
+        if all(v == 0 for v in sol_vals):
+            scraped_sol = get_scraped_values(['Soliditet'])
+            sol_vals = scraped_sol
+        rows_data.append(('Soliditet', sol_vals, True))  # True = percentage
+        
+        # Create table
+        table = ET.SubElement(page, 'table')
+        table.set('style', 'border-collapse: collapse; width: 16.5cm; table-layout: fixed; margin-top: 6pt;')
+        
+        # Header row
+        tr_header = ET.SubElement(table, 'tr')
+        td_label_h = ET.SubElement(tr_header, 'td')
+        td_label_h.set('style', 'vertical-align: bottom; width: 10.5cm; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
+        # Empty
+        
+        for year in years:
             td_year = ET.SubElement(tr_header, 'td')
-            td_year.set('style', 'vertical-align: bottom; width: 3cm')
+            td_year.set('style', 'vertical-align: bottom; width: 2cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
             p_year = ET.SubElement(td_year, 'p')
-            p_year.set('class', 'summabelopp')
-            p_year.text = str(fiscal_year) if fiscal_year else ''
+            p_year.set('class', 'P')
+            p_year.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+            p_year.text = year
+        
+        # Data rows
+        for label, values, is_percentage in rows_data:
+            tr = ET.SubElement(table, 'tr')
             
-            td_prev_year = ET.SubElement(tr_header, 'td')
-            td_prev_year.set('style', 'vertical-align: bottom; width: 3cm')
-            p_prev_year = ET.SubElement(td_prev_year, 'p')
-            p_prev_year.set('class', 'summabelopp')
-            p_prev_year.text = str(prev_year) if prev_year else ''
+            # Label
+            td_label = ET.SubElement(tr, 'td')
+            td_label.set('style', 'vertical-align: top; width: 10.5cm; padding-top: 2pt;')
+            p_label = ET.SubElement(td_label, 'p')
+            p_label.set('class', 'P')
+            p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_label.text = label
             
-            # Add key metrics rows (example rows - adapt based on actual FB data structure)
-            metrics = [
-                ('Nettoomsättning', fb_data_raw.get('fb_nettoomsattning_curr'), fb_data_raw.get('fb_nettoomsattning_prev')),
-                ('Resultat efter finansiella poster', fb_data_raw.get('fb_resultat_efter_fin_curr'), fb_data_raw.get('fb_resultat_efter_fin_prev')),
-                ('Balansomslutning', fb_data_raw.get('fb_balansomslutning_curr'), fb_data_raw.get('fb_balansomslutning_prev')),
-                ('Soliditet, %', fb_data_raw.get('fb_soliditet_curr'), fb_data_raw.get('fb_soliditet_prev')),
-            ]
+            # Values
+            for val in values:
+                td_val = ET.SubElement(tr, 'td')
+                td_val.set('style', 'vertical-align: top; width: 2cm; text-align: right; padding-top: 2pt;')
+                p_val = ET.SubElement(td_val, 'p')
+                p_val.set('class', 'P')
+                p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                
+                if is_percentage:
+                    # Soliditet - show as percentage
+                    p_val.text = f"{int(round(val))}%"
+                else:
+                    # Amounts in thousands
+                    p_val.text = self._format_monetary_value(val, for_display=True)
+    
+    def _render_forandringar_eget_kapital_xbrl(self, page: ET.Element, fb_table: list, fiscal_year: int, 
+                                               prev_year: int, fb_variables: dict, fb_mappings: list,
+                                               balans0_ref: str, balans1_ref: str, period0_ref: str, unit_ref: str) -> None:
+        """Render Förändringar i eget kapital table with column/row filtering"""
+        if not fb_table or len(fb_table) == 0:
+            return
+        
+        p_heading = ET.SubElement(page, 'p')
+        p_heading.set('class', 'H1')
+        p_heading.set('style', 'margin-top: 18pt;')
+        p_heading.text = 'Förändringar i eget kapital'
+        
+        # Column definitions
+        cols = ['aktiekapital', 'reservfond', 'uppskrivningsfond', 'balanserat_resultat', 'arets_resultat', 'total']
+        col_labels = ['Aktie\nkapital', 'Reserv\nfond', 'Uppskr.\nfond', 'Balanserat\nresultat', 'Årets\nresultat', 'Totalt']
+        
+        # Determine which columns have non-zero values
+        col_has_data = {}
+        for col in cols:
+            col_has_data[col] = any(self._num(row.get(col, 0)) != 0 for row in fb_table)
+        
+        # Build visible columns list
+        visible_cols = [col for col in cols if col_has_data[col]]
+        visible_labels = [col_labels[cols.index(col)] for col in visible_cols]
+        
+        if not visible_cols:
+            return  # All columns are zero
+        
+        # Build table data, filtering out all-zero rows and "Redovisat värde"
+        table_data = []
+        utgaende_rows_idx = []  # Track "utgång" rows for semibold styling
+        
+        for row in fb_table:
+            label = row.get('label', '')
             
-            for label, curr_val, prev_val in metrics:
-                if curr_val is not None or prev_val is not None:
-                    tr = ET.SubElement(multi_year_table, 'tr')
-                    
-                    td_label = ET.SubElement(tr, 'td')
-                    td_label.set('style', 'vertical-align: bottom; width: 8cm')
-                    p_label = ET.SubElement(td_label, 'p')
-                    p_label.set('class', 'normal')
-                    p_label.text = label
-                    
-                    td_curr = ET.SubElement(tr, 'td')
-                    td_curr.set('style', 'vertical-align: bottom; width: 3cm')
-                    p_curr = ET.SubElement(td_curr, 'p')
-                    p_curr.set('class', 'belopp')
-                    if curr_val is not None:
-                        p_curr.text = self._format_monetary_value(self._num(curr_val), for_display=True).replace('.', ',')
-                    else:
-                        p_curr.text = ''
-                    
-                    td_prev = ET.SubElement(tr, 'td')
-                    td_prev.set('style', 'vertical-align: bottom; width: 3cm')
-                    p_prev = ET.SubElement(td_prev, 'p')
-                    p_prev.set('class', 'belopp')
-                    if prev_val is not None:
-                        p_prev.text = self._format_monetary_value(self._num(prev_val), for_display=True).replace('.', ',')
-                    else:
-                        p_prev.text = ''
+            # Skip "Redovisat värde" rows completely
+            if 'Redovisat' in label:
+                continue
             
-            for _ in range(2):
-                p = ET.SubElement(page1, 'p')
-                p.set('class', 'normal')
-                p.text = ' '
+            row_values = [self._num(row.get(col, 0)) for col in visible_cols]
+            
+            # Skip rows where all visible columns are zero (except IB/UB rows)
+            if not any(v != 0 for v in row_values):
+                if not ('Ingående' in label or 'Utgående' in label or 'utgång' in label.lower()):
+                    continue
+            
+            table_data.append((label, row_values))
+            
+            # Track if this row should be semibold (contains "utgång" or "Utgående")
+            if 'utgång' in label.lower() or 'Utgående' in label:
+                utgaende_rows_idx.append(len(table_data) - 1)
+        
+        if len(table_data) == 0:
+            return  # No data to show
+        
+        # Create table
+        table = ET.SubElement(page, 'table')
+        available_width = 459  # Full page width in pt
+        label_width = 160
+        num_cols = len(visible_cols)
+        data_width = available_width - label_width
+        col_width = data_width / num_cols if num_cols > 0 else 60
+        
+        table_width = label_width + (col_width * num_cols)
+        table.set('style', f'border-collapse: collapse; width: {table_width}pt; table-layout: fixed; margin-top: 6pt;')
+        
+        # Header row
+        tr_header = ET.SubElement(table, 'tr')
+        td_label_h = ET.SubElement(tr_header, 'td')
+        td_label_h.set('style', f'vertical-align: bottom; width: {label_width}pt; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
+        # Empty
+        
+        for col_label in visible_labels:
+            td_col = ET.SubElement(tr_header, 'td')
+            td_col.set('style', f'vertical-align: bottom; width: {col_width}pt; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
+            # Handle multi-line headers
+            lines = col_label.split('\n')
+            for line in lines:
+                p_line = ET.SubElement(td_col, 'p')
+                p_line.set('class', 'P')
+                p_line.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+                p_line.text = line
+        
+        # Data rows
+        for idx, (label, values) in enumerate(table_data):
+            tr = ET.SubElement(table, 'tr')
+            is_utgaende = idx in utgaende_rows_idx
+            
+            # Label
+            td_label = ET.SubElement(tr, 'td')
+            td_label.set('style', f'vertical-align: top; width: {label_width}pt; padding-top: 2pt;')
+            p_label = ET.SubElement(td_label, 'p')
+            p_label.set('class', 'P')
+            if is_utgaende:
+                p_label.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+            else:
+                p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_label.text = label
+            
+            # Values
+            for val in values:
+                td_val = ET.SubElement(tr, 'td')
+                td_val.set('style', f'vertical-align: top; width: {col_width}pt; text-align: right; padding-top: 2pt;')
+                p_val = ET.SubElement(td_val, 'p')
+                p_val.set('class', 'P')
+                if is_utgaende:
+                    p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+                else:
+                    p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                p_val.text = self._format_monetary_value(val, for_display=True)
+    
+    def _render_resultatdisposition_xbrl(self, page: ET.Element, fb_table: list, company_data: dict,
+                                        fb_mappings: list, balans0_ref: str, unit_ref: str) -> None:
+        """Render Resultatdisposition section"""
+        arets_utdelning = self._num(company_data.get('arets_utdelning', 0))
+        
+        if not fb_table:
+            return
+        
+        # Find UB row (Redovisat värde or Utgående or last row)
+        ub_row = None
+        for row in fb_table:
+            if 'Redovisat' in row.get('label', '') or 'Utgående' in row.get('label', ''):
+                ub_row = row
+                break
+        
+        if not ub_row:
+            ub_row = fb_table[-1] if fb_table else {}
+        
+        # Get balanserat resultat and årets resultat from UB row
+        balanserat = self._num(ub_row.get('balanserat_resultat', 0))
+        arets_res = self._num(ub_row.get('arets_resultat', 0))
+        summa = balanserat + arets_res
+        
+        if summa == 0 and arets_utdelning == 0:
+            return  # Nothing to report
+        
+        p_heading = ET.SubElement(page, 'p')
+        p_heading.set('class', 'H1')
+        p_heading.set('style', 'margin-top: 18pt;')
+        p_heading.text = 'Resultatdisposition'
+        
+        p_intro = ET.SubElement(page, 'p')
+        p_intro.set('class', 'P')
+        p_intro.text = 'Styrelsen och VD föreslår att till förfogande stående medel'
+        
+        # Create table
+        table = ET.SubElement(page, 'table')
+        table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt;')
+        
+        # Available funds
+        if balanserat != 0:
+            tr = ET.SubElement(table, 'tr')
+            td_label = ET.SubElement(tr, 'td')
+            td_label.set('style', 'vertical-align: top; width: 150pt;')
+            p_label = ET.SubElement(td_label, 'p')
+            p_label.set('class', 'P')
+            p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_label.text = 'Balanserat resultat'
+            
+            td_val = ET.SubElement(tr, 'td')
+            td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+            p_val = ET.SubElement(td_val, 'p')
+            p_val.set('class', 'P')
+            p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_val.text = self._format_monetary_value(balanserat, for_display=True)
+        
+        if arets_res != 0:
+            tr = ET.SubElement(table, 'tr')
+            td_label = ET.SubElement(tr, 'td')
+            td_label.set('style', 'vertical-align: top; width: 150pt;')
+            p_label = ET.SubElement(td_label, 'p')
+            p_label.set('class', 'P')
+            p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_label.text = 'Årets resultat'
+            
+            td_val = ET.SubElement(tr, 'td')
+            td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+            p_val = ET.SubElement(td_val, 'p')
+            p_val.set('class', 'P')
+            p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_val.text = self._format_monetary_value(arets_res, for_display=True)
+        
+        # First Summa row
+        tr = ET.SubElement(table, 'tr')
+        td_label = ET.SubElement(tr, 'td')
+        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        p_label = ET.SubElement(td_label, 'p')
+        p_label.set('class', 'P')
+        p_label.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+        p_label.text = 'Summa'
+        
+        td_val = ET.SubElement(tr, 'td')
+        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+        p_val = ET.SubElement(td_val, 'p')
+        p_val.set('class', 'P')
+        p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+        p_val.text = self._format_monetary_value(summa, for_display=True)
+        
+        # Empty row for spacing
+        tr_empty = ET.SubElement(table, 'tr')
+        td_empty1 = ET.SubElement(tr_empty, 'td')
+        td_empty1.set('style', 'height: 10pt;')
+        td_empty2 = ET.SubElement(tr_empty, 'td')
+        td_empty2.set('style', 'height: 10pt;')
+        
+        # Disposition header
+        tr = ET.SubElement(table, 'tr')
+        td_label = ET.SubElement(tr, 'td')
+        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        p_label = ET.SubElement(td_label, 'p')
+        p_label.set('class', 'P')
+        p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+        p_label.text = 'Disponeras enligt följande'
+        td_empty = ET.SubElement(tr, 'td')
+        
+        # Utdelas till aktieägare
+        tr = ET.SubElement(table, 'tr')
+        td_label = ET.SubElement(tr, 'td')
+        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        p_label = ET.SubElement(td_label, 'p')
+        p_label.set('class', 'P')
+        p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+        p_label.text = 'Utdelas till aktieägare'
+        
+        td_val = ET.SubElement(tr, 'td')
+        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+        p_val = ET.SubElement(td_val, 'p')
+        p_val.set('class', 'P')
+        p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+        p_val.text = self._format_monetary_value(arets_utdelning, for_display=True)
+        
+        # Balanseras i ny räkning
+        balanseras = summa - arets_utdelning
+        tr = ET.SubElement(table, 'tr')
+        td_label = ET.SubElement(tr, 'td')
+        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        p_label = ET.SubElement(td_label, 'p')
+        p_label.set('class', 'P')
+        p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+        p_label.text = 'Balanseras i ny räkning'
+        
+        td_val = ET.SubElement(tr, 'td')
+        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+        p_val = ET.SubElement(td_val, 'p')
+        p_val.set('class', 'P')
+        p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+        p_val.text = self._format_monetary_value(balanseras, for_display=True)
+        
+        # Final Summa row
+        tr = ET.SubElement(table, 'tr')
+        td_label = ET.SubElement(tr, 'td')
+        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        p_label = ET.SubElement(td_label, 'p')
+        p_label.set('class', 'P')
+        p_label.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+        p_label.text = 'Summa'
+        
+        td_val = ET.SubElement(tr, 'td')
+        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+        p_val = ET.SubElement(td_val, 'p')
+        p_val.set('class', 'P')
+        p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+        p_val.text = self._format_monetary_value(summa, for_display=True)
+        
+        # Add dividend policy text if utdelning > 0
+        if arets_utdelning > 0:
+            p_policy = ET.SubElement(page, 'p')
+            p_policy.set('class', 'P')
+            p_policy.set('style', 'margin-top: 18pt;')
+            dividend_text = ("Styrelsen anser att förslaget är förenligt med försiktighetsregeln "
+                            "i 17 kap. 3 § aktiebolagslagen enligt följande redogörelse. Styrelsens "
+                            "uppfattning är att vinstutdelningen är försvarlig med hänsyn till de krav "
+                            "verksamhetens art, omfattning och risk ställer på storleken på det egna "
+                            "kapitalet, bolagets konsolideringsbehov, likviditet och ställning i övrigt.")
+            p_policy.text = dividend_text
     
     def _render_resultatrakning(self, body: ET.Element, company_data: Dict[str, Any],
                                 company_name: str, org_number: str, fiscal_year: Optional[int],
