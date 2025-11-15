@@ -1099,65 +1099,15 @@ td, th {
                                       company_name: str, org_number: str, fiscal_year: Optional[int],
                                       prev_year: int, period0_ref: str, period1_ref: str,
                                       balans0_ref: str, balans1_ref: str, unit_ref: str):
-        """Render Förvaltningsberättelse section"""
+        """Render Förvaltningsberättelse section with proper FB mapping"""
         page1 = ET.SubElement(body, 'div')
         page1.set('class', 'pagebreak_before ar-page1')
         
-        # Header with company name and page number
-        header_table = ET.SubElement(page1, 'table')
-        header_table.set('style', 'border-collapse: collapse; width: 17cm')
-        tr_header = ET.SubElement(header_table, 'tr')
-        
-        td_name = ET.SubElement(tr_header, 'td')
-        td_name.set('style', 'vertical-align: bottom; width: 13.5cm')
-        p_name1 = ET.SubElement(td_name, 'p')
-        p_name1.set('class', 'b8')
-        p_name1.text = company_name
-        p_org1 = ET.SubElement(td_name, 'p')
-        p_org1.set('class', 'b8')
-        p_org1.text = f'Org.nr {org_number}'
-        
-        td_page = ET.SubElement(tr_header, 'td')
-        td_page.set('style', 'vertical-align: top; width: 3cm')
-        p_page = ET.SubElement(td_page, 'p')
-        p_page.set('class', 'b7')
-        p_page.text = '2 (9)'  # TODO: Calculate actual page numbers
-        
-        # Add spacing
-        p_spacing = ET.SubElement(page1, 'p')
-        p_spacing.set('class', 'normal')
-        p_spacing.text = ' '
-        
-        # Introduction text
-        p_intro = ET.SubElement(page1, 'p')
-        p_intro.set('class', 'a21')
-        p_intro.text = f'Styrelsen för {company_name} avger följande årsredovisning för räkenskapsåret {fiscal_year}.'
-        
-        p_spacing2 = ET.SubElement(page1, 'p')
-        p_spacing2.set('class', 'normal')
-        p_spacing2.text = ' '
-        
-        # Currency note
-        p_currency = ET.SubElement(page1, 'p')
-        p_currency.set('class', 'normal')
-        p_currency.text = 'Årsredovisningen är upprättad i svenska kronor, SEK. Om inte annat särskilt anges, redovisas alla belopp i tusentals kronor (Tkr). Uppgifter inom parentes avser föregående år.'
-        
-        # Add spacing
-        for _ in range(2):
-            p = ET.SubElement(page1, 'p')
-            p.set('class', 'normal')
-            p.text = ' '
-        
-        # "Förvaltningsberättelse" heading
+        # Main heading "Förvaltningsberättelse" with spacing
         p_fb_title = ET.SubElement(page1, 'p')
-        p_fb_title.set('class', 'rubrik2')
+        p_fb_title.set('class', 'H0')
+        p_fb_title.set('style', 'margin-bottom: 18pt;')
         p_fb_title.text = 'Förvaltningsberättelse'
-        
-        # Add spacing
-        for _ in range(2):
-            p = ET.SubElement(page1, 'p')
-            p.set('class', 'normal')
-            p.text = ' '
         
         # Load FB data
         fb_data_raw = (company_data.get('fbData') or
