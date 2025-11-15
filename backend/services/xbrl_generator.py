@@ -1325,43 +1325,51 @@ td, th {
         p_title.set('style', 'margin-bottom: 18pt;')
         p_title.text = 'Resultaträkning'
         
-        # Column headers table (with underline)
+        # Column headers table (with underline) - must match data table structure EXACTLY
         header_table = ET.SubElement(page2, 'table')
         header_table.set('style', 'border-collapse: collapse; width: 17cm; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7); margin-bottom: 6pt;')
-        header_table.set('class', 'header-underline')
         tr_header = ET.SubElement(header_table, 'tr')
         
-        td_title = ET.SubElement(tr_header, 'td')
-        td_title.set('style', 'vertical-align: bottom; width: 9cm; padding-bottom: 4pt;')
-        # Empty label column
+        # Label column - same width as data rows
+        td_label = ET.SubElement(tr_header, 'td')
+        td_label.set('style', 'vertical-align: bottom; width: 9cm; padding-bottom: 4pt;')
+        # Empty
         
+        # Note column - same width as data rows
         td_not = ET.SubElement(tr_header, 'td')
-        td_not.set('style', 'vertical-align: bottom; width: 1.5cm; padding-bottom: 4pt;')
+        td_not.set('style', 'vertical-align: bottom; width: 2cm; padding-bottom: 4pt;')
         p_not = ET.SubElement(td_not, 'p')
         p_not.set('class', 'P')  # 10pt like normal text
-        p_not.set('style', 'text-align: center; margin-top: 0; margin-bottom: 0;')
+        p_not.set('style', 'text-align: center; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_not.text = 'Not'
         
+        # Current year column - same width as data rows
         td_year1 = ET.SubElement(tr_header, 'td')
-        td_year1.set('style', 'vertical-align: bottom; width: 3cm; padding-bottom: 4pt;')
+        td_year1.set('style', 'vertical-align: bottom; width: 2.5cm; padding-bottom: 4pt;')
         p_year1_start = ET.SubElement(td_year1, 'p')
         p_year1_start.set('class', 'P')  # 10pt like normal text
-        p_year1_start.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0;')
+        p_year1_start.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_year1_start.text = f'{fiscal_year}-01-01' if fiscal_year else ''
         p_year1_end = ET.SubElement(td_year1, 'p')
         p_year1_end.set('class', 'P')  # 10pt like normal text
-        p_year1_end.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0;')
+        p_year1_end.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_year1_end.text = f'-{fiscal_year}-12-31' if fiscal_year else ''
         
+        # Spacing column - same as data rows
+        td_spacing_h = ET.SubElement(tr_header, 'td')
+        td_spacing_h.set('style', 'vertical-align: bottom; width: 0.5cm; padding-bottom: 4pt;')
+        # Empty
+        
+        # Previous year column - same width as data rows
         td_year2 = ET.SubElement(tr_header, 'td')
-        td_year2.set('style', 'vertical-align: bottom; width: 3cm; padding-bottom: 4pt;')
+        td_year2.set('style', 'vertical-align: bottom; width: 2.5cm; padding-bottom: 4pt;')
         p_year2_start = ET.SubElement(td_year2, 'p')
         p_year2_start.set('class', 'P')  # 10pt like normal text
-        p_year2_start.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0;')
+        p_year2_start.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_year2_start.text = f'{prev_year}-01-01' if prev_year else ''
         p_year2_end = ET.SubElement(td_year2, 'p')
         p_year2_end.set('class', 'P')  # 10pt like normal text
-        p_year2_end.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0;')
+        p_year2_end.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_year2_end.text = f'-{prev_year}-12-31' if prev_year else ''
         
         # RR table
@@ -1566,35 +1574,43 @@ td, th {
         p_title.set('style', 'margin-bottom: 18pt;')
         p_title.text = 'Balansräkning'
         
-        # Column headers table (with underline)
+        # Column headers table (with underline) - must match data table structure EXACTLY
         header_table = ET.SubElement(page3, 'table')
         header_table.set('style', 'border-collapse: collapse; width: 17cm; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7); margin-bottom: 6pt;')
-        header_table.set('class', 'header-underline')
         tr_header = ET.SubElement(header_table, 'tr')
         
-        td_title = ET.SubElement(tr_header, 'td')
-        td_title.set('style', 'vertical-align: bottom; width: 9cm; padding-bottom: 4pt;')
-        # Empty label column
+        # Label column - same width as data rows
+        td_label = ET.SubElement(tr_header, 'td')
+        td_label.set('style', 'vertical-align: bottom; width: 9cm; padding-bottom: 4pt;')
+        # Empty
         
+        # Note column - same width as data rows
         td_not = ET.SubElement(tr_header, 'td')
-        td_not.set('style', 'vertical-align: bottom; width: 1.5cm; padding-bottom: 4pt;')
+        td_not.set('style', 'vertical-align: bottom; width: 2cm; padding-bottom: 4pt;')
         p_not = ET.SubElement(td_not, 'p')
         p_not.set('class', 'P')  # 10pt like normal text
-        p_not.set('style', 'text-align: center; margin-top: 0; margin-bottom: 0;')
+        p_not.set('style', 'text-align: center; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_not.text = 'Not'
         
+        # Current year column - same width as data rows
         td_year1 = ET.SubElement(tr_header, 'td')
-        td_year1.set('style', 'vertical-align: bottom; width: 3cm; padding-bottom: 4pt;')
+        td_year1.set('style', 'vertical-align: bottom; width: 2.5cm; padding-bottom: 4pt;')
         p_year1 = ET.SubElement(td_year1, 'p')
         p_year1.set('class', 'P')  # 10pt like normal text
-        p_year1.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0;')
+        p_year1.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_year1.text = f'{fiscal_year}-12-31' if fiscal_year else ''
         
+        # Spacing column - same as data rows
+        td_spacing_h = ET.SubElement(tr_header, 'td')
+        td_spacing_h.set('style', 'vertical-align: bottom; width: 0.5cm; padding-bottom: 4pt;')
+        # Empty
+        
+        # Previous year column - same width as data rows
         td_year2 = ET.SubElement(tr_header, 'td')
-        td_year2.set('style', 'vertical-align: bottom; width: 3cm; padding-bottom: 4pt;')
+        td_year2.set('style', 'vertical-align: bottom; width: 2.5cm; padding-bottom: 4pt;')
         p_year2 = ET.SubElement(td_year2, 'p')
         p_year2.set('class', 'P')  # 10pt like normal text
-        p_year2.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0;')
+        p_year2.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_year2.text = f'{prev_year}-12-31' if prev_year else ''
         
         # BR table (assets only)
@@ -1814,35 +1830,43 @@ td, th {
         p_title.set('style', 'margin-bottom: 18pt;')
         p_title.text = 'Balansräkning'
         
-        # Column headers table (with underline)
+        # Column headers table (with underline) - must match data table structure EXACTLY
         header_table = ET.SubElement(page4, 'table')
         header_table.set('style', 'border-collapse: collapse; width: 17cm; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7); margin-bottom: 6pt;')
-        header_table.set('class', 'header-underline')
         tr_header = ET.SubElement(header_table, 'tr')
         
-        td_title = ET.SubElement(tr_header, 'td')
-        td_title.set('style', 'vertical-align: bottom; width: 9cm; padding-bottom: 4pt;')
-        # Empty label column
+        # Label column - same width as data rows
+        td_label = ET.SubElement(tr_header, 'td')
+        td_label.set('style', 'vertical-align: bottom; width: 9cm; padding-bottom: 4pt;')
+        # Empty
         
+        # Note column - same width as data rows
         td_not = ET.SubElement(tr_header, 'td')
-        td_not.set('style', 'vertical-align: bottom; width: 1.5cm; padding-bottom: 4pt;')
+        td_not.set('style', 'vertical-align: bottom; width: 2cm; padding-bottom: 4pt;')
         p_not = ET.SubElement(td_not, 'p')
         p_not.set('class', 'P')  # 10pt like normal text
-        p_not.set('style', 'text-align: center; margin-top: 0; margin-bottom: 0;')
+        p_not.set('style', 'text-align: center; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_not.text = 'Not'
         
+        # Current year column - same width as data rows
         td_year1 = ET.SubElement(tr_header, 'td')
-        td_year1.set('style', 'vertical-align: bottom; width: 3cm; padding-bottom: 4pt;')
+        td_year1.set('style', 'vertical-align: bottom; width: 2.5cm; padding-bottom: 4pt;')
         p_year1 = ET.SubElement(td_year1, 'p')
         p_year1.set('class', 'P')  # 10pt like normal text
-        p_year1.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0;')
+        p_year1.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_year1.text = f'{fiscal_year}-12-31' if fiscal_year else ''
         
+        # Spacing column - same as data rows
+        td_spacing_h = ET.SubElement(tr_header, 'td')
+        td_spacing_h.set('style', 'vertical-align: bottom; width: 0.5cm; padding-bottom: 4pt;')
+        # Empty
+        
+        # Previous year column - same width as data rows
         td_year2 = ET.SubElement(tr_header, 'td')
-        td_year2.set('style', 'vertical-align: bottom; width: 3cm; padding-bottom: 4pt;')
+        td_year2.set('style', 'vertical-align: bottom; width: 2.5cm; padding-bottom: 4pt;')
         p_year2 = ET.SubElement(td_year2, 'p')
         p_year2.set('class', 'P')  # 10pt like normal text
-        p_year2.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0;')
+        p_year2.set('style', 'text-align: right; margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_year2.text = f'{prev_year}-12-31' if prev_year else ''
         
         # BR table (equity and liabilities)
@@ -1871,18 +1895,48 @@ td, th {
             br_table = ET.SubElement(page4, 'table')
             br_table.set('style', 'border-collapse: collapse; width: 17cm')
             
-            # Filter equity and liabilities only
-            br_equity_liabilities = [r for r in br_data_raw if r.get('type') in ['equity', 'liability']]
+            # Filter equity and liabilities OR headings (H0-H3) - matching PDF logic
+            # This ensures "Eget kapital", "Bundet eget kapital", etc. are included
+            def _is_br_heading(item):
+                return item.get('style') in ['H0', 'H1', 'H2', 'H3']
+            
+            br_equity_liabilities = [
+                r for r in br_data_raw 
+                if r.get('type') in ['equity', 'liability'] or _is_br_heading(r)
+            ]
+            
+            # Headings that must NOT appear on equity & liabilities page
+            HIDE_HEADINGS_BR_EQ = {
+                'Balansräkning', 'Tillgångar', 'Tecknat men ej inbetalt kapital',
+                'Anläggningstillgångar', 'Omsättningstillgångar',
+                'Eget kapital och skulder',  # top-level page-1 heading, not here
+            }
+            
+            # Force specific headings to H1 style (10pt) - matching PDF logic
+            FORCE_H1_EQ = {
+                'Kortfristiga skulder', 'Långfristiga skulder', 'Avsättningar',
+                'Bundet eget kapital', 'Fritt eget kapital'
+            }
             
             for row in br_equity_liabilities:
                 # NOTE: Do NOT filter by show_tag - PDF generator ignores this field
                 # Only filter by amounts, always_show, block_group logic, and note_number
                 
                 label = row.get('label', '').strip()
+                
+                # Hide specific headings that don't belong on equity/liabilities page
+                if label in HIDE_HEADINGS_BR_EQ:
+                    continue
+                
                 block_group = row.get('block_group', '')
                 
                 # Determine if heading or sum based on style field (better than label matching)
                 style = row.get('style', '')
+                
+                # Force specific headings to H1 style (10pt semibold) - matching PDF logic
+                if label in FORCE_H1_EQ:
+                    style = 'H1'
+                
                 is_h2_heading = style == 'H2'
                 is_h1_heading = style in ['H1', 'H3']  # H1 and H3 are treated the same in BR
                 is_heading = is_h2_heading or is_h1_heading
