@@ -120,7 +120,8 @@ class XBRLGenerator:
                  period_type: str, start_date: Optional[str] = None,
                  end_date: Optional[str] = None, instant_date: Optional[str] = None,
                  data_type: str = 'monetaryItemType', unit_ref: Optional[str] = None,
-                 context_ref: Optional[str] = None, is_current: bool = True):
+                 context_ref: Optional[str] = None, is_current: bool = True,
+                 decimals: Optional[str] = None, in_thousands: bool = False):
         """Add a fact to the XBRL document"""
         # Get or create context
         if not context_ref:
@@ -131,6 +132,11 @@ class XBRLGenerator:
             unit_ref = self._get_or_create_unit('SEK')
         elif data_type != 'monetaryItemType':
             unit_ref = None  # No unit for non-monetary items
+        
+        # Determine decimals for monetary items
+        if decimals is None and data_type == 'monetaryItemType':
+            # Default: "-3" for thousands (Tkr), "0" for full amounts (kr)
+            decimals = "-3" if in_thousands else "0"
         
         # Format value based on data type
         if data_type == 'monetaryItemType':
@@ -151,7 +157,8 @@ class XBRLGenerator:
             'value': formatted_value,
             'context_ref': context_ref,
             'unit_ref': unit_ref,
-            'data_type': data_type
+            'data_type': data_type,
+            'decimals': decimals  # Add decimals to fact storage
         }
         self.facts.append(fact)
     
@@ -564,6 +571,51 @@ class XBRLGenerator:
         # transformation registry, so we just use the "format" attribute on
         # ix:nonFraction facts (e.g. format="ixt:numdotdecimal").
         
+        # Add required metadata tags first (Swedish XBRL requirements)
+        period0_ref = 'period0'
+        
+        # Language
+        meta_lang = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+        meta_lang.set('name', 'se-cd-base:SprakHandlingUpprattadList')
+        meta_lang.set('contextRef', period0_ref)
+        meta_lang.text = 'se-mem-base:SprakSvenskaMember'
+        
+        # Country
+        meta_country = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+        meta_country.set('name', 'se-cd-base:LandForetagetsSateList')
+        meta_country.set('contextRef', period0_ref)
+        meta_country.text = 'se-mem-base:LandSverigeMember'
+        
+        # Currency
+        meta_currency = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+        meta_currency.set('name', 'se-cd-base:RedovisningsvalutaHandlingList')
+        meta_currency.set('contextRef', period0_ref)
+        meta_currency.text = 'se-mem-base:ValutaSvenskaKronorMember'
+        
+        # Amount format (normal form, not thousands)
+        meta_format = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+        meta_format.set('name', 'se-cd-base:BeloppsformatList')
+        meta_format.set('contextRef', period0_ref)
+        meta_format.text = 'se-mem-base:BeloppsformatNormalformMember'
+        
+        # Financial report type
+        meta_report = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+        meta_report.set('name', 'se-gen-base:FinansiellRapportList')
+        meta_report.set('contextRef', period0_ref)
+        meta_report.text = 'se-mem-base:FinansiellRapportStyrelsenVerkstallandeDirektorenAvgerArsredovisningMember'
+        
+        # Fiscal year first day
+        meta_start = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+        meta_start.set('name', 'se-cd-base:RakenskapsarForstaDag')
+        meta_start.set('contextRef', period0_ref)
+        meta_start.text = start_date
+        
+        # Fiscal year last day
+        meta_end = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+        meta_end.set('name', 'se-cd-base:RakenskapsarSistaDag')
+        meta_end.set('contextRef', period0_ref)
+        meta_end.text = end_date
+        
         # Add all facts as ix:nonNumeric or ix:nonFraction elements in ix:hidden
         for fact in self.facts:
             namespace_prefix = self._get_namespace_prefix(fact['namespace'])
@@ -576,6 +628,9 @@ class XBRLGenerator:
                 fact_element.set('contextRef', fact['context_ref'])
                 if fact['unit_ref']:
                     fact_element.set('unitRef', fact['unit_ref'])
+                # Add decimals attribute (required for monetary facts)
+                if fact.get('decimals'):
+                    fact_element.set('decimals', fact['decimals'])
                 fact_element.set('format', 'ixt:numdotdecimal')
                 fact_element.text = fact['value']
             else:
