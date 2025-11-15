@@ -654,226 +654,233 @@ class XBRLGenerator:
         return xml_bytes.decode('UTF-8')
     
     def _get_css_styles(self) -> str:
-        """Return CSS styles that mirror the PDF typography (Roboto, headings, sums)."""
+        """
+        Return CSS styles matching PDF generator exactly.
+        Margins: 19.2mm top (54pt), 24mm left/right/bottom (68pt)
+        Typography: H0 (16pt), H1 (12pt), H2 (15pt), P (10pt), SMALL (8pt)
+        """
         return """
-html {
-  height: 100%;
+/* Base reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: "Roboto", Arial, sans-serif;
+  font-size: 10pt;
+  line-height: 1.2;
+  color: #000000;
+  background-color: #f5f5f5;
+}
+
+/* Page container with PDF margins: 19.2mm top, 24mm left/right/bottom */
 @media screen {
-  .ar-page0,
-  .ar-page1,
-  .ar-page2,
-  .ar-page3,
-  .ar-page4,
-  .ar-page5,
-  .ar-page6,
-  .ar-page7,
-  .ar-page8 {
-    margin: 10px;
-    padding: 0cm 0cm 0cm 1cm;
-    border: 1px solid rgb(240, 240, 240);
-    box-shadow: 0.25em 0.25em 0.3em #999;
-    line-height: 1.2;
-    min-height: 29.6926cm;
-    max-width: 20.9804cm;
+  .ar-page0, .ar-page1, .ar-page2, .ar-page3, .ar-page4, 
+  .ar-page5, .ar-page6, .ar-page7, .ar-page8 {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 10mm auto;
+    padding: 54pt 68pt 68pt 68pt; /* 19.2mm top, 24mm left/right/bottom */
     background-color: #ffffff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
   }
 }
 
 @media print {
-  html, body {
-    height: 297mm;
-    width: 210mm;
+  body {
+    background-color: #ffffff;
   }
-
-  .ar-page0,
-  .ar-page1,
-  .ar-page2,
-  .ar-page3,
-  .ar-page4,
-  .ar-page5,
-  .ar-page6,
-  .ar-page7,
-  .ar-page8 {
+  
+  .ar-page0, .ar-page1, .ar-page2, .ar-page3, .ar-page4,
+  .ar-page5, .ar-page6, .ar-page7, .ar-page8 {
+    width: 210mm;
+    height: 297mm;
     margin: 0;
-    padding: 0cm 0cm 0cm 1cm;
-    border: none;
+    padding: 54pt 68pt 68pt 68pt; /* 19.2mm top, 24mm left/right/bottom */
     box-shadow: none;
     page-break-after: always;
   }
-
+  
   .ar-page8 {
     page-break-after: auto;
   }
 }
 
-.pagebreak_before {
-  page-break-before: always;
+/* Typography styles (matching pdf_annual_report.py _styles()) */
+
+/* H0 - Main section titles (16pt semibold, "Förvaltningsberättelse") */
+.H0 {
+  font-family: "Roboto", Arial, sans-serif;
+  font-weight: 500;
+  font-size: 16pt;
+  margin-top: 0pt;
+  margin-bottom: 0pt;
+  line-height: 1.2;
 }
 
-/* Base typography */
-
-body {
-  margin: 0;
-  padding: 0;
+/* H1 - Subsection headings (12pt semibold, "Verksamheten", "Flerårsöversikt") */
+.H1 {
   font-family: "Roboto", Arial, sans-serif;
+  font-weight: 500;
+  font-size: 12pt;
+  margin-top: 18pt;
+  margin-bottom: 0pt;
+  line-height: 1.2;
+}
+
+/* H2 - Major headings (15pt semibold in text, 11pt in tables) */
+.H2 {
+  font-family: "Roboto", Arial, sans-serif;
+  font-weight: 500;
+  font-size: 15pt;
+  margin-top: 18pt;
+  margin-bottom: 0pt;
+  line-height: 1.2;
+}
+
+/* H2 in tables (11pt semibold, like "Anläggningstillgångar") */
+.H2-table {
+  font-family: "Roboto", Arial, sans-serif;
+  font-weight: 500;
+  font-size: 11pt;
+  line-height: 1.2;
+}
+
+/* H3 treated as H1 in Balance Sheet (10pt semibold) */
+.H3-table {
+  font-family: "Roboto", Arial, sans-serif;
+  font-weight: 500;
   font-size: 10pt;
   line-height: 1.2;
-  color: #000000;
 }
 
-p {
+/* P - Body text (10pt regular, 12pt leading) */
+.P {
+  font-family: "Roboto", Arial, sans-serif;
+  font-weight: normal;
+  font-size: 10pt;
+  line-height: 12pt;
+  margin-top: 0pt;
+  margin-bottom: 2pt;
+}
+
+/* SMALL - 8pt for "Belopp i kr" annotations */
+.SMALL {
+  font-family: "Roboto", Arial, sans-serif;
+  font-weight: normal;
+  font-size: 8pt;
   margin-top: 0pt;
   margin-bottom: 0pt;
+  line-height: 1.2;
 }
 
-table {
-  border-collapse: collapse;
-  margin-top: 0pt;
-  margin-bottom: 0pt;
-}
-
-.tab {
-  border: 0;
-  border-spacing: 0;
-  padding: 0;
-  margin-left: -3px;
-}
-
-/* Cover page */
-
-.a16 {
+/* Cover page specific styles */
+.cover-center {
   text-align: center;
   font-size: 10pt;
-  font-weight: normal;
+  line-height: 1.2;
 }
 
-.a18 {
+.cover-title {
   text-align: center;
   font-size: 24pt;
   font-weight: 500;
+  line-height: 27.6pt;
 }
 
-.a17 {
+.cover-subtitle {
   text-align: center;
   font-size: 16pt;
   font-weight: 500;
+  line-height: 18.4pt;
 }
 
-.a19 {
+.cover-label {
   text-align: center;
-  font-size: 12pt;
-  font-weight: 500;
+  font-size: 14pt;
+  line-height: 1.2;
 }
 
-/* Headings */
-
-.rubrik2 {
+/* Table styles */
+table {
+  border-collapse: collapse;
+  width: 100%;
   margin-top: 0pt;
   margin-bottom: 0pt;
-  text-align: left;
-  font-size: 16pt; /* H0: e.g. "Förvaltningsberättelse" */
-  font-weight: 500;
 }
 
-.rubrik2b {
-  margin-top: 0pt;
-  margin-bottom: 0pt;
-  text-align: left;
-  font-size: 12pt; /* H1 used in FB headings */
-  font-weight: 500;
+td, th {
+  vertical-align: top;
+  padding: 0;
 }
 
-.rubrik3 {
-  margin-top: 12pt;
-  margin-bottom: 0pt;
-  text-align: left;
-  font-size: 12pt; /* H1 */
-  font-weight: 500;
-}
-
-.rubrik4 {
-  margin-top: 8pt;
-  margin-bottom: 0pt;
-  text-align: left;
-  font-size: 10pt; /* H2 / note headings */
-  font-weight: 500;
-}
-
-/* Normal body text */
-
-.a20,
-.normal,
-.a21,
-.a22,
-.b7,
-.b8,
-.b13,
-.normalsidhuvud {
-  text-align: left;
+/* Amount columns */
+.amount-right {
+  text-align: right;
   font-size: 10pt;
   font-weight: normal;
 }
 
-/* Amount columns */
-
-.b8 {
-  text-align: left;
-}
-
-.b7,
-.b13 {
-  text-align: left;
-}
-
-.belopp {
-  text-align: right;
-  font-size: 10pt;
-}
-
-.summabelopp {
+.amount-right-bold {
   text-align: right;
   font-size: 10pt;
   font-weight: 700;
 }
 
-.summatext,
-.totalsummatext {
-  text-align: left;
+.amount-center {
+  text-align: center;
   font-size: 10pt;
+}
+
+/* Sum rows (S1, S2, S3, S4) */
+.sum-label {
+  font-family: "Roboto", Arial, sans-serif;
   font-weight: 700;
-}
-
-.totalsummabelopp {
-  text-align: right;
-  font-size: 11pt;
-  font-weight: 700;
-}
-
-/* Small annotation text like "Belopp i kr" */
-
-.smalltext {
-  font-size: 8pt;
-}
-
-/* Generic helpers */
-
-.normalsidhuvud {
-  text-align: left;
-}
-
-body .ar-page0 p,
-body .ar-page1 p,
-body .ar-page2 p,
-body .ar-page3 p,
-body .ar-page4 p,
-body .ar-page5 p,
-body .ar-page6 p,
-body .ar-page7 p,
-body .ar-page8 p {
+  font-size: 10pt;
   line-height: 1.2;
 }
+
+.sum-amount {
+  text-align: right;
+  font-family: "Roboto", Arial, sans-serif;
+  font-weight: 700;
+  font-size: 10pt;
+  line-height: 1.2;
+}
+
+/* Utility classes */
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-left {
+  text-align: left;
+}
+
+/* Legacy class names for backward compatibility */
+.rubrik2 { font-weight: 500; font-size: 16pt; } /* H0 */
+.rubrik2b { font-weight: 500; font-size: 12pt; margin-top: 18pt; } /* H1 */
+.rubrik3 { font-weight: 500; font-size: 12pt; margin-top: 12pt; } /* H1 */
+.rubrik4 { font-weight: 500; font-size: 10pt; margin-top: 8pt; } /* H2-table/H3-table */
+.normal, .P { font-size: 10pt; line-height: 12pt; }
+.belopp, .amount-right { text-align: right; font-size: 10pt; }
+.summabelopp, .amount-right-bold { text-align: right; font-size: 10pt; font-weight: 700; }
+.summatext, .sum-label { font-weight: 700; font-size: 10pt; }
+.smalltext, .SMALL { font-size: 8pt; }
+.a16, .cover-center { text-align: center; font-size: 10pt; }
+.a17, .cover-subtitle { text-align: center; font-size: 16pt; font-weight: 500; }
+.a18, .cover-title { text-align: center; font-size: 24pt; font-weight: 500; }
         """
     
     def _num(self, v):
