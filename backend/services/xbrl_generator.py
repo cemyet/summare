@@ -1401,7 +1401,7 @@ td, th {
                 supabase_key = os.getenv("SUPABASE_ANON_KEY")
                 if supabase_url and supabase_key:
                     supabase = create_client(supabase_url, supabase_key)
-                    rr_mappings_response = supabase.table('variable_mapping_rr').select('variable_name,element_name,tillhor').execute()
+                    rr_mappings_response = supabase.table('variable_mapping_rr').select('variable_name,element_name').execute()
                     rr_mappings_dict = {m['variable_name']: m for m in rr_mappings_response.data if m.get('variable_name')}
                 else:
                     rr_mappings_dict = {}
@@ -1502,9 +1502,8 @@ td, th {
                         if variable_name and variable_name in rr_mappings_dict:
                             mapping = rr_mappings_dict[variable_name]
                             element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
+                            # All RR elements are in se-gen-base namespace
+                            element_qname = f'se-gen-base:{element_name}'
                             
                             # For negative values, add minus sign before XBRL tag
                             if curr_val < 0:
@@ -1546,9 +1545,8 @@ td, th {
                         if variable_name and variable_name in rr_mappings_dict:
                             mapping = rr_mappings_dict[variable_name]
                             element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
+                            # All RR elements are in se-gen-base namespace
+                            element_qname = f'se-gen-base:{element_name}'
                             
                             # For negative values, add minus sign before XBRL tag
                             if prev_val < 0:
