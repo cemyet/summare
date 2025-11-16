@@ -692,11 +692,28 @@ body {
     background-color: #ffffff;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
   }
+  
+  /* Noter pages have standard A4 height for visual page breaks */
+  .ar-page-noter {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 10mm auto;
+    padding: 54pt 68pt 68pt 68pt;
+    background-color: #ffffff;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
 }
 
 @media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  
   body {
     background-color: #ffffff;
+    margin: 0;
+    padding: 0;
   }
   
   .ar-page0, .ar-page1, .ar-page2, .ar-page3, .ar-page4,
@@ -711,6 +728,16 @@ body {
   
   .ar-page8 {
     page-break-after: auto;
+  }
+  
+  /* Noter pages follow same pagination rules */
+  .ar-page-noter {
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    padding: 54pt 68pt 68pt 68pt;
+    box-shadow: none;
+    page-break-after: always;
   }
   
   /* Prevent page breaks inside notes */
@@ -2679,17 +2706,20 @@ td, th {
                      prev_year: int, period0_ref: str, period1_ref: str,
                      balans0_ref: str, balans1_ref: str, unit_ref: str):
         """Render Noter section mirroring PDF generator logic"""
+        # Create a flexible page container for Noter (no fixed height, allows natural pagination)
         page5 = ET.SubElement(body, 'div')
-        page5.set('class', 'pagebreak_before ar-page5')
+        page5.set('class', 'pagebreak_before ar-page-noter')
+        page5.set('style', 'page-break-before: always;')
         
         # Noter title
         p_title = ET.SubElement(page5, 'p')
         p_title.set('class', 'rubrik2')
         p_title.text = 'Noter'
         
+        # Add more spacing after title (before first note)
         p_spacing = ET.SubElement(page5, 'p')
         p_spacing.set('class', 'normal')
-        p_spacing.set('style', 'margin-top: 16pt;')
+        p_spacing.set('style', 'margin-top: 24pt;')
         p_spacing.text = ' '
         
         # Load noter data and mappings
@@ -2729,11 +2759,30 @@ td, th {
         # Collect and filter blocks with note numbers
         rendered_blocks = self._collect_visible_note_blocks_xbrl(blocks, company_data, noter_toggle_on, noter_block_toggles)
         
-        # Render each block
-        for block_name, block_title, note_number, visible_items in rendered_blocks:
-            self._render_note_block_xbrl(page5, block_name, block_title, note_number, visible_items, 
+        # Render each block with pagination (create new pages as needed)
+        current_page = page5
+        page_note_count = 0
+        page_counter = 5
+        
+        for idx, (block_name, block_title, note_number, visible_items) in enumerate(rendered_blocks):
+            # Estimate if we need a new page (rough heuristic)
+            # NOT1 is large, others vary. Create new page after 2-3 notes or if NOT1 would be 2nd+ on page
+            if page_note_count > 0 and (
+                (block_name == 'NOT1' and page_note_count >= 1) or  # NOT1 needs its own page if not first
+                (page_note_count >= 3)  # Or after 3 notes
+            ):
+                # Create new page
+                page_counter += 1
+                current_page = ET.SubElement(body, 'div')
+                current_page.set('class', f'pagebreak_before ar-page-noter')
+                current_page.set('style', 'page-break-before: always;')
+                page_note_count = 0
+            
+            # Render note on current page
+            self._render_note_block_xbrl(current_page, block_name, block_title, note_number, visible_items, 
                                         company_data, fiscal_year, prev_year, period0_ref, period1_ref,
                                         balans0_ref, balans1_ref, unit_ref, noter_mappings_dict)
+            page_note_count += 1
     
     def _render_note_block_xbrl(self, page: ET.Element, block_name: str, block_title: str,
                                 note_number: int, visible_items: List[Dict[str, Any]], company_data: Dict[str, Any],
@@ -2747,7 +2796,7 @@ td, th {
         
         # Create a container div for the note (to keep it together and control page breaks)
         note_container = ET.SubElement(page, 'div')
-        note_container.set('style', 'page-break-inside: avoid; margin-bottom: 32pt;')
+        note_container.set('style', 'page-break-inside: avoid; page-break-before: auto; margin-bottom: 32pt;')
         
         # Note title (H1 heading with spacing)
         p_heading = ET.SubElement(note_container, 'p')
