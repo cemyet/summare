@@ -2387,11 +2387,283 @@ td, th {
                 p_spacing2.set('class', 'normal')
                 p_spacing2.text = ' '
     
+    def _is_heading_style_noter(self, style: str) -> bool:
+        """Check if style is a heading style"""
+        return style in ['H0', 'H1', 'H2', 'H3', 'H4']
+    
+    def _is_s2_noter(self, style: str) -> bool:
+        """Check if style is S2 (subtotal)"""
+        return style == 'S2'
+    
+    def _is_subtotal_trigger_noter(self, style: str) -> bool:
+        """Check if this is a subtotal trigger (S2/TS2)"""
+        return style in ['S2', 'TS2']
+    
+    def _is_sum_line_noter(self, style: str) -> bool:
+        """Check if this is a sum line style"""
+        return style in ['S1', 'S2', 'S3', 'TS1', 'TS2', 'TS3']
+    
+    def _has_nonzero_content_noter(self, rows: List[Dict[str, Any]]) -> bool:
+        """Check if any row has non-zero amounts"""
+        for row in rows:
+            curr = self._num(row.get('current_amount', 0))
+            prev = self._num(row.get('previous_amount', 0))
+            if curr != 0 or prev != 0:
+                return True
+        return False
+    
+    def _build_visible_with_headings_noter(self, items: List[Dict[str, Any]], toggle_on: bool = False) -> List[Dict[str, Any]]:
+        """Apply visibility logic with heading/subtotal triggers (mirrors PDF build_visible_with_headings_pdf)"""
+        # Pass 1: base visibility (row itself is visible?)
+        base_visible = []
+        for it in items:
+            if it.get("always_show"):
+                base_visible.append(it)
+                continue
+            cur = self._num(it.get("current_amount", 0))
+            prev = self._num(it.get("previous_amount", 0))
+            if cur != 0 or prev != 0 or (it.get("toggle_show") is True and toggle_on):
+                base_visible.append(it)
+        
+        base_ids = {it.get("row_id") for it in base_visible}
+        
+        # Rows allowed to TRIGGER headings/subtotals (content rows only)
+        triggers = []
+        for it in items:
+            if self._is_sum_line_noter(it.get("style")):
+                continue
+            if it.get("always_show"):
+                continue
+            cur = self._num(it.get("current_amount", 0))
+            prev = self._num(it.get("previous_amount", 0))
+            if cur != 0 or prev != 0 or (it.get("toggle_show") is True and toggle_on):
+                triggers.append(it)
+        trigger_ids = {it.get("row_id") for it in triggers}
+        
+        # Pass 2: add H2/H3 headings + S2/TS2 subtotals based on nearby trigger rows
+        out = []
+        n = len(items)
+        for i, it in enumerate(items):
+            rid = it.get("row_id")
+            
+            # Already visible? keep it.
+            if rid in base_ids:
+                out.append(it)
+                continue
+            
+            sty = it.get("style")
+            
+            # Headings (H2/H3): show if ANY following trigger row until next heading is present
+            if self._is_heading_style_noter(sty):
+                show = False
+                j = i + 1
+                while j < n:
+                    nxt = items[j]
+                    if self._is_heading_style_noter(nxt.get("style")):
+                        break
+                    if nxt.get("row_id") in trigger_ids:
+                        show = True
+                        break
+                    j += 1
+                if show:
+                    out.append(it)
+                    continue
+            
+            # Subtotals (S2/TS2): show if ANY preceding trigger row until previous heading/S2 is present
+            if self._is_subtotal_trigger_noter(sty):
+                show = False
+                j = i - 1
+                while j >= 0:
+                    prv = items[j]
+                    if self._is_heading_style_noter(prv.get("style")) or self._is_subtotal_trigger_noter(prv.get("style")):
+                        break
+                    if prv.get("row_id") in trigger_ids:
+                        show = True
+                        break
+                    j -= 1
+                if show:
+                    out.append(it)
+        
+        return out
+    
+    def _collect_visible_note_blocks_xbrl(self, blocks: Dict[str, List[Dict[str, Any]]], 
+                                          company_data: Dict[str, Any],
+                                          toggle_on: bool = False,
+                                          block_toggles: Optional[Dict[str, Any]] = None) -> List[tuple]:
+        """Collect visible note blocks and assign note numbers (mirrors PDF _collect_visible_note_blocks)"""
+        block_toggles = block_toggles or {}
+        scraped_data = company_data.get('scraped_company_data', {})
+        
+        # Block title mapping
+        block_title_map = {
+            'NOT1': 'Redovisningsprinciper',
+            'NOT2': 'Medelantalet anställda',
+            'KONCERN': 'Andelar i koncernföretag',
+            'INTRESSEFTG': 'Andelar i intresseföretag och gemensamt styrda företag',
+            'BYGG': 'Byggnader och mark',
+            'MASKIN': 'Maskiner och andra tekniska anläggningar',
+            'INV': 'Inventarier, verktyg och installationer',
+            'MAT': 'Övriga materiella anläggningstillgångar',
+            'LVP': 'Andra långfristiga värdepappersinnehav',
+            'FORDRKONC': 'Fordringar hos koncernföretag',
+            'FORDRINTRE': 'Fordringar hos intresseföretag och gemensamt styrda företag',
+            'OVRIGAFTG': 'Ägarintressen i övriga företag',
+            'FORDROVRFTG': 'Fordringar hos övriga företag som det finns ett ägarintresse i',
+            'EVENTUAL': 'Eventualförpliktelser',
+            'SAKERHET': 'Ställda säkerheter',
+            'OVRIGA': 'Övriga upplysningar',
+        }
+        
+        # Fixed note numbers
+        NOTE_NUM_FIXED = {
+            'Redovisningsprinciper': 1,
+            'Medelantalet anställda': 2,
+            'NOT1': 1,
+            'NOT2': 2,
+        }
+        
+        # Always show notes
+        ALWAYS_SHOW_NOTES = {'Redovisningsprinciper', 'Medelantalet anställda', 'NOT1', 'NOT2'}
+        
+        collected = []
+        
+        # Note order (mirrors PDF)
+        note_order = [
+            'NOT1', 'NOT2',
+            'BYGG', 'MASKIN', 'INV', 'MAT',
+            'KONCERN', 'INTRESSEFTG',
+            'FORDRKONC', 'FORDRINTRE',
+            'OVRIGAFTG', 'FORDROVRFTG',
+            'LVP',
+            'SAKERHET', 'EVENTUAL',
+            'OVRIGA',
+        ]
+        
+        # Process in order
+        remaining_blocks = [b for b in blocks.keys() if b not in note_order]
+        ordered_blocks = [b for b in note_order if b in blocks] + sorted(remaining_blocks)
+        
+        for block_name in ordered_blocks:
+            if block_name not in blocks:
+                continue
+            
+            items = blocks[block_name]
+            block_title = block_title_map.get(block_name, block_name)
+            
+            # Special handling for NOT2
+            if block_name == 'NOT2':
+                # Extract employee count
+                emp_current = 0
+                emp_previous = 0
+                for r in items:
+                    if r.get("variable_name") in {"ant_anstallda", "medelantal_anstallda_under_aret"}:
+                        emp_current = self._num(r.get('current_amount', 0))
+                        emp_previous = self._num(r.get('previous_amount', 0))
+                        break
+                
+                # Fallback to scraped data
+                if emp_current == 0:
+                    emp_current = self._num(scraped_data.get('medeltal_anstallda', 0))
+                if emp_previous == 0:
+                    emp_previous = self._num(scraped_data.get('medeltal_anstallda_prev', 0) or emp_current)
+                
+                items = [{
+                    "row_id": 1,
+                    "row_title": "Medelantalet anställda under året",
+                    "current_amount": emp_current,
+                    "previous_amount": emp_previous,
+                    "style": "NORMAL",
+                    "variable_name": "ant_anstallda",
+                    "always_show": True,
+                }]
+            
+            # Check block type
+            is_ovriga = (block_name == 'OVRIGA')
+            is_eventual = (block_name == 'EVENTUAL')
+            is_sakerhet = (block_name == 'SAKERHET')
+            
+            # EVENTUAL/SAKERHET require explicit toggle
+            if is_eventual or is_sakerhet:
+                toggle_key = 'eventual-visibility' if is_eventual else 'sakerhet-visibility'
+                block_visible = bool(block_toggles.get(toggle_key, False))
+                if not block_visible:
+                    continue
+            
+            # OVRIGA visibility
+            if is_ovriga:
+                moderbolag = scraped_data.get('moderbolag')
+                ovriga_visible = bool(block_toggles.get('ovriga-visibility', False))
+                if not ovriga_visible and not moderbolag:
+                    # Check for content
+                    has_content = any(
+                        (it.get('variable_text') and it.get('variable_text').strip()) or
+                        self._num(it.get('current_amount', 0)) != 0 or
+                        self._num(it.get('previous_amount', 0)) != 0
+                        for it in items
+                    )
+                    if not has_content:
+                        continue
+            
+            # Force always_show for NOT1/NOT2
+            force_always = (block_name in ALWAYS_SHOW_NOTES or block_title in ALWAYS_SHOW_NOTES)
+            if force_always:
+                for it in items:
+                    it["always_show"] = True
+            
+            # For OVRIGA, force always_show for text items
+            if is_ovriga:
+                for it in items:
+                    if it.get('variable_text') and str(it.get('variable_text')).strip():
+                        it["always_show"] = True
+            
+            # Apply visibility logic
+            visible = self._build_visible_with_headings_noter(items, toggle_on=toggle_on)
+            
+            # Skip rows before first heading (except for NOT1/NOT2, SAKERHET, EVENTUAL, OVRIGA)
+            if block_name not in ['NOT1', 'NOT2'] and not (is_eventual or is_sakerhet or is_ovriga):
+                pruned = []
+                seen_heading = False
+                for r in visible:
+                    if self._is_heading_style_noter(r.get("style")):
+                        seen_heading = True
+                        pruned.append(r)
+                    elif seen_heading:
+                        pruned.append(r)
+                visible = pruned
+            
+            # Skip if no visible items (unless forced)
+            if not visible:
+                if not force_always:
+                    continue
+            
+            # Skip if no non-zero content (unless forced or OVRIGA with toggle)
+            if not force_always and not (is_ovriga and block_toggles.get('ovriga-visibility')):
+                if not self._has_nonzero_content_noter(visible):
+                    continue
+            
+            collected.append((block_name, block_title, visible))
+        
+        # Assign note numbers
+        result = []
+        next_no = 3
+        for block_name, block_title, visible in collected:
+            if block_name in NOTE_NUM_FIXED:
+                note_number = NOTE_NUM_FIXED[block_name]
+            elif block_title in NOTE_NUM_FIXED:
+                note_number = NOTE_NUM_FIXED[block_title]
+            else:
+                note_number = next_no
+                next_no += 1
+            
+            result.append((block_name, block_title, note_number, visible))
+        
+        return result
+    
     def _render_noter(self, body: ET.Element, company_data: Dict[str, Any],
                      company_name: str, org_number: str, fiscal_year: Optional[int],
                      prev_year: int, period0_ref: str, period1_ref: str,
                      balans0_ref: str, balans1_ref: str, unit_ref: str):
-        """Render Noter section"""
+        """Render Noter section mirroring PDF generator logic"""
         page5 = ET.SubElement(body, 'div')
         page5.set('class', 'pagebreak_before ar-page5')
         
@@ -2449,12 +2721,15 @@ td, th {
         p_spacing3.set('class', 'normal')
         p_spacing3.text = ' '
         
-        # Load noter data
+        # Load noter data and mappings
         noter_data_raw = (company_data.get('noterData') or
                          company_data.get('noter_data') or
                          company_data.get('seFileData', {}).get('noter_data', []))
         
-        # Load noter mappings
+        noter_toggle_on = company_data.get('noterToggleOn', False)
+        noter_block_toggles = company_data.get('noterBlockToggles', {})
+        
+        # Load noter mappings from variable_mapping_noter_rows
         try:
             from supabase import create_client
             import os
@@ -2464,159 +2739,326 @@ td, th {
             supabase_key = os.getenv("SUPABASE_ANON_KEY")
             if supabase_url and supabase_key:
                 supabase = create_client(supabase_url, supabase_key)
-                noter_mappings_response = supabase.table('variable_mapping_noter').select('variable_name,element_name,tillhor').execute()
+                noter_mappings_response = supabase.table('variable_mapping_noter_rows').select('*').execute()
                 noter_mappings_dict = {m['variable_name']: m for m in noter_mappings_response.data if m.get('variable_name')}
             else:
                 noter_mappings_dict = {}
-        except:
+        except Exception as e:
+            print(f"[NOTER] Error loading mappings: {e}")
             noter_mappings_dict = {}
         
-        if noter_data_raw:
-            # Group notes by note number
-            notes_by_number = {}
-            for row in noter_data_raw:
-                note_num = row.get('note_number')
-                if note_num:
-                    if note_num not in notes_by_number:
-                        notes_by_number[note_num] = []
-                    notes_by_number[note_num].append(row)
+        # Group notes by block
+        blocks = {}
+        for note in noter_data_raw:
+            block = note.get('block') or 'OVRIGA'
+            if block not in blocks:
+                blocks[block] = []
+            blocks[block].append(note)
+        
+        # Collect and filter blocks with note numbers
+        rendered_blocks = self._collect_visible_note_blocks_xbrl(blocks, company_data, noter_toggle_on, noter_block_toggles)
+        
+        # Render each block
+        for block_name, block_title, note_number, visible_items in rendered_blocks:
+            self._render_note_block_xbrl(page5, block_name, block_title, note_number, visible_items, 
+                                        company_data, fiscal_year, prev_year, period0_ref, period1_ref,
+                                        balans0_ref, balans1_ref, unit_ref, noter_mappings_dict)
+    
+    def _render_note_block_xbrl(self, page: ET.Element, block_name: str, block_title: str,
+                                note_number: int, visible_items: List[Dict[str, Any]], company_data: Dict[str, Any],
+                                fiscal_year: int, prev_year: int, period0_ref: str, period1_ref: str,
+                                balans0_ref: str, balans1_ref: str, unit_ref: str, noter_mappings_dict: Dict[str, Any]):
+        """Render a single note block with proper XBRL tagging (mirrors PDF _render_note_block)"""
+        
+        # Format note title
+        title = block_title.replace(" – ", " ").replace(" - ", " ").replace("–", " ").replace("-", " ")
+        title = " ".join(title.split())  # Clean multiple spaces
+        
+        # Note title (H1 heading with spacing)
+        p_heading = ET.SubElement(page, 'p')
+        p_heading.set('class', 'H1')
+        p_heading.set('style', 'margin-top: 18pt;')
+        p_heading.text = f'Not {note_number}  {title}'
+        
+        #Special handling for NOT1 (Redovisningsprinciper - text + depreciation table)
+        if block_name == 'NOT1':
+            # Render text paragraphs
+            for note in visible_items:
+                text = note.get('variable_text', note.get('row_title', ''))
+                if text:
+                    p_text = ET.SubElement(page, 'p')
+                    p_text.set('class', 'P')
+                    p_text.set('style', 'margin-top: 10pt;')
+                    p_text.text = text
             
-            # Render each note
-            for note_num in sorted(notes_by_number.keys()):
-                rows = notes_by_number[note_num]
+            # Build depreciation table
+            noter_data = company_data.get('noterData', [])
+            avskrtid_bygg = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_bygg'), 0)
+            avskrtid_mask = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_mask'), 0)
+            avskrtid_inv = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_inv'), 0)
+            avskrtid_ovriga = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_ovriga'), 0)
+            
+            table = ET.SubElement(page, 'table')
+            table.set('style', 'border-collapse: collapse; width: 12cm; margin-top: 10pt;')
+            
+            # Header row
+            tr_h = ET.SubElement(table, 'tr')
+            td_h1 = ET.SubElement(tr_h, 'td')
+            td_h1.set('style', 'vertical-align: top; width: 10cm; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
+            p_h1 = ET.SubElement(td_h1, 'p')
+            p_h1.set('class', 'P')
+            p_h1.set('style', 'margin: 0; font-weight: 500;')
+            p_h1.text = 'Anläggningstillgångar'
+            
+            td_h2 = ET.SubElement(tr_h, 'td')
+            td_h2.set('style', 'vertical-align: top; width: 2cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
+            p_h2 = ET.SubElement(td_h2, 'p')
+            p_h2.set('class', 'P')
+            p_h2.set('style', 'margin: 0; font-weight: 500;')
+            p_h2.text = 'År'
+            
+            # Data rows
+            depr_items = [
+                ('Byggnader & mark', avskrtid_bygg),
+                ('Maskiner och andra tekniska anläggningar', avskrtid_mask),
+                ('Inventarier, verktyg och installationer', avskrtid_inv),
+                ('Övriga materiella anläggningstillgångar', avskrtid_ovriga),
+            ]
+            
+            for label, val in depr_items:
+                tr = ET.SubElement(table, 'tr')
+                td1 = ET.SubElement(tr, 'td')
+                td1.set('style', 'vertical-align: top; width: 10cm; padding-top: 2pt;')
+                p1 = ET.SubElement(td1, 'p')
+                p1.set('class', 'P')
+                p1.set('style', 'margin: 0;')
+                p1.text = label
                 
-                # Note title
-                p_note_title = ET.SubElement(page5, 'p')
-                p_note_title.set('class', 'rubrik3')
-                note_label = rows[0].get('note_label', f'Not {note_num}')
-                p_note_title.text = f'Not {note_num} {note_label}'
+                td2 = ET.SubElement(tr, 'td')
+                td2.set('style', 'vertical-align: top; width: 2cm; text-align: right; padding-top: 2pt;')
+                p2 = ET.SubElement(td2, 'p')
+                p2.set('class', 'P')
+                p2.set('style', 'margin: 0;')
+                p2.text = str(int(val)) if val else '0'
+            
+            # Spacing after note
+            p_spacing = ET.SubElement(page, 'p')
+            p_spacing.set('class', 'P')
+            p_spacing.set('style', 'margin-top: 16pt;')
+            p_spacing.text = ' '
+            return
+        
+        # Special handling for OVRIGA (text note with moderbolag)
+        if block_name == 'OVRIGA':
+            scraped_data = company_data.get('scraped_company_data', {})
+            moderbolag = scraped_data.get('moderbolag')
+            
+            # Check for variable_text from items
+            has_text = False
+            for item in visible_items:
+                variable_text = item.get('variable_text', '').strip()
+                if variable_text:
+                    p_text = ET.SubElement(page, 'p')
+                    p_text.set('class', 'P')
+                    p_text.set('style', 'margin-top: 10pt;')
+                    p_text.text = variable_text
+                    has_text = True
+            
+            # If no variable_text but moderbolag exists, render it
+            if not has_text and moderbolag:
+                moderbolag_orgnr = scraped_data.get('moderbolag_orgnr', '')
+                sate = scraped_data.get('säte', '')
+                moder_sate = scraped_data.get('moderbolag_säte', sate)
                 
-                # Note table
-                note_table = ET.SubElement(page5, 'table')
-                note_table.set('style', 'border-collapse: collapse; width: 17cm')
+                text = f"Bolaget är dotterbolag till {moderbolag}"
+                if moderbolag_orgnr:
+                    text += f" med organisationsnummer {moderbolag_orgnr}"
+                text += f", som har sitt säte i {moder_sate}."
                 
-                for row in rows:
-                    # Skip show_tag=False rows
-                    if row.get('show_tag') == False:
-                        continue
+                p_text = ET.SubElement(page, 'p')
+                p_text.set('class', 'P')
+                p_text.set('style', 'margin-top: 10pt;')
+                p_text.text = text
+            
+            # Spacing after note
+            p_spacing = ET.SubElement(page, 'p')
+            p_spacing.set('class', 'P')
+            p_spacing.set('style', 'margin-top: 16pt;')
+            p_spacing.text = ' '
+            return
+        
+        # For NOT2 and other notes, render as table
+        # Determine header row (dates or years for NOT2)
+        if block_name == 'NOT2':
+            header_col1 = ''
+            header_col2 = str(fiscal_year)
+            header_col3 = str(prev_year)
+        else:
+            cur_end = company_data.get("currentPeriodEndDate") or f"{fiscal_year}-12-31"
+            prev_end = company_data.get("previousPeriodEndDate") or f"{prev_year}-12-31"
+            header_col1 = ''
+            header_col2 = cur_end
+            header_col3 = prev_end
+        
+        # Build table
+        table = ET.SubElement(page, 'table')
+        table.set('style', 'border-collapse: collapse; width: 12cm; margin-top: 10pt;')
+        
+        # Header row
+        tr_header = ET.SubElement(table, 'tr')
+        td_h1 = ET.SubElement(tr_header, 'td')
+        td_h1.set('style', 'vertical-align: top; width: 9cm; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
+        p_h1 = ET.SubElement(td_h1, 'p')
+        p_h1.set('class', 'P')
+        p_h1.set('style', 'margin: 0; font-size: 9pt; font-weight: 500;')
+        p_h1.text = header_col1
+        
+        td_h2 = ET.SubElement(tr_header, 'td')
+        td_h2.set('style', 'vertical-align: top; width: 1.5cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
+        p_h2 = ET.SubElement(td_h2, 'p')
+        p_h2.set('class', 'P')
+        p_h2.set('style', 'margin: 0; font-size: 9pt; font-weight: 500;')
+        p_h2.text = header_col2
+        
+        td_h3 = ET.SubElement(tr_header, 'td')
+        td_h3.set('style', 'vertical-align: top; width: 1.5cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
+        p_h3 = ET.SubElement(td_h3, 'p')
+        p_h3.set('class', 'P')
+        p_h3.set('style', 'margin: 0; font-size: 9pt; font-weight: 500;')
+        p_h3.text = header_col3
+        
+        # Sub-headings that need extra space
+        heading_kick = {"avskrivningar", "uppskrivningar", "nedskrivningar"}
+        
+        # Data rows
+        for i, it in enumerate(visible_items):
+            style = it.get('style', '')
+            row_title = it.get('row_title', '')
+            lbl = row_title.strip().lower()
+            variable_name = it.get('variable_name', '')
+            
+            is_heading = self._is_heading_style_noter(style)
+            is_s2 = self._is_s2_noter(style)
+            is_sum = lbl.startswith('utgående ') or lbl.startswith('utgaende ') or lbl.startswith('summa ') or is_s2
+            is_redv = 'redovisat värde' in lbl or 'redovisat varde' in lbl
+            
+            # Get amounts
+            if is_heading:
+                curr_fmt = ''
+                prev_fmt = ''
+            else:
+                cur = self._num(it.get('current_amount', 0))
+                prev = self._num(it.get('previous_amount', 0))
+                curr_fmt = self._format_monetary_value(cur, for_display=True)
+                prev_fmt = self._format_monetary_value(prev, for_display=True)
+            
+            # Apply extra padding for sub-headings
+            row_padding_top = '2pt'
+            if is_heading and style in ['H1', 'H2', 'H3'] and lbl in heading_kick:
+                row_padding_top = '10pt'
+            if is_redv:
+                row_padding_top = '10pt'
+            
+            tr = ET.SubElement(table, 'tr')
+            
+            # Label column
+            td_label = ET.SubElement(tr, 'td')
+            td_label.set('style', f'vertical-align: top; width: 9cm; padding-top: {row_padding_top};')
+            p_label = ET.SubElement(td_label, 'p')
+            p_label.set('style', 'margin: 0;')
+            
+            if is_heading:
+                p_label.set('class', 'P')
+                p_label.set('style', 'margin: 0; font-weight: 500;')
+            elif is_sum or is_redv:
+                p_label.set('class', 'P')
+                p_label.set('style', 'margin: 0; font-weight: 500;')
+            else:
+                p_label.set('class', 'P')
+            
+            p_label.text = row_title
+            
+            # Current amount column
+            td_curr = ET.SubElement(tr, 'td')
+            td_curr.set('style', f'vertical-align: top; width: 1.5cm; text-align: right; padding-top: {row_padding_top};')
+            p_curr = ET.SubElement(td_curr, 'p')
+            p_curr.set('style', 'margin: 0;')
+            
+            if is_sum or is_redv:
+                p_curr.set('class', 'P')
+                p_curr.set('style', 'margin: 0; font-weight: 500;')
+            else:
+                p_curr.set('class', 'P')
+            
+            if not is_heading:
+                # Add XBRL tagging
+                mapping = noter_mappings_dict.get(variable_name)
+                if mapping and curr_fmt:
+                    element_name = mapping.get('item_name')
+                    period_type = mapping.get('period_type', 'duration')
                     
-                    label = row.get('label', '').strip()
-                    
-                    # Skip if no content
-                    if not label:
-                        continue
-                    
-                    # Determine if heading or sum
-                    style = row.get('style', '')
-                    is_heading = style in ['H0', 'H1', 'H2', 'H3', 'H4']
-                    is_sum = style in ['S1', 'S2', 'S3', 'S4'] or label.startswith('Summa ')
-                    
-                    # Create table row
-                    tr = ET.SubElement(note_table, 'tr')
-                    
-                    # Label column
-                    td_label = ET.SubElement(tr, 'td')
-                    td_label.set('style', 'vertical-align: bottom; width: 10cm')
-                    p_label = ET.SubElement(td_label, 'p')
-                    if is_heading:
-                        p_label.set('class', 'rubrik4')
-                    elif is_sum:
-                        p_label.set('class', 'summatext')
+                    if element_name:
+                        namespace = 'se-gen-base'  # Default namespace
+                        namespace_prefix = self._get_namespace_prefix(namespace)
+                        element_qname = f'{namespace_prefix}:{element_name}'
+                        
+                        context_ref = period0_ref if period_type == 'duration' else balans0_ref
+                        
+                        ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
+                        ix_curr.set('name', element_qname)
+                        ix_curr.set('contextRef', context_ref)
+                        ix_curr.set('unitRef', unit_ref)
+                        ix_curr.set('format', 'ixt:numdotdecimal')
+                        ix_curr.set('decimals', '-3')
+                        ix_curr.text = str(int(round(self._num(it.get('current_amount', 0)))))
                     else:
-                        p_label.set('class', 'normal')
-                    p_label.text = label
+                        p_curr.text = curr_fmt
+                else:
+                    p_curr.text = curr_fmt
+            
+            # Previous amount column
+            td_prev = ET.SubElement(tr, 'td')
+            td_prev.set('style', f'vertical-align: top; width: 1.5cm; text-align: right; padding-top: {row_padding_top};')
+            p_prev = ET.SubElement(td_prev, 'p')
+            p_prev.set('style', 'margin: 0;')
+            
+            if is_sum or is_redv:
+                p_prev.set('class', 'P')
+                p_prev.set('style', 'margin: 0; font-weight: 500;')
+            else:
+                p_prev.set('class', 'P')
+            
+            if not is_heading:
+                # Add XBRL tagging
+                mapping = noter_mappings_dict.get(variable_name)
+                if mapping and prev_fmt:
+                    element_name = mapping.get('item_name')
+                    period_type = mapping.get('period_type', 'duration')
                     
-                    # Current year amount
-                    td_curr = ET.SubElement(tr, 'td')
-                    td_curr.set('style', 'vertical-align: bottom; width: 3cm')
-                    p_curr = ET.SubElement(td_curr, 'p')
-                    if is_sum:
-                        p_curr.set('class', 'summabelopp')
+                    if element_name:
+                        namespace = 'se-gen-base'
+                        namespace_prefix = self._get_namespace_prefix(namespace)
+                        element_qname = f'{namespace_prefix}:{element_name}'
+                        
+                        context_ref = period1_ref if period_type == 'duration' else balans1_ref
+                        
+                        ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
+                        ix_prev.set('name', element_qname)
+                        ix_prev.set('contextRef', context_ref)
+                        ix_prev.set('unitRef', unit_ref)
+                        ix_prev.set('format', 'ixt:numdotdecimal')
+                        ix_prev.set('decimals', '-3')
+                        ix_prev.text = str(int(round(self._num(it.get('previous_amount', 0)))))
                     else:
-                        p_curr.set('class', 'belopp')
-                    
-                    if is_heading:
-                        p_curr.text = ''
-                    else:
-                        curr_val = self._num(row.get('current_amount', 0))
-                        if curr_val != 0 or row.get('always_show'):
-                            variable_name = row.get('variable_name')
-                            if variable_name and variable_name in noter_mappings_dict:
-                                mapping = noter_mappings_dict[variable_name]
-                                element_name = mapping.get('element_name')
-                                namespace = mapping.get('tillhor', 'se-gen-base')
-                                namespace_prefix = self._get_namespace_prefix(namespace)
-                                element_qname = f'{namespace_prefix}:{element_name}'
-                                
-                                # Determine context based on data type
-                                context_ref = period0_ref
-                                if row.get('period_type') == 'instant':
-                                    context_ref = balans0_ref
-                                
-                                ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
-                                ix_curr.set('name', element_qname)
-                                ix_curr.set('contextRef', context_ref)
-                                ix_curr.set('unitRef', unit_ref)
-                                ix_curr.set('format', 'ixt:numdotdecimal')
-                                ix_curr.set('decimals', '0')
-                                ix_curr.set('scale', '3')
-                                ix_curr.text = str(int(round(curr_val)))
-                            else:
-                                p_curr.text = self._format_monetary_value(curr_val, for_display=True).replace('.', ',')
-                        else:
-                            p_curr.text = ''
-                    
-                    # Spacing column
-                    td_spacing = ET.SubElement(tr, 'td')
-                    td_spacing.set('style', 'vertical-align: bottom; width: 0.5cm')
-                    p_spacing = ET.SubElement(td_spacing, 'p')
-                    p_spacing.set('class', 'normal')
-                    p_spacing.text = ' '
-                    
-                    # Previous year amount
-                    td_prev = ET.SubElement(tr, 'td')
-                    td_prev.set('style', 'vertical-align: bottom; width: 3cm')
-                    p_prev = ET.SubElement(td_prev, 'p')
-                    if is_sum:
-                        p_prev.set('class', 'summabelopp')
-                    else:
-                        p_prev.set('class', 'belopp')
-                    
-                    if is_heading:
-                        p_prev.text = ''
-                    else:
-                        prev_val = self._num(row.get('previous_amount', 0))
-                        if prev_val != 0 or row.get('always_show'):
-                            variable_name = row.get('variable_name')
-                            if variable_name and variable_name in noter_mappings_dict:
-                                mapping = noter_mappings_dict[variable_name]
-                                element_name = mapping.get('element_name')
-                                namespace = mapping.get('tillhor', 'se-gen-base')
-                                namespace_prefix = self._get_namespace_prefix(namespace)
-                                element_qname = f'{namespace_prefix}:{element_name}'
-                                
-                                # Determine context based on data type
-                                context_ref = period1_ref
-                                if row.get('period_type') == 'instant':
-                                    context_ref = balans1_ref
-                                
-                                ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
-                                ix_prev.set('name', element_qname)
-                                ix_prev.set('contextRef', context_ref)
-                                ix_prev.set('unitRef', unit_ref)
-                                ix_prev.set('format', 'ixt:numdotdecimal')
-                                ix_prev.set('decimals', '0')
-                                ix_prev.set('scale', '3')
-                                ix_prev.text = str(int(round(prev_val)))
-                            else:
-                                p_prev.text = self._format_monetary_value(prev_val, for_display=True).replace('.', ',')
-                        else:
-                            p_prev.text = ''
-                
-                # Add spacing after each note
-                p_spacing_note = ET.SubElement(page5, 'p')
-                p_spacing_note.set('class', 'normal')
-                p_spacing_note.text = ' '
+                        p_prev.text = prev_fmt
+                else:
+                    p_prev.text = prev_fmt
+        
+        # Spacing after note
+        p_spacing = ET.SubElement(page, 'p')
+        p_spacing.set('class', 'P')
+        p_spacing.set('style', 'margin-top: 16pt;')
+        p_spacing.text = ' '
     
     def _add_general_info_facts(self, company_data: Dict[str, Any], start_date: Optional[str], end_date: Optional[str]):
         """Add general company information facts (se-cd-base namespace)"""
