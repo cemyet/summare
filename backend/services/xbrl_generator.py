@@ -1549,10 +1549,11 @@ td, th {
                     td_note.set('style', row_style)
                 else:
                     td_note.set('class', 'td-note')
-                p_note = ET.SubElement(td_note, 'p')
-                p_note.set('class', 'P')
-                p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
-                p_note.text = note
+                if note:  # Only add <p> if there's content
+                    p_note = ET.SubElement(td_note, 'p')
+                    p_note.set('class', 'P')
+                    p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
+                    p_note.text = note
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
@@ -1601,10 +1602,7 @@ td, th {
                     td_spacing.set('style', row_style)
                 else:
                     td_spacing.set('class', 'td-spacing')
-                p_spacing = ET.SubElement(td_spacing, 'p')
-                p_spacing.set('class', 'P')
-                p_spacing.set('style', 'margin-top: 0; margin-bottom: 0;')
-                p_spacing.text = ''
+                # No content needed for spacing column
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
@@ -1645,12 +1643,7 @@ td, th {
                             # Fallback to plain text
                             td_prev.text = self._format_monetary_value(prev_val, for_display=True)
                 
-                # Final spacing column
-                td_spacing2 = ET.SubElement(tr, 'td')
-                td_spacing2.set('class', 'td-spacing')
-                p_spacing2 = ET.SubElement(td_spacing2, 'p')
-                p_spacing2.set('class', 'P')
-                p_spacing2.text = ' '
+                # Final spacing column (not needed, handled by table layout)
     
     def _render_balansrakning_tillgangar(self, body: ET.Element, company_data: Dict[str, Any],
                                          company_name: str, org_number: str, fiscal_year: Optional[int],
@@ -1821,10 +1814,11 @@ td, th {
                     td_note.set('style', row_style)
                 else:
                     td_note.set('class', 'td-note')
-                p_note = ET.SubElement(td_note, 'p')
-                p_note.set('class', 'P')
-                p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
-                p_note.text = note
+                if note:  # Only add <p> if there's content
+                    p_note = ET.SubElement(td_note, 'p')
+                    p_note.set('class', 'P')
+                    p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
+                    p_note.text = note
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
@@ -1877,10 +1871,7 @@ td, th {
                     td_spacing.set('style', row_style)
                 else:
                     td_spacing.set('class', 'td-spacing')
-                p_spacing = ET.SubElement(td_spacing, 'p')
-                p_spacing.set('class', 'P')
-                p_spacing.set('style', 'margin-top: 0; margin-bottom: 0;')
-                p_spacing.text = ''
+                # No content needed for spacing column
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
@@ -1925,12 +1916,7 @@ td, th {
                     else:
                         p_prev.text = ''
                 
-                # Final spacing column
-                td_spacing2 = ET.SubElement(tr, 'td')
-                td_spacing2.set('style', 'vertical-align: bottom; width: 0.5cm')
-                p_spacing2 = ET.SubElement(td_spacing2, 'p')
-                p_spacing2.set('class', 'normal')
-                p_spacing2.text = ' '
+                # Final spacing column (not needed, handled by table layout)
     
     def _render_balansrakning_skulder(self, body: ET.Element, company_data: Dict[str, Any],
                                      company_name: str, org_number: str, fiscal_year: Optional[int],
@@ -2123,10 +2109,11 @@ td, th {
                     td_note.set('style', row_style)
                 else:
                     td_note.set('class', 'td-note')
-                p_note = ET.SubElement(td_note, 'p')
-                p_note.set('class', 'P')
-                p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
-                p_note.text = note
+                if note:  # Only add <p> if there's content
+                    p_note = ET.SubElement(td_note, 'p')
+                    p_note.set('class', 'P')
+                    p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
+                    p_note.text = note
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
@@ -2179,10 +2166,7 @@ td, th {
                     td_spacing.set('style', row_style)
                 else:
                     td_spacing.set('class', 'td-spacing')
-                p_spacing = ET.SubElement(td_spacing, 'p')
-                p_spacing.set('class', 'P')
-                p_spacing.set('style', 'margin-top: 0; margin-bottom: 0;')
-                p_spacing.text = ''
+                # No content needed for spacing column
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
@@ -2227,12 +2211,7 @@ td, th {
                     else:
                         p_prev.text = ''
                 
-                # Final spacing column
-                td_spacing2 = ET.SubElement(tr, 'td')
-                td_spacing2.set('style', 'vertical-align: bottom; width: 0.5cm')
-                p_spacing2 = ET.SubElement(td_spacing2, 'p')
-                p_spacing2.set('class', 'normal')
-                p_spacing2.text = ' '
+                # Final spacing column (not needed, handled by table layout)
     
     def _is_heading_style_noter(self, style: str) -> bool:
         """Check if style is a heading style"""
