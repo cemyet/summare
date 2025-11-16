@@ -1161,6 +1161,7 @@ td, th {
         
         p_h_verksamhet = ET.SubElement(page1, 'p')
         p_h_verksamhet.set('class', 'H1')
+        p_h_verksamhet.set('style', 'margin-top: 18pt;')
         p_h_verksamhet.text = 'Verksamheten'
         
         p_verksamhet = ET.SubElement(page1, 'p')
@@ -1264,17 +1265,17 @@ td, th {
         
         # Create table
         table = ET.SubElement(page, 'table')
-        table.set('style', 'border-collapse: collapse; width: 16.5cm; table-layout: fixed; margin-top: 6pt;')
+        table.set('style', 'border-collapse: collapse; width: 16cm; table-layout: fixed; margin-top: 6pt;')
         
         # Header row
         tr_header = ET.SubElement(table, 'tr')
         td_label_h = ET.SubElement(tr_header, 'td')
-        td_label_h.set('style', 'vertical-align: bottom; width: 10.5cm; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
+        td_label_h.set('style', 'vertical-align: bottom; width: 7cm; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
         # Empty
         
         for year in years:
             td_year = ET.SubElement(tr_header, 'td')
-            td_year.set('style', 'vertical-align: bottom; width: 2cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
+            td_year.set('style', 'vertical-align: bottom; width: 3cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
             p_year = ET.SubElement(td_year, 'p')
             p_year.set('class', 'P')
             p_year.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
@@ -1286,7 +1287,7 @@ td, th {
             
             # Label
             td_label = ET.SubElement(tr, 'td')
-            td_label.set('style', 'vertical-align: top; width: 10.5cm; padding-top: 2pt;')
+            td_label.set('style', 'vertical-align: top; width: 7cm; padding-top: 2pt;')
             p_label = ET.SubElement(td_label, 'p')
             p_label.set('class', 'P')
             p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
@@ -1295,7 +1296,7 @@ td, th {
             # Values
             for val in values:
                 td_val = ET.SubElement(tr, 'td')
-                td_val.set('style', 'vertical-align: top; width: 2cm; text-align: right; padding-top: 2pt;')
+                td_val.set('style', 'vertical-align: top; width: 3cm; text-align: right; padding-top: 2pt;')
                 p_val = ET.SubElement(td_val, 'p')
                 p_val.set('class', 'P')
                 p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
