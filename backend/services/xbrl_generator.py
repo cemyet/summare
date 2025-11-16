@@ -1201,26 +1201,33 @@ td, th {
             if not verksamhet_text:
                 verksamhet_text = "Bolaget bedriver verksamhet enligt bolagsordningen."
         
-        p_h_verksamhet = ET.SubElement(page1, 'p')
+        # Verksamheten section (with container for spacing control)
+        div_verksamhet = ET.SubElement(page1, 'div')
+        div_verksamhet.set('style', 'margin-top: 18pt;')
+        
+        p_h_verksamhet = ET.SubElement(div_verksamhet, 'p')
         p_h_verksamhet.set('class', 'H1')
-        p_h_verksamhet.set('style', 'margin-top: 18pt;')
+        p_h_verksamhet.set('style', 'margin-top: 0pt;')
         p_h_verksamhet.text = 'Verksamheten'
         
-        p_verksamhet = ET.SubElement(page1, 'p')
+        p_verksamhet = ET.SubElement(div_verksamhet, 'p')
         p_verksamhet.set('class', 'P')
         p_verksamhet.text = verksamhet_text
         
-        # Väsentliga händelser
+        # Väsentliga händelser (with container for spacing control)
         vasentliga_text = company_data.get('vasentligaHandelser')
         if not vasentliga_text:
             vasentliga_text = "Inga väsentliga händelser under året."
         
-        p_h_vasentliga = ET.SubElement(page1, 'p')
+        div_vasentliga = ET.SubElement(page1, 'div')
+        div_vasentliga.set('style', 'margin-top: 18pt;')
+        
+        p_h_vasentliga = ET.SubElement(div_vasentliga, 'p')
         p_h_vasentliga.set('class', 'H1')
-        p_h_vasentliga.set('style', 'margin-top: 18pt;')
+        p_h_vasentliga.set('style', 'margin-top: 0pt;')
         p_h_vasentliga.text = 'Väsentliga händelser under räkenskapsåret'
         
-        p_vasentliga = ET.SubElement(page1, 'p')
+        p_vasentliga = ET.SubElement(div_vasentliga, 'p')
         p_vasentliga.set('class', 'P')
         p_vasentliga.text = vasentliga_text
         
@@ -1237,12 +1244,16 @@ td, th {
                                      fb_variables: dict, fb_mappings: list, period0_ref: str, balans0_ref: str, 
                                      balans1_ref: str, unit_ref: str) -> None:
         """Render Flerårsöversikt table with 3 years"""
-        p_heading = ET.SubElement(page, 'p')
+        # Create container for spacing control
+        div_flerarsoversikt = ET.SubElement(page, 'div')
+        div_flerarsoversikt.set('style', 'margin-top: 18pt;')
+        
+        p_heading = ET.SubElement(div_flerarsoversikt, 'p')
         p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 18pt;')
+        p_heading.set('style', 'margin-top: 0pt;')
         p_heading.text = 'Flerårsöversikt'
         
-        p_tkr = ET.SubElement(page, 'p')
+        p_tkr = ET.SubElement(div_flerarsoversikt, 'p')
         p_tkr.set('class', 'SMALL')
         p_tkr.text = 'Belopp i tkr'
         
@@ -1306,7 +1317,7 @@ td, th {
         rows_data.append(('Soliditet', sol_vals, True))  # True = percentage
         
         # Create table
-        table = ET.SubElement(page, 'table')
+        table = ET.SubElement(div_flerarsoversikt, 'table')
         table.set('style', 'border-collapse: collapse; width: 16cm; table-layout: fixed; margin-top: 6pt;')
         
         # Header row
@@ -1357,9 +1368,13 @@ td, th {
         if not fb_table or len(fb_table) == 0:
             return
         
-        p_heading = ET.SubElement(page, 'p')
+        # Create container for spacing control
+        div_forandringar = ET.SubElement(page, 'div')
+        div_forandringar.set('style', 'margin-top: 18pt;')
+        
+        p_heading = ET.SubElement(div_forandringar, 'p')
         p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 18pt;')
+        p_heading.set('style', 'margin-top: 0pt;')
         p_heading.text = 'Förändringar i eget kapital'
         
         # Column definitions
@@ -1406,7 +1421,7 @@ td, th {
             return  # No data to show
         
         # Create table
-        table = ET.SubElement(page, 'table')
+        table = ET.SubElement(div_forandringar, 'table')
         available_width = 459  # Full page width in pt
         label_width = 160
         num_cols = len(visible_cols)
@@ -1487,17 +1502,21 @@ td, th {
         if summa == 0 and arets_utdelning == 0:
             return  # Nothing to report
         
-        p_heading = ET.SubElement(page, 'p')
+        # Create container for spacing control
+        div_resultatdisposition = ET.SubElement(page, 'div')
+        div_resultatdisposition.set('style', 'margin-top: 18pt;')
+        
+        p_heading = ET.SubElement(div_resultatdisposition, 'p')
         p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 18pt;')
+        p_heading.set('style', 'margin-top: 0pt;')
         p_heading.text = 'Resultatdisposition'
         
-        p_intro = ET.SubElement(page, 'p')
+        p_intro = ET.SubElement(div_resultatdisposition, 'p')
         p_intro.set('class', 'P')
         p_intro.text = 'Styrelsen och VD föreslår att till förfogande stående medel'
         
         # Create table
-        table = ET.SubElement(page, 'table')
+        table = ET.SubElement(div_resultatdisposition, 'table')
         table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt;')
         
         # Available funds
@@ -1617,7 +1636,7 @@ td, th {
         
         # Add dividend policy text if utdelning > 0
         if arets_utdelning > 0:
-            p_policy = ET.SubElement(page, 'p')
+            p_policy = ET.SubElement(div_resultatdisposition, 'p')
             p_policy.set('class', 'P')
             p_policy.set('style', 'margin-top: 18pt;')
             dividend_text = ("Styrelsen anser att förslaget är förenligt med försiktighetsregeln "
@@ -2592,23 +2611,54 @@ td, th {
             items = blocks[block_name]
             block_title = block_title_map.get(block_name, block_name)
             
-            # Special handling for NOT2
+            # Special handling for NOT2 (mirror PDF generator logic)
             if block_name == 'NOT2':
-                # Extract employee count
+                # Extract employee count - prioritize noter data
                 emp_current = 0
                 emp_previous = 0
-                for r in items:
-                    if r.get("variable_name") in {"ant_anstallda", "medelantal_anstallda_under_aret"}:
-                        emp_current = self._num(r.get('current_amount', 0))
-                        emp_previous = self._num(r.get('previous_amount', 0))
-                        break
                 
-                # Fallback to scraped data
-                if emp_current == 0:
-                    emp_current = self._num(scraped_data.get('medeltal_anstallda', 0))
+                # Look for source item (priority order: variable_name match, then row_title match)
+                src = None
+                if items:
+                    # First pass: Look for variable_name match
+                    for r in items:
+                        vn = r.get("variable_name", "")
+                        if vn in {"ant_anstallda", "medelantal_anstallda_under_aret"}:
+                            src = r
+                            break
+                    
+                    # Second pass: Look for row_title match
+                    if not src:
+                        for r in items:
+                            rt = (r.get("row_title") or "").lower()
+                            if "medelantalet anställda under året" in rt or rt == "medelantalet anställda":
+                                if r.get("variable_name") or r.get("current_amount") or r.get("previous_amount"):
+                                    src = r
+                                    break
+                    
+                    # Last resort: first item
+                    if not src:
+                        src = items[0]
+                    
+                    if src:
+                        emp_current = self._num(src.get('current_amount', 0))
+                        emp_previous = self._num(src.get('previous_amount', 0))
+                
+                # Fallback to scraped data for missing values (check each independently)
                 if emp_previous == 0:
-                    emp_previous = self._num(scraped_data.get('medeltal_anstallda_prev', 0) or emp_current)
+                    # Try scraped data for previous year
+                    emp_previous = self._num(
+                        scraped_data.get('medeltal_anstallda') or 
+                        scraped_data.get('medeltal_anstallda_prev') or
+                        scraped_data.get('employees') or
+                        company_data.get("employees", 0)
+                    )
                 
+                if emp_current == 0:
+                    # Try scraped data for current year, fallback to previous
+                    emp_current = self._num(scraped_data.get('medeltal_anstallda_cur') or emp_previous)
+                
+                # Force single row with canonical variable name
                 items = [{
                     "row_id": 1,
                     "row_title": "Medelantalet anställda under året",
@@ -2617,6 +2667,7 @@ td, th {
                     "style": "NORMAL",
                     "variable_name": "ant_anstallda",
                     "always_show": True,
+                    "toggle_show": False,
                 }]
             
             # Check block type
@@ -2796,12 +2847,12 @@ td, th {
         
         # Create a container div for the note (to keep it together and control page breaks)
         note_container = ET.SubElement(page, 'div')
-        note_container.set('style', 'page-break-inside: avoid; page-break-before: auto; margin-bottom: 32pt;')
+        note_container.set('style', 'page-break-inside: avoid; page-break-before: auto; margin-top: 32pt;')
         
-        # Note title (H1 heading with spacing)
+        # Note title (H1 heading - no extra spacing since container has margin-top)
         p_heading = ET.SubElement(note_container, 'p')
         p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 18pt;')
+        p_heading.set('style', 'margin-top: 0pt;')
         p_heading.text = f'Not {note_number}  {title}'
         
         #Special handling for NOT1 (Redovisningsprinciper - text + depreciation table)
