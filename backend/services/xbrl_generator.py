@@ -1770,7 +1770,7 @@ body {
             supabase_key = os.getenv("SUPABASE_ANON_KEY")
             if supabase_url and supabase_key:
                 supabase = create_client(supabase_url, supabase_key)
-                br_mappings_response = supabase.table('variable_mapping_br').select('row_title,variable_name,element_name,tillhor,data_type,period_type').execute()
+                br_mappings_response = supabase.table('variable_mapping_br').select('row_title,variable_name,element_name,data_type,period_type').execute()
                 # Create dual-key mapping: by variable_name AND by row_title
                 br_mappings_dict = {}
                 for m in br_mappings_response.data:
@@ -1919,9 +1919,8 @@ body {
                         
                         if mapping:
                             element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
+                            # BR always uses se-gen-base namespace
+                            element_qname = f'se-gen-base:{element_name}'
                             
                             # For negative values, add minus sign before XBRL tag
                             if curr_val < 0: td_curr.text = '- '
@@ -1962,9 +1961,8 @@ body {
                         
                         if mapping:
                             element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
+                            # BR always uses se-gen-base namespace
+                            element_qname = f'se-gen-base:{element_name}'
                             
                             # For negative values, add minus sign before XBRL tag
                             if prev_val < 0: td_prev.text = '- '
@@ -2043,7 +2041,7 @@ body {
             supabase_key = os.getenv("SUPABASE_ANON_KEY")
             if supabase_url and supabase_key:
                 supabase = create_client(supabase_url, supabase_key)
-                br_mappings_response = supabase.table('variable_mapping_br').select('row_title,variable_name,element_name,tillhor,data_type,period_type').execute()
+                br_mappings_response = supabase.table('variable_mapping_br').select('row_title,variable_name,element_name,data_type,period_type').execute()
                 # Create dual-key mapping: by variable_name AND by row_title
                 br_mappings_dict = {}
                 for m in br_mappings_response.data:
@@ -2214,9 +2212,8 @@ body {
                         
                         if mapping:
                             element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
+                            # BR always uses se-gen-base namespace
+                            element_qname = f'se-gen-base:{element_name}'
                             
                             # For negative values, add minus sign before XBRL tag
                             if curr_val < 0: td_curr.text = '- '
@@ -2257,9 +2254,8 @@ body {
                         
                         if mapping:
                             element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
+                            # BR always uses se-gen-base namespace
+                            element_qname = f'se-gen-base:{element_name}'
                             
                             # For negative values, add minus sign before XBRL tag
                             if prev_val < 0: td_prev.text = '- '
