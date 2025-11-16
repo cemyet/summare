@@ -1591,6 +1591,20 @@ body {
                 elif is_heading:
                     row_class = 'pt-2'  # Small space before headings
                 
+                # For heading rows: use colspan to span entire table (no empty cells needed)
+                if is_heading:
+                    td_label = ET.SubElement(tr, 'td')
+                    if row_class:
+                        td_label.set('class', f'td-label {row_class}')
+                    else:
+                        td_label.set('class', 'td-label')
+                    td_label.set('colspan', '5')
+                    p_label = ET.SubElement(td_label, 'p')
+                    p_label.set('class', 'H3-table')
+                    p_label.text = label
+                    continue  # Skip to next row, don't create other cells
+                
+                # For non-heading rows: create all cells
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
                 if row_class:
@@ -1598,12 +1612,10 @@ body {
                 else:
                     td_label.set('class', 'td-label')
                 p_label = ET.SubElement(td_label, 'p')
-                if is_heading:
-                    p_label.set('class', 'H3-table')  # 10pt semibold for RR headings
-                elif is_sum:
-                    p_label.set('class', 'sum-label')  # Bold sum text
+                if is_sum:
+                    p_label.set('class', 'sum-label')
                 else:
-                    p_label.set('class', 'P')  # Normal body text
+                    p_label.set('class', 'P')
                 p_label.text = label
                 
                 # Note column
@@ -1619,39 +1631,35 @@ body {
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                if row_class and not is_heading:  # Only add padding to rows with content
+                if row_class:
                     td_curr.set('class', f'td-amount {row_class}')
                 else:
                     td_curr.set('class', 'td-amount')
                 
-                if is_heading:
-                    # Empty cell for headings
-                    pass
-                else:
-                    curr_val = self._num(row.get('current_amount', 0))
-                    prev_val = self._num(row.get('previous_amount', 0))
-                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
-                    if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
-                        variable_name = row.get('variable_name')
-                        if variable_name and variable_name in rr_mappings_dict:
-                            mapping = rr_mappings_dict[variable_name]
-                            element_name = mapping.get('element_name')
-                            # All RR elements are in se-gen-base namespace
-                            element_qname = f'se-gen-base:{element_name}'
-                            
-                            # For negative values, add minus sign before XBRL tag
-                            if curr_val < 0: td_curr.text = '-'
-                            ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
-                            ix_curr.set('contextRef', period0_ref)
-                            ix_curr.set('name', element_qname)
-                            ix_curr.set('unitRef', 'SEK')
-                            ix_curr.set('decimals', 'INF')
-                            ix_curr.set('scale', '0')
-                            ix_curr.set('format', 'ixt:numspacecomma')
-                            ix_curr.text = self._format_monetary_value(abs(curr_val), for_display=True)
-                        else:
-                            # Fallback to plain text
-                            td_curr.text = self._format_monetary_value(curr_val, for_display=True)
+                curr_val = self._num(row.get('current_amount', 0))
+                prev_val = self._num(row.get('previous_amount', 0))
+                # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
+                    variable_name = row.get('variable_name')
+                    if variable_name and variable_name in rr_mappings_dict:
+                        mapping = rr_mappings_dict[variable_name]
+                        element_name = mapping.get('element_name')
+                        # All RR elements are in se-gen-base namespace
+                        element_qname = f'se-gen-base:{element_name}'
+                        
+                        # For negative values, add minus sign before XBRL tag
+                        if curr_val < 0: td_curr.text = '-'
+                        ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
+                        ix_curr.set('contextRef', period0_ref)
+                        ix_curr.set('name', element_qname)
+                        ix_curr.set('unitRef', 'SEK')
+                        ix_curr.set('decimals', 'INF')
+                        ix_curr.set('scale', '0')
+                        ix_curr.set('format', 'ixt:numspacecomma')
+                        ix_curr.text = self._format_monetary_value(abs(curr_val), for_display=True)
+                    else:
+                        # Fallback to plain text
+                        td_curr.text = self._format_monetary_value(curr_val, for_display=True)
                 
                 # Spacing column (always empty, never needs padding)
                 td_spacing = ET.SubElement(tr, 'td')
@@ -1659,40 +1667,34 @@ body {
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                if row_class and not is_heading:  # Only add padding to rows with content
+                if row_class:
                     td_prev.set('class', f'td-amount {row_class}')
                 else:
                     td_prev.set('class', 'td-amount')
                 
-                if is_heading:
-                    # Empty cell for headings
-                    pass
-                else:
-                    # prev_val already calculated above for current year logic
-                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
-                    if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
-                        variable_name = row.get('variable_name')
-                        if variable_name and variable_name in rr_mappings_dict:
-                            mapping = rr_mappings_dict[variable_name]
-                            element_name = mapping.get('element_name')
-                            # All RR elements are in se-gen-base namespace
-                            element_qname = f'se-gen-base:{element_name}'
-                            
-                            # For negative values, add minus sign before XBRL tag
-                            if prev_val < 0: td_prev.text = '-'
-                            ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
-                            ix_prev.set('contextRef', period1_ref)
-                            ix_prev.set('name', element_qname)
-                            ix_prev.set('unitRef', 'SEK')
-                            ix_prev.set('decimals', 'INF')
-                            ix_prev.set('scale', '0')
-                            ix_prev.set('format', 'ixt:numspacecomma')
-                            ix_prev.text = self._format_monetary_value(abs(prev_val), for_display=True)
-                        else:
-                            # Fallback to plain text
-                            td_prev.text = self._format_monetary_value(prev_val, for_display=True)
-                
-                # Final spacing column (not needed, handled by table layout)
+                # prev_val already calculated above for current year logic
+                # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
+                    variable_name = row.get('variable_name')
+                    if variable_name and variable_name in rr_mappings_dict:
+                        mapping = rr_mappings_dict[variable_name]
+                        element_name = mapping.get('element_name')
+                        # All RR elements are in se-gen-base namespace
+                        element_qname = f'se-gen-base:{element_name}'
+                        
+                        # For negative values, add minus sign before XBRL tag
+                        if prev_val < 0: td_prev.text = '-'
+                        ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
+                        ix_prev.set('contextRef', period1_ref)
+                        ix_prev.set('name', element_qname)
+                        ix_prev.set('unitRef', 'SEK')
+                        ix_prev.set('decimals', 'INF')
+                        ix_prev.set('scale', '0')
+                        ix_prev.set('format', 'ixt:numspacecomma')
+                        ix_prev.text = self._format_monetary_value(abs(prev_val), for_display=True)
+                    else:
+                        # Fallback to plain text
+                        td_prev.text = self._format_monetary_value(prev_val, for_display=True)
     
     def _render_balansrakning_tillgangar(self, body: ET.Element, company_data: Dict[str, Any],
                                          company_name: str, org_number: str, fiscal_year: Optional[int],
@@ -1822,6 +1824,23 @@ body {
                 elif is_sum:
                     row_class = 'pb-10'  # 10pt space after sums
                 
+                # For heading rows: use colspan to span entire table (no empty cells needed)
+                if is_heading:
+                    td_label = ET.SubElement(tr, 'td')
+                    if row_class:
+                        td_label.set('class', f'td-label {row_class}')
+                    else:
+                        td_label.set('class', 'td-label')
+                    td_label.set('colspan', '5')
+                    p_label = ET.SubElement(td_label, 'p')
+                    if style in ['H2', 'H0']:
+                        p_label.set('class', 'H2-table')
+                    else:
+                        p_label.set('class', 'H3-table')
+                    p_label.text = label
+                    continue  # Skip to next row, don't create other cells
+                
+                # For non-heading rows: create all cells
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
                 if row_class:
@@ -1829,17 +1848,10 @@ body {
                 else:
                     td_label.set('class', 'td-label')
                 p_label = ET.SubElement(td_label, 'p')
-                if is_heading:
-                    # H2/H0 → 11pt (larger BR headings like "Anläggningstillgångar")
-                    # H1/H3 → 10pt (smaller BR headings like "Bundet eget kapital")
-                    if style in ['H2', 'H0']:
-                        p_label.set('class', 'H2-table')  # 11pt semibold
-                    else:
-                        p_label.set('class', 'H3-table')  # 10pt semibold
-                elif is_sum:
-                    p_label.set('class', 'sum-label')  # Bold sum text
+                if is_sum:
+                    p_label.set('class', 'sum-label')
                 else:
-                    p_label.set('class', 'P')  # Normal body text
+                    p_label.set('class', 'P')
                 p_label.text = label
                 
                 # Note column
@@ -1855,7 +1867,7 @@ body {
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                if row_class and not is_heading:  # Only add padding to rows with content
+                if row_class:
                     td_curr.set('class', f'td-amount {row_class}')
                 else:
                     td_curr.set('class', 'td-amount')
@@ -1865,8 +1877,7 @@ body {
                 else:
                     p_curr.set('class', 'amount-right')  # Normal right-aligned
                 
-                if is_heading:
-                    p_curr.text = ''
+                # BR always has <p> wrapper for amounts (different from RR)
                 else:
                     curr_val = self._num(row.get('current_amount', 0))
                     prev_val = self._num(row.get('previous_amount', 0))
