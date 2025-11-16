@@ -485,31 +485,35 @@ body {
   line-height: 1.2;
 }
 
-/* H2 in tables */
-.H2-table {
-  font-family: "Roboto", Arial, sans-serif;
-  font-weight: 500;
-  font-size: 11pt;
-  line-height: 1.2;
-}
+        /* H2 in tables */
+        .H2-table {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: 500;
+          font-size: 11pt;
+          line-height: 1.2;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
 
-/* H3 in tables */
-.H3-table {
-  font-family: "Roboto", Arial, sans-serif;
-  font-weight: 500;
-  font-size: 10pt;
-  line-height: 1.2;
-}
+        /* H3 in tables */
+        .H3-table {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: 500;
+          font-size: 10pt;
+          line-height: 1.2;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
 
-/* Body text */
-.P {
-  font-family: "Roboto", Arial, sans-serif;
-  font-weight: normal;
-  font-size: 10pt;
-  line-height: 12pt;
-  margin-top: 0pt;
-  margin-bottom: 2pt;
-}
+        /* Body text */
+        .P {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: normal;
+          font-size: 10pt;
+          line-height: 12pt;
+          margin-top: 0pt;
+          margin-bottom: 0pt;
+        }
 
 /* Small text */
 .SMALL {
@@ -561,39 +565,49 @@ td, th {
   padding: 0;
 }
 
-/* Amount columns */
-.amount-right {
-  text-align: right;
-  font-size: 10pt;
-  font-weight: normal;
-}
+        /* Amount columns */
+        .amount-right {
+          text-align: right;
+          font-size: 10pt;
+          font-weight: normal;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
 
-.amount-right-bold {
-  text-align: right;
-  font-size: 10pt;
-  font-weight: 700;
-}
+        .amount-right-bold {
+          text-align: right;
+          font-size: 10pt;
+          font-weight: 700;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
 
-.amount-center {
-  text-align: center;
-  font-size: 10pt;
-}
+        .amount-center {
+          text-align: center;
+          font-size: 10pt;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
 
-/* Sum rows */
-.sum-label {
-  font-family: "Roboto", Arial, sans-serif;
-  font-weight: 500;
-  font-size: 10pt;
-  line-height: 1.2;
-}
+        /* Sum rows */
+        .sum-label {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: 500;
+          font-size: 10pt;
+          line-height: 1.2;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
 
-.sum-amount {
-  text-align: right;
-  font-family: "Roboto", Arial, sans-serif;
-  font-weight: 500;
-  font-size: 10pt;
-  line-height: 1.2;
-}
+        .sum-amount {
+          text-align: right;
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: 500;
+          font-size: 10pt;
+          line-height: 1.2;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
 
         /* Utility classes */
         .text-center {
@@ -661,8 +675,25 @@ td, th {
           padding-top: 2pt;
         }
 
+        .pt-8 {
+          padding-top: 8pt;
+        }
+
         .pt-18 {
           padding-top: 18pt;
+        }
+
+        .pb-10 {
+          padding-bottom: 10pt;
+        }
+
+        .pb-12 {
+          padding-bottom: 12pt;
+        }
+
+        .pt-8-pb-12 {
+          padding-top: 8pt;
+          padding-bottom: 12pt;
         }
 
         /* Border utilities */
@@ -1082,7 +1113,6 @@ td, th {
             td_label.set('style', 'vertical-align: top; width: 7cm; padding-top: 2pt;')
             p_label = ET.SubElement(td_label, 'p')
             p_label.set('class', 'P')
-            p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
             p_label.text = label
             
             # Values
@@ -1514,52 +1544,44 @@ td, th {
                 tr = ET.SubElement(rr_table, 'tr')
                 
                 # Add row spacing based on type (matching PDF spacing)
-                row_style = ''
+                row_class = ''
                 if label == 'Årets resultat':
-                    row_style = 'padding-top: 18pt;'  # Extra space before final result
+                    row_class = 'pt-18'  # Extra space before final result
                 elif is_sum:
-                    row_style = 'padding-bottom: 10pt;'  # 10pt space after sum rows
+                    row_class = 'pb-10'  # 10pt space after sum rows
                 elif is_heading:
-                    row_style = 'padding-top: 2pt;'  # Small space before headings
+                    row_class = 'pt-2'  # Small space before headings
                 
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
-                label_class = 'td-label'
-                if row_style:
-                    td_label.set('class', label_class)
-                    td_label.set('style', row_style)
+                if row_class:
+                    td_label.set('class', f'td-label {row_class}')
                 else:
-                    td_label.set('class', label_class)
+                    td_label.set('class', 'td-label')
                 p_label = ET.SubElement(td_label, 'p')
                 if is_heading:
                     p_label.set('class', 'H3-table')  # 10pt semibold for RR headings
-                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 elif is_sum:
                     p_label.set('class', 'sum-label')  # Bold sum text
-                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_label.set('class', 'P')  # Normal body text
-                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 p_label.text = label
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_note.set('class', 'td-note')
-                    td_note.set('style', row_style)
+                if row_class:
+                    td_note.set('class', f'td-note {row_class}')
                 else:
                     td_note.set('class', 'td-note')
                 if note:  # Only add <p> if there's content
                     p_note = ET.SubElement(td_note, 'p')
                     p_note.set('class', 'P')
-                    p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
                     p_note.text = note
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_curr.set('class', 'td-amount-curr')
-                    td_curr.set('style', row_style)
+                if row_class:
+                    td_curr.set('class', f'td-amount-curr {row_class}')
                 else:
                     td_curr.set('class', 'td-amount-curr')
                 
@@ -1597,18 +1619,16 @@ td, th {
                 
                 # Spacing column
                 td_spacing = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_spacing.set('class', 'td-spacing')
-                    td_spacing.set('style', row_style)
+                if row_class:
+                    td_spacing.set('class', f'td-spacing {row_class}')
                 else:
                     td_spacing.set('class', 'td-spacing')
                 # No content needed for spacing column
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_prev.set('class', 'td-amount-prev')
-                    td_prev.set('style', row_style)
+                if row_class:
+                    td_prev.set('class', f'td-amount-prev {row_class}')
                 else:
                     td_prev.set('class', 'td-amount-prev')
                 
@@ -1770,24 +1790,19 @@ td, th {
                 
                 # Add row spacing based on type
                 # BR_H2_SPACE_BEFORE = 8pt, BR_H2_SPACE_AFTER = 12pt, sum spacing = 10pt
-                row_padding_top = ''
-                row_padding_bottom = ''
+                row_class = ''
                 if is_heading:
                     if style in ['H2', 'H0']:
-                        row_padding_top = 'padding-top: 8pt;'  # 8pt before H2 headings
-                        row_padding_bottom = 'padding-bottom: 12pt;'  # 12pt after H2 headings
+                        row_class = 'pt-8-pb-12'  # 8pt before and 12pt after H2 headings
                     else:
-                        row_padding_top = 'padding-top: 2pt;'  # Small space before H1/H3
+                        row_class = 'pt-2'  # Small space before H1/H3
                 elif is_sum:
-                    row_padding_bottom = 'padding-bottom: 10pt;'  # 10pt space after sums
-                
-                row_style = f'{row_padding_top} {row_padding_bottom}'
+                    row_class = 'pb-10'  # 10pt space after sums
                 
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_label.set('class', 'td-label')
-                    td_label.set('style', row_style)
+                if row_class:
+                    td_label.set('class', f'td-label {row_class}')
                 else:
                     td_label.set('class', 'td-label')
                 p_label = ET.SubElement(td_label, 'p')
@@ -1798,42 +1813,34 @@ td, th {
                         p_label.set('class', 'H2-table')  # 11pt semibold
                     else:
                         p_label.set('class', 'H3-table')  # 10pt semibold
-                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 elif is_sum:
                     p_label.set('class', 'sum-label')  # Bold sum text
-                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_label.set('class', 'P')  # Normal body text
-                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
                 p_label.text = label
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_note.set('class', 'td-note')
-                    td_note.set('style', row_style)
+                if row_class:
+                    td_note.set('class', f'td-note {row_class}')
                 else:
                     td_note.set('class', 'td-note')
                 if note:  # Only add <p> if there's content
                     p_note = ET.SubElement(td_note, 'p')
                     p_note.set('class', 'P')
-                    p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
                     p_note.text = note
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_curr.set('class', 'td-amount-curr')
-                    td_curr.set('style', row_style)
+                if row_class:
+                    td_curr.set('class', f'td-amount-curr {row_class}')
                 else:
                     td_curr.set('class', 'td-amount-curr')
                 p_curr = ET.SubElement(td_curr, 'p')
                 if is_sum:
                     p_curr.set('class', 'sum-amount')  # Bold right-aligned
-                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_curr.set('class', 'amount-right')  # Normal right-aligned
-                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
                 if is_heading:
                     p_curr.text = ''
@@ -1866,27 +1873,23 @@ td, th {
                 
                 # Spacing column
                 td_spacing = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_spacing.set('class', 'td-spacing')
-                    td_spacing.set('style', row_style)
+                if row_class:
+                    td_spacing.set('class', f'td-spacing {row_class}')
                 else:
                     td_spacing.set('class', 'td-spacing')
                 # No content needed for spacing column
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_prev.set('class', 'td-amount-prev')
-                    td_prev.set('style', row_style)
+                if row_class:
+                    td_prev.set('class', f'td-amount-prev {row_class}')
                 else:
                     td_prev.set('class', 'td-amount-prev')
                 p_prev = ET.SubElement(td_prev, 'p')
                 if is_sum:
                     p_prev.set('class', 'sum-amount')  # Bold right-aligned
-                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
                 else:
                     p_prev.set('class', 'amount-right')  # Normal right-aligned
-                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
                 if is_heading:
                     p_prev.text = ''
@@ -2065,24 +2068,19 @@ td, th {
                 
                 # Add row spacing based on type
                 # BR_H2_SPACE_BEFORE = 8pt, BR_H2_SPACE_AFTER = 12pt, sum spacing = 10pt
-                row_padding_top = ''
-                row_padding_bottom = ''
+                row_class = ''
                 if is_heading:
                     if style in ['H2', 'H0']:
-                        row_padding_top = 'padding-top: 8pt;'  # 8pt before H2 headings
-                        row_padding_bottom = 'padding-bottom: 12pt;'  # 12pt after H2 headings
+                        row_class = 'pt-8-pb-12'  # 8pt before and 12pt after H2 headings
                     else:
-                        row_padding_top = 'padding-top: 2pt;'  # Small space before H1/H3
+                        row_class = 'pt-2'  # Small space before H1/H3
                 elif is_sum:
-                    row_padding_bottom = 'padding-bottom: 10pt;'  # 10pt space after sums
-                
-                row_style = f'{row_padding_top} {row_padding_bottom}'
+                    row_class = 'pb-10'  # 10pt space after sums
                 
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_label.set('class', 'td-label')
-                    td_label.set('style', row_style)
+                if row_class:
+                    td_label.set('class', f'td-label {row_class}')
                 else:
                     td_label.set('class', 'td-label')
                 p_label = ET.SubElement(td_label, 'p')
@@ -2104,22 +2102,19 @@ td, th {
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_note.set('class', 'td-note')
-                    td_note.set('style', row_style)
+                if row_class:
+                    td_note.set('class', f'td-note {row_class}')
                 else:
                     td_note.set('class', 'td-note')
                 if note:  # Only add <p> if there's content
                     p_note = ET.SubElement(td_note, 'p')
                     p_note.set('class', 'P')
-                    p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
                     p_note.text = note
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_curr.set('class', 'td-amount-curr')
-                    td_curr.set('style', row_style)
+                if row_class:
+                    td_curr.set('class', f'td-amount-curr {row_class}')
                 else:
                     td_curr.set('class', 'td-amount-curr')
                 p_curr = ET.SubElement(td_curr, 'p')
@@ -2161,18 +2156,16 @@ td, th {
                 
                 # Spacing column
                 td_spacing = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_spacing.set('class', 'td-spacing')
-                    td_spacing.set('style', row_style)
+                if row_class:
+                    td_spacing.set('class', f'td-spacing {row_class}')
                 else:
                     td_spacing.set('class', 'td-spacing')
                 # No content needed for spacing column
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                if row_style:
-                    td_prev.set('class', 'td-amount-prev')
-                    td_prev.set('style', row_style)
+                if row_class:
+                    td_prev.set('class', f'td-amount-prev {row_class}')
                 else:
                     td_prev.set('class', 'td-amount-prev')
                 p_prev = ET.SubElement(td_prev, 'p')
