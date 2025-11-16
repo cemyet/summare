@@ -2117,6 +2117,23 @@ body {
                 elif is_sum:
                     row_class = 'pb-10'  # 10pt space after sums
                 
+                # For heading rows: use colspan to span entire table (no empty cells needed)
+                if is_heading:
+                    td_label = ET.SubElement(tr, 'td')
+                    if row_class:
+                        td_label.set('class', f'td-label-colspan {row_class}')
+                    else:
+                        td_label.set('class', 'td-label-colspan')
+                    td_label.set('colspan', '5')
+                    p_label = ET.SubElement(td_label, 'p')
+                    if style in ['H2', 'H0']:
+                        p_label.set('class', 'H2-table')
+                    else:
+                        p_label.set('class', 'H3-table')
+                    p_label.text = label
+                    continue  # Skip to next row, don't create other cells
+                
+                # For non-heading rows: create all cells
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
                 if row_class:
@@ -2124,25 +2141,15 @@ body {
                 else:
                     td_label.set('class', 'td-label')
                 p_label = ET.SubElement(td_label, 'p')
-                if is_heading:
-                    # H2/H0 → 11pt (larger BR headings like "Eget kapital")
-                    # H1/H3 → 10pt (smaller BR headings like "Bundet eget kapital")
-                    if style in ['H2', 'H0']:
-                        p_label.set('class', 'H2-table')  # 11pt semibold
-                    else:
-                        p_label.set('class', 'H3-table')  # 10pt semibold
-                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
-                elif is_sum:
-                    p_label.set('class', 'sum-label')  # Semibold sum text
-                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+                if is_sum:
+                    p_label.set('class', 'sum-label')
                 else:
-                    p_label.set('class', 'P')  # Normal body text
-                    p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+                    p_label.set('class', 'P')
                 p_label.text = label
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
-                if row_class:
+                if note and row_class:  # Only add padding if there's content
                     td_note.set('class', f'td-note {row_class}')
                 else:
                     td_note.set('class', 'td-note')
