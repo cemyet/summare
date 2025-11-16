@@ -249,283 +249,11 @@ class XBRLGenerator:
         # ix:resources – contexts and units live here in Inline XBRL
         ix_resources = ET.SubElement(ix_header, 'ix:resources')
         
-        # Load mappings to get element_name and namespace
-        try:
-            from supabase import create_client
-            import os
-            from dotenv import load_dotenv
-            load_dotenv()
-            
-            supabase_url = os.getenv("SUPABASE_URL")
-            supabase_key = os.getenv("SUPABASE_ANON_KEY")
-            if supabase_url and supabase_key:
-                supabase = create_client(supabase_url, supabase_key)
-                
-                # Load RR mappings
-                rr_mappings_response = supabase.table('variable_mapping_rr').select('variable_name,element_name,tillhor').execute()
-                rr_mappings_dict = {m['variable_name']: m for m in rr_mappings_response.data if m.get('variable_name')}
-                
-                # Load BR mappings
-                br_mappings_response = supabase.table('variable_mapping_br').select('variable_name,element_name,tillhor').execute()
-                br_mappings_dict = {m['variable_name']: m for m in br_mappings_response.data if m.get('variable_name')}
-                
-                # Load FB mappings (if table exists)
-                try:
-                    fb_mappings_response = supabase.table('variable_mapping_fb').select('variable_name,element_name,tillhor').execute()
-                    fb_mappings_dict = {m['variable_name']: m for m in fb_mappings_response.data if m.get('variable_name')}
-                except:
-                    fb_mappings_dict = {}
-                
-                # Load Noter mappings
-                try:
-                    noter_mappings_response = supabase.table('variable_mapping_noter').select('variable_name,element_name,tillhor').execute()
-                    noter_mappings_dict = {m['variable_name']: m for m in noter_mappings_response.data if m.get('variable_name')}
-                except:
-                    noter_mappings_dict = {}
-            else:
-                rr_mappings_dict = {}
-                br_mappings_dict = {}
-                fb_mappings_dict = {}
-                noter_mappings_dict = {}
-        except Exception as e:
-            print(f"Warning: Could not load mappings for XBRL: {e}")
-            rr_mappings_dict = {}
-            br_mappings_dict = {}
-            fb_mappings_dict = {}
-            noter_mappings_dict = {}
+        # NOTE: RR/BR/FB/Noter financial data will be tagged INLINE in presentation
+        # Only document metadata goes in hidden section
         
-        # Process RR data (Income Statement - duration)
-        rr_data = company_data.get('rrData') or company_data.get('rrRows') or company_data.get('seFileData', {}).get('rr_data', [])
-        for item in rr_data:
-            if not item.get('show_amount'):
-                continue  # Skip header rows
-            
-            variable_name = item.get('variable_name')
-            if not variable_name:
-                continue
-            
-            # Get element_name and namespace from mapping
-            mapping = rr_mappings_dict.get(variable_name, {})
-            element_name = mapping.get('element_name') or variable_name
-            namespace = mapping.get('tillhor') or 'se-gen-base'
-            
-            value = item.get('current_amount')
-            
-            if value is None or value == 0:
-                if not item.get('always_show'):
-                    continue  # Skip zero values unless always_show is True
-            
-            # Add current year fact
-            self.add_fact(
-                element_name=element_name,
-                namespace=namespace,
-                value=value or 0,
-                period_type='duration',
-                start_date=start_date,
-                end_date=end_date,
-                data_type='monetaryItemType'
-            )
-            
-            # Add previous year fact if available
-            prev_value = item.get('previous_amount')
-            if prev_value is not None:
-                # Create previous year context
-                prev_start = self._format_date(f"{fiscal_year - 1}0101") if fiscal_year else None
-                prev_end = self._format_date(f"{fiscal_year - 1}1231") if fiscal_year else None
-                
-                self.add_fact(
-                    element_name=element_name,
-                    namespace=namespace,
-                    value=prev_value,
-                    period_type='duration',
-                    start_date=prev_start,
-                    end_date=prev_end,
-                    data_type='monetaryItemType',
-                    is_current=False
-                )
-        
-        # Process BR data (Balance Sheet - instant)
-        br_data = company_data.get('brData') or company_data.get('brRows') or company_data.get('seFileData', {}).get('br_data', [])
-        for item in br_data:
-            if not item.get('show_amount'):
-                continue  # Skip header rows
-            
-            variable_name = item.get('variable_name')
-            if not variable_name:
-                continue
-            
-            # Get element_name and namespace from mapping
-            mapping = br_mappings_dict.get(variable_name, {})
-            element_name = mapping.get('element_name') or variable_name
-            namespace = mapping.get('tillhor') or 'se-gen-base'
-            
-            value = item.get('current_amount')
-            
-            if value is None or value == 0:
-                if not item.get('always_show'):
-                    continue  # Skip zero values unless always_show is True
-            
-            # Add current year fact (instant)
-            self.add_fact(
-                element_name=element_name,
-                namespace=namespace,
-                value=value or 0,
-                period_type='instant',
-                instant_date=end_date,
-                data_type='monetaryItemType'
-            )
-            
-            # Add previous year fact if available
-            prev_value = item.get('previous_amount')
-            if prev_value is not None:
-                prev_end = self._format_date(f"{fiscal_year - 1}1231") if fiscal_year else None
-                
-                self.add_fact(
-                    element_name=element_name,
-                    namespace=namespace,
-                    value=prev_value,
-                    period_type='instant',
-                    instant_date=prev_end,
-                    data_type='monetaryItemType',
-                    is_current=False
-                )
-        
-        # Process General Info (se-cd-base namespace)
+        # Add general info metadata facts
         self._add_general_info_facts(company_data, start_date, end_date)
-        
-        # Process FB data (Förvaltningsberättelse)
-        fb_data = company_data.get('fbData') or company_data.get('fbVariables') or company_data.get('forvaltningsberattelse', {})
-        if isinstance(fb_data, dict):
-            # If it's a dict of variables, convert to list format
-            fb_items = []
-            for var_name, var_value in fb_data.items():
-                if isinstance(var_value, dict) and 'current_amount' in var_value:
-                    fb_items.append({
-                        'variable_name': var_name,
-                        'current_amount': var_value.get('current_amount'),
-                        'previous_amount': var_value.get('previous_amount')
-                    })
-                elif isinstance(var_value, (int, float)):
-                    fb_items.append({
-                        'variable_name': var_name,
-                        'current_amount': var_value
-                    })
-        else:
-            fb_items = fb_data if isinstance(fb_data, list) else []
-        
-        for item in fb_items:
-            variable_name = item.get('variable_name')
-            if not variable_name:
-                continue
-            
-            # Get element_name and namespace from mapping
-            mapping = fb_mappings_dict.get(variable_name, {})
-            element_name = mapping.get('element_name') or variable_name
-            namespace = mapping.get('tillhor') or 'se-gen-base'
-            
-            value = item.get('current_amount')
-            if value is None or value == 0:
-                continue
-            
-            # FB items are typically duration (period) type
-            self.add_fact(
-                element_name=element_name,
-                namespace=namespace,
-                value=value,
-                period_type='duration',
-                start_date=start_date,
-                end_date=end_date,
-                data_type='monetaryItemType'
-            )
-            
-            # Add previous year if available
-            prev_value = item.get('previous_amount')
-            if prev_value is not None:
-                prev_start = self._format_date(f"{fiscal_year - 1}0101") if fiscal_year else None
-                prev_end = self._format_date(f"{fiscal_year - 1}1231") if fiscal_year else None
-                
-                self.add_fact(
-                    element_name=element_name,
-                    namespace=namespace,
-                    value=prev_value,
-                    period_type='duration',
-                    start_date=prev_start,
-                    end_date=prev_end,
-                    data_type='monetaryItemType',
-                    is_current=False
-                )
-        
-        # Process Noter data
-        noter_data = company_data.get('noterData') or company_data.get('noter_data', [])
-        for item in noter_data:
-            if not item.get('show_amount'):
-                continue  # Skip header/text-only rows
-            
-            variable_name = item.get('variable_name')
-            if not variable_name:
-                continue
-            
-            # Get element_name and namespace from mapping
-            mapping = noter_mappings_dict.get(variable_name, {})
-            element_name = mapping.get('element_name') or item.get('element_name') or variable_name
-            namespace = mapping.get('tillhor') or 'se-gen-base'
-            
-            value = item.get('current_amount')
-            if value is None or value == 0:
-                if not item.get('always_show'):
-                    continue
-            
-            # Noter items can be either duration or instant depending on the item
-            # Most are instant (balance sheet related), but some might be duration
-            period_type = item.get('period_type', 'instant')
-            
-            if period_type == 'duration':
-                self.add_fact(
-                    element_name=element_name,
-                    namespace=namespace,
-                    value=value or 0,
-                    period_type='duration',
-                    start_date=start_date,
-                    end_date=end_date,
-                    data_type='monetaryItemType'
-                )
-            else:
-                self.add_fact(
-                    element_name=element_name,
-                    namespace=namespace,
-                    value=value or 0,
-                    period_type='instant',
-                    instant_date=end_date,
-                    data_type='monetaryItemType'
-                )
-            
-            # Add previous year if available
-            prev_value = item.get('previous_amount')
-            if prev_value is not None:
-                if period_type == 'duration':
-                    prev_start = self._format_date(f"{fiscal_year - 1}0101") if fiscal_year else None
-                    prev_end = self._format_date(f"{fiscal_year - 1}1231") if fiscal_year else None
-                    self.add_fact(
-                        element_name=element_name,
-                        namespace=namespace,
-                        value=prev_value,
-                        period_type='duration',
-                        start_date=prev_start,
-                        end_date=prev_end,
-                        data_type='monetaryItemType',
-                        is_current=False
-                    )
-                else:
-                    prev_end = self._format_date(f"{fiscal_year - 1}1231") if fiscal_year else None
-                    self.add_fact(
-                        element_name=element_name,
-                        namespace=namespace,
-                        value=prev_value,
-                        period_type='instant',
-                        instant_date=prev_end,
-                        data_type='monetaryItemType',
-                        is_current=False
-                    )
         
         # Process Signature info
         self._add_signature_facts(company_data, end_date)
@@ -557,12 +285,11 @@ class XBRLGenerator:
                 instant_elem = ET.SubElement(period, 'xbrli:instant')
                 instant_elem.text = context_info['instant_date']
         
-        # Add all units to ix:resources
-        for unit_key, unit_info in self.units.items():
-            unit_element = ET.SubElement(ix_resources, 'xbrli:unit')
-            unit_element.set('id', unit_info['id'])
-            measure = ET.SubElement(unit_element, 'xbrli:measure')
-            measure.text = f'iso4217:{unit_info["currency"]}'
+        # Add SEK unit to ix:resources (matching Bolagsverket example)
+        unit_element = ET.SubElement(ix_resources, 'xbrli:unit')
+        unit_element.set('id', 'SEK')
+        measure = ET.SubElement(unit_element, 'xbrli:measure')
+        measure.text = 'iso4217:SEK'
         
         # ------------------------------------------------------------------
         # Hidden facts in ix:hidden (metadata, enums, duplicates)
@@ -617,29 +344,8 @@ class XBRLGenerator:
         meta_end.set('contextRef', period0_ref)
         meta_end.text = end_date
         
-        # Add all facts as ix:nonNumeric or ix:nonFraction elements in ix:hidden
-        for fact in self.facts:
-            namespace_prefix = self._get_namespace_prefix(fact['namespace'])
-            element_qname = f'{namespace_prefix}:{fact["element_name"]}'
-            
-            if fact['data_type'] == 'monetaryItemType':
-                # Use ix:nonFraction for monetary values
-                fact_element = ET.SubElement(ix_hidden, 'ix:nonFraction')
-                fact_element.set('name', element_qname)
-                fact_element.set('contextRef', fact['context_ref'])
-                if fact['unit_ref']:
-                    fact_element.set('unitRef', fact['unit_ref'])
-                # Add decimals attribute (required for monetary facts)
-                if fact.get('decimals'):
-                    fact_element.set('decimals', fact['decimals'])
-                fact_element.set('format', 'ixt:numdotdecimal')
-                fact_element.text = fact['value']
-            else:
-                # Use ix:nonNumeric for strings, dates, enums
-                fact_element = ET.SubElement(ix_hidden, 'ix:nonNumeric')
-                fact_element.set('name', element_qname)
-                fact_element.set('contextRef', fact['context_ref'])
-                fact_element.text = fact['value']
+        # NOTE: All monetary and display facts are now tagged INLINE in presentation
+        # No hidden monetary facts needed
         
         # ------------------------------------------------------------------
         # Generate visible HTML content matching PDF structure
@@ -920,6 +626,49 @@ td, th {
             return float(s) if s else 0.0
         except Exception:
             return 0.0
+    
+    def _create_inline_xbrl_element(self, parent: ET.Element, element_name: str, 
+                                   value: float, context_ref: str, 
+                                   is_negative_display: bool = False) -> ET.Element:
+        """Create inline XBRL element with proper formatting (following Bolagsverket example)
+        
+        Args:
+            parent: Parent ET.Element to attach to
+            element_name: Qualified element name (e.g. 'se-gen-base:Nettoomsattning')
+            value: Numeric value (will be formatted with space as thousands separator)
+            context_ref: Context reference (e.g. 'period0', 'instant0')
+            is_negative_display: If True and value is negative, prepend '-' before tag
+        
+        Returns:
+            The created ix:nonFraction element
+        """
+        # Format value for display (space as thousands separator)
+        formatted_value = self._format_monetary_value(abs(value), for_display=True)
+        
+        # If value is negative and displayed with minus sign, add it before the tag
+        if is_negative_display and value < 0:
+            if parent.text:
+                parent.text += '-'
+            else:
+                parent.text = '-'
+        
+        # Create ix:nonFraction element
+        ix_elem = ET.SubElement(parent, 'ix:nonFraction')
+        ix_elem.set('contextRef', context_ref)
+        ix_elem.set('name', element_name)
+        ix_elem.set('unitRef', 'SEK')
+        ix_elem.set('decimals', 'INF')
+        ix_elem.set('scale', '0')
+        ix_elem.set('format', 'ixt:numspacecomma')
+        
+        # Add sign attribute if value is negative and displayed with minus
+        if is_negative_display and value < 0:
+            ix_elem.set('sign', '-')
+        
+        # Set text to formatted value (always positive display value)
+        ix_elem.text = formatted_value
+        
+        return ix_elem
     
     def _should_show_row(self, row: Dict[str, Any], data: List[Dict[str, Any]], section: str = 'rr') -> bool:
         """Apply show/hide logic matching PDF generation"""
@@ -1763,15 +1512,15 @@ td, th {
                             namespace_prefix = self._get_namespace_prefix(namespace)
                             element_qname = f'{namespace_prefix}:{element_name}'
                             
-                            # Use ix:nonFraction for monetary values
+                            # Create inline XBRL element (Bolagsverket pattern)
                             ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
-                            ix_curr.set('name', element_qname)
                             ix_curr.set('contextRef', period0_ref)
-                            ix_curr.set('unitRef', unit_ref)
-                            ix_curr.set('format', 'ixt:numdotdecimal')
-                            ix_curr.set('decimals', '0')
-                            ix_curr.set('scale', '3')
-                            ix_curr.text = str(int(round(curr_val)))
+                            ix_curr.set('name', element_qname)
+                            ix_curr.set('unitRef', 'SEK')
+                            ix_curr.set('decimals', 'INF')
+                            ix_curr.set('scale', '0')
+                            ix_curr.set('format', 'ixt:numspacecomma')
+                            ix_curr.text = self._format_monetary_value(abs(curr_val), for_display=True)
                         else:
                             # Fallback to plain text (no decimals)
                             p_curr.text = self._format_monetary_value(curr_val, for_display=True)
@@ -1811,15 +1560,15 @@ td, th {
                             namespace_prefix = self._get_namespace_prefix(namespace)
                             element_qname = f'{namespace_prefix}:{element_name}'
                             
-                            # Use ix:nonFraction for previous year
+                            # Create inline XBRL element (Bolagsverket pattern)
                             ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
-                            ix_prev.set('name', element_qname)
                             ix_prev.set('contextRef', period1_ref)
-                            ix_prev.set('unitRef', unit_ref)
-                            ix_prev.set('format', 'ixt:numdotdecimal')
-                            ix_prev.set('decimals', '0')
-                            ix_prev.set('scale', '3')
-                            ix_prev.text = str(int(round(prev_val)))
+                            ix_prev.set('name', element_qname)
+                            ix_prev.set('unitRef', 'SEK')
+                            ix_prev.set('decimals', 'INF')
+                            ix_prev.set('scale', '0')
+                            ix_prev.set('format', 'ixt:numspacecomma')
+                            ix_prev.text = self._format_monetary_value(abs(prev_val), for_display=True)
                         else:
                             # Fallback to plain text (no decimals)
                             p_prev.text = self._format_monetary_value(prev_val, for_display=True)
