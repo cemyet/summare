@@ -1770,11 +1770,22 @@ body {
             supabase_key = os.getenv("SUPABASE_ANON_KEY")
             if supabase_url and supabase_key:
                 supabase = create_client(supabase_url, supabase_key)
-                br_mappings_response = supabase.table('variable_mapping_br').select('variable_name,element_name,tillhor').execute()
-                br_mappings_dict = {m['variable_name']: m for m in br_mappings_response.data if m.get('variable_name')}
-            else:
+                br_mappings_response = supabase.table('variable_mapping_br').select('row_title,variable_name,element_name,tillhor,data_type,period_type').execute()
+                # Create dual-key mapping: by variable_name AND by row_title
                 br_mappings_dict = {}
-        except:
+                for m in br_mappings_response.data:
+                    if m.get('variable_name'):
+                        br_mappings_dict[m['variable_name']] = m
+                    if m.get('row_title'):
+                        br_mappings_dict[m['row_title']] = m
+                print(f"✓ Loaded {len(br_mappings_response.data)} BR mappings from database")
+            else:
+                print("⚠ Warning: No Supabase credentials - BR XBRL tags will be skipped")
+                br_mappings_dict = {}
+        except Exception as e:
+            print(f"⚠ Warning: Failed to load BR mappings - {str(e)}")
+            import traceback
+            traceback.print_exc()
             br_mappings_dict = {}
         
         if br_data_raw:
@@ -1898,9 +1909,15 @@ body {
                     prev_val = self._num(row.get('previous_amount', 0))
                     # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
                     if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
+                        # Try matching by variable_name first, then by label (row_title)
                         variable_name = row.get('variable_name')
+                        mapping = None
                         if variable_name and variable_name in br_mappings_dict:
                             mapping = br_mappings_dict[variable_name]
+                        elif label and label in br_mappings_dict:
+                            mapping = br_mappings_dict[label]
+                        
+                        if mapping:
                             element_name = mapping.get('element_name')
                             namespace = mapping.get('tillhor', 'se-gen-base')
                             namespace_prefix = self._get_namespace_prefix(namespace)
@@ -1935,9 +1952,15 @@ body {
                     # prev_val already calculated above for current year logic
                     # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
                     if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
+                        # Try matching by variable_name first, then by label (row_title)
                         variable_name = row.get('variable_name')
+                        mapping = None
                         if variable_name and variable_name in br_mappings_dict:
                             mapping = br_mappings_dict[variable_name]
+                        elif label and label in br_mappings_dict:
+                            mapping = br_mappings_dict[label]
+                        
+                        if mapping:
                             element_name = mapping.get('element_name')
                             namespace = mapping.get('tillhor', 'se-gen-base')
                             namespace_prefix = self._get_namespace_prefix(namespace)
@@ -2020,11 +2043,22 @@ body {
             supabase_key = os.getenv("SUPABASE_ANON_KEY")
             if supabase_url and supabase_key:
                 supabase = create_client(supabase_url, supabase_key)
-                br_mappings_response = supabase.table('variable_mapping_br').select('variable_name,element_name,tillhor').execute()
-                br_mappings_dict = {m['variable_name']: m for m in br_mappings_response.data if m.get('variable_name')}
-            else:
+                br_mappings_response = supabase.table('variable_mapping_br').select('row_title,variable_name,element_name,tillhor,data_type,period_type').execute()
+                # Create dual-key mapping: by variable_name AND by row_title
                 br_mappings_dict = {}
-        except:
+                for m in br_mappings_response.data:
+                    if m.get('variable_name'):
+                        br_mappings_dict[m['variable_name']] = m
+                    if m.get('row_title'):
+                        br_mappings_dict[m['row_title']] = m
+                print(f"✓ Loaded {len(br_mappings_response.data)} BR mappings from database")
+            else:
+                print("⚠ Warning: No Supabase credentials - BR XBRL tags will be skipped")
+                br_mappings_dict = {}
+        except Exception as e:
+            print(f"⚠ Warning: Failed to load BR mappings - {str(e)}")
+            import traceback
+            traceback.print_exc()
             br_mappings_dict = {}
         
         if br_data_raw:
@@ -2170,9 +2204,15 @@ body {
                     prev_val = self._num(row.get('previous_amount', 0))
                     # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
                     if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
+                        # Try matching by variable_name first, then by label (row_title)
                         variable_name = row.get('variable_name')
+                        mapping = None
                         if variable_name and variable_name in br_mappings_dict:
                             mapping = br_mappings_dict[variable_name]
+                        elif label and label in br_mappings_dict:
+                            mapping = br_mappings_dict[label]
+                        
+                        if mapping:
                             element_name = mapping.get('element_name')
                             namespace = mapping.get('tillhor', 'se-gen-base')
                             namespace_prefix = self._get_namespace_prefix(namespace)
@@ -2207,9 +2247,15 @@ body {
                     # prev_val already calculated above for current year logic
                     # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
                     if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
+                        # Try matching by variable_name first, then by label (row_title)
                         variable_name = row.get('variable_name')
+                        mapping = None
                         if variable_name and variable_name in br_mappings_dict:
                             mapping = br_mappings_dict[variable_name]
+                        elif label and label in br_mappings_dict:
+                            mapping = br_mappings_dict[label]
+                        
+                        if mapping:
                             element_name = mapping.get('element_name')
                             namespace = mapping.get('tillhor', 'se-gen-base')
                             namespace_prefix = self._get_namespace_prefix(namespace)
