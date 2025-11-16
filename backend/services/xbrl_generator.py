@@ -1489,16 +1489,10 @@ td, th {
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
                 td_curr.set('style', f'vertical-align: top; width: 2.5cm; text-align: right; {row_style}')
-                p_curr = ET.SubElement(td_curr, 'p')
-                if is_sum:
-                    p_curr.set('class', 'sum-amount')  # Bold right-aligned
-                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
-                else:
-                    p_curr.set('class', 'amount-right')  # Normal right-aligned
-                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
                 if is_heading:
-                    p_curr.text = ''
+                    # Empty cell for headings
+                    pass
                 else:
                     curr_val = self._num(row.get('current_amount', 0))
                     prev_val = self._num(row.get('previous_amount', 0))
@@ -1512,8 +1506,12 @@ td, th {
                             namespace_prefix = self._get_namespace_prefix(namespace)
                             element_qname = f'{namespace_prefix}:{element_name}'
                             
-                            # Create inline XBRL element (Bolagsverket pattern)
-                            ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
+                            # For negative values, add minus sign before XBRL tag
+                            if curr_val < 0:
+                                td_curr.text = '-'
+                            
+                            # Create inline XBRL element directly in <td> (Bolagsverket pattern)
+                            ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
                             ix_curr.set('contextRef', period0_ref)
                             ix_curr.set('name', element_qname)
                             ix_curr.set('unitRef', 'SEK')
@@ -1522,10 +1520,8 @@ td, th {
                             ix_curr.set('format', 'ixt:numspacecomma')
                             ix_curr.text = self._format_monetary_value(abs(curr_val), for_display=True)
                         else:
-                            # Fallback to plain text (no decimals)
-                            p_curr.text = self._format_monetary_value(curr_val, for_display=True)
-                    else:
-                        p_curr.text = ''
+                            # Fallback to plain text
+                            td_curr.text = self._format_monetary_value(curr_val, for_display=True)
                 
                 # Spacing column
                 td_spacing = ET.SubElement(tr, 'td')
@@ -1538,16 +1534,10 @@ td, th {
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
                 td_prev.set('style', f'vertical-align: top; width: 2.5cm; text-align: right; {row_style}')
-                p_prev = ET.SubElement(td_prev, 'p')
-                if is_sum:
-                    p_prev.set('class', 'sum-amount')  # Bold right-aligned
-                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
-                else:
-                    p_prev.set('class', 'amount-right')  # Normal right-aligned
-                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
                 if is_heading:
-                    p_prev.text = ''
+                    # Empty cell for headings
+                    pass
                 else:
                     # prev_val already calculated above for current year logic
                     # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
@@ -1560,8 +1550,12 @@ td, th {
                             namespace_prefix = self._get_namespace_prefix(namespace)
                             element_qname = f'{namespace_prefix}:{element_name}'
                             
-                            # Create inline XBRL element (Bolagsverket pattern)
-                            ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
+                            # For negative values, add minus sign before XBRL tag
+                            if prev_val < 0:
+                                td_prev.text = '-'
+                            
+                            # Create inline XBRL element directly in <td> (Bolagsverket pattern)
+                            ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
                             ix_prev.set('contextRef', period1_ref)
                             ix_prev.set('name', element_qname)
                             ix_prev.set('unitRef', 'SEK')
@@ -1570,10 +1564,8 @@ td, th {
                             ix_prev.set('format', 'ixt:numspacecomma')
                             ix_prev.text = self._format_monetary_value(abs(prev_val), for_display=True)
                         else:
-                            # Fallback to plain text (no decimals)
-                            p_prev.text = self._format_monetary_value(prev_val, for_display=True)
-                    else:
-                        p_prev.text = ''
+                            # Fallback to plain text
+                            td_prev.text = self._format_monetary_value(prev_val, for_display=True)
                 
                 # Final spacing column
                 td_spacing2 = ET.SubElement(tr, 'td')
