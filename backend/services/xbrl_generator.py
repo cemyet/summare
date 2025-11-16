@@ -688,6 +688,11 @@ body {
           width: 9cm;
         }
 
+        .td-label-colspan {
+          vertical-align: top;
+          /* No width - spans full table */
+        }
+
         .td-note {
           vertical-align: top;
           width: 2cm;
@@ -1595,9 +1600,9 @@ body {
                 if is_heading:
                     td_label = ET.SubElement(tr, 'td')
                     if row_class:
-                        td_label.set('class', f'td-label {row_class}')
+                        td_label.set('class', f'td-label-colspan {row_class}')
                     else:
-                        td_label.set('class', 'td-label')
+                        td_label.set('class', 'td-label-colspan')
                     td_label.set('colspan', '5')
                     p_label = ET.SubElement(td_label, 'p')
                     p_label.set('class', 'H3-table')
@@ -1828,9 +1833,9 @@ body {
                 if is_heading:
                     td_label = ET.SubElement(tr, 'td')
                     if row_class:
-                        td_label.set('class', f'td-label {row_class}')
+                        td_label.set('class', f'td-label-colspan {row_class}')
                     else:
-                        td_label.set('class', 'td-label')
+                        td_label.set('class', 'td-label-colspan')
                     td_label.set('colspan', '5')
                     p_label = ET.SubElement(td_label, 'p')
                     if style in ['H2', 'H0']:
