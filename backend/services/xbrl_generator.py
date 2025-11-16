@@ -2667,59 +2667,15 @@ td, th {
         page5 = ET.SubElement(body, 'div')
         page5.set('class', 'pagebreak_before ar-page5')
         
-        # Header
-        header_table = ET.SubElement(page5, 'table')
-        header_table.set('style', 'border-collapse: collapse; width: 17cm')
-        tr_header = ET.SubElement(header_table, 'tr')
-        
-        td_name = ET.SubElement(tr_header, 'td')
-        td_name.set('style', 'vertical-align: bottom; width: 9cm')
-        p_name = ET.SubElement(td_name, 'p')
-        p_name.set('class', 'normalsidhuvud')
-        p_name.text = company_name
-        p_org = ET.SubElement(td_name, 'p')
-        p_org.set('class', 'normalsidhuvud')
-        p_org.text = f'Org.nr {org_number}'
-        
-        td_not = ET.SubElement(tr_header, 'td')
-        td_not.set('style', 'vertical-align: bottom; width: 1.5cm')
-        p_not = ET.SubElement(td_not, 'p')
-        p_not.set('class', 'normal')
-        p_not.text = ' '
-        
-        td_year1 = ET.SubElement(tr_header, 'td')
-        td_year1.set('style', 'vertical-align: bottom; width: 3cm')
-        p_year1 = ET.SubElement(td_year1, 'p')
-        p_year1.set('class', 'normal')
-        p_year1.text = ' '
-        
-        td_page = ET.SubElement(tr_header, 'td')
-        td_page.set('style', 'vertical-align: top; width: 3cm')
-        p_page = ET.SubElement(td_page, 'p')
-        p_page.set('class', 'b13')
-        p_page.text = '5 (9)'  # TODO: Calculate actual page numbers
-        
-        # Add spacing
-        p_spacing = ET.SubElement(page5, 'p')
-        p_spacing.set('class', 'normal')
-        p_spacing.text = ' '
-        
         # Noter title
         p_title = ET.SubElement(page5, 'p')
         p_title.set('class', 'rubrik2')
         p_title.text = 'Noter'
         
-        p_spacing2 = ET.SubElement(page5, 'p')
-        p_spacing2.set('class', 'normal')
-        p_spacing2.text = ' '
-        
-        p_tkr = ET.SubElement(page5, 'p')
-        p_tkr.set('class', 'normal')
-        p_tkr.text = 'Alla belopp i tkr om inget annat anges'
-        
-        p_spacing3 = ET.SubElement(page5, 'p')
-        p_spacing3.set('class', 'normal')
-        p_spacing3.text = ' '
+        p_spacing = ET.SubElement(page5, 'p')
+        p_spacing.set('class', 'normal')
+        p_spacing.set('style', 'margin-top: 16pt;')
+        p_spacing.text = ' '
         
         # Load noter data and mappings
         noter_data_raw = (company_data.get('noterData') or
@@ -2841,10 +2797,10 @@ td, th {
                 p2.set('style', 'margin: 0;')
                 p2.text = str(int(val)) if val else '0'
             
-            # Spacing after note
+            # Spacing after note (add extra space to match PDF spacing between notes)
             p_spacing = ET.SubElement(page, 'p')
             p_spacing.set('class', 'P')
-            p_spacing.set('style', 'margin-top: 16pt;')
+            p_spacing.set('style', 'margin-top: 24pt;')
             p_spacing.text = ' '
             return
         
@@ -2880,10 +2836,10 @@ td, th {
                 p_text.set('style', 'margin-top: 10pt;')
                 p_text.text = text
             
-            # Spacing after note
+            # Spacing after note (add extra space to match PDF spacing between notes)
             p_spacing = ET.SubElement(page, 'p')
             p_spacing.set('class', 'P')
-            p_spacing.set('style', 'margin-top: 16pt;')
+            p_spacing.set('style', 'margin-top: 24pt;')
             p_spacing.text = ' '
             return
         
@@ -2900,28 +2856,28 @@ td, th {
             header_col2 = cur_end
             header_col3 = prev_end
         
-        # Build table
+        # Build table (col widths mirror PDF: 269pt, 80pt, 80pt = 9.5cm, 2.8cm, 2.8cm)
         table = ET.SubElement(page, 'table')
-        table.set('style', 'border-collapse: collapse; width: 12cm; margin-top: 10pt;')
+        table.set('style', 'border-collapse: collapse; width: 15.1cm; table-layout: fixed; margin-top: 10pt;')
         
         # Header row
         tr_header = ET.SubElement(table, 'tr')
         td_h1 = ET.SubElement(tr_header, 'td')
-        td_h1.set('style', 'vertical-align: top; width: 9cm; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
+        td_h1.set('style', 'vertical-align: top; width: 9.5cm; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
         p_h1 = ET.SubElement(td_h1, 'p')
         p_h1.set('class', 'P')
         p_h1.set('style', 'margin: 0; font-size: 9pt; font-weight: 500;')
         p_h1.text = header_col1
         
         td_h2 = ET.SubElement(tr_header, 'td')
-        td_h2.set('style', 'vertical-align: top; width: 1.5cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
+        td_h2.set('style', 'vertical-align: top; width: 2.8cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
         p_h2 = ET.SubElement(td_h2, 'p')
         p_h2.set('class', 'P')
         p_h2.set('style', 'margin: 0; font-size: 9pt; font-weight: 500;')
         p_h2.text = header_col2
         
         td_h3 = ET.SubElement(tr_header, 'td')
-        td_h3.set('style', 'vertical-align: top; width: 1.5cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
+        td_h3.set('style', 'vertical-align: top; width: 2.8cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);')
         p_h3 = ET.SubElement(td_h3, 'p')
         p_h3.set('class', 'P')
         p_h3.set('style', 'margin: 0; font-size: 9pt; font-weight: 500;')
@@ -2963,7 +2919,7 @@ td, th {
             
             # Label column
             td_label = ET.SubElement(tr, 'td')
-            td_label.set('style', f'vertical-align: top; width: 9cm; padding-top: {row_padding_top};')
+            td_label.set('style', f'vertical-align: top; width: 9.5cm; padding-top: {row_padding_top};')
             p_label = ET.SubElement(td_label, 'p')
             p_label.set('style', 'margin: 0;')
             
@@ -2980,7 +2936,7 @@ td, th {
             
             # Current amount column
             td_curr = ET.SubElement(tr, 'td')
-            td_curr.set('style', f'vertical-align: top; width: 1.5cm; text-align: right; padding-top: {row_padding_top};')
+            td_curr.set('style', f'vertical-align: top; width: 2.8cm; text-align: right; padding-top: {row_padding_top};')
             p_curr = ET.SubElement(td_curr, 'p')
             p_curr.set('style', 'margin: 0;')
             
@@ -3018,7 +2974,7 @@ td, th {
             
             # Previous amount column
             td_prev = ET.SubElement(tr, 'td')
-            td_prev.set('style', f'vertical-align: top; width: 1.5cm; text-align: right; padding-top: {row_padding_top};')
+            td_prev.set('style', f'vertical-align: top; width: 2.8cm; text-align: right; padding-top: {row_padding_top};')
             p_prev = ET.SubElement(td_prev, 'p')
             p_prev.set('style', 'margin: 0;')
             
@@ -3054,10 +3010,10 @@ td, th {
                 else:
                     p_prev.text = prev_fmt
         
-        # Spacing after note
+        # Spacing after note (add extra space to match PDF spacing between notes)
         p_spacing = ET.SubElement(page, 'p')
         p_spacing.set('class', 'P')
-        p_spacing.set('style', 'margin-top: 16pt;')
+        p_spacing.set('style', 'margin-top: 24pt;')
         p_spacing.text = ' '
     
     def _add_general_info_facts(self, company_data: Dict[str, Any], start_date: Optional[str], end_date: Optional[str]):
