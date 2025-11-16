@@ -595,25 +595,84 @@ td, th {
   line-height: 1.2;
 }
 
-/* Utility classes */
-.text-center {
-  text-align: center;
-}
+        /* Utility classes */
+        .text-center {
+          text-align: center;
+        }
 
-.text-right {
-  text-align: right;
-}
+        .text-right {
+          text-align: right;
+        }
 
-.text-left {
-  text-align: left;
-}
+        .text-left {
+          text-align: left;
+        }
 
-/* Header table styling */
-.header-underline {
-  border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);
-  padding-bottom: 6pt;
-  margin-bottom: 6pt;
-}
+        /* Header table styling */
+        .header-underline {
+          border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);
+          padding-bottom: 6pt;
+          margin-bottom: 6pt;
+        }
+
+        /* Table cell styles for RR/BR */
+        .td-label {
+          vertical-align: top;
+          width: 9cm;
+        }
+
+        .td-note {
+          vertical-align: top;
+          width: 2cm;
+          text-align: center;
+        }
+
+        .td-amount-curr {
+          vertical-align: top;
+          width: 2.5cm;
+          text-align: right;
+        }
+
+        .td-amount-prev {
+          vertical-align: top;
+          width: 2.5cm;
+          text-align: right;
+        }
+
+        .td-spacing {
+          vertical-align: top;
+          width: 0.5cm;
+        }
+
+        .td-label-indent {
+          vertical-align: top;
+          width: 9cm;
+          padding-left: 12pt;
+        }
+
+        .td-label-sum {
+          vertical-align: top;
+          width: 9cm;
+          font-weight: 500;
+        }
+
+        /* Padding utilities */
+        .pt-2 {
+          padding-top: 2pt;
+        }
+
+        .pt-18 {
+          padding-top: 18pt;
+        }
+
+        /* Border utilities */
+        .border-top {
+          border-top: 0.5pt solid rgba(0, 0, 0, 0.7);
+        }
+
+        .border-bottom {
+          border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);
+        }
         """
     
     def _num(self, v):
@@ -1465,7 +1524,12 @@ td, th {
                 
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
-                td_label.set('style', f'vertical-align: top; width: 9cm; {row_style}')
+                label_class = 'td-label'
+                if row_style:
+                    td_label.set('class', label_class)
+                    td_label.set('style', row_style)
+                else:
+                    td_label.set('class', label_class)
                 p_label = ET.SubElement(td_label, 'p')
                 if is_heading:
                     p_label.set('class', 'H3-table')  # 10pt semibold for RR headings
@@ -1480,7 +1544,11 @@ td, th {
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
-                td_note.set('style', f'vertical-align: top; width: 2cm; text-align: center; {row_style}')
+                if row_style:
+                    td_note.set('class', 'td-note')
+                    td_note.set('style', row_style)
+                else:
+                    td_note.set('class', 'td-note')
                 p_note = ET.SubElement(td_note, 'p')
                 p_note.set('class', 'P')
                 p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
@@ -1488,7 +1556,11 @@ td, th {
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                td_curr.set('style', f'vertical-align: top; width: 2.5cm; text-align: right; {row_style}')
+                if row_style:
+                    td_curr.set('class', 'td-amount-curr')
+                    td_curr.set('style', row_style)
+                else:
+                    td_curr.set('class', 'td-amount-curr')
                 
                 if is_heading:
                     # Empty cell for headings
@@ -1524,7 +1596,11 @@ td, th {
                 
                 # Spacing column
                 td_spacing = ET.SubElement(tr, 'td')
-                td_spacing.set('style', f'vertical-align: top; width: 0.5cm; {row_style}')
+                if row_style:
+                    td_spacing.set('class', 'td-spacing')
+                    td_spacing.set('style', row_style)
+                else:
+                    td_spacing.set('class', 'td-spacing')
                 p_spacing = ET.SubElement(td_spacing, 'p')
                 p_spacing.set('class', 'P')
                 p_spacing.set('style', 'margin-top: 0; margin-bottom: 0;')
@@ -1532,7 +1608,11 @@ td, th {
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                td_prev.set('style', f'vertical-align: top; width: 2.5cm; text-align: right; {row_style}')
+                if row_style:
+                    td_prev.set('class', 'td-amount-prev')
+                    td_prev.set('style', row_style)
+                else:
+                    td_prev.set('class', 'td-amount-prev')
                 
                 if is_heading:
                     # Empty cell for headings
@@ -1567,9 +1647,9 @@ td, th {
                 
                 # Final spacing column
                 td_spacing2 = ET.SubElement(tr, 'td')
-                td_spacing2.set('style', 'vertical-align: bottom; width: 0.5cm')
+                td_spacing2.set('class', 'td-spacing')
                 p_spacing2 = ET.SubElement(td_spacing2, 'p')
-                p_spacing2.set('class', 'normal')
+                p_spacing2.set('class', 'P')
                 p_spacing2.text = ' '
     
     def _render_balansrakning_tillgangar(self, body: ET.Element, company_data: Dict[str, Any],
@@ -1712,7 +1792,11 @@ td, th {
                 
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
-                td_label.set('style', f'vertical-align: top; width: 9cm; {row_style}')
+                if row_style:
+                    td_label.set('class', 'td-label')
+                    td_label.set('style', row_style)
+                else:
+                    td_label.set('class', 'td-label')
                 p_label = ET.SubElement(td_label, 'p')
                 if is_heading:
                     # H2/H0 → 11pt (larger BR headings like "Anläggningstillgångar")
@@ -1732,7 +1816,11 @@ td, th {
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
-                td_note.set('style', f'vertical-align: top; width: 2cm; text-align: center; {row_style}')
+                if row_style:
+                    td_note.set('class', 'td-note')
+                    td_note.set('style', row_style)
+                else:
+                    td_note.set('class', 'td-note')
                 p_note = ET.SubElement(td_note, 'p')
                 p_note.set('class', 'P')
                 p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
@@ -1740,7 +1828,11 @@ td, th {
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                td_curr.set('style', f'vertical-align: top; width: 2.5cm; text-align: right; {row_style}')
+                if row_style:
+                    td_curr.set('class', 'td-amount-curr')
+                    td_curr.set('style', row_style)
+                else:
+                    td_curr.set('class', 'td-amount-curr')
                 p_curr = ET.SubElement(td_curr, 'p')
                 if is_sum:
                     p_curr.set('class', 'sum-amount')  # Bold right-aligned
@@ -1780,7 +1872,11 @@ td, th {
                 
                 # Spacing column
                 td_spacing = ET.SubElement(tr, 'td')
-                td_spacing.set('style', f'vertical-align: top; width: 0.5cm; {row_style}')
+                if row_style:
+                    td_spacing.set('class', 'td-spacing')
+                    td_spacing.set('style', row_style)
+                else:
+                    td_spacing.set('class', 'td-spacing')
                 p_spacing = ET.SubElement(td_spacing, 'p')
                 p_spacing.set('class', 'P')
                 p_spacing.set('style', 'margin-top: 0; margin-bottom: 0;')
@@ -1788,7 +1884,11 @@ td, th {
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                td_prev.set('style', f'vertical-align: top; width: 2.5cm; text-align: right; {row_style}')
+                if row_style:
+                    td_prev.set('class', 'td-amount-prev')
+                    td_prev.set('style', row_style)
+                else:
+                    td_prev.set('class', 'td-amount-prev')
                 p_prev = ET.SubElement(td_prev, 'p')
                 if is_sum:
                     p_prev.set('class', 'sum-amount')  # Bold right-aligned
@@ -1994,7 +2094,11 @@ td, th {
                 
                 # Label column
                 td_label = ET.SubElement(tr, 'td')
-                td_label.set('style', f'vertical-align: top; width: 9cm; {row_style}')
+                if row_style:
+                    td_label.set('class', 'td-label')
+                    td_label.set('style', row_style)
+                else:
+                    td_label.set('class', 'td-label')
                 p_label = ET.SubElement(td_label, 'p')
                 if is_heading:
                     # H2/H0 → 11pt (larger BR headings like "Eget kapital")
@@ -2014,7 +2118,11 @@ td, th {
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
-                td_note.set('style', f'vertical-align: top; width: 2cm; text-align: center; {row_style}')
+                if row_style:
+                    td_note.set('class', 'td-note')
+                    td_note.set('style', row_style)
+                else:
+                    td_note.set('class', 'td-note')
                 p_note = ET.SubElement(td_note, 'p')
                 p_note.set('class', 'P')
                 p_note.set('style', 'margin-top: 0; margin-bottom: 0;')
@@ -2022,7 +2130,11 @@ td, th {
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                td_curr.set('style', f'vertical-align: top; width: 2.5cm; text-align: right; {row_style}')
+                if row_style:
+                    td_curr.set('class', 'td-amount-curr')
+                    td_curr.set('style', row_style)
+                else:
+                    td_curr.set('class', 'td-amount-curr')
                 p_curr = ET.SubElement(td_curr, 'p')
                 if is_sum:
                     p_curr.set('class', 'sum-amount')  # Semibold right-aligned
@@ -2062,7 +2174,11 @@ td, th {
                 
                 # Spacing column
                 td_spacing = ET.SubElement(tr, 'td')
-                td_spacing.set('style', f'vertical-align: top; width: 0.5cm; {row_style}')
+                if row_style:
+                    td_spacing.set('class', 'td-spacing')
+                    td_spacing.set('style', row_style)
+                else:
+                    td_spacing.set('class', 'td-spacing')
                 p_spacing = ET.SubElement(td_spacing, 'p')
                 p_spacing.set('class', 'P')
                 p_spacing.set('style', 'margin-top: 0; margin-bottom: 0;')
@@ -2070,7 +2186,11 @@ td, th {
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                td_prev.set('style', f'vertical-align: top; width: 2.5cm; text-align: right; {row_style}')
+                if row_style:
+                    td_prev.set('class', 'td-amount-prev')
+                    td_prev.set('style', row_style)
+                else:
+                    td_prev.set('class', 'td-amount-prev')
                 p_prev = ET.SubElement(td_prev, 'p')
                 if is_sum:
                     p_prev.set('class', 'sum-amount')  # Semibold right-aligned
