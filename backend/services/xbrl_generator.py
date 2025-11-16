@@ -641,13 +641,7 @@ td, th {
           text-align: center;
         }
 
-        .td-amount-curr {
-          vertical-align: top;
-          width: 2.5cm;
-          text-align: right;
-        }
-
-        .td-amount-prev {
+        .td-amount {
           vertical-align: top;
           width: 2.5cm;
           text-align: right;
@@ -1569,7 +1563,7 @@ td, th {
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
-                if row_class:
+                if note and row_class:  # Only add padding if there's content
                     td_note.set('class', f'td-note {row_class}')
                 else:
                     td_note.set('class', 'td-note')
@@ -1580,10 +1574,10 @@ td, th {
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                if row_class:
-                    td_curr.set('class', f'td-amount-curr {row_class}')
+                if row_class and not is_heading:  # Only add padding to rows with content
+                    td_curr.set('class', f'td-amount {row_class}')
                 else:
-                    td_curr.set('class', 'td-amount-curr')
+                    td_curr.set('class', 'td-amount')
                 
                 if is_heading:
                     # Empty cell for headings
@@ -1601,10 +1595,7 @@ td, th {
                             element_qname = f'se-gen-base:{element_name}'
                             
                             # For negative values, add minus sign before XBRL tag
-                            if curr_val < 0:
-                                td_curr.text = '-'
-                            
-                            # Create inline XBRL element directly in <td> (Bolagsverket pattern)
+                            if curr_val < 0: td_curr.text = '-'
                             ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
                             ix_curr.set('contextRef', period0_ref)
                             ix_curr.set('name', element_qname)
@@ -1617,20 +1608,16 @@ td, th {
                             # Fallback to plain text
                             td_curr.text = self._format_monetary_value(curr_val, for_display=True)
                 
-                # Spacing column
+                # Spacing column (always empty, never needs padding)
                 td_spacing = ET.SubElement(tr, 'td')
-                if row_class:
-                    td_spacing.set('class', f'td-spacing {row_class}')
-                else:
-                    td_spacing.set('class', 'td-spacing')
-                # No content needed for spacing column
+                td_spacing.set('class', 'td-spacing')
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                if row_class:
-                    td_prev.set('class', f'td-amount-prev {row_class}')
+                if row_class and not is_heading:  # Only add padding to rows with content
+                    td_prev.set('class', f'td-amount {row_class}')
                 else:
-                    td_prev.set('class', 'td-amount-prev')
+                    td_prev.set('class', 'td-amount')
                 
                 if is_heading:
                     # Empty cell for headings
@@ -1647,10 +1634,7 @@ td, th {
                             element_qname = f'se-gen-base:{element_name}'
                             
                             # For negative values, add minus sign before XBRL tag
-                            if prev_val < 0:
-                                td_prev.text = '-'
-                            
-                            # Create inline XBRL element directly in <td> (Bolagsverket pattern)
+                            if prev_val < 0: td_prev.text = '-'
                             ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
                             ix_prev.set('contextRef', period1_ref)
                             ix_prev.set('name', element_qname)
@@ -1821,7 +1805,7 @@ td, th {
                 
                 # Note column
                 td_note = ET.SubElement(tr, 'td')
-                if row_class:
+                if note and row_class:  # Only add padding if there's content
                     td_note.set('class', f'td-note {row_class}')
                 else:
                     td_note.set('class', 'td-note')
@@ -1832,10 +1816,10 @@ td, th {
                 
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
-                if row_class:
-                    td_curr.set('class', f'td-amount-curr {row_class}')
+                if row_class and not is_heading:  # Only add padding to rows with content
+                    td_curr.set('class', f'td-amount {row_class}')
                 else:
-                    td_curr.set('class', 'td-amount-curr')
+                    td_curr.set('class', 'td-amount')
                 p_curr = ET.SubElement(td_curr, 'p')
                 if is_sum:
                     p_curr.set('class', 'sum-amount')  # Bold right-aligned
@@ -1871,20 +1855,16 @@ td, th {
                     else:
                         p_curr.text = ''
                 
-                # Spacing column
+                # Spacing column (always empty, never needs padding)
                 td_spacing = ET.SubElement(tr, 'td')
-                if row_class:
-                    td_spacing.set('class', f'td-spacing {row_class}')
-                else:
-                    td_spacing.set('class', 'td-spacing')
-                # No content needed for spacing column
+                td_spacing.set('class', 'td-spacing')
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                if row_class:
-                    td_prev.set('class', f'td-amount-prev {row_class}')
+                if row_class and not is_heading:  # Only add padding to rows with content
+                    td_prev.set('class', f'td-amount {row_class}')
                 else:
-                    td_prev.set('class', 'td-amount-prev')
+                    td_prev.set('class', 'td-amount')
                 p_prev = ET.SubElement(td_prev, 'p')
                 if is_sum:
                     p_prev.set('class', 'sum-amount')  # Bold right-aligned
@@ -2114,9 +2094,9 @@ td, th {
                 # Current year amount
                 td_curr = ET.SubElement(tr, 'td')
                 if row_class:
-                    td_curr.set('class', f'td-amount-curr {row_class}')
+                    td_curr.set('class', f'td-amount {row_class}')
                 else:
-                    td_curr.set('class', 'td-amount-curr')
+                    td_curr.set('class', 'td-amount')
                 p_curr = ET.SubElement(td_curr, 'p')
                 if is_sum:
                     p_curr.set('class', 'sum-amount')  # Semibold right-aligned
@@ -2165,9 +2145,9 @@ td, th {
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
                 if row_class:
-                    td_prev.set('class', f'td-amount-prev {row_class}')
+                    td_prev.set('class', f'td-amount {row_class}')
                 else:
-                    td_prev.set('class', 'td-amount-prev')
+                    td_prev.set('class', 'td-amount')
                 p_prev = ET.SubElement(td_prev, 'p')
                 if is_sum:
                     p_prev.set('class', 'sum-amount')  # Semibold right-aligned
