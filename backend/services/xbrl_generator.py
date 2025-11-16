@@ -1171,7 +1171,7 @@ td, th {
         
         p_verksamhet = ET.SubElement(page1, 'p')
         p_verksamhet.set('class', 'P')
-        p_verksamhet.set('style', 'margin-bottom: 36pt;')  # Space AFTER last element (doubled for testing)
+        p_verksamhet.set('style', 'margin-bottom: 27pt;')  # Space AFTER last element (75% of doubled)
         p_verksamhet.text = verksamhet_text
         
         # Väsentliga händelser
@@ -1186,7 +1186,7 @@ td, th {
         
         p_vasentliga = ET.SubElement(page1, 'p')
         p_vasentliga.set('class', 'P')
-        p_vasentliga.set('style', 'margin-bottom: 36pt;')  # Space AFTER last element (doubled for testing)
+        p_vasentliga.set('style', 'margin-bottom: 27pt;')  # Space AFTER last element (75% of doubled)
         p_vasentliga.text = vasentliga_text
         
         # Flerårsöversikt - render with proper logic
@@ -1272,7 +1272,7 @@ td, th {
         
         # Create table
         table = ET.SubElement(page, 'table')
-        table.set('style', 'border-collapse: collapse; width: 16cm; table-layout: fixed; margin-top: 6pt; margin-bottom: 36pt;')  # Space AFTER table (doubled for testing)
+        table.set('style', 'border-collapse: collapse; width: 16cm; table-layout: fixed; margin-top: 6pt; margin-bottom: 27pt;')  # Space AFTER table (75% of doubled)
         
         # Header row
         tr_header = ET.SubElement(table, 'tr')
@@ -1379,7 +1379,7 @@ td, th {
         col_width = data_width / num_cols if num_cols > 0 else 60
         
         table_width = label_width + (col_width * num_cols)
-        table.set('style', f'border-collapse: collapse; width: {table_width}pt; table-layout: fixed; margin-top: 6pt; margin-bottom: 36pt;')  # Space AFTER table (doubled for testing)
+        table.set('style', f'border-collapse: collapse; width: {table_width}pt; table-layout: fixed; margin-top: 6pt; margin-bottom: 27pt;')  # Space AFTER table (75% of doubled)
         
         # Header row
         tr_header = ET.SubElement(table, 'tr')
@@ -1465,7 +1465,7 @@ td, th {
         table = ET.SubElement(page, 'table')
         # Add margin-bottom only if no dividend text will follow (checked below)
         if arets_utdelning == 0:
-            table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt; margin-bottom: 36pt;')  # Doubled for testing
+            table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt; margin-bottom: 27pt;')  # 75% of doubled
         else:
             table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt;')
         
@@ -1588,7 +1588,7 @@ td, th {
         if arets_utdelning > 0:
             p_policy = ET.SubElement(page, 'p')
             p_policy.set('class', 'P')
-            p_policy.set('style', 'margin-top: 18pt; margin-bottom: 36pt;')  # Space AFTER last element (doubled for testing)
+            p_policy.set('style', 'margin-top: 18pt; margin-bottom: 27pt;')  # Space AFTER last element (75% of doubled)
             dividend_text = ("Styrelsen anser att förslaget är förenligt med försiktighetsregeln "
                             "i 17 kap. 3 § aktiebolagslagen enligt följande redogörelse. Styrelsens "
                             "uppfattning är att vinstutdelningen är försvarlig med hänsyn till de krav "
