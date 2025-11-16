@@ -1892,13 +1892,7 @@ body {
                     td_curr.set('class', f'td-amount {row_class}')
                 else:
                     td_curr.set('class', 'td-amount')
-                p_curr = ET.SubElement(td_curr, 'p')
-                if is_sum:
-                    p_curr.set('class', 'sum-amount')  # Bold right-aligned
-                else:
-                    p_curr.set('class', 'amount-right')  # Normal right-aligned
                 
-                # BR always has <p> wrapper for amounts (different from RR)
                 curr_val = self._num(row.get('current_amount', 0))
                 prev_val = self._num(row.get('previous_amount', 0))
                 # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
@@ -1911,19 +1905,19 @@ body {
                         namespace_prefix = self._get_namespace_prefix(namespace)
                         element_qname = f'{namespace_prefix}:{element_name}'
                         
-                        ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
-                        ix_curr.set('name', element_qname)
+                        # For negative values, add minus sign before XBRL tag
+                        if curr_val < 0: td_curr.text = '- '
+                        ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
                         ix_curr.set('contextRef', balans0_ref)
-                        ix_curr.set('unitRef', unit_ref)
-                        ix_curr.set('format', 'ixt:numdotdecimal')
-                        ix_curr.set('decimals', '0')
-                        ix_curr.set('scale', '3')
-                        ix_curr.text = str(int(round(curr_val)))
+                        ix_curr.set('name', element_qname)
+                        ix_curr.set('unitRef', 'SEK')
+                        ix_curr.set('decimals', 'INF')
+                        ix_curr.set('scale', '0')
+                        ix_curr.set('format', 'ixt:numspacecomma')
+                        ix_curr.text = self._format_monetary_value(abs(curr_val), for_display=True)
                     else:
-                        # Fallback to plain text (no decimals)
-                        p_curr.text = self._format_monetary_value(curr_val, for_display=True)
-                else:
-                    p_curr.text = ''
+                        # Fallback to plain text
+                        td_curr.text = self._format_monetary_value(curr_val, for_display=True)
                 
                 # Spacing column (always empty, never needs padding)
                 td_spacing = ET.SubElement(tr, 'td')
@@ -1931,43 +1925,35 @@ body {
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
-                if row_class and not is_heading:  # Only add padding to rows with content
+                if row_class:
                     td_prev.set('class', f'td-amount {row_class}')
                 else:
                     td_prev.set('class', 'td-amount')
-                p_prev = ET.SubElement(td_prev, 'p')
-                if is_sum:
-                    p_prev.set('class', 'sum-amount')  # Bold right-aligned
-                else:
-                    p_prev.set('class', 'amount-right')  # Normal right-aligned
                 
-                if is_heading:
-                    p_prev.text = ''
-                else:
-                    # prev_val already calculated above for current year logic
-                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
-                    if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
-                        variable_name = row.get('variable_name')
-                        if variable_name and variable_name in br_mappings_dict:
-                            mapping = br_mappings_dict[variable_name]
-                            element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
-                            
-                            ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
-                            ix_prev.set('name', element_qname)
-                            ix_prev.set('contextRef', balans1_ref)
-                            ix_prev.set('unitRef', unit_ref)
-                            ix_prev.set('format', 'ixt:numdotdecimal')
-                            ix_prev.set('decimals', '0')
-                            ix_prev.set('scale', '3')
-                            ix_prev.text = str(int(round(prev_val)))
-                        else:
-                            # Fallback to plain text (no decimals)
-                            p_prev.text = self._format_monetary_value(prev_val, for_display=True)
+                # prev_val already calculated above for current year logic
+                # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
+                    variable_name = row.get('variable_name')
+                    if variable_name and variable_name in br_mappings_dict:
+                        mapping = br_mappings_dict[variable_name]
+                        element_name = mapping.get('element_name')
+                        namespace = mapping.get('tillhor', 'se-gen-base')
+                        namespace_prefix = self._get_namespace_prefix(namespace)
+                        element_qname = f'{namespace_prefix}:{element_name}'
+                        
+                        # For negative values, add minus sign before XBRL tag
+                        if prev_val < 0: td_prev.text = '- '
+                        ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
+                        ix_prev.set('contextRef', balans1_ref)
+                        ix_prev.set('name', element_qname)
+                        ix_prev.set('unitRef', 'SEK')
+                        ix_prev.set('decimals', 'INF')
+                        ix_prev.set('scale', '0')
+                        ix_prev.set('format', 'ixt:numspacecomma')
+                        ix_prev.text = self._format_monetary_value(abs(prev_val), for_display=True)
                     else:
-                        p_prev.text = ''
+                        # Fallback to plain text
+                        td_prev.text = self._format_monetary_value(prev_val, for_display=True)
                 
                 # Final spacing column (not needed, handled by table layout)
     
@@ -2169,50 +2155,36 @@ body {
                     td_curr.set('class', f'td-amount {row_class}')
                 else:
                     td_curr.set('class', 'td-amount')
-                p_curr = ET.SubElement(td_curr, 'p')
-                if is_sum:
-                    p_curr.set('class', 'sum-amount')  # Semibold right-aligned
-                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
-                else:
-                    p_curr.set('class', 'amount-right')  # Normal right-aligned
-                    p_curr.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
-                if is_heading:
-                    p_curr.text = ''
-                else:
-                    curr_val = self._num(row.get('current_amount', 0))
-                    prev_val = self._num(row.get('previous_amount', 0))
-                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
-                    if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
-                        variable_name = row.get('variable_name')
-                        if variable_name and variable_name in br_mappings_dict:
-                            mapping = br_mappings_dict[variable_name]
-                            element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
-                            
-                            ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
-                            ix_curr.set('name', element_qname)
-                            ix_curr.set('contextRef', balans0_ref)
-                            ix_curr.set('unitRef', unit_ref)
-                            ix_curr.set('format', 'ixt:numdotdecimal')
-                            ix_curr.set('decimals', '0')
-                            ix_curr.set('scale', '3')
-                            ix_curr.text = str(int(round(curr_val)))
-                        else:
-                            # Fallback to plain text (no decimals)
-                            p_curr.text = self._format_monetary_value(curr_val, for_display=True)
+                curr_val = self._num(row.get('current_amount', 0))
+                prev_val = self._num(row.get('previous_amount', 0))
+                # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
+                    variable_name = row.get('variable_name')
+                    if variable_name and variable_name in br_mappings_dict:
+                        mapping = br_mappings_dict[variable_name]
+                        element_name = mapping.get('element_name')
+                        namespace = mapping.get('tillhor', 'se-gen-base')
+                        namespace_prefix = self._get_namespace_prefix(namespace)
+                        element_qname = f'{namespace_prefix}:{element_name}'
+                        
+                        # For negative values, add minus sign before XBRL tag
+                        if curr_val < 0: td_curr.text = '- '
+                        ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
+                        ix_curr.set('contextRef', balans0_ref)
+                        ix_curr.set('name', element_qname)
+                        ix_curr.set('unitRef', 'SEK')
+                        ix_curr.set('decimals', 'INF')
+                        ix_curr.set('scale', '0')
+                        ix_curr.set('format', 'ixt:numspacecomma')
+                        ix_curr.text = self._format_monetary_value(abs(curr_val), for_display=True)
                     else:
-                        p_curr.text = ''
+                        # Fallback to plain text
+                        td_curr.text = self._format_monetary_value(curr_val, for_display=True)
                 
                 # Spacing column
                 td_spacing = ET.SubElement(tr, 'td')
-                if row_class:
-                    td_spacing.set('class', f'td-spacing {row_class}')
-                else:
-                    td_spacing.set('class', 'td-spacing')
-                # No content needed for spacing column
+                td_spacing.set('class', 'td-spacing')
                 
                 # Previous year amount
                 td_prev = ET.SubElement(tr, 'td')
@@ -2220,41 +2192,31 @@ body {
                     td_prev.set('class', f'td-amount {row_class}')
                 else:
                     td_prev.set('class', 'td-amount')
-                p_prev = ET.SubElement(td_prev, 'p')
-                if is_sum:
-                    p_prev.set('class', 'sum-amount')  # Semibold right-aligned
-                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
-                else:
-                    p_prev.set('class', 'amount-right')  # Normal right-aligned
-                    p_prev.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
-                if is_heading:
-                    p_prev.text = ''
-                else:
-                    # prev_val already calculated above for current year logic
-                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
-                    if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
-                        variable_name = row.get('variable_name')
-                        if variable_name and variable_name in br_mappings_dict:
-                            mapping = br_mappings_dict[variable_name]
-                            element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
-                            
-                            ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
-                            ix_prev.set('name', element_qname)
-                            ix_prev.set('contextRef', balans1_ref)
-                            ix_prev.set('unitRef', unit_ref)
-                            ix_prev.set('format', 'ixt:numdotdecimal')
-                            ix_prev.set('decimals', '0')
-                            ix_prev.set('scale', '3')
-                            ix_prev.text = str(int(round(prev_val)))
-                        else:
-                            # Fallback to plain text (no decimals)
-                            p_prev.text = self._format_monetary_value(prev_val, for_display=True)
+                # prev_val already calculated above for current year logic
+                # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                if prev_val != 0 or curr_val != 0 or row.get('always_show') or note:
+                    variable_name = row.get('variable_name')
+                    if variable_name and variable_name in br_mappings_dict:
+                        mapping = br_mappings_dict[variable_name]
+                        element_name = mapping.get('element_name')
+                        namespace = mapping.get('tillhor', 'se-gen-base')
+                        namespace_prefix = self._get_namespace_prefix(namespace)
+                        element_qname = f'{namespace_prefix}:{element_name}'
+                        
+                        # For negative values, add minus sign before XBRL tag
+                        if prev_val < 0: td_prev.text = '- '
+                        ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
+                        ix_prev.set('contextRef', balans1_ref)
+                        ix_prev.set('name', element_qname)
+                        ix_prev.set('unitRef', 'SEK')
+                        ix_prev.set('decimals', 'INF')
+                        ix_prev.set('scale', '0')
+                        ix_prev.set('format', 'ixt:numspacecomma')
+                        ix_prev.text = self._format_monetary_value(abs(prev_val), for_display=True)
                     else:
-                        p_prev.text = ''
+                        # Fallback to plain text
+                        td_prev.text = self._format_monetary_value(prev_val, for_display=True)
                 
                 # Final spacing column (not needed, handled by table layout)
     
