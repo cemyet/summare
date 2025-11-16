@@ -1878,32 +1878,31 @@ body {
                     p_curr.set('class', 'amount-right')  # Normal right-aligned
                 
                 # BR always has <p> wrapper for amounts (different from RR)
-                else:
-                    curr_val = self._num(row.get('current_amount', 0))
-                    prev_val = self._num(row.get('previous_amount', 0))
-                    # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
-                    if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
-                        variable_name = row.get('variable_name')
-                        if variable_name and variable_name in br_mappings_dict:
-                            mapping = br_mappings_dict[variable_name]
-                            element_name = mapping.get('element_name')
-                            namespace = mapping.get('tillhor', 'se-gen-base')
-                            namespace_prefix = self._get_namespace_prefix(namespace)
-                            element_qname = f'{namespace_prefix}:{element_name}'
-                            
-                            ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
-                            ix_curr.set('name', element_qname)
-                            ix_curr.set('contextRef', balans0_ref)
-                            ix_curr.set('unitRef', unit_ref)
-                            ix_curr.set('format', 'ixt:numdotdecimal')
-                            ix_curr.set('decimals', '0')
-                            ix_curr.set('scale', '3')
-                            ix_curr.text = str(int(round(curr_val)))
-                        else:
-                            # Fallback to plain text (no decimals)
-                            p_curr.text = self._format_monetary_value(curr_val, for_display=True)
+                curr_val = self._num(row.get('current_amount', 0))
+                prev_val = self._num(row.get('previous_amount', 0))
+                # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
+                if curr_val != 0 or prev_val != 0 or row.get('always_show') or note:
+                    variable_name = row.get('variable_name')
+                    if variable_name and variable_name in br_mappings_dict:
+                        mapping = br_mappings_dict[variable_name]
+                        element_name = mapping.get('element_name')
+                        namespace = mapping.get('tillhor', 'se-gen-base')
+                        namespace_prefix = self._get_namespace_prefix(namespace)
+                        element_qname = f'{namespace_prefix}:{element_name}'
+                        
+                        ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
+                        ix_curr.set('name', element_qname)
+                        ix_curr.set('contextRef', balans0_ref)
+                        ix_curr.set('unitRef', unit_ref)
+                        ix_curr.set('format', 'ixt:numdotdecimal')
+                        ix_curr.set('decimals', '0')
+                        ix_curr.set('scale', '3')
+                        ix_curr.text = str(int(round(curr_val)))
                     else:
-                        p_curr.text = ''
+                        # Fallback to plain text (no decimals)
+                        p_curr.text = self._format_monetary_value(curr_val, for_display=True)
+                else:
+                    p_curr.text = ''
                 
                 # Spacing column (always empty, never needs padding)
                 td_spacing = ET.SubElement(tr, 'td')
