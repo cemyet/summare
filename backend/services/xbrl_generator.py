@@ -712,6 +712,21 @@ body {
   .ar-page8 {
     page-break-after: auto;
   }
+  
+  /* Prevent page breaks inside notes */
+  div[style*="page-break-inside: avoid"] {
+    page-break-inside: avoid;
+  }
+  
+  /* Allow page breaks between notes */
+  .H1 {
+    page-break-after: avoid; /* Keep heading with content */
+  }
+  
+  /* Tables should stay together if possible */
+  table {
+    page-break-inside: auto;
+  }
 }
 
 /* Typography styles (matching pdf_annual_report.py _styles()) */
@@ -2730,8 +2745,12 @@ td, th {
         title = block_title.replace(" – ", " ").replace(" - ", " ").replace("–", " ").replace("-", " ")
         title = " ".join(title.split())  # Clean multiple spaces
         
+        # Create a container div for the note (to keep it together and control page breaks)
+        note_container = ET.SubElement(page, 'div')
+        note_container.set('style', 'page-break-inside: avoid; margin-bottom: 32pt;')
+        
         # Note title (H1 heading with spacing)
-        p_heading = ET.SubElement(page, 'p')
+        p_heading = ET.SubElement(note_container, 'p')
         p_heading.set('class', 'H1')
         p_heading.set('style', 'margin-top: 18pt;')
         p_heading.text = f'Not {note_number}  {title}'
@@ -2742,7 +2761,7 @@ td, th {
             for note in visible_items:
                 text = note.get('variable_text', note.get('row_title', ''))
                 if text:
-                    p_text = ET.SubElement(page, 'p')
+                    p_text = ET.SubElement(note_container, 'p')
                     p_text.set('class', 'P')
                     p_text.set('style', 'margin-top: 10pt;')
                     p_text.text = text
@@ -2754,7 +2773,7 @@ td, th {
             avskrtid_inv = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_inv'), 0)
             avskrtid_ovriga = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_ovriga'), 0)
             
-            table = ET.SubElement(page, 'table')
+            table = ET.SubElement(note_container, 'table')
             table.set('style', 'border-collapse: collapse; width: 12cm; margin-top: 10pt;')
             
             # Header row
@@ -2797,11 +2816,6 @@ td, th {
                 p2.set('style', 'margin: 0;')
                 p2.text = str(int(val)) if val else '0'
             
-            # Spacing after note (add extra space to match PDF spacing between notes)
-            p_spacing = ET.SubElement(page, 'p')
-            p_spacing.set('class', 'P')
-            p_spacing.set('style', 'margin-top: 24pt;')
-            p_spacing.text = ' '
             return
         
         # Special handling for OVRIGA (text note with moderbolag)
@@ -2814,7 +2828,7 @@ td, th {
             for item in visible_items:
                 variable_text = item.get('variable_text', '').strip()
                 if variable_text:
-                    p_text = ET.SubElement(page, 'p')
+                    p_text = ET.SubElement(note_container, 'p')
                     p_text.set('class', 'P')
                     p_text.set('style', 'margin-top: 10pt;')
                     p_text.text = variable_text
@@ -2831,16 +2845,11 @@ td, th {
                     text += f" med organisationsnummer {moderbolag_orgnr}"
                 text += f", som har sitt säte i {moder_sate}."
                 
-                p_text = ET.SubElement(page, 'p')
+                p_text = ET.SubElement(note_container, 'p')
                 p_text.set('class', 'P')
                 p_text.set('style', 'margin-top: 10pt;')
                 p_text.text = text
             
-            # Spacing after note (add extra space to match PDF spacing between notes)
-            p_spacing = ET.SubElement(page, 'p')
-            p_spacing.set('class', 'P')
-            p_spacing.set('style', 'margin-top: 24pt;')
-            p_spacing.text = ' '
             return
         
         # For NOT2 and other notes, render as table
@@ -2857,7 +2866,7 @@ td, th {
             header_col3 = prev_end
         
         # Build table (col widths mirror PDF: 269pt, 80pt, 80pt = 9.5cm, 2.8cm, 2.8cm)
-        table = ET.SubElement(page, 'table')
+        table = ET.SubElement(note_container, 'table')
         table.set('style', 'border-collapse: collapse; width: 15.1cm; table-layout: fixed; margin-top: 10pt;')
         
         # Header row
@@ -3009,12 +3018,6 @@ td, th {
                         p_prev.text = prev_fmt
                 else:
                     p_prev.text = prev_fmt
-        
-        # Spacing after note (add extra space to match PDF spacing between notes)
-        p_spacing = ET.SubElement(page, 'p')
-        p_spacing.set('class', 'P')
-        p_spacing.set('style', 'margin-top: 24pt;')
-        p_spacing.text = ' '
     
     def _add_general_info_facts(self, company_data: Dict[str, Any], start_date: Optional[str], end_date: Optional[str]):
         """Add general company information facts (se-cd-base namespace)"""
