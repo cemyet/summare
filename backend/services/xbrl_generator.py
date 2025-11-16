@@ -2691,14 +2691,9 @@ td, th {
         
         # Noter title
         p_title = ET.SubElement(page5, 'p')
-        p_title.set('class', 'rubrik2')
+        p_title.set('class', 'H0')
+        p_title.set('style', 'margin-bottom: 18pt;')
         p_title.text = 'Noter'
-        
-        # Add more spacing after title (before first note)
-        p_spacing = ET.SubElement(page5, 'p')
-        p_spacing.set('class', 'normal')
-        p_spacing.set('style', 'margin-top: 24pt;')
-        p_spacing.text = ' '
         
         # Load noter data and mappings
         noter_data_raw = (company_data.get('noterData') or
