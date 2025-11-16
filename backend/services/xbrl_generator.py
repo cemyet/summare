@@ -1524,6 +1524,14 @@ body {
             rr_table = ET.SubElement(page2, 'table')
             rr_table.set('class', 'table-data')
             
+            # Define column widths explicitly for proper colspan behavior
+            colgroup = ET.SubElement(rr_table, 'colgroup')
+            ET.SubElement(colgroup, 'col', style='width: 9cm')     # Label column
+            ET.SubElement(colgroup, 'col', style='width: 2cm')     # Note column
+            ET.SubElement(colgroup, 'col', style='width: 2.5cm')   # Current year
+            ET.SubElement(colgroup, 'col', style='width: 0.5cm')   # Spacing
+            ET.SubElement(colgroup, 'col', style='width: 2.5cm')   # Previous year
+            
             # Load RR mappings for element names
             try:
                 from supabase import create_client
@@ -1772,6 +1780,14 @@ body {
         if br_data_raw:
             br_table = ET.SubElement(page3, 'table')
             br_table.set('class', 'table-data')
+            
+            # Define column widths explicitly for proper colspan behavior
+            colgroup = ET.SubElement(br_table, 'colgroup')
+            ET.SubElement(colgroup, 'col', style='width: 9cm')     # Label column
+            ET.SubElement(colgroup, 'col', style='width: 2cm')     # Note column
+            ET.SubElement(colgroup, 'col', style='width: 2.5cm')   # Current year
+            ET.SubElement(colgroup, 'col', style='width: 0.5cm')   # Spacing
+            ET.SubElement(colgroup, 'col', style='width: 2.5cm')   # Previous year
             
             # Filter assets only
             br_assets = [r for r in br_data_raw if r.get('type') == 'asset']
@@ -2026,6 +2042,14 @@ body {
         if br_data_raw:
             br_table = ET.SubElement(page4, 'table')
             br_table.set('class', 'table-data')
+            
+            # Define column widths explicitly for proper colspan behavior
+            colgroup = ET.SubElement(br_table, 'colgroup')
+            ET.SubElement(colgroup, 'col', style='width: 9cm')     # Label column
+            ET.SubElement(colgroup, 'col', style='width: 2cm')     # Note column
+            ET.SubElement(colgroup, 'col', style='width: 2.5cm')   # Current year
+            ET.SubElement(colgroup, 'col', style='width: 0.5cm')   # Spacing
+            ET.SubElement(colgroup, 'col', style='width: 2.5cm')   # Previous year
             
             # Filter equity and liabilities OR headings (H0-H3) - matching PDF logic
             # This ensures "Eget kapital", "Bundet eget kapital", etc. are included
