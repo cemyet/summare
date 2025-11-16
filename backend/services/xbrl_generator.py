@@ -1048,94 +1048,52 @@ td, th {
     def _render_cover_page(self, body: ET.Element, company_name: str, org_number: str, 
                           fiscal_year: Optional[int], start_date: Optional[str], end_date: Optional[str],
                           period0_ref: str):
-        """Render cover page"""
+        """Render cover page (mirror PDF generator exactly)"""
         page0 = ET.SubElement(body, 'div')
         page0.set('class', 'ar-page0')
         
-        # Add spacing
-        for _ in range(8):
-            p = ET.SubElement(page0, 'p')
-            p.set('class', 'normal')
-            p.text = ' '
+        # Top spacing: 16 line breaks = 192pt (PDF: Spacer(1, 16 * 12))
+        p_top_space = ET.SubElement(page0, 'p')
+        p_top_space.set('style', 'margin-top: 192pt; margin-bottom: 0;')
+        p_top_space.text = ''
         
-        # Center spacing
-        p_center = ET.SubElement(page0, 'p')
-        p_center.set('class', 'a16')
-        p_center.text = '\n' * 8
-        
-        # "Årsredovisning" title
+        # "Årsredovisning" - 18pt semibold, centered (PDF: fontSize=18, fontName='Roboto-Medium', spaceAfter=0, leading=18)
         p_title = ET.SubElement(page0, 'p')
-        p_title.set('class', 'a18')
-        span_title = ET.SubElement(p_title, 'span')
-        span_title.set('style', 'line-height: 27.59765625pt')
-        span_title.text = 'Årsredovisning'
+        p_title.set('class', 'cover-title')
+        p_title.set('style', 'margin-top: 0; margin-bottom: 4pt;')  # 4pt space after
+        p_title.text = 'Årsredovisning'
         
-        p_center2 = ET.SubElement(page0, 'p')
-        p_center2.set('class', 'a16')
-        p_center2.text = ' '
-        
-        # "för" label
-        p_for = ET.SubElement(page0, 'p')
-        p_for.set('class', 'a19')
-        p_for.text = 'för'
-        
-        p_normal = ET.SubElement(page0, 'p')
-        p_normal.set('class', 'normal')
-        p_normal.text = ' '
-        
-        # Company name
+        # Company name - 16pt semibold, centered (with XBRL tag)
         p_name = ET.SubElement(page0, 'p')
-        p_name.set('class', 'a18')
-        span_name = ET.SubElement(p_name, 'span')
-        span_name.set('style', 'line-height: 27.59765625pt')
-        ix_name = ET.SubElement(span_name, 'ix:nonNumeric')
+        p_name.set('class', 'cover-subtitle')
+        p_name.set('style', 'margin-top: 0; margin-bottom: 4pt;')  # 4pt space after
+        ix_name = ET.SubElement(p_name, 'ix:nonNumeric')
         ix_name.set('name', 'se-cd-base:ForetagetsNamn')
         ix_name.set('contextRef', period0_ref)
         ix_name.text = company_name
         
-        p_center3 = ET.SubElement(page0, 'p')
-        p_center3.set('class', 'a16')
-        p_center3.text = ' '
-        
-        # Organization number
+        # Organization number - 16pt normal, centered (with XBRL tag)
         p_org = ET.SubElement(page0, 'p')
-        p_org.set('class', 'a16')
-        span_org = ET.SubElement(p_org, 'span')
-        span_org.set('style', 'font-size: 14pt')
-        ix_org = ET.SubElement(span_org, 'ix:nonNumeric')
+        p_org.set('class', 'cover-center')
+        p_org.set('style', 'margin-top: 0; margin-bottom: 24pt; font-size: 16pt;')  # 24pt space after
+        ix_org = ET.SubElement(p_org, 'ix:nonNumeric')
         ix_org.set('name', 'se-cd-base:Organisationsnummer')
         ix_org.set('contextRef', period0_ref)
         ix_org.text = str(org_number).replace('-', '')
         
-        # Add more spacing
-        for _ in range(4):
-            p = ET.SubElement(page0, 'p')
-            p.set('class', 'a16')
-            p.text = ' '
-        
-        # "Räkenskapsåret" label
+        # "avseende perioden" - 12pt normal, centered
         p_period_label = ET.SubElement(page0, 'p')
-        p_period_label.set('class', 'a16')
-        span_period_label = ET.SubElement(p_period_label, 'span')
-        span_period_label.set('style', 'font-size: 14pt')
-        span_period_label.text = 'Räkenskapsåret'
+        p_period_label.set('class', 'cover-label')
+        p_period_label.set('style', 'margin-top: 0; margin-bottom: 3pt;')  # 3pt space after
+        p_period_label.text = 'avseende perioden'
         
-        p_center4 = ET.SubElement(page0, 'p')
-        p_center4.set('class', 'a16')
-        p_center4.text = ' '
+        # Fiscal period dates - 14pt normal, centered
+        p_dates = ET.SubElement(page0, 'p')
+        p_dates.set('class', 'cover-center')
+        p_dates.set('style', 'margin-top: 0; margin-bottom: 0; font-size: 14pt;')
+        period_text = f"{start_date} - {end_date}"
+        p_dates.text = period_text
         
-        # Fiscal year
-        p_year = ET.SubElement(page0, 'p')
-        p_year.set('class', 'a17')
-        span_year = ET.SubElement(p_year, 'span')
-        span_year.set('style', 'font-weight: normal; line-height: 18.3984375pt')
-        span_year.text = str(fiscal_year) if fiscal_year else ''
-        
-        # Add remaining spacing
-        for _ in range(10):
-            p = ET.SubElement(page0, 'p')
-            p.set('class', 'normal')
-            p.text = ' '
     
     def _render_forvaltningsberattelse(self, body: ET.Element, company_data: Dict[str, Any],
                                       company_name: str, org_number: str, fiscal_year: Optional[int],
@@ -1201,34 +1159,30 @@ td, th {
             if not verksamhet_text:
                 verksamhet_text = "Bolaget bedriver verksamhet enligt bolagsordningen."
         
-        # Verksamheten section (with container for spacing control)
-        div_verksamhet = ET.SubElement(page1, 'div')
-        div_verksamhet.set('style', 'margin-top: 18pt;')
-        
-        p_h_verksamhet = ET.SubElement(div_verksamhet, 'p')
+        # Verksamheten section
+        p_h_verksamhet = ET.SubElement(page1, 'p')
         p_h_verksamhet.set('class', 'H1')
-        p_h_verksamhet.set('style', 'margin-top: 0pt;')
+        p_h_verksamhet.set('style', 'margin-top: 18pt;')
         p_h_verksamhet.text = 'Verksamheten'
         
-        p_verksamhet = ET.SubElement(div_verksamhet, 'p')
+        p_verksamhet = ET.SubElement(page1, 'p')
         p_verksamhet.set('class', 'P')
+        p_verksamhet.set('style', 'margin-bottom: 18pt;')  # Space AFTER last element
         p_verksamhet.text = verksamhet_text
         
-        # Väsentliga händelser (with container for spacing control)
+        # Väsentliga händelser
         vasentliga_text = company_data.get('vasentligaHandelser')
         if not vasentliga_text:
             vasentliga_text = "Inga väsentliga händelser under året."
         
-        div_vasentliga = ET.SubElement(page1, 'div')
-        div_vasentliga.set('style', 'margin-top: 18pt;')
-        
-        p_h_vasentliga = ET.SubElement(div_vasentliga, 'p')
+        p_h_vasentliga = ET.SubElement(page1, 'p')
         p_h_vasentliga.set('class', 'H1')
-        p_h_vasentliga.set('style', 'margin-top: 0pt;')
+        p_h_vasentliga.set('style', 'margin-top: 0;')  # No extra space, already added by previous element
         p_h_vasentliga.text = 'Väsentliga händelser under räkenskapsåret'
         
-        p_vasentliga = ET.SubElement(div_vasentliga, 'p')
+        p_vasentliga = ET.SubElement(page1, 'p')
         p_vasentliga.set('class', 'P')
+        p_vasentliga.set('style', 'margin-bottom: 18pt;')  # Space AFTER last element
         p_vasentliga.text = vasentliga_text
         
         # Flerårsöversikt - render with proper logic
@@ -1244,16 +1198,12 @@ td, th {
                                      fb_variables: dict, fb_mappings: list, period0_ref: str, balans0_ref: str, 
                                      balans1_ref: str, unit_ref: str) -> None:
         """Render Flerårsöversikt table with 3 years"""
-        # Create container for spacing control
-        div_flerarsoversikt = ET.SubElement(page, 'div')
-        div_flerarsoversikt.set('style', 'margin-top: 18pt;')
-        
-        p_heading = ET.SubElement(div_flerarsoversikt, 'p')
+        p_heading = ET.SubElement(page, 'p')
         p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 0pt;')
+        p_heading.set('style', 'margin-top: 0;')  # Space already added by previous element
         p_heading.text = 'Flerårsöversikt'
         
-        p_tkr = ET.SubElement(div_flerarsoversikt, 'p')
+        p_tkr = ET.SubElement(page, 'p')
         p_tkr.set('class', 'SMALL')
         p_tkr.text = 'Belopp i tkr'
         
@@ -1317,8 +1267,8 @@ td, th {
         rows_data.append(('Soliditet', sol_vals, True))  # True = percentage
         
         # Create table
-        table = ET.SubElement(div_flerarsoversikt, 'table')
-        table.set('style', 'border-collapse: collapse; width: 16cm; table-layout: fixed; margin-top: 6pt;')
+        table = ET.SubElement(page, 'table')
+        table.set('style', 'border-collapse: collapse; width: 16cm; table-layout: fixed; margin-top: 6pt; margin-bottom: 18pt;')  # Space AFTER table
         
         # Header row
         tr_header = ET.SubElement(table, 'tr')
@@ -1368,13 +1318,9 @@ td, th {
         if not fb_table or len(fb_table) == 0:
             return
         
-        # Create container for spacing control
-        div_forandringar = ET.SubElement(page, 'div')
-        div_forandringar.set('style', 'margin-top: 18pt;')
-        
-        p_heading = ET.SubElement(div_forandringar, 'p')
+        p_heading = ET.SubElement(page, 'p')
         p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 0pt;')
+        p_heading.set('style', 'margin-top: 0;')  # Space already added by previous element
         p_heading.text = 'Förändringar i eget kapital'
         
         # Column definitions
@@ -1421,7 +1367,7 @@ td, th {
             return  # No data to show
         
         # Create table
-        table = ET.SubElement(div_forandringar, 'table')
+        table = ET.SubElement(page, 'table')
         available_width = 459  # Full page width in pt
         label_width = 160
         num_cols = len(visible_cols)
@@ -1429,7 +1375,7 @@ td, th {
         col_width = data_width / num_cols if num_cols > 0 else 60
         
         table_width = label_width + (col_width * num_cols)
-        table.set('style', f'border-collapse: collapse; width: {table_width}pt; table-layout: fixed; margin-top: 6pt;')
+        table.set('style', f'border-collapse: collapse; width: {table_width}pt; table-layout: fixed; margin-top: 6pt; margin-bottom: 18pt;')  # Space AFTER table
         
         # Header row
         tr_header = ET.SubElement(table, 'tr')
@@ -1502,22 +1448,22 @@ td, th {
         if summa == 0 and arets_utdelning == 0:
             return  # Nothing to report
         
-        # Create container for spacing control
-        div_resultatdisposition = ET.SubElement(page, 'div')
-        div_resultatdisposition.set('style', 'margin-top: 18pt;')
-        
-        p_heading = ET.SubElement(div_resultatdisposition, 'p')
+        p_heading = ET.SubElement(page, 'p')
         p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 0pt;')
+        p_heading.set('style', 'margin-top: 0;')  # Space already added by previous element
         p_heading.text = 'Resultatdisposition'
         
-        p_intro = ET.SubElement(div_resultatdisposition, 'p')
+        p_intro = ET.SubElement(page, 'p')
         p_intro.set('class', 'P')
         p_intro.text = 'Styrelsen och VD föreslår att till förfogande stående medel'
         
         # Create table
-        table = ET.SubElement(div_resultatdisposition, 'table')
-        table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt;')
+        table = ET.SubElement(page, 'table')
+        # Add margin-bottom only if no dividend text will follow (checked below)
+        if arets_utdelning == 0:
+            table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt; margin-bottom: 18pt;')
+        else:
+            table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt;')
         
         # Available funds
         if balanserat != 0:
@@ -1634,11 +1580,11 @@ td, th {
         p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
         p_val.text = self._format_monetary_value(summa, for_display=True)
         
-        # Add dividend policy text if utdelning > 0
+        # Add dividend policy text if utdelning > 0 (this is the LAST element - add space AFTER)
         if arets_utdelning > 0:
-            p_policy = ET.SubElement(div_resultatdisposition, 'p')
+            p_policy = ET.SubElement(page, 'p')
             p_policy.set('class', 'P')
-            p_policy.set('style', 'margin-top: 18pt;')
+            p_policy.set('style', 'margin-top: 18pt; margin-bottom: 18pt;')  # Space AFTER last element
             dividend_text = ("Styrelsen anser att förslaget är förenligt med försiktighetsregeln "
                             "i 17 kap. 3 § aktiebolagslagen enligt följande redogörelse. Styrelsens "
                             "uppfattning är att vinstutdelningen är försvarlig med hänsyn till de krav "
