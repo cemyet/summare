@@ -1661,7 +1661,7 @@ body {
                         element_qname = f'se-gen-base:{element_name}'
                         
                         # For negative values, add minus sign before XBRL tag
-                        if curr_val < 0: td_curr.text = '-'
+                        if curr_val < 0: td_curr.text = '- '
                         ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
                         ix_curr.set('contextRef', period0_ref)
                         ix_curr.set('name', element_qname)
@@ -1696,7 +1696,7 @@ body {
                         element_qname = f'se-gen-base:{element_name}'
                         
                         # For negative values, add minus sign before XBRL tag
-                        if prev_val < 0: td_prev.text = '-'
+                        if prev_val < 0: td_prev.text = '- '
                         ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
                         ix_prev.set('contextRef', period1_ref)
                         ix_prev.set('name', element_qname)
