@@ -2622,22 +2622,26 @@ body {
         noter_toggle_on = company_data.get('noterToggleOn', False)
         noter_block_toggles = company_data.get('noterBlockToggles', {})
         
-        # Load noter mappings from variable_mapping_noter_rows
+        # Load noter mappings from variable_mapping_noter
         try:
             from supabase import create_client
             import os
             from dotenv import load_dotenv
+            import traceback
             load_dotenv()
             supabase_url = os.getenv("SUPABASE_URL")
             supabase_key = os.getenv("SUPABASE_ANON_KEY")
             if supabase_url and supabase_key:
                 supabase = create_client(supabase_url, supabase_key)
-                noter_mappings_response = supabase.table('variable_mapping_noter_rows').select('*').execute()
+                # Select item_name, Datatyp, period_type from variable_mapping_noter
+                noter_mappings_response = supabase.table('variable_mapping_noter').select('variable_name,item_name,Datatyp,period_type').execute()
                 noter_mappings_dict = {m['variable_name']: m for m in noter_mappings_response.data if m.get('variable_name')}
+                print(f"✓ Loaded {len(noter_mappings_dict)} Noter mappings")
             else:
                 noter_mappings_dict = {}
         except Exception as e:
-            print(f"[NOTER] Error loading mappings: {e}")
+            print(f"⚠ Warning: Failed to load Noter mappings - {e}")
+            traceback.print_exc()
             noter_mappings_dict = {}
         
         # Group notes by block
@@ -2698,14 +2702,29 @@ body {
         
         #Special handling for NOT1 (Redovisningsprinciper - text + depreciation table)
         if block_name == 'NOT1':
-            # Render text paragraphs
+            # Render text paragraphs with XBRL tagging
             for note in visible_items:
                 text = note.get('variable_text', note.get('row_title', ''))
+                variable_name = note.get('variable_name', '')
+                
                 if text:
                     p_text = ET.SubElement(note_container, 'p')
                     p_text.set('class', 'P')
                     p_text.set('style', 'margin-top: 10pt;')
-                    p_text.text = text
+                    
+                    # Add XBRL tagging for text content
+                    mapping = noter_mappings_dict.get(variable_name)
+                    if mapping:
+                        element_name = mapping.get('item_name')
+                        if element_name:
+                            ix_text = ET.SubElement(p_text, 'ix:nonNumeric')
+                            ix_text.set('name', f'se-gen-base:{element_name}')
+                            ix_text.set('contextRef', period0_ref)
+                            ix_text.text = text
+                        else:
+                            p_text.text = text
+                    else:
+                        p_text.text = text
             
             # Build depreciation table
             noter_data = company_data.get('noterData', [])
@@ -2733,15 +2752,15 @@ body {
             p_h2.set('style', 'margin: 0; font-weight: 500;')
             p_h2.text = 'År'
             
-            # Data rows
+            # Data rows with XBRL tagging for depreciation periods
             depr_items = [
-                ('Byggnader & mark', avskrtid_bygg),
-                ('Maskiner och andra tekniska anläggningar', avskrtid_mask),
-                ('Inventarier, verktyg och installationer', avskrtid_inv),
-                ('Övriga materiella anläggningstillgångar', avskrtid_ovriga),
+                ('Byggnader & mark', avskrtid_bygg, 'avskr-princip-bygg'),
+                ('Maskiner och andra tekniska anläggningar', avskrtid_mask, 'avskr-princip-mask'),
+                ('Inventarier, verktyg och installationer', avskrtid_inv, 'avskr-princip-inv'),
+                ('Övriga materiella anläggningstillgångar', avskrtid_ovriga, 'avskr-princip-ovriga'),
             ]
             
-            for label, val in depr_items:
+            for label, val, tuple_id in depr_items:
                 tr = ET.SubElement(table, 'tr')
                 td1 = ET.SubElement(tr, 'td')
                 td1.set('style', 'vertical-align: top; width: 10cm; padding-top: 2pt;')
@@ -2752,10 +2771,15 @@ body {
                 
                 td2 = ET.SubElement(tr, 'td')
                 td2.set('style', 'vertical-align: top; width: 2cm; text-align: right; padding-top: 2pt;')
-                p2 = ET.SubElement(td2, 'p')
-                p2.set('class', 'P')
-                p2.set('style', 'margin: 0;')
-                p2.text = str(int(val)) if val else '0'
+                
+                # Add XBRL tagging for depreciation period (year value)
+                val_text = f"{int(val)} år" if val else '0 år'
+                ix_period = ET.SubElement(td2, 'ix:nonNumeric')
+                ix_period.set('contextRef', period0_ref)
+                ix_period.set('name', 'se-gen-base:AvskrivningsprincipMateriellAnlaggningstillgangNyttjandeperiod')
+                ix_period.set('order', '2.0')
+                ix_period.set('tupleRef', tuple_id)
+                ix_period.text = val_text
             
             return
         
@@ -2764,18 +2788,33 @@ body {
             scraped_data = company_data.get('scraped_company_data', {})
             moderbolag = scraped_data.get('moderbolag')
             
-            # Check for variable_text from items
+            # Check for variable_text from items with XBRL tagging
             has_text = False
             for item in visible_items:
                 variable_text = item.get('variable_text', '').strip()
+                variable_name = item.get('variable_name', '')
+                
                 if variable_text:
                     p_text = ET.SubElement(note_container, 'p')
                     p_text.set('class', 'P')
                     p_text.set('style', 'margin-top: 10pt;')
-                    p_text.text = variable_text
+                    
+                    # Add XBRL tagging for text content
+                    mapping = noter_mappings_dict.get(variable_name)
+                    if mapping:
+                        element_name = mapping.get('item_name')
+                        if element_name:
+                            ix_text = ET.SubElement(p_text, 'ix:nonNumeric')
+                            ix_text.set('name', f'se-gen-base:{element_name}')
+                            ix_text.set('contextRef', period0_ref)
+                            ix_text.text = variable_text
+                        else:
+                            p_text.text = variable_text
+                    else:
+                        p_text.text = variable_text
                     has_text = True
             
-            # If no variable_text but moderbolag exists, render it
+            # If no variable_text but moderbolag exists, render it (with XBRL tag)
             if not has_text and moderbolag:
                 moderbolag_orgnr = scraped_data.get('moderbolag_orgnr', '')
                 sate = scraped_data.get('säte', '')
@@ -2789,7 +2828,12 @@ body {
                 p_text = ET.SubElement(note_container, 'p')
                 p_text.set('class', 'P')
                 p_text.set('style', 'margin-top: 10pt;')
-                p_text.text = text
+                
+                # Tag with NotUpplysningModerforetag
+                ix_text = ET.SubElement(p_text, 'ix:nonNumeric')
+                ix_text.set('name', 'se-gen-base:NotUpplysningModerforetag')
+                ix_text.set('contextRef', period0_ref)
+                ix_text.text = text
             
             return
         
@@ -2902,21 +2946,37 @@ body {
                 if mapping and curr_fmt:
                     element_name = mapping.get('item_name')
                     period_type = mapping.get('period_type', 'duration')
+                    data_type = mapping.get('Datatyp', 'xbrli:monetaryItemType')
                     
                     if element_name:
-                        namespace = 'se-gen-base'  # Default namespace
-                        namespace_prefix = self._get_namespace_prefix(namespace)
-                        element_qname = f'{namespace_prefix}:{element_name}'
+                        namespace = 'se-gen-base'  # Default namespace for noter
+                        element_qname = f'{namespace}:{element_name}'
                         
                         context_ref = period0_ref if period_type == 'duration' else balans0_ref
+                        cur = self._num(it.get('current_amount', 0))
                         
-                        ix_curr = ET.SubElement(p_curr, 'ix:nonFraction')
-                        ix_curr.set('name', element_qname)
-                        ix_curr.set('contextRef', context_ref)
-                        ix_curr.set('unitRef', unit_ref)
-                        ix_curr.set('format', 'ixt:numdotdecimal')
-                        ix_curr.set('decimals', '-3')
-                        ix_curr.text = str(int(round(self._num(it.get('current_amount', 0)))))
+                        # Use ix:nonNumeric for string/text types, ix:nonFraction for monetary/numeric
+                        if 'stringItemType' in data_type or 'enumeration' in data_type:
+                            ix_curr = ET.SubElement(p_curr, 'ix:nonNumeric')
+                            ix_curr.set('name', element_qname)
+                            ix_curr.set('contextRef', context_ref)
+                            ix_curr.text = curr_fmt
+                        else:
+                            # Monetary or numeric value - tag directly in <td>, remove <p>
+                            td_curr.remove(p_curr)
+                            
+                            # Handle negative values
+                            if cur < 0:
+                                td_curr.text = '-'
+                            
+                            ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
+                            ix_curr.set('contextRef', context_ref)
+                            ix_curr.set('name', element_qname)
+                            ix_curr.set('unitRef', 'SEK')  # Hardcode to SEK
+                            ix_curr.set('decimals', 'INF')  # Exact value
+                            ix_curr.set('scale', '0')  # No scaling
+                            ix_curr.set('format', 'ixt:numspacecomma')  # Space thousands separator
+                            ix_curr.text = self._format_monetary_value(abs(cur), for_display=True)
                     else:
                         p_curr.text = curr_fmt
                 else:
@@ -2940,21 +3000,37 @@ body {
                 if mapping and prev_fmt:
                     element_name = mapping.get('item_name')
                     period_type = mapping.get('period_type', 'duration')
+                    data_type = mapping.get('Datatyp', 'xbrli:monetaryItemType')
                     
                     if element_name:
-                        namespace = 'se-gen-base'
-                        namespace_prefix = self._get_namespace_prefix(namespace)
-                        element_qname = f'{namespace_prefix}:{element_name}'
+                        namespace = 'se-gen-base'  # Default namespace for noter
+                        element_qname = f'{namespace}:{element_name}'
                         
                         context_ref = period1_ref if period_type == 'duration' else balans1_ref
+                        prev = self._num(it.get('previous_amount', 0))
                         
-                        ix_prev = ET.SubElement(p_prev, 'ix:nonFraction')
-                        ix_prev.set('name', element_qname)
-                        ix_prev.set('contextRef', context_ref)
-                        ix_prev.set('unitRef', unit_ref)
-                        ix_prev.set('format', 'ixt:numdotdecimal')
-                        ix_prev.set('decimals', '-3')
-                        ix_prev.text = str(int(round(self._num(it.get('previous_amount', 0)))))
+                        # Use ix:nonNumeric for string/text types, ix:nonFraction for monetary/numeric
+                        if 'stringItemType' in data_type or 'enumeration' in data_type:
+                            ix_prev = ET.SubElement(p_prev, 'ix:nonNumeric')
+                            ix_prev.set('name', element_qname)
+                            ix_prev.set('contextRef', context_ref)
+                            ix_prev.text = prev_fmt
+                        else:
+                            # Monetary or numeric value - tag directly in <td>, remove <p>
+                            td_prev.remove(p_prev)
+                            
+                            # Handle negative values
+                            if prev < 0:
+                                td_prev.text = '-'
+                            
+                            ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
+                            ix_prev.set('contextRef', context_ref)
+                            ix_prev.set('name', element_qname)
+                            ix_prev.set('unitRef', 'SEK')  # Hardcode to SEK
+                            ix_prev.set('decimals', 'INF')  # Exact value
+                            ix_prev.set('scale', '0')  # No scaling
+                            ix_prev.set('format', 'ixt:numspacecomma')  # Space thousands separator
+                            ix_prev.text = self._format_monetary_value(abs(prev), for_display=True)
                     else:
                         p_prev.text = prev_fmt
                 else:
