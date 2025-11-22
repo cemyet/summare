@@ -1227,6 +1227,21 @@ body {
         p_tkr.set('class', 'SMALL')
         p_tkr.text = 'Belopp i tkr'
         
+        # Build FB mappings dict by variable name
+        fb_mappings_dict = {}
+        for mapping in fb_mappings:
+            var_str = mapping.get('variable', '')
+            if var_str:
+                # Split multiple variables (oms1;oms2;oms3;oms4)
+                vars_list = [v.strip() for v in var_str.split(';') if v.strip()]
+                for var_name in vars_list:
+                    fb_mappings_dict[var_name] = {
+                        'element_name': mapping.get('elementname', ''),
+                        'data_type': mapping.get('datatyp', ''),
+                        'period_type': mapping.get('periodtyp', ''),
+                        'namespace': 'se-gen-base'  # Hardcoded from tillhor column
+                    }
+        
         # Get flerårsöversikt data
         flerars = company_data.get('flerarsoversikt', {})
         
@@ -1258,33 +1273,33 @@ body {
         # oms1;oms2;oms3 -> current, prev, prev-1
         rows_data = []
         
-        # Nettoomsättning (row 31 in CSV)
+        # Nettoomsättning (row 31 in CSV) - variable: oms1;oms2;oms3
         oms_vals = [get_var('oms1'), get_var('oms2'), get_var('oms3')]
         if all(v == 0 for v in oms_vals):
             scraped_oms = get_scraped_values(['Omsättning', 'Total omsättning', 'omsättning'])
             oms_vals = scraped_oms
-        rows_data.append(('Nettoomsättning', oms_vals, False))
+        rows_data.append(('Nettoomsättning', oms_vals, False, ['oms1', 'oms2', 'oms3']))
         
-        # Resultat efter finansiella poster (row 34)
+        # Resultat efter finansiella poster (row 34) - variable: ref1;ref2;ref3
         ref_vals = [get_var('ref1'), get_var('ref2'), get_var('ref3')]
         if all(v == 0 for v in ref_vals):
             scraped_ref = get_scraped_values(['Resultat efter finansnetto', 'Resultat efter finansiella poster'])
             ref_vals = scraped_ref
-        rows_data.append(('Resultat efter finansiella poster', ref_vals, False))
+        rows_data.append(('Resultat efter finansiella poster', ref_vals, False, ['ref1', 'ref2', 'ref3']))
         
-        # Balansomslutning (row 39)
+        # Balansomslutning (row 39) - variable: bal1;bal2;bal3
         bal_vals = [get_var('bal1'), get_var('bal2'), get_var('bal3')]
         if all(v == 0 for v in bal_vals):
             scraped_bal = get_scraped_values(['Summa tillgångar', 'Balansomslutning'])
             bal_vals = scraped_bal
-        rows_data.append(('Balansomslutning', bal_vals, False))
+        rows_data.append(('Balansomslutning', bal_vals, False, ['bal1', 'bal2', 'bal3']))
         
-        # Soliditet (row 41) - percentage
+        # Soliditet (row 41) - percentage - variable: sol1;sol2;sol3
         sol_vals = [get_var('sol1'), get_var('sol2'), get_var('sol3')]
         if all(v == 0 for v in sol_vals):
             scraped_sol = get_scraped_values(['Soliditet'])
             sol_vals = scraped_sol
-        rows_data.append(('Soliditet', sol_vals, True))  # True = percentage
+        rows_data.append(('Soliditet', sol_vals, True, ['sol1', 'sol2', 'sol3']))  # True = percentage
         
         # Create table
         table = ET.SubElement(page, 'table')
@@ -1305,7 +1320,7 @@ body {
             p_year.text = year
         
         # Data rows
-        for label, values, is_percentage in rows_data:
+        for label, values, is_percentage, var_names in rows_data:
             tr = ET.SubElement(table, 'tr')
             
             # Label
@@ -1315,20 +1330,73 @@ body {
             p_label.set('class', 'P')
             p_label.text = label
             
-            # Values
-            for val in values:
+            # Values (3 years: current, prev, prev-1)
+            # Only current (index 0) and prev (index 1) get XBRL tags
+            for idx, val in enumerate(values):
                 td_val = ET.SubElement(tr, 'td')
                 td_val.set('style', 'vertical-align: top; width: 3cm; text-align: right; padding-top: 2pt;')
-                p_val = ET.SubElement(td_val, 'p')
-                p_val.set('class', 'P')
-                p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
                 
-                if is_percentage:
-                    # Soliditet - show as percentage
-                    p_val.text = f"{int(round(val))}%"
+                # Get XBRL mapping for this variable
+                var_name = var_names[idx] if idx < len(var_names) else None
+                mapping = fb_mappings_dict.get(var_name) if var_name else None
+                
+                # Determine contextRef based on year index and period type
+                context_ref = None
+                if idx == 0:  # Current year
+                    context_ref = period0_ref if mapping and mapping.get('period_type') == 'DURATION' else balans0_ref
+                elif idx == 1:  # Previous year
+                    context_ref = 'period1' if mapping and mapping.get('period_type') == 'DURATION' else balans1_ref
+                # idx == 2 (prev-1 year) gets no XBRL tagging
+                
+                # Apply XBRL tagging only to first 2 years (current and prev)
+                if mapping and context_ref and idx < 2:
+                    element_name = f"{mapping['namespace']}:{mapping['element_name']}"
+                    data_type = mapping.get('data_type', '')
+                    
+                    if data_type == 'xbrli:monetaryItemType':
+                        # Monetary value
+                        formatted_val = self._format_monetary_value(abs(val), for_display=True)
+                        if val < 0:
+                            td_val.text = '- '
+                        
+                        ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
+                        ix_elem.set('contextRef', context_ref)
+                        ix_elem.set('name', element_name)
+                        ix_elem.set('unitRef', 'SEK')
+                        ix_elem.set('decimals', 'INF')
+                        ix_elem.set('scale', '0')
+                        ix_elem.set('format', 'ixt:numspacecomma')
+                        if val < 0:
+                            ix_elem.set('sign', '-')
+                        ix_elem.text = formatted_val
+                    elif data_type == 'xbrli:pureItemType':
+                        # Soliditet percentage - use ix:nonFraction with no unit
+                        ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
+                        ix_elem.set('contextRef', context_ref)
+                        ix_elem.set('name', element_name)
+                        ix_elem.set('decimals', '2')
+                        ix_elem.set('format', 'ixt:numdotdecimal')
+                        # Store as decimal (e.g., 45% = 0.45)
+                        decimal_val = val / 100
+                        ix_elem.text = f"{decimal_val:.2f}"
+                    else:
+                        # Fallback: plain text in <p>
+                        p_val = ET.SubElement(td_val, 'p')
+                        p_val.set('class', 'P')
+                        p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                        if is_percentage:
+                            p_val.text = f"{int(round(val))}%"
+                        else:
+                            p_val.text = self._format_monetary_value(val, for_display=True)
                 else:
-                    # Amounts in thousands
-                    p_val.text = self._format_monetary_value(val, for_display=True)
+                    # No XBRL tagging (third year or no mapping): plain text in <p>
+                    p_val = ET.SubElement(td_val, 'p')
+                    p_val.set('class', 'P')
+                    p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                    if is_percentage:
+                        p_val.text = f"{int(round(val))}%"
+                    else:
+                        p_val.text = self._format_monetary_value(val, for_display=True)
     
     def _render_forandringar_eget_kapital_xbrl(self, page: ET.Element, fb_table: list, fiscal_year: int, 
                                                prev_year: int, fb_variables: dict, fb_mappings: list,
@@ -1341,6 +1409,36 @@ body {
         p_heading.set('class', 'H1')
         p_heading.set('style', 'margin-top: 0;')  # Space already added by previous element
         p_heading.text = 'Förändringar i eget kapital'
+        
+        # Build FB mappings dict by (radrubrik, block) for Förändringar i eget kapital
+        # Map: block (column) → {radrubrik (row label) → mapping data}
+        fb_mappings_by_block = {}
+        for mapping in fb_mappings:
+            radrubrik = mapping.get('radrubrik', '')
+            block = mapping.get('block', '')
+            
+            # Only process mappings for equity changes blocks
+            if block in ['AKTIEKAPITAL', 'RESERVFOND', 'UPPSKRIVNINGSFOND', 
+                        'BALANSERATRESULTAT', 'ARETSRESULTAT', 'TOTALTEGETKAPITAL']:
+                if block not in fb_mappings_by_block:
+                    fb_mappings_by_block[block] = {}
+                
+                fb_mappings_by_block[block][radrubrik] = {
+                    'element_name': mapping.get('elementname', ''),
+                    'data_type': mapping.get('datatyp', ''),
+                    'period_type': mapping.get('periodtyp', ''),
+                    'namespace': 'se-gen-base'
+                }
+        
+        # Map column names to block names for lookup
+        col_to_block = {
+            'aktiekapital': 'AKTIEKAPITAL',
+            'reservfond': 'RESERVFOND',
+            'uppskrivningsfond': 'UPPSKRIVNINGSFOND',
+            'balanserat_resultat': 'BALANSERATRESULTAT',
+            'arets_resultat': 'ARETSRESULTAT',
+            'total': 'TOTALTEGETKAPITAL'
+        }
         
         # Column definitions
         cols = ['aktiekapital', 'reservfond', 'uppskrivningsfond', 'balanserat_resultat', 'arets_resultat', 'total']
@@ -1430,16 +1528,66 @@ body {
             p_label.text = label
             
             # Values
-            for val in values:
+            for col_idx, val in enumerate(values):
                 td_val = ET.SubElement(tr, 'td')
                 td_val.set('style', f'vertical-align: top; width: {col_width}pt; text-align: right; padding-top: 2pt;')
-                p_val = ET.SubElement(td_val, 'p')
-                p_val.set('class', 'P')
-                if is_utgaende:
-                    p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+                
+                # Get the column name and block for XBRL mapping
+                col_name = visible_cols[col_idx] if col_idx < len(visible_cols) else None
+                block_name = col_to_block.get(col_name) if col_name else None
+                
+                # Try to find XBRL mapping for this cell (row label + column/block)
+                mapping = None
+                if block_name and block_name in fb_mappings_by_block:
+                    # Try exact match first
+                    mapping = fb_mappings_by_block[block_name].get(label)
+                    # If not found, try partial match (for rows like "Ingående" vs "Belopp vid årets ingång")
+                    if not mapping:
+                        for radrubrik, data in fb_mappings_by_block[block_name].items():
+                            if ('ingång' in label.lower() and 'ingång' in radrubrik.lower()) or \
+                               ('utgång' in label.lower() and 'utgång' in radrubrik.lower()):
+                                mapping = data
+                                break
+                
+                # Determine contextRef based on row type and period type
+                context_ref = None
+                if mapping:
+                    period_type = mapping.get('period_type', '')
+                    if 'ingång' in label.lower() or 'Ingående' in label:
+                        # Opening balance: INSTANT, balans1_ref (previous year end)
+                        context_ref = balans1_ref
+                    elif 'utgång' in label.lower() or 'Utgående' in label:
+                        # Closing balance: INSTANT, balans0_ref (current year end)
+                        context_ref = balans0_ref
+                    else:
+                        # Transaction during period: use DURATION or INSTANT based on mapping
+                        context_ref = period0_ref if period_type == 'DURATION' else balans0_ref
+                
+                # Apply XBRL tagging if mapping found
+                if mapping and context_ref and val != 0:
+                    formatted_val = self._format_monetary_value(abs(val), for_display=True)
+                    if val < 0:
+                        td_val.text = '- '
+                    
+                    ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
+                    ix_elem.set('contextRef', context_ref)
+                    ix_elem.set('name', f"{mapping['namespace']}:{mapping['element_name']}")
+                    ix_elem.set('unitRef', 'SEK')
+                    ix_elem.set('decimals', 'INF')
+                    ix_elem.set('scale', '0')
+                    ix_elem.set('format', 'ixt:numspacecomma')
+                    if val < 0:
+                        ix_elem.set('sign', '-')
+                    ix_elem.text = formatted_val
                 else:
-                    p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
-                p_val.text = self._format_monetary_value(val, for_display=True)
+                    # No XBRL tagging: plain text in <p>
+                    p_val = ET.SubElement(td_val, 'p')
+                    p_val.set('class', 'P')
+                    if is_utgaende:
+                        p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+                    else:
+                        p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                    p_val.text = self._format_monetary_value(val, for_display=True)
     
     def _render_resultatdisposition_xbrl(self, page: ET.Element, fb_table: list, company_data: dict,
                                         fb_mappings: list, balans0_ref: str, unit_ref: str) -> None:
@@ -1448,6 +1596,19 @@ body {
         
         if not fb_table:
             return
+        
+        # Build FB mappings dict by radrubrik (row label) for Resultatdisposition section
+        fb_mappings_dict = {}
+        for mapping in fb_mappings:
+            radrubrik = mapping.get('radrubrik', '')
+            block = mapping.get('block', '')
+            if block == 'RESULTATDISPOSITION' and radrubrik:
+                fb_mappings_dict[radrubrik] = {
+                    'element_name': mapping.get('elementname', ''),
+                    'data_type': mapping.get('datatyp', ''),
+                    'period_type': mapping.get('periodtyp', ''),
+                    'namespace': 'se-gen-base'
+                }
         
         # Find UB row (Redovisat värde or Utgående or last row)
         ub_row = None
@@ -1496,10 +1657,29 @@ body {
             
             td_val = ET.SubElement(tr, 'td')
             td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
-            p_val = ET.SubElement(td_val, 'p')
-            p_val.set('class', 'P')
-            p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
-            p_val.text = self._format_monetary_value(balanserat, for_display=True)
+            
+            # Apply XBRL tagging for Balanserat resultat
+            mapping = fb_mappings_dict.get('Balanserat resultat')
+            if mapping:
+                formatted_val = self._format_monetary_value(abs(balanserat), for_display=True)
+                if balanserat < 0:
+                    td_val.text = '- '
+                
+                ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
+                ix_elem.set('contextRef', balans0_ref)
+                ix_elem.set('name', f"{mapping['namespace']}:{mapping['element_name']}")
+                ix_elem.set('unitRef', 'SEK')
+                ix_elem.set('decimals', 'INF')
+                ix_elem.set('scale', '0')
+                ix_elem.set('format', 'ixt:numspacecomma')
+                if balanserat < 0:
+                    ix_elem.set('sign', '-')
+                ix_elem.text = formatted_val
+            else:
+                p_val = ET.SubElement(td_val, 'p')
+                p_val.set('class', 'P')
+                p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                p_val.text = self._format_monetary_value(balanserat, for_display=True)
         
         if arets_res != 0:
             tr = ET.SubElement(table, 'tr')
@@ -1512,10 +1692,29 @@ body {
             
             td_val = ET.SubElement(tr, 'td')
             td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
-            p_val = ET.SubElement(td_val, 'p')
-            p_val.set('class', 'P')
-            p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
-            p_val.text = self._format_monetary_value(arets_res, for_display=True)
+            
+            # Apply XBRL tagging for Årets resultat
+            mapping = fb_mappings_dict.get('Årets resultat')
+            if mapping:
+                formatted_val = self._format_monetary_value(abs(arets_res), for_display=True)
+                if arets_res < 0:
+                    td_val.text = '- '
+                
+                ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
+                ix_elem.set('contextRef', balans0_ref)
+                ix_elem.set('name', f"{mapping['namespace']}:{mapping['element_name']}")
+                ix_elem.set('unitRef', 'SEK')
+                ix_elem.set('decimals', 'INF')
+                ix_elem.set('scale', '0')
+                ix_elem.set('format', 'ixt:numspacecomma')
+                if arets_res < 0:
+                    ix_elem.set('sign', '-')
+                ix_elem.text = formatted_val
+            else:
+                p_val = ET.SubElement(td_val, 'p')
+                p_val.set('class', 'P')
+                p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                p_val.text = self._format_monetary_value(arets_res, for_display=True)
         
         # First Summa row
         tr = ET.SubElement(table, 'tr')
@@ -1528,10 +1727,29 @@ body {
         
         td_val = ET.SubElement(tr, 'td')
         td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
-        p_val = ET.SubElement(td_val, 'p')
-        p_val.set('class', 'P')
-        p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
-        p_val.text = self._format_monetary_value(summa, for_display=True)
+        
+        # Apply XBRL tagging for first Summa (FrittEgetKapital)
+        mapping = fb_mappings_dict.get('Summa')
+        if mapping and mapping['element_name'] == 'FrittEgetKapital':
+            formatted_val = self._format_monetary_value(abs(summa), for_display=True)
+            if summa < 0:
+                td_val.text = '- '
+            
+            ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
+            ix_elem.set('contextRef', balans0_ref)
+            ix_elem.set('name', f"{mapping['namespace']}:{mapping['element_name']}")
+            ix_elem.set('unitRef', 'SEK')
+            ix_elem.set('decimals', 'INF')
+            ix_elem.set('scale', '0')
+            ix_elem.set('format', 'ixt:numspacecomma')
+            if summa < 0:
+                ix_elem.set('sign', '-')
+            ix_elem.text = formatted_val
+        else:
+            p_val = ET.SubElement(td_val, 'p')
+            p_val.set('class', 'P')
+            p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+            p_val.text = self._format_monetary_value(summa, for_display=True)
         
         # Empty row for spacing
         tr_empty = ET.SubElement(table, 'tr')
@@ -1561,10 +1779,31 @@ body {
         
         td_val = ET.SubElement(tr, 'td')
         td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
-        p_val = ET.SubElement(td_val, 'p')
-        p_val.set('class', 'P')
-        p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
-        p_val.text = self._format_monetary_value(arets_utdelning, for_display=True)
+        
+        # Apply XBRL tagging for Vinstutdelning
+        mapping = fb_mappings_dict.get('Vinstutdelning ')  # Note: space in CSV
+        if not mapping:
+            mapping = fb_mappings_dict.get('Vinstutdelning')
+        if mapping:
+            formatted_val = self._format_monetary_value(abs(arets_utdelning), for_display=True)
+            if arets_utdelning < 0:
+                td_val.text = '- '
+            
+            ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
+            ix_elem.set('contextRef', balans0_ref)
+            ix_elem.set('name', f"{mapping['namespace']}:{mapping['element_name']}")
+            ix_elem.set('unitRef', 'SEK')
+            ix_elem.set('decimals', 'INF')
+            ix_elem.set('scale', '0')
+            ix_elem.set('format', 'ixt:numspacecomma')
+            if arets_utdelning < 0:
+                ix_elem.set('sign', '-')
+            ix_elem.text = formatted_val
+        else:
+            p_val = ET.SubElement(td_val, 'p')
+            p_val.set('class', 'P')
+            p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_val.text = self._format_monetary_value(arets_utdelning, for_display=True)
         
         # Balanseras i ny räkning
         balanseras = summa - arets_utdelning
@@ -1578,10 +1817,29 @@ body {
         
         td_val = ET.SubElement(tr, 'td')
         td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
-        p_val = ET.SubElement(td_val, 'p')
-        p_val.set('class', 'P')
-        p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
-        p_val.text = self._format_monetary_value(balanseras, for_display=True)
+        
+        # Apply XBRL tagging for Balanseras i ny räkning
+        mapping = fb_mappings_dict.get('Balanseras i ny räkning')
+        if mapping:
+            formatted_val = self._format_monetary_value(abs(balanseras), for_display=True)
+            if balanseras < 0:
+                td_val.text = '- '
+            
+            ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
+            ix_elem.set('contextRef', balans0_ref)
+            ix_elem.set('name', f"{mapping['namespace']}:{mapping['element_name']}")
+            ix_elem.set('unitRef', 'SEK')
+            ix_elem.set('decimals', 'INF')
+            ix_elem.set('scale', '0')
+            ix_elem.set('format', 'ixt:numspacecomma')
+            if balanseras < 0:
+                ix_elem.set('sign', '-')
+            ix_elem.text = formatted_val
+        else:
+            p_val = ET.SubElement(td_val, 'p')
+            p_val.set('class', 'P')
+            p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_val.text = self._format_monetary_value(balanseras, for_display=True)
         
         # Final Summa row
         tr = ET.SubElement(table, 'tr')
@@ -1594,10 +1852,35 @@ body {
         
         td_val = ET.SubElement(tr, 'td')
         td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
-        p_val = ET.SubElement(td_val, 'p')
-        p_val.set('class', 'P')
-        p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
-        p_val.text = self._format_monetary_value(summa, for_display=True)
+        
+        # Apply XBRL tagging for final Summa (ForslagDisposition)
+        # Need to find the Summa mapping with ForslagDisposition element
+        mapping = None
+        for radrubrik, data in fb_mappings_dict.items():
+            if radrubrik == 'Summa' and data['element_name'] == 'ForslagDisposition':
+                mapping = data
+                break
+        
+        if mapping:
+            formatted_val = self._format_monetary_value(abs(summa), for_display=True)
+            if summa < 0:
+                td_val.text = '- '
+            
+            ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
+            ix_elem.set('contextRef', balans0_ref)
+            ix_elem.set('name', f"{mapping['namespace']}:{mapping['element_name']}")
+            ix_elem.set('unitRef', 'SEK')
+            ix_elem.set('decimals', 'INF')
+            ix_elem.set('scale', '0')
+            ix_elem.set('format', 'ixt:numspacecomma')
+            if summa < 0:
+                ix_elem.set('sign', '-')
+            ix_elem.text = formatted_val
+        else:
+            p_val = ET.SubElement(td_val, 'p')
+            p_val.set('class', 'P')
+            p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+            p_val.text = self._format_monetary_value(summa, for_display=True)
         
         # Add dividend policy text if utdelning > 0 (this is the LAST element - add space AFTER)
         if arets_utdelning > 0:
