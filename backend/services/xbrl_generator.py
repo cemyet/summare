@@ -779,7 +779,7 @@ body {
           border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);
         }
 
-        /* Noter table styles */
+        /* Noter table styles - Semantic approach */
         .noter-table {
           border-collapse: collapse;
           width: 15.1cm;
@@ -793,43 +793,95 @@ body {
           margin-top: 10pt;
         }
 
-        .noter-td-label {
+        /* Main noter table cells */
+        .noter-header-label {
           vertical-align: top;
           width: 9.5cm;
-        }
-
-        .noter-td-label-depr {
-          vertical-align: top;
-          width: 10cm;
-        }
-
-        .noter-td-amount {
-          vertical-align: top;
-          width: 2.8cm;
-          text-align: right;
-        }
-
-        .noter-td-amount-depr {
-          vertical-align: top;
-          width: 2cm;
-          text-align: right;
-        }
-
-        .noter-th {
           padding-bottom: 4pt;
           border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);
         }
 
-        .pt-10 {
+        .noter-header-amount {
+          vertical-align: top;
+          width: 2.8cm;
+          text-align: right;
+          padding-bottom: 4pt;
+          border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);
+        }
+
+        .noter-data-label {
+          vertical-align: top;
+          width: 9.5cm;
+          padding-top: 2pt;
+        }
+
+        .noter-data-amount {
+          vertical-align: top;
+          width: 2.8cm;
+          text-align: right;
+          padding-top: 2pt;
+        }
+
+        .noter-section-label {
+          vertical-align: top;
+          width: 9.5cm;
           padding-top: 10pt;
         }
 
-        .font-500 {
+        .noter-section-amount {
+          vertical-align: top;
+          width: 2.8cm;
+          text-align: right;
+          padding-top: 10pt;
+        }
+
+        /* Depreciation table cells */
+        .noter-depr-header-label {
+          vertical-align: top;
+          width: 10cm;
+          padding-bottom: 4pt;
+          border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);
+        }
+
+        .noter-depr-header-amount {
+          vertical-align: top;
+          width: 2cm;
+          text-align: right;
+          padding-bottom: 4pt;
+          border-bottom: 0.5pt solid rgba(0, 0, 0, 0.2);
+        }
+
+        .noter-depr-data-label {
+          vertical-align: top;
+          width: 10cm;
+          padding-top: 2pt;
+        }
+
+        .noter-depr-data-amount {
+          vertical-align: top;
+          width: 2cm;
+          text-align: right;
+          padding-top: 2pt;
+        }
+
+        /* Text styles for noter */
+        .noter-text {
+          margin: 0;
+        }
+
+        .noter-text-bold {
+          margin: 0;
           font-weight: 500;
         }
 
-        .font-9pt {
+        .noter-text-header {
+          margin: 0;
           font-size: 9pt;
+          font-weight: 500;
+        }
+
+        .noter-text-paragraph {
+          margin-top: 10pt;
         }
 
         /* Page break utilities */
@@ -2780,7 +2832,7 @@ body {
                 
                 if text:
                     p_text = ET.SubElement(note_container, 'p')
-                    p_text.set('class', 'P mt-10')
+                    p_text.set('class', 'P noter-text-paragraph')
                     
                     # Add XBRL tagging for text content
                     mapping = noter_mappings_dict.get(variable_name)
@@ -2809,15 +2861,15 @@ body {
             # Header row
             tr_h = ET.SubElement(table, 'tr')
             td_h1 = ET.SubElement(tr_h, 'td')
-            td_h1.set('class', 'noter-td-label-depr noter-th')
+            td_h1.set('class', 'noter-depr-header-label')
             p_h1 = ET.SubElement(td_h1, 'p')
-            p_h1.set('class', 'P font-500')
+            p_h1.set('class', 'P noter-text-bold')
             p_h1.text = 'Anläggningstillgångar'
             
             td_h2 = ET.SubElement(tr_h, 'td')
-            td_h2.set('class', 'noter-td-amount-depr noter-th')
+            td_h2.set('class', 'noter-depr-header-amount')
             p_h2 = ET.SubElement(td_h2, 'p')
-            p_h2.set('class', 'P font-500')
+            p_h2.set('class', 'P noter-text-bold')
             p_h2.text = 'År'
             
             # Data rows with XBRL tagging for depreciation periods
@@ -2831,13 +2883,13 @@ body {
             for label, val, tuple_id in depr_items:
                 tr = ET.SubElement(table, 'tr')
                 td1 = ET.SubElement(tr, 'td')
-                td1.set('class', 'noter-td-label-depr pt-2')
+                td1.set('class', 'noter-depr-data-label')
                 p1 = ET.SubElement(td1, 'p')
-                p1.set('class', 'P')
+                p1.set('class', 'P noter-text')
                 p1.text = label
                 
                 td2 = ET.SubElement(tr, 'td')
-                td2.set('class', 'noter-td-amount-depr pt-2')
+                td2.set('class', 'noter-depr-data-amount')
                 
                 # Add XBRL tagging for depreciation period (year value)
                 val_text = f"{int(val)} år" if val else '0 år'
@@ -2863,7 +2915,7 @@ body {
                 
                 if variable_text:
                     p_text = ET.SubElement(note_container, 'p')
-                    p_text.set('class', 'P mt-10')
+                    p_text.set('class', 'P noter-text-paragraph')
                     
                     # Add XBRL tagging for text content
                     mapping = noter_mappings_dict.get(variable_name)
@@ -2892,7 +2944,7 @@ body {
                 text += f", som har sitt säte i {moder_sate}."
                 
                 p_text = ET.SubElement(note_container, 'p')
-                p_text.set('class', 'P mt-10')
+                p_text.set('class', 'P noter-text-paragraph')
                 
                 # Tag with NotUpplysningModerforetag
                 ix_text = ET.SubElement(p_text, 'ix:nonNumeric')
@@ -2915,28 +2967,28 @@ body {
             header_col2 = cur_end
             header_col3 = prev_end
         
-        # Build table using CSS classes
+        # Build table using semantic CSS classes
         table = ET.SubElement(note_container, 'table')
         table.set('class', 'noter-table')
         
         # Header row
         tr_header = ET.SubElement(table, 'tr')
         td_h1 = ET.SubElement(tr_header, 'td')
-        td_h1.set('class', 'noter-td-label noter-th')
+        td_h1.set('class', 'noter-header-label')
         p_h1 = ET.SubElement(td_h1, 'p')
-        p_h1.set('class', 'P font-9pt font-500')
+        p_h1.set('class', 'P noter-text-header')
         p_h1.text = header_col1
         
         td_h2 = ET.SubElement(tr_header, 'td')
-        td_h2.set('class', 'noter-td-amount noter-th')
+        td_h2.set('class', 'noter-header-amount')
         p_h2 = ET.SubElement(td_h2, 'p')
-        p_h2.set('class', 'P font-9pt font-500')
+        p_h2.set('class', 'P noter-text-header')
         p_h2.text = header_col2
         
         td_h3 = ET.SubElement(tr_header, 'td')
-        td_h3.set('class', 'noter-td-amount noter-th')
+        td_h3.set('class', 'noter-header-amount')
         p_h3 = ET.SubElement(td_h3, 'p')
-        p_h3.set('class', 'P font-9pt font-500')
+        p_h3.set('class', 'P noter-text-header')
         p_h3.text = header_col3
         
         # Sub-headings that need extra space
@@ -2964,34 +3016,29 @@ body {
                 curr_fmt = self._format_monetary_value(cur, for_display=True)
                 prev_fmt = self._format_monetary_value(prev, for_display=True)
             
-            # Apply extra padding for sub-headings
-            row_class = 'pt-2'
-            if is_heading and style in ['H1', 'H2', 'H3'] and lbl in heading_kick:
-                row_class = 'pt-10'
-            if is_redv:
-                row_class = 'pt-10'
+            # Determine semantic cell class based on row type
+            is_section_row = (is_heading and style in ['H1', 'H2', 'H3'] and lbl in heading_kick) or is_redv
+            label_class = 'noter-section-label' if is_section_row else 'noter-data-label'
+            amount_class = 'noter-section-amount' if is_section_row else 'noter-data-amount'
+            
+            # Determine text class
+            text_class = 'P noter-text-bold' if (is_heading or is_sum or is_redv) else 'P noter-text'
+            amount_text_class = 'P noter-text-bold' if (is_sum or is_redv) else 'P noter-text'
             
             tr = ET.SubElement(table, 'tr')
             
             # Label column
             td_label = ET.SubElement(tr, 'td')
-            td_label.set('class', f'noter-td-label {row_class}')
+            td_label.set('class', label_class)
             p_label = ET.SubElement(td_label, 'p')
-            p_label.set('class', 'P')
-            
-            if is_heading or is_sum or is_redv:
-                p_label.set('class', 'P font-500')
-            
+            p_label.set('class', text_class)
             p_label.text = row_title
             
             # Current amount column
             td_curr = ET.SubElement(tr, 'td')
-            td_curr.set('class', f'noter-td-amount {row_class}')
+            td_curr.set('class', amount_class)
             p_curr = ET.SubElement(td_curr, 'p')
-            p_curr.set('class', 'P')
-            
-            if is_sum or is_redv:
-                p_curr.set('class', 'P font-500')
+            p_curr.set('class', amount_text_class)
             
             if not is_heading:
                 # Add XBRL tagging
@@ -3037,12 +3084,9 @@ body {
             
             # Previous amount column
             td_prev = ET.SubElement(tr, 'td')
-            td_prev.set('class', f'noter-td-amount {row_class}')
+            td_prev.set('class', amount_class)
             p_prev = ET.SubElement(td_prev, 'p')
-            p_prev.set('class', 'P')
-            
-            if is_sum or is_redv:
-                p_prev.set('class', 'P font-500')
+            p_prev.set('class', amount_text_class)
             
             if not is_heading:
                 # Add XBRL tagging
