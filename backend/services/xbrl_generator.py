@@ -831,6 +831,27 @@ body {
         .font-9pt {
           font-size: 9pt;
         }
+
+        /* Page break utilities */
+        .pagebreak-before {
+          page-break-before: always;
+        }
+
+        /* Note container styling */
+        .note-container {
+          page-break-inside: avoid;
+          page-break-before: auto;
+          margin-top: 32pt;
+        }
+
+        /* Margin utilities */
+        .mt-0 {
+          margin-top: 0pt;
+        }
+
+        .mt-10 {
+          margin-top: 10pt;
+        }
         """
     
     def _num(self, v):
@@ -2659,8 +2680,7 @@ body {
         """Render Noter section mirroring PDF generator logic"""
         # Create a flexible page container for Noter (no fixed height, allows natural pagination)
         page5 = ET.SubElement(body, 'div')
-        page5.set('class', 'pagebreak_before ar-page-noter')
-        page5.set('style', 'page-break-before: always;')
+        page5.set('class', 'pagebreak_before ar-page-noter pagebreak-before')
         
         # Noter title
         p_title = ET.SubElement(page5, 'p')
@@ -2723,8 +2743,7 @@ body {
                 # Create new page
                 page_counter += 1
                 current_page = ET.SubElement(body, 'div')
-                current_page.set('class', f'pagebreak_before ar-page-noter')
-                current_page.set('style', 'page-break-before: always;')
+                current_page.set('class', 'pagebreak_before ar-page-noter pagebreak-before')
                 page_note_count = 0
             
             # Render note on current page
@@ -2745,12 +2764,11 @@ body {
         
         # Create a container div for the note (to keep it together and control page breaks)
         note_container = ET.SubElement(page, 'div')
-        note_container.set('style', 'page-break-inside: avoid; page-break-before: auto; margin-top: 32pt;')
+        note_container.set('class', 'note-container')
         
         # Note title (H1 heading - no extra spacing since container has margin-top)
         p_heading = ET.SubElement(note_container, 'p')
-        p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 0pt;')
+        p_heading.set('class', 'H1 mt-0')
         p_heading.text = f'Not {note_number}  {title}'
         
         #Special handling for NOT1 (Redovisningsprinciper - text + depreciation table)
@@ -2762,8 +2780,7 @@ body {
                 
                 if text:
                     p_text = ET.SubElement(note_container, 'p')
-                    p_text.set('class', 'P')
-                    p_text.set('style', 'margin-top: 10pt;')
+                    p_text.set('class', 'P mt-10')
                     
                     # Add XBRL tagging for text content
                     mapping = noter_mappings_dict.get(variable_name)
@@ -2846,8 +2863,7 @@ body {
                 
                 if variable_text:
                     p_text = ET.SubElement(note_container, 'p')
-                    p_text.set('class', 'P')
-                    p_text.set('style', 'margin-top: 10pt;')
+                    p_text.set('class', 'P mt-10')
                     
                     # Add XBRL tagging for text content
                     mapping = noter_mappings_dict.get(variable_name)
@@ -2876,8 +2892,7 @@ body {
                 text += f", som har sitt säte i {moder_sate}."
                 
                 p_text = ET.SubElement(note_container, 'p')
-                p_text.set('class', 'P')
-                p_text.set('style', 'margin-top: 10pt;')
+                p_text.set('class', 'P mt-10')
                 
                 # Tag with NotUpplysningModerforetag
                 ix_text = ET.SubElement(p_text, 'ix:nonNumeric')
