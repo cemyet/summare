@@ -1370,15 +1370,16 @@ body {
                             ix_elem.set('sign', '-')
                         ix_elem.text = formatted_val
                     elif data_type == 'xbrli:pureItemType':
-                        # Soliditet percentage - use ix:nonFraction with no unit
+                        # Soliditet percentage - display as % with XBRL tag
+                        # Store as decimal (e.g., 45% = 0.45) but display with % symbol
+                        decimal_val = val / 100
                         ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
                         ix_elem.set('contextRef', context_ref)
                         ix_elem.set('name', element_name)
-                        ix_elem.set('decimals', '2')
-                        ix_elem.set('format', 'ixt:numdotdecimal')
-                        # Store as decimal (e.g., 45% = 0.45)
-                        decimal_val = val / 100
-                        ix_elem.text = f"{decimal_val:.2f}"
+                        ix_elem.set('decimals', '4')  # Higher precision for decimals
+                        ix_elem.set('format', 'ixt:percentofdecimalatleast2')
+                        # Display as percentage (e.g., "28%") which will be stored as 0.28 in XBRL
+                        ix_elem.text = f"{int(round(val))}%"
                     else:
                         # Fallback: plain text in <p>
                         p_val = ET.SubElement(td_val, 'p')
@@ -1530,7 +1531,11 @@ body {
             # Values
             for col_idx, val in enumerate(values):
                 td_val = ET.SubElement(tr, 'td')
-                td_val.set('style', f'vertical-align: top; width: {col_width}pt; text-align: right; padding-top: 2pt;')
+                # Add semibold styling for utgående rows
+                if is_utgaende:
+                    td_val.set('style', f'vertical-align: top; width: {col_width}pt; text-align: right; padding-top: 2pt; font-weight: 500;')
+                else:
+                    td_val.set('style', f'vertical-align: top; width: {col_width}pt; text-align: right; padding-top: 2pt;')
                 
                 # Get the column name and block for XBRL mapping
                 col_name = visible_cols[col_idx] if col_idx < len(visible_cols) else None
@@ -1726,7 +1731,7 @@ body {
         p_label.text = 'Summa'
         
         td_val = ET.SubElement(tr, 'td')
-        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right; font-weight: 500;')
         
         # Apply XBRL tagging for first Summa (FrittEgetKapital)
         mapping = fb_mappings_dict.get('Summa')
@@ -1851,7 +1856,7 @@ body {
         p_label.text = 'Summa'
         
         td_val = ET.SubElement(tr, 'td')
-        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right; font-weight: 500;')
         
         # Apply XBRL tagging for final Summa (ForslagDisposition)
         # Need to find the Summa mapping with ForslagDisposition element
@@ -2079,6 +2084,9 @@ body {
                     td_curr.set('class', f'td-amount {row_class}')
                 else:
                     td_curr.set('class', 'td-amount')
+                # Add semibold styling for sum rows
+                if is_sum:
+                    td_curr.set('style', 'font-weight: 500;')
                 
                 curr_val = self._num(row.get('current_amount', 0))
                 prev_val = self._num(row.get('previous_amount', 0))
@@ -2115,6 +2123,9 @@ body {
                     td_prev.set('class', f'td-amount {row_class}')
                 else:
                     td_prev.set('class', 'td-amount')
+                # Add semibold styling for sum rows
+                if is_sum:
+                    td_prev.set('style', 'font-weight: 500;')
                 
                 # prev_val already calculated above for current year logic
                 # Show amount if: non-zero, OR other year has value, OR always_show, OR has note
@@ -2334,6 +2345,9 @@ body {
                     td_curr.set('class', f'td-amount {row_class}')
                 else:
                     td_curr.set('class', 'td-amount')
+                # Add semibold styling for sum rows
+                if is_sum:
+                    td_curr.set('style', 'font-weight: 500;')
                 
                 if not is_heading:
                     curr_val = self._num(row.get('current_amount', 0))
@@ -2377,6 +2391,9 @@ body {
                     td_prev.set('class', f'td-amount {row_class}')
                 else:
                     td_prev.set('class', 'td-amount')
+                # Add semibold styling for sum rows
+                if is_sum:
+                    td_prev.set('style', 'font-weight: 500;')
                 
                 if not is_heading:
                     # prev_val already calculated above for current year logic
@@ -2627,6 +2644,9 @@ body {
                     td_curr.set('class', f'td-amount {row_class}')
                 else:
                     td_curr.set('class', 'td-amount')
+                # Add semibold styling for sum rows
+                if is_sum:
+                    td_curr.set('style', 'font-weight: 500;')
                 
                 if not is_heading:
                     curr_val = self._num(row.get('current_amount', 0))
@@ -2670,6 +2690,9 @@ body {
                     td_prev.set('class', f'td-amount {row_class}')
                 else:
                     td_prev.set('class', 'td-amount')
+                # Add semibold styling for sum rows
+                if is_sum:
+                    td_prev.set('style', 'font-weight: 500;')
                 
                 if not is_heading:
                     # prev_val already calculated above for current year logic
@@ -3320,6 +3343,9 @@ body {
             # Current amount column
             td_curr = ET.SubElement(tr, 'td')
             td_curr.set('class', amount_class)
+            # Add semibold styling for sum and redv rows (when XBRL tags are added directly to td)
+            if is_sum or is_redv:
+                td_curr.set('style', 'font-weight: 500;')
             p_curr = ET.SubElement(td_curr, 'p')
             p_curr.set('class', amount_text_class)
             
@@ -3368,6 +3394,9 @@ body {
             # Previous amount column
             td_prev = ET.SubElement(tr, 'td')
             td_prev.set('class', amount_class)
+            # Add semibold styling for sum and redv rows (when XBRL tags are added directly to td)
+            if is_sum or is_redv:
+                td_prev.set('style', 'font-weight: 500;')
             p_prev = ET.SubElement(td_prev, 'p')
             p_prev.set('class', amount_text_class)
             
