@@ -194,6 +194,39 @@ class XBRLGenerator:
         if end_date:
             end_date = self._format_date(end_date)
         
+        # Pre-create all contexts (period0-3, balans0-3) per Bolagsverket pattern
+        # This ensures all contexts are defined in ix:resources
+        if fiscal_year and start_date and end_date:
+            # Period 0 (current year)
+            self._get_or_create_context('duration', start_date, end_date, is_current=True, context_id='period0')
+            self._get_or_create_context('instant', instant_date=end_date, is_current=True, context_id='balans0')
+            
+            # Period 1 (previous year)
+            prev_year = fiscal_year - 1
+            period1_start = f"{prev_year}-01-01"
+            period1_end = f"{prev_year}-12-31"
+            self._get_or_create_context('duration', period1_start, period1_end, is_current=False, context_id='period1')
+            self._get_or_create_context('instant', instant_date=period1_end, is_current=False, context_id='balans1')
+            
+            # Period 2 (two years ago)
+            prev_year_2 = fiscal_year - 2
+            period2_start = f"{prev_year_2}-01-01"
+            period2_end = f"{prev_year_2}-12-31"
+            self._get_or_create_context('duration', period2_start, period2_end, is_current=False, context_id='period2')
+            self._get_or_create_context('instant', instant_date=period2_end, is_current=False, context_id='balans2')
+            
+            # Period 3 (three years ago)
+            prev_year_3 = fiscal_year - 3
+            period3_start = f"{prev_year_3}-01-01"
+            period3_end = f"{prev_year_3}-12-31"
+            self._get_or_create_context('duration', period3_start, period3_end, is_current=False, context_id='period3')
+            self._get_or_create_context('instant', instant_date=period3_end, is_current=False, context_id='balans3')
+        
+        # Pre-create units (SEK, procent, antal-anstallda) per Bolagsverket pattern
+        self._get_or_create_unit('SEK')
+        self._get_or_create_unit('procent')
+        self._get_or_create_unit('antal-anstallda')
+        
         # Create root HTML element for Inline XBRL
         root = ET.Element('html')
         root.set('xmlns', 'http://www.w3.org/1999/xhtml')
@@ -314,6 +347,8 @@ class XBRLGenerator:
                 measure.text = 'iso4217:SEK'
             elif unit_type == 'procent':
                 measure.text = 'xbrli:pure'
+            elif unit_type == 'antal-anstallda':
+                measure.text = 'se-k2-type:AntalAnstallda'
             else:
                 # Generic format
                 measure.text = f'xbrli:{unit_type}'
@@ -1286,59 +1321,39 @@ body {
                      or company_info.get('organization_number')
                      or '')
         prev_year = fiscal_year - 1 if fiscal_year else 0
-        prev_year_2 = fiscal_year - 2 if fiscal_year else 0  # Third year for Flerårsöversikt
-        prev_year_3 = fiscal_year - 3 if fiscal_year else 0  # Fourth year (if needed)
         
-        # Get context refs for current and previous years
-        period0_ref, period1_ref = self._get_context_refs(fiscal_year or 0, 'duration')
-        balans0_ref, balans1_ref = self._get_context_refs(fiscal_year or 0, 'instant')
+        # All contexts already created in generate_xbrl_document
+        # Just reference them directly
+        period0_ref = 'period0'
+        period1_ref = 'period1'
+        period2_ref = 'period2'
+        period3_ref = 'period3'
+        balans0_ref = 'balans0'
+        balans1_ref = 'balans1'
+        balans2_ref = 'balans2'
+        balans3_ref = 'balans3'
         
-        # Create units
-        unit_ref = self._get_or_create_unit('SEK')
-        procent_unit_ref = self._get_or_create_unit('procent')  # For percentages per Bolagsverket
-        
-        # Create contexts for third and fourth years for Flerårsöversikt (per Bolagsverket pattern)
-        if fiscal_year and prev_year_2 > 0:
-            period2_start = f"{prev_year_2}-01-01"
-            period2_end = f"{prev_year_2}-12-31"
-            # Create contexts with explicit period2/balans2 IDs
-            period2_ref = self._get_or_create_context('duration', period2_start, period2_end, 
-                                                      is_current=False, context_id='period2')
-            balans2_ref = self._get_or_create_context('instant', instant_date=period2_end, 
-                                                       is_current=False, context_id='balans2')
-        else:
-            period2_ref = None
-            balans2_ref = None
-        
-        # Create period3/balans3 if needed (4th year) - not currently used but defined per Bolagsverket pattern
-        if fiscal_year and prev_year_3 > 0:
-            period3_start = f"{prev_year_3}-01-01"
-            period3_end = f"{prev_year_3}-12-31"
-            period3_ref = self._get_or_create_context('duration', period3_start, period3_end, 
-                                                       is_current=False, context_id='period3')
-            balans3_ref = self._get_or_create_context('instant', instant_date=period3_end, 
-                                                        is_current=False, context_id='balans3')
-        else:
-            period3_ref = None
-            balans3_ref = None
+        # Unit refs (already created in generate_xbrl_document)
+        unit_ref = 'SEK'
+        procent_unit_ref = 'procent'
         
         # Page 0: Cover page
-        self._render_cover_page(body, company_name, org_number, fiscal_year, start_date, end_date, period0_ref)
+        self._render_cover_page(body, company_name, org_number, fiscal_year, start_date, end_date, 'period0')
         
         # Page 1: Förvaltningsberättelse
-        self._render_forvaltningsberattelse(body, company_data, company_name, org_number, fiscal_year, prev_year, period0_ref, period1_ref, balans0_ref, balans1_ref, period2_ref, balans2_ref, unit_ref)
+        self._render_forvaltningsberattelse(body, company_data, company_name, org_number, fiscal_year, prev_year, unit_ref)
         
         # Page 2: Resultaträkning
-        self._render_resultatrakning(body, company_data, company_name, org_number, fiscal_year, prev_year, period0_ref, period1_ref, unit_ref)
+        self._render_resultatrakning(body, company_data, company_name, org_number, fiscal_year, prev_year, 'period0', 'period1', unit_ref)
         
         # Page 3: Balansräkning (Tillgångar)
-        self._render_balansrakning_tillgangar(body, company_data, company_name, org_number, fiscal_year, prev_year, balans0_ref, balans1_ref, unit_ref)
+        self._render_balansrakning_tillgangar(body, company_data, company_name, org_number, fiscal_year, prev_year, 'balans0', 'balans1', unit_ref)
         
         # Page 4: Balansräkning (Eget kapital och skulder)
-        self._render_balansrakning_skulder(body, company_data, company_name, org_number, fiscal_year, prev_year, balans0_ref, balans1_ref, unit_ref)
+        self._render_balansrakning_skulder(body, company_data, company_name, org_number, fiscal_year, prev_year, 'balans0', 'balans1', unit_ref)
         
         # Page 5+: Noter
-        self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, period0_ref, period1_ref, balans0_ref, balans1_ref, unit_ref)
+        self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, 'period0', 'period1', 'balans0', 'balans1', unit_ref)
     
     def _render_cover_page(self, body: ET.Element, company_name: str, org_number: str, 
                           fiscal_year: Optional[int], start_date: Optional[str], end_date: Optional[str],
@@ -1391,9 +1406,7 @@ body {
     
     def _render_forvaltningsberattelse(self, body: ET.Element, company_data: Dict[str, Any],
                                       company_name: str, org_number: str, fiscal_year: Optional[int],
-                                      prev_year: int, period0_ref: str, period1_ref: str,
-                                      balans0_ref: str, balans1_ref: str, period2_ref: Optional[str], 
-                                      balans2_ref: Optional[str], unit_ref: str):
+                                      prev_year: int, unit_ref: str):
         """Render Förvaltningsberättelse section with proper FB mapping"""
         page1 = ET.SubElement(body, 'div')
         page1.set('class', 'pagebreak_before ar-page1')
@@ -1463,7 +1476,7 @@ body {
         # Add XBRL tagging for Verksamheten text
         ix_verksamhet = ET.SubElement(p_verksamhet, 'ix:nonNumeric')
         ix_verksamhet.set('name', 'se-gen-base:AllmantVerksamheten')
-        ix_verksamhet.set('contextRef', period0_ref)
+        ix_verksamhet.set('contextRef', 'period0')
         ix_verksamhet.text = verksamhet_text
         
         # Väsentliga händelser
@@ -1480,22 +1493,20 @@ body {
         # Add XBRL tagging for Väsentliga händelser text
         ix_vasentliga = ET.SubElement(p_vasentliga, 'ix:nonNumeric')
         ix_vasentliga.set('name', 'se-gen-base:VasentligaHandelserUnderRakenskapsaret')
-        ix_vasentliga.set('contextRef', period0_ref)
+        ix_vasentliga.set('contextRef', 'period0')
         ix_vasentliga.text = vasentliga_text
         
         # Flerårsöversikt - render with proper logic
-        self._render_flerarsoversikt_xbrl(page1, company_data, fiscal_year, prev_year, fb_variables, fb_mappings, period0_ref, balans0_ref, balans1_ref, period2_ref, balans2_ref, unit_ref)
+        self._render_flerarsoversikt_xbrl(page1, company_data, fiscal_year, prev_year, fb_variables, fb_mappings, unit_ref)
         
         # Förändringar i eget kapital - render with show/hide logic
-        self._render_forandringar_eget_kapital_xbrl(page1, fb_table, fiscal_year, prev_year, fb_variables, fb_mappings, balans0_ref, balans1_ref, period0_ref, unit_ref)
+        self._render_forandringar_eget_kapital_xbrl(page1, fb_table, fiscal_year, prev_year, fb_variables, fb_mappings, 'balans0', 'balans1', 'period0', unit_ref)
         
         # Resultatdisposition - render with proper formatting
-        self._render_resultatdisposition_xbrl(page1, fb_table, company_data, fb_mappings, balans0_ref, unit_ref)
+        self._render_resultatdisposition_xbrl(page1, fb_table, company_data, fb_mappings, 'balans0', unit_ref)
     
     def _render_flerarsoversikt_xbrl(self, page: ET.Element, company_data: dict, fiscal_year: int, prev_year: int,
-                                     fb_variables: dict, fb_mappings: list, period0_ref: str, balans0_ref: str, 
-                                     balans1_ref: str, period2_ref: Optional[str], balans2_ref: Optional[str], 
-                                     unit_ref: str) -> None:
+                                     fb_variables: dict, fb_mappings: list, unit_ref: str) -> None:
         """Render Flerårsöversikt table with 3 years"""
         p_heading = ET.SubElement(page, 'p')
         p_heading.set('class', 'H1-no-margin-top')
@@ -1618,13 +1629,14 @@ body {
                 mapping = fb_mappings_dict.get(var_name) if var_name else None
                 
                 # Determine contextRef based on year index and period type
+                # All contexts (period0-3, balans0-3) are pre-defined
                 context_ref = None
                 if idx == 0:  # Current year (2024)
-                    context_ref = period0_ref if mapping and mapping.get('period_type') == 'DURATION' else balans0_ref
+                    context_ref = 'period0' if mapping and mapping.get('period_type') == 'DURATION' else 'balans0'
                 elif idx == 1:  # Previous year (2023)
-                    context_ref = 'period1' if mapping and mapping.get('period_type') == 'DURATION' else balans1_ref
-                elif idx == 2 and period2_ref and balans2_ref:  # Third year (2022) - if contexts exist
-                    context_ref = period2_ref if mapping and mapping.get('period_type') == 'DURATION' else balans2_ref
+                    context_ref = 'period1' if mapping and mapping.get('period_type') == 'DURATION' else 'balans1'
+                elif idx == 2:  # Third year (2022)
+                    context_ref = 'period2' if mapping and mapping.get('period_type') == 'DURATION' else 'balans2'
                 
                 # Apply XBRL tagging if mapping and context exist
                 if mapping and context_ref:
