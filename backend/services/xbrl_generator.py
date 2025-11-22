@@ -904,6 +904,125 @@ body {
         .mt-10 {
           margin-top: 10pt;
         }
+
+        /* FB (Förvaltningsberättelse) table styles */
+        
+        /* Flerårsöversikt table */
+        .fb-flerars-table {
+          border-collapse: collapse;
+          width: 16cm;
+          table-layout: fixed;
+          margin-top: 6pt;
+          margin-bottom: 27pt;
+        }
+
+        .fb-flerars-th-label {
+          vertical-align: bottom;
+          width: 7cm;
+          padding-bottom: 4pt;
+          border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);
+        }
+
+        .fb-flerars-th-year {
+          vertical-align: bottom;
+          width: 3cm;
+          padding-bottom: 4pt;
+          text-align: right;
+          border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);
+        }
+
+        .fb-flerars-td-label {
+          vertical-align: top;
+          width: 7cm;
+          padding-top: 2pt;
+        }
+
+        .fb-flerars-td-amount {
+          vertical-align: top;
+          width: 3cm;
+          text-align: right;
+          padding-top: 2pt;
+        }
+
+        /* Förändringar i eget kapital table */
+        .fb-ek-table {
+          border-collapse: collapse;
+          width: 459.0pt;
+          table-layout: fixed;
+          margin-top: 6pt;
+          margin-bottom: 27pt;
+        }
+
+        .fb-ek-th-label {
+          vertical-align: bottom;
+          width: 160pt;
+          padding-bottom: 4pt;
+          border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);
+        }
+
+        .fb-ek-th-col {
+          vertical-align: bottom;
+          width: 59.8pt;
+          padding-bottom: 4pt;
+          text-align: right;
+          border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);
+        }
+
+        .fb-ek-td-label {
+          vertical-align: top;
+          width: 160pt;
+          padding-top: 2pt;
+        }
+
+        .fb-ek-td-amount {
+          vertical-align: top;
+          width: 59.8pt;
+          text-align: right;
+          padding-top: 2pt;
+        }
+
+        /* Resultatdisposition table */
+        .fb-resdisp-table {
+          border-collapse: collapse;
+          width: 300pt;
+          table-layout: fixed;
+          margin-top: 6pt;
+          margin-bottom: 27pt;
+        }
+
+        .fb-resdisp-td-label {
+          vertical-align: top;
+          width: 150pt;
+        }
+
+        .fb-resdisp-td-amount {
+          vertical-align: top;
+          width: 150pt;
+          text-align: right;
+        }
+
+        .fb-spacer-row {
+          height: 10pt;
+        }
+
+        /* P text with margin reset (used in FB tables) */
+        .P-no-margin {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: normal;
+          font-size: 10pt;
+          line-height: 12pt;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
+
+        .P-no-margin-bold {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: 500;
+          font-size: 10pt;
+          line-height: 12pt;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
         """
     
     def _num(self, v):
@@ -1303,20 +1422,19 @@ body {
         
         # Create table
         table = ET.SubElement(page, 'table')
-        table.set('style', 'border-collapse: collapse; width: 16cm; table-layout: fixed; margin-top: 6pt; margin-bottom: 27pt;')  # Space AFTER table (75% of doubled)
+        table.set('class', 'fb-flerars-table')
         
         # Header row
         tr_header = ET.SubElement(table, 'tr')
         td_label_h = ET.SubElement(tr_header, 'td')
-        td_label_h.set('style', 'vertical-align: bottom; width: 7cm; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
+        td_label_h.set('class', 'fb-flerars-th-label')
         # Empty
         
         for year in years:
             td_year = ET.SubElement(tr_header, 'td')
-            td_year.set('style', 'vertical-align: bottom; width: 3cm; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
+            td_year.set('class', 'fb-flerars-th-year')
             p_year = ET.SubElement(td_year, 'p')
-            p_year.set('class', 'P')
-            p_year.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+            p_year.set('class', 'P-no-margin-bold')
             p_year.text = year
         
         # Data rows
@@ -1325,7 +1443,7 @@ body {
             
             # Label
             td_label = ET.SubElement(tr, 'td')
-            td_label.set('style', 'vertical-align: top; width: 7cm; padding-top: 2pt;')
+            td_label.set('class', 'fb-flerars-td-label')
             p_label = ET.SubElement(td_label, 'p')
             p_label.set('class', 'P')
             p_label.text = label
@@ -1334,7 +1452,7 @@ body {
             # Only current (index 0) and prev (index 1) get XBRL tags
             for idx, val in enumerate(values):
                 td_val = ET.SubElement(tr, 'td')
-                td_val.set('style', 'vertical-align: top; width: 3cm; text-align: right; padding-top: 2pt;')
+                td_val.set('class', 'fb-flerars-td-amount')
                 
                 # Get XBRL mapping for this variable
                 var_name = var_names[idx] if idx < len(var_names) else None
@@ -1383,8 +1501,7 @@ body {
                     else:
                         # Fallback: plain text in <p>
                         p_val = ET.SubElement(td_val, 'p')
-                        p_val.set('class', 'P')
-                        p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                        p_val.set('class', 'P-no-margin')
                         if is_percentage:
                             p_val.text = f"{int(round(val))}%"
                         else:
@@ -1392,8 +1509,7 @@ body {
                 else:
                     # No XBRL tagging (third year or no mapping): plain text in <p>
                     p_val = ET.SubElement(td_val, 'p')
-                    p_val.set('class', 'P')
-                    p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                    p_val.set('class', 'P-no-margin')
                     if is_percentage:
                         p_val.text = f"{int(round(val))}%"
                     else:
@@ -1486,30 +1602,22 @@ body {
         
         # Create table
         table = ET.SubElement(page, 'table')
-        available_width = 459  # Full page width in pt
-        label_width = 160
-        num_cols = len(visible_cols)
-        data_width = available_width - label_width
-        col_width = data_width / num_cols if num_cols > 0 else 60
-        
-        table_width = label_width + (col_width * num_cols)
-        table.set('style', f'border-collapse: collapse; width: {table_width}pt; table-layout: fixed; margin-top: 6pt; margin-bottom: 27pt;')  # Space AFTER table (75% of doubled)
+        table.set('class', 'fb-ek-table')
         
         # Header row
         tr_header = ET.SubElement(table, 'tr')
         td_label_h = ET.SubElement(tr_header, 'td')
-        td_label_h.set('style', f'vertical-align: bottom; width: {label_width}pt; padding-bottom: 4pt; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
+        td_label_h.set('class', 'fb-ek-th-label')
         # Empty
         
         for col_label in visible_labels:
             td_col = ET.SubElement(tr_header, 'td')
-            td_col.set('style', f'vertical-align: bottom; width: {col_width}pt; padding-bottom: 4pt; text-align: right; border-bottom: 0.5pt solid rgba(0, 0, 0, 0.7);')
+            td_col.set('class', 'fb-ek-th-col')
             # Handle multi-line headers
             lines = col_label.split('\n')
             for line in lines:
                 p_line = ET.SubElement(td_col, 'p')
-                p_line.set('class', 'P')
-                p_line.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+                p_line.set('class', 'P-no-margin-bold')
                 p_line.text = line
         
         # Data rows
@@ -1519,23 +1627,21 @@ body {
             
             # Label
             td_label = ET.SubElement(tr, 'td')
-            td_label.set('style', f'vertical-align: top; width: {label_width}pt; padding-top: 2pt;')
+            td_label.set('class', 'fb-ek-td-label')
             p_label = ET.SubElement(td_label, 'p')
-            p_label.set('class', 'P')
             if is_utgaende:
-                p_label.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+                p_label.set('class', 'P-no-margin-bold')
             else:
-                p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+                p_label.set('class', 'P-no-margin')
             p_label.text = label
             
             # Values
             for col_idx, val in enumerate(values):
                 td_val = ET.SubElement(tr, 'td')
+                td_val.set('class', 'fb-ek-td-amount')
                 # Add semibold styling for utgående rows
                 if is_utgaende:
-                    td_val.set('style', f'vertical-align: top; width: {col_width}pt; text-align: right; padding-top: 2pt; font-weight: 500;')
-                else:
-                    td_val.set('style', f'vertical-align: top; width: {col_width}pt; text-align: right; padding-top: 2pt;')
+                    td_val.set('style', 'font-weight: 500;')
                 
                 # Get the column name and block for XBRL mapping
                 col_name = visible_cols[col_idx] if col_idx < len(visible_cols) else None
@@ -1587,11 +1693,10 @@ body {
                 else:
                     # No XBRL tagging: plain text in <p>
                     p_val = ET.SubElement(td_val, 'p')
-                    p_val.set('class', 'P')
                     if is_utgaende:
-                        p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+                        p_val.set('class', 'P-no-margin-bold')
                     else:
-                        p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                        p_val.set('class', 'P-no-margin')
                     p_val.text = self._format_monetary_value(val, for_display=True)
     
     def _render_resultatdisposition_xbrl(self, page: ET.Element, fb_table: list, company_data: dict,
@@ -1644,24 +1749,22 @@ body {
         
         # Create table
         table = ET.SubElement(page, 'table')
+        table.set('class', 'fb-resdisp-table')
         # Add margin-bottom only if no dividend text will follow (checked below)
-        if arets_utdelning == 0:
-            table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt; margin-bottom: 27pt;')  # 75% of doubled
-        else:
-            table.set('style', 'border-collapse: collapse; width: 300pt; table-layout: fixed; margin-top: 6pt;')
+        if arets_utdelning != 0:
+            table.set('style', 'margin-bottom: 0;')  # Override default when dividend follows
         
         # Available funds
         if balanserat != 0:
             tr = ET.SubElement(table, 'tr')
             td_label = ET.SubElement(tr, 'td')
-            td_label.set('style', 'vertical-align: top; width: 150pt;')
+            td_label.set('class', 'fb-resdisp-td-label')
             p_label = ET.SubElement(td_label, 'p')
-            p_label.set('class', 'P')
-            p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_label.set('class', 'P-no-margin')
             p_label.text = 'Balanserat resultat'
             
             td_val = ET.SubElement(tr, 'td')
-            td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+            td_val.set('class', 'fb-resdisp-td-amount')
             
             # Apply XBRL tagging for Balanserat resultat
             mapping = fb_mappings_dict.get('Balanserat resultat')
@@ -1682,21 +1785,19 @@ body {
                 ix_elem.text = formatted_val
             else:
                 p_val = ET.SubElement(td_val, 'p')
-                p_val.set('class', 'P')
-                p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                p_val.set('class', 'P-no-margin')
                 p_val.text = self._format_monetary_value(balanserat, for_display=True)
         
         if arets_res != 0:
             tr = ET.SubElement(table, 'tr')
             td_label = ET.SubElement(tr, 'td')
-            td_label.set('style', 'vertical-align: top; width: 150pt;')
+            td_label.set('class', 'fb-resdisp-td-label')
             p_label = ET.SubElement(td_label, 'p')
-            p_label.set('class', 'P')
-            p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_label.set('class', 'P-no-margin')
             p_label.text = 'Årets resultat'
             
             td_val = ET.SubElement(tr, 'td')
-            td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+            td_val.set('class', 'fb-resdisp-td-amount')
             
             # Apply XBRL tagging for Årets resultat
             mapping = fb_mappings_dict.get('Årets resultat')
@@ -1717,21 +1818,20 @@ body {
                 ix_elem.text = formatted_val
             else:
                 p_val = ET.SubElement(td_val, 'p')
-                p_val.set('class', 'P')
-                p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+                p_val.set('class', 'P-no-margin')
                 p_val.text = self._format_monetary_value(arets_res, for_display=True)
         
         # First Summa row
         tr = ET.SubElement(table, 'tr')
         td_label = ET.SubElement(tr, 'td')
-        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        td_label.set('class', 'fb-resdisp-td-label')
         p_label = ET.SubElement(td_label, 'p')
-        p_label.set('class', 'P')
-        p_label.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+        p_label.set('class', 'P-no-margin-bold')
         p_label.text = 'Summa'
         
         td_val = ET.SubElement(tr, 'td')
-        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right; font-weight: 500;')
+        td_val.set('class', 'fb-resdisp-td-amount')
+        td_val.set('style', 'font-weight: 500;')
         
         # Apply XBRL tagging for first Summa (FrittEgetKapital)
         mapping = fb_mappings_dict.get('Summa')
@@ -1759,31 +1859,29 @@ body {
         # Empty row for spacing
         tr_empty = ET.SubElement(table, 'tr')
         td_empty1 = ET.SubElement(tr_empty, 'td')
-        td_empty1.set('style', 'height: 10pt;')
+        td_empty1.set('class', 'fb-spacer-row')
         td_empty2 = ET.SubElement(tr_empty, 'td')
-        td_empty2.set('style', 'height: 10pt;')
+        td_empty2.set('class', 'fb-spacer-row')
         
         # Disposition header
         tr = ET.SubElement(table, 'tr')
         td_label = ET.SubElement(tr, 'td')
-        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        td_label.set('class', 'fb-resdisp-td-label')
         p_label = ET.SubElement(td_label, 'p')
-        p_label.set('class', 'P')
-        p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+        p_label.set('class', 'P-no-margin')
         p_label.text = 'Disponeras enligt följande'
         td_empty = ET.SubElement(tr, 'td')
         
         # Utdelas till aktieägare
         tr = ET.SubElement(table, 'tr')
         td_label = ET.SubElement(tr, 'td')
-        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        td_label.set('class', 'fb-resdisp-td-label')
         p_label = ET.SubElement(td_label, 'p')
-        p_label.set('class', 'P')
-        p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+        p_label.set('class', 'P-no-margin')
         p_label.text = 'Utdelas till aktieägare'
         
         td_val = ET.SubElement(tr, 'td')
-        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+        td_val.set('class', 'fb-resdisp-td-amount')
         
         # Apply XBRL tagging for Vinstutdelning
         mapping = fb_mappings_dict.get('Vinstutdelning ')  # Note: space in CSV
@@ -1806,22 +1904,20 @@ body {
             ix_elem.text = formatted_val
         else:
             p_val = ET.SubElement(td_val, 'p')
-            p_val.set('class', 'P')
-            p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_val.set('class', 'P-no-margin')
             p_val.text = self._format_monetary_value(arets_utdelning, for_display=True)
         
         # Balanseras i ny räkning
         balanseras = summa - arets_utdelning
         tr = ET.SubElement(table, 'tr')
         td_label = ET.SubElement(tr, 'td')
-        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        td_label.set('class', 'fb-resdisp-td-label')
         p_label = ET.SubElement(td_label, 'p')
-        p_label.set('class', 'P')
-        p_label.set('style', 'margin-top: 0; margin-bottom: 0;')
+        p_label.set('class', 'P-no-margin')
         p_label.text = 'Balanseras i ny räkning'
         
         td_val = ET.SubElement(tr, 'td')
-        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right;')
+        td_val.set('class', 'fb-resdisp-td-amount')
         
         # Apply XBRL tagging for Balanseras i ny räkning
         mapping = fb_mappings_dict.get('Balanseras i ny räkning')
@@ -1842,21 +1938,20 @@ body {
             ix_elem.text = formatted_val
         else:
             p_val = ET.SubElement(td_val, 'p')
-            p_val.set('class', 'P')
-            p_val.set('style', 'margin-top: 0; margin-bottom: 0;')
+            p_val.set('class', 'P-no-margin')
             p_val.text = self._format_monetary_value(balanseras, for_display=True)
         
         # Final Summa row
         tr = ET.SubElement(table, 'tr')
         td_label = ET.SubElement(tr, 'td')
-        td_label.set('style', 'vertical-align: top; width: 150pt;')
+        td_label.set('class', 'fb-resdisp-td-label')
         p_label = ET.SubElement(td_label, 'p')
-        p_label.set('class', 'P')
-        p_label.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+        p_label.set('class', 'P-no-margin-bold')
         p_label.text = 'Summa'
         
         td_val = ET.SubElement(tr, 'td')
-        td_val.set('style', 'vertical-align: top; width: 150pt; text-align: right; font-weight: 500;')
+        td_val.set('class', 'fb-resdisp-td-amount')
+        td_val.set('style', 'font-weight: 500;')
         
         # Apply XBRL tagging for final Summa (ForslagDisposition)
         # Need to find the Summa mapping with ForslagDisposition element
@@ -1883,8 +1978,7 @@ body {
             ix_elem.text = formatted_val
         else:
             p_val = ET.SubElement(td_val, 'p')
-            p_val.set('class', 'P')
-            p_val.set('style', 'margin-top: 0; margin-bottom: 0; font-weight: 500;')
+            p_val.set('class', 'P-no-margin-bold')
             p_val.text = self._format_monetary_value(summa, for_display=True)
         
         # Add dividend policy text if utdelning > 0 (this is the LAST element - add space AFTER)
