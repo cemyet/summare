@@ -53,12 +53,12 @@ class XBRLGenerator:
         """Get or create a context ID for the given period with semantic naming"""
         if period_type == 'duration':
             key = f"duration_{start_date}_{end_date}"
-            # Use semantic IDs: period0 for current year, period1 for previous
+            # Use semantic IDs: period0 for current year, period1 for previous (rule 2.16.5)
             context_id = "period0" if is_current else "period1"
         else:
             key = f"instant_{instant_date}"
-            # Use semantic IDs: instant0 for current year end, instant1 for previous
-            context_id = "instant0" if is_current else "instant1"
+            # Use semantic IDs: balans0 for current year end, balans1 for previous (rule 2.16.7)
+            context_id = "balans0" if is_current else "balans1"
         
         if key not in self.contexts:
             self.contexts[key] = {
@@ -1140,7 +1140,7 @@ body {
             parent: Parent ET.Element to attach to
             element_name: Qualified element name (e.g. 'se-gen-base:Nettoomsattning')
             value: Numeric value (will be formatted with space as thousands separator)
-            context_ref: Context reference (e.g. 'period0', 'instant0')
+            context_ref: Context reference (e.g. 'period0', 'balans0')
             is_negative_display: If True and value is negative, prepend '-' before tag
         
         Returns:
@@ -1232,11 +1232,16 @@ body {
         return False
     
     def _get_context_refs(self, fiscal_year: int, period_type: str = 'duration') -> tuple:
-        """Get contextRef IDs for current and previous year with semantic naming"""
+        """Get contextRef IDs for current and previous year with semantic naming
+        
+        Per Bolagsverket rules:
+        - Rule 2.16.5: Duration periods named "period0" (current), "period1" (previous)
+        - Rule 2.16.7: Balance dates named "balans0" (current), "balans1" (previous)
+        """
         if period_type == 'duration':
             return ('period0', 'period1')
         else:
-            return ('instant0', 'instant1')
+            return ('balans0', 'balans1')
     
     def _generate_visible_content(self, body: ET.Element, company_data: Dict[str, Any], 
                                  start_date: Optional[str], end_date: Optional[str], fiscal_year: Optional[int]):
@@ -1580,16 +1585,16 @@ body {
                             ix_elem.set('sign', '-')
                         ix_elem.text = formatted_val
                     elif data_type == 'xbrli:pureItemType':
-                        # Soliditet percentage - display as % with XBRL tag
-                        # Store as decimal (e.g., 45% = 0.45) but display with % symbol
-                        decimal_val = val / 100
+                        # Soliditet percentage - Rule 2.12.1: MUST use scale="-2"
+                        # Display value in percent (e.g., "28"), scale=-2 means actual value is 0.28
                         ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
                         ix_elem.set('contextRef', context_ref)
                         ix_elem.set('name', element_name)
-                        ix_elem.set('decimals', '4')  # Higher precision for decimals
-                        ix_elem.set('format', 'ixt:percentofdecimalatleast2')
-                        # Display as percentage (e.g., "28%") which will be stored as 0.28 in XBRL
-                        ix_elem.text = f"{int(round(val))}%"
+                        ix_elem.set('decimals', 'INF')  # Exact value
+                        ix_elem.set('scale', '-2')  # Value is 100 times smaller (28 -> 0.28)
+                        ix_elem.set('format', 'ixt:numdotdecimal')  # Decimal format with dot
+                        # Display as percentage value without % symbol (e.g., "28")
+                        ix_elem.text = str(int(round(val)))
                     else:
                         # Fallback: plain text in <p>
                         p_val = ET.SubElement(td_val, 'p')
