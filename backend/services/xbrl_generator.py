@@ -13,23 +13,20 @@ import uuid
 class XBRLGenerator:
     """Generate XBRL instance documents from parsed financial data"""
     
-    # XBRL namespaces (updated to match Swedish taxonomy)
+    # XBRL namespaces (updated to match Bolagsverket iXBRL standard)
     NAMESPACES = {
-        'xbrli': 'http://www.xbrl.org/2003/instance',
-        'xbrldi': 'http://xbrl.org/2006/xbrldi',
+        'iso4217': 'http://www.xbrl.org/2003/iso4217',
+        'ixt': 'http://www.xbrl.org/inlineXBRL/transformation/2010-04-20',
         'xlink': 'http://www.w3.org/1999/xlink',
         'link': 'http://www.xbrl.org/2003/linkbase',
-        'xsi': 'http://www.w3.org/2001/XMLSchema-instance',
+        'xbrli': 'http://www.xbrl.org/2003/instance',
         'ix': 'http://www.xbrl.org/2013/inlineXBRL',
-        'ixt': 'http://www.xbrl.org/inlineXBRL/transformation/2010-04-20',
-        'iso4217': 'http://www.xbrl.org/2003/iso4217',
         'se-gen-base': 'http://www.taxonomier.se/se/fr/gen-base/2021-10-31',
         'se-cd-base': 'http://www.taxonomier.se/se/fr/cd-base/2021-10-31',
+        'se-bol-base': 'http://www.bolagsverket.se/se/fr/comp-base/2020-12-01',
+        'se-misc-base': 'http://www.taxonomier.se/se/fr/misc-base/2017-09-30',
         'se-gaap-ext': 'http://www.taxonomier.se/se/fr/gaap/gaap-ext/2021-10-31',
         'se-mem-base': 'http://www.taxonomier.se/se/fr/mem-base/2021-10-31',
-        'se-bol-base': 'http://www.bolagsverket.se/se/fr/comp-base/2020-12-01',
-        'se-ar-base': 'http://www.far.se/se/fr/ar/base/2020-12-01',
-        'se-misc-base': 'http://www.taxonomier.se/se/fr/misc-base/2017-09-30',
         'se-k2-type': 'http://www.taxonomier.se/se/fr/k2/datatype',
     }
     
@@ -357,8 +354,33 @@ class XBRLGenerator:
         reparsed = minidom.parseString(rough_string)
         # Generate XML with proper UTF-8 declaration
         xml_bytes = reparsed.toprettyxml(indent="  ", encoding='UTF-8')
-        # Convert bytes to string for return
-        return xml_bytes.decode('UTF-8')
+        xml_string = xml_bytes.decode('UTF-8')
+        
+        # Format the opening <html> tag with proper line breaks and tabs
+        # Replace the compact html opening tag with formatted version
+        html_open_start = xml_string.find('<html')
+        html_open_end = xml_string.find('>', html_open_start)
+        
+        if html_open_start != -1 and html_open_end != -1:
+            # Build the properly formatted opening tag
+            formatted_html_open = '''<html xmlns="http://www.w3.org/1999/xhtml" 
+\txmlns:iso4217="http://www.xbrl.org/2003/iso4217" 
+\txmlns:ixt="http://www.xbrl.org/inlineXBRL/transformation/2010-04-20" 
+\txmlns:xlink="http://www.w3.org/1999/xlink" 
+\txmlns:link="http://www.xbrl.org/2003/linkbase" 
+\txmlns:xbrli="http://www.xbrl.org/2003/instance" 
+\txmlns:ix="http://www.xbrl.org/2013/inlineXBRL" 
+\txmlns:se-gen-base="http://www.taxonomier.se/se/fr/gen-base/2021-10-31"
+\txmlns:se-cd-base="http://www.taxonomier.se/se/fr/cd-base/2021-10-31"
+\txmlns:se-bol-base="http://www.bolagsverket.se/se/fr/comp-base/2020-12-01"
+\txmlns:se-misc-base="http://www.taxonomier.se/se/fr/misc-base/2017-09-30"
+\t  xmlns:se-gaap-ext="http://www.taxonomier.se/se/fr/gaap/gaap-ext/2021-10-31"
+\t  xmlns:se-mem-base="http://www.taxonomier.se/se/fr/mem-base/2021-10-31"
+\txmlns:se-k2-type="http://www.taxonomier.se/se/fr/k2/datatype">'''
+            
+            xml_string = xml_string[:html_open_start] + formatted_html_open + xml_string[html_open_end+1:]
+        
+        return xml_string
     
     def _get_css_styles(self) -> str:
         """Return CSS styles matching PDF generator"""
