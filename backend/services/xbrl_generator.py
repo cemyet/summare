@@ -1023,6 +1023,101 @@ body {
           margin-top: 0;
           margin-bottom: 0;
         }
+
+        /* FB section and cover page specific styles */
+        .fb-ek-td-amount-bold {
+          vertical-align: top;
+          width: 59.8pt;
+          text-align: right;
+          padding-top: 2pt;
+          font-weight: 500;
+        }
+
+        .fb-resdisp-td-amount-bold {
+          vertical-align: top;
+          width: 150pt;
+          text-align: right;
+          font-weight: 500;
+        }
+
+        .cover-title-spaced {
+          text-align: center;
+          font-size: 24pt;
+          font-weight: 500;
+          line-height: 27.6pt;
+          margin-top: 0;
+          margin-bottom: 4pt;
+        }
+
+        .cover-subtitle-spaced {
+          text-align: center;
+          font-size: 16pt;
+          font-weight: 500;
+          line-height: 18.4pt;
+          margin-top: 0;
+          margin-bottom: 4pt;
+        }
+
+        .cover-center-org {
+          text-align: center;
+          font-size: 10pt;
+          line-height: 1.2;
+          margin-top: 0;
+          margin-bottom: 24pt;
+          font-size: 16pt;
+        }
+
+        .cover-label-spaced {
+          text-align: center;
+          font-size: 14pt;
+          line-height: 1.2;
+          margin-top: 0;
+          margin-bottom: 3pt;
+        }
+
+        .cover-center-dates {
+          text-align: center;
+          font-size: 14pt;
+          line-height: 1.2;
+          margin-top: 0;
+          margin-bottom: 0;
+        }
+
+        .H0-spaced-bottom {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: 500;
+          font-size: 16pt;
+          margin-top: 0pt;
+          margin-bottom: 18pt;
+          line-height: 1.2;
+        }
+
+        .H1-spaced-top {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: 500;
+          font-size: 12pt;
+          margin-top: 18pt;
+          margin-bottom: 0pt;
+          line-height: 1.2;
+        }
+
+        .H1-no-margin-top {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: 500;
+          font-size: 12pt;
+          margin-top: 0pt;
+          margin-bottom: 0pt;
+          line-height: 1.2;
+        }
+
+        .P-spaced-bottom {
+          font-family: "Roboto", Arial, sans-serif;
+          font-weight: normal;
+          font-size: 10pt;
+          line-height: 12pt;
+          margin-top: 0pt;
+          margin-bottom: 27pt;
+        }
         """
     
     def _num(self, v):
@@ -1194,14 +1289,12 @@ body {
         
         # "Årsredovisning" - 18pt semibold, centered (PDF: fontSize=18, fontName='Roboto-Medium', spaceAfter=0, leading=18)
         p_title = ET.SubElement(page0, 'p')
-        p_title.set('class', 'cover-title')
-        p_title.set('style', 'margin-top: 0; margin-bottom: 4pt;')  # 4pt space after
+        p_title.set('class', 'cover-title-spaced')
         p_title.text = 'Årsredovisning'
         
         # Company name - 16pt semibold, centered (with XBRL tag)
         p_name = ET.SubElement(page0, 'p')
-        p_name.set('class', 'cover-subtitle')
-        p_name.set('style', 'margin-top: 0; margin-bottom: 4pt;')  # 4pt space after
+        p_name.set('class', 'cover-subtitle-spaced')
         ix_name = ET.SubElement(p_name, 'ix:nonNumeric')
         ix_name.set('name', 'se-cd-base:ForetagetsNamn')
         ix_name.set('contextRef', period0_ref)
@@ -1209,8 +1302,7 @@ body {
         
         # Organization number - 16pt normal, centered (with XBRL tag)
         p_org = ET.SubElement(page0, 'p')
-        p_org.set('class', 'cover-center')
-        p_org.set('style', 'margin-top: 0; margin-bottom: 24pt; font-size: 16pt;')  # 24pt space after
+        p_org.set('class', 'cover-center-org')
         ix_org = ET.SubElement(p_org, 'ix:nonNumeric')
         ix_org.set('name', 'se-cd-base:Organisationsnummer')
         ix_org.set('contextRef', period0_ref)
@@ -1222,14 +1314,12 @@ body {
         
         # "avseende perioden" - 12pt normal, centered
         p_period_label = ET.SubElement(page0, 'p')
-        p_period_label.set('class', 'cover-label')
-        p_period_label.set('style', 'margin-top: 0; margin-bottom: 3pt;')  # 3pt space after
+        p_period_label.set('class', 'cover-label-spaced')
         p_period_label.text = 'avseende perioden'
         
         # Fiscal period dates - 14pt normal, centered
         p_dates = ET.SubElement(page0, 'p')
-        p_dates.set('class', 'cover-center')
-        p_dates.set('style', 'margin-top: 0; margin-bottom: 0; font-size: 14pt;')
+        p_dates.set('class', 'cover-center-dates')
         period_text = f"{start_date} - {end_date}"
         p_dates.text = period_text
         
@@ -1244,8 +1334,7 @@ body {
         
         # Main heading "Förvaltningsberättelse" with spacing
         p_fb_title = ET.SubElement(page1, 'p')
-        p_fb_title.set('class', 'H0')
-        p_fb_title.set('style', 'margin-bottom: 18pt;')
+        p_fb_title.set('class', 'H0-spaced-bottom')
         p_fb_title.text = 'Förvaltningsberättelse'
         
         # Get company and FB data
@@ -1300,14 +1389,16 @@ body {
         
         # Verksamheten section
         p_h_verksamhet = ET.SubElement(page1, 'p')
-        p_h_verksamhet.set('class', 'H1')
-        p_h_verksamhet.set('style', 'margin-top: 18pt;')
+        p_h_verksamhet.set('class', 'H1-spaced-top')
         p_h_verksamhet.text = 'Verksamheten'
         
         p_verksamhet = ET.SubElement(page1, 'p')
-        p_verksamhet.set('class', 'P')
-        p_verksamhet.set('style', 'margin-bottom: 27pt;')  # Space AFTER last element (75% of doubled)
-        p_verksamhet.text = verksamhet_text
+        p_verksamhet.set('class', 'P-spaced-bottom')
+        # Add XBRL tagging for Verksamheten text
+        ix_verksamhet = ET.SubElement(p_verksamhet, 'ix:nonNumeric')
+        ix_verksamhet.set('name', 'se-gen-base:AllmantVerksamheten')
+        ix_verksamhet.set('contextRef', period0_ref)
+        ix_verksamhet.text = verksamhet_text
         
         # Väsentliga händelser
         vasentliga_text = company_data.get('vasentligaHandelser')
@@ -1315,14 +1406,16 @@ body {
             vasentliga_text = "Inga väsentliga händelser under året."
         
         p_h_vasentliga = ET.SubElement(page1, 'p')
-        p_h_vasentliga.set('class', 'H1')
-        p_h_vasentliga.set('style', 'margin-top: 0;')  # No extra space, already added by previous element
+        p_h_vasentliga.set('class', 'H1-no-margin-top')
         p_h_vasentliga.text = 'Väsentliga händelser under räkenskapsåret'
         
         p_vasentliga = ET.SubElement(page1, 'p')
-        p_vasentliga.set('class', 'P')
-        p_vasentliga.set('style', 'margin-bottom: 27pt;')  # Space AFTER last element (75% of doubled)
-        p_vasentliga.text = vasentliga_text
+        p_vasentliga.set('class', 'P-spaced-bottom')
+        # Add XBRL tagging for Väsentliga händelser text
+        ix_vasentliga = ET.SubElement(p_vasentliga, 'ix:nonNumeric')
+        ix_vasentliga.set('name', 'se-gen-base:VasentligaHandelserUnderRakenskapsaret')
+        ix_vasentliga.set('contextRef', period0_ref)
+        ix_vasentliga.text = vasentliga_text
         
         # Flerårsöversikt - render with proper logic
         self._render_flerarsoversikt_xbrl(page1, company_data, fiscal_year, prev_year, fb_variables, fb_mappings, period0_ref, balans0_ref, balans1_ref, unit_ref)
@@ -1338,8 +1431,7 @@ body {
                                      balans1_ref: str, unit_ref: str) -> None:
         """Render Flerårsöversikt table with 3 years"""
         p_heading = ET.SubElement(page, 'p')
-        p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 0;')  # Space already added by previous element
+        p_heading.set('class', 'H1-no-margin-top')
         p_heading.text = 'Flerårsöversikt'
         
         p_tkr = ET.SubElement(page, 'p')
@@ -1523,8 +1615,7 @@ body {
             return
         
         p_heading = ET.SubElement(page, 'p')
-        p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 0;')  # Space already added by previous element
+        p_heading.set('class', 'H1-no-margin-top')
         p_heading.text = 'Förändringar i eget kapital'
         
         # Build FB mappings dict by (radrubrik, block) for Förändringar i eget kapital
@@ -1638,10 +1729,11 @@ body {
             # Values
             for col_idx, val in enumerate(values):
                 td_val = ET.SubElement(tr, 'td')
-                td_val.set('class', 'fb-ek-td-amount')
                 # Add semibold styling for utgående rows
                 if is_utgaende:
-                    td_val.set('style', 'font-weight: 500;')
+                    td_val.set('class', 'fb-ek-td-amount-bold')
+                else:
+                    td_val.set('class', 'fb-ek-td-amount')
                 
                 # Get the column name and block for XBRL mapping
                 col_name = visible_cols[col_idx] if col_idx < len(visible_cols) else None
@@ -1739,8 +1831,7 @@ body {
             return  # Nothing to report
         
         p_heading = ET.SubElement(page, 'p')
-        p_heading.set('class', 'H1')
-        p_heading.set('style', 'margin-top: 0;')  # Space already added by previous element
+        p_heading.set('class', 'H1-no-margin-top')
         p_heading.text = 'Resultatdisposition'
         
         p_intro = ET.SubElement(page, 'p')
@@ -1830,8 +1921,7 @@ body {
         p_label.text = 'Summa'
         
         td_val = ET.SubElement(tr, 'td')
-        td_val.set('class', 'fb-resdisp-td-amount')
-        td_val.set('style', 'font-weight: 500;')
+        td_val.set('class', 'fb-resdisp-td-amount-bold')
         
         # Apply XBRL tagging for first Summa (FrittEgetKapital)
         mapping = fb_mappings_dict.get('Summa')
@@ -1950,8 +2040,7 @@ body {
         p_label.text = 'Summa'
         
         td_val = ET.SubElement(tr, 'td')
-        td_val.set('class', 'fb-resdisp-td-amount')
-        td_val.set('style', 'font-weight: 500;')
+        td_val.set('class', 'fb-resdisp-td-amount-bold')
         
         # Apply XBRL tagging for final Summa (ForslagDisposition)
         # Need to find the Summa mapping with ForslagDisposition element
