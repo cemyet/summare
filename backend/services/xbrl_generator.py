@@ -49,16 +49,27 @@ class XBRLGenerator:
     
     def _get_or_create_context(self, period_type: str, start_date: Optional[str] = None, 
                                end_date: Optional[str] = None, instant_date: Optional[str] = None,
-                               is_current: bool = True) -> str:
-        """Get or create a context ID for the given period with semantic naming"""
+                               is_current: bool = True, context_id: Optional[str] = None) -> str:
+        """Get or create a context ID for the given period with semantic naming
+        
+        Args:
+            period_type: 'duration' or 'instant'
+            start_date: Start date for duration contexts
+            end_date: End date for duration contexts
+            instant_date: Instant date for instant contexts
+            is_current: True for current year (period0/balans0), False for previous (period1/balans1)
+            context_id: Optional manual context ID (e.g., 'period2', 'balans2')
+        """
         if period_type == 'duration':
             key = f"duration_{start_date}_{end_date}"
             # Use semantic IDs: period0 for current year, period1 for previous (rule 2.16.5)
-            context_id = "period0" if is_current else "period1"
+            if not context_id:
+                context_id = "period0" if is_current else "period1"
         else:
             key = f"instant_{instant_date}"
             # Use semantic IDs: balans0 for current year end, balans1 for previous (rule 2.16.7)
-            context_id = "balans0" if is_current else "balans1"
+            if not context_id:
+                context_id = "balans0" if is_current else "balans1"
         
         if key not in self.contexts:
             self.contexts[key] = {
@@ -70,17 +81,26 @@ class XBRLGenerator:
             }
         return self.contexts[key]['id']
     
-    def _get_or_create_unit(self, currency: str = 'SEK') -> str:
-        """Get or create a unit ID for the given currency"""
-        key = f"unit_{currency}"
-        if key not in self.units:
-            self.unit_counter += 1
-            unit_id = f"u{self.unit_counter}"
-            self.units[key] = {
+    def _get_or_create_unit(self, unit_type: str = 'SEK') -> str:
+        """Get or create a unit ID for the given type
+        
+        Args:
+            unit_type: 'SEK' for currency, 'procent' for percentages, etc.
+        """
+        # Use semantic IDs per Bolagsverket pattern
+        if unit_type == 'SEK':
+            unit_id = 'SEK'
+        elif unit_type == 'procent':
+            unit_id = 'procent'
+        else:
+            unit_id = unit_type
+        
+        if unit_id not in self.units:
+            self.units[unit_id] = {
                 'id': unit_id,
-                'currency': currency
+                'type': unit_type
             }
-        return self.units[key]['id']
+        return unit_id
     
     def _format_date(self, date_str: str) -> str:
         """Format date string to XBRL format (YYYY-MM-DD)"""
@@ -282,11 +302,21 @@ class XBRLGenerator:
                 instant_elem = ET.SubElement(period, 'xbrli:instant')
                 instant_elem.text = context_info['instant_date']
         
-        # Add SEK unit to ix:resources (matching Bolagsverket example)
-        unit_element = ET.SubElement(ix_resources, 'xbrli:unit')
-        unit_element.set('id', 'SEK')
-        measure = ET.SubElement(unit_element, 'xbrli:measure')
-        measure.text = 'iso4217:SEK'
+        # Add units to ix:resources (matching Bolagsverket example)
+        for unit_id, unit_info in self.units.items():
+            unit_element = ET.SubElement(ix_resources, 'xbrli:unit')
+            unit_element.set('id', unit_id)
+            measure = ET.SubElement(unit_element, 'xbrli:measure')
+            
+            # Different measure formats for different unit types
+            unit_type = unit_info.get('type', unit_id)
+            if unit_type == 'SEK':
+                measure.text = 'iso4217:SEK'
+            elif unit_type == 'procent':
+                measure.text = 'xbrli:pure'
+            else:
+                # Generic format
+                measure.text = f'xbrli:{unit_type}'
         
         # ------------------------------------------------------------------
         # Hidden facts in ix:hidden (metadata, enums, duplicates)
@@ -1256,17 +1286,47 @@ body {
                      or company_info.get('organization_number')
                      or '')
         prev_year = fiscal_year - 1 if fiscal_year else 0
+        prev_year_2 = fiscal_year - 2 if fiscal_year else 0  # Third year for Flerårsöversikt
+        prev_year_3 = fiscal_year - 3 if fiscal_year else 0  # Fourth year (if needed)
         
-        # Get context refs
+        # Get context refs for current and previous years
         period0_ref, period1_ref = self._get_context_refs(fiscal_year or 0, 'duration')
         balans0_ref, balans1_ref = self._get_context_refs(fiscal_year or 0, 'instant')
+        
+        # Create units
         unit_ref = self._get_or_create_unit('SEK')
+        procent_unit_ref = self._get_or_create_unit('procent')  # For percentages per Bolagsverket
+        
+        # Create contexts for third and fourth years for Flerårsöversikt (per Bolagsverket pattern)
+        if fiscal_year and prev_year_2 > 0:
+            period2_start = f"{prev_year_2}-01-01"
+            period2_end = f"{prev_year_2}-12-31"
+            # Create contexts with explicit period2/balans2 IDs
+            period2_ref = self._get_or_create_context('duration', period2_start, period2_end, 
+                                                      is_current=False, context_id='period2')
+            balans2_ref = self._get_or_create_context('instant', instant_date=period2_end, 
+                                                       is_current=False, context_id='balans2')
+        else:
+            period2_ref = None
+            balans2_ref = None
+        
+        # Create period3/balans3 if needed (4th year) - not currently used but defined per Bolagsverket pattern
+        if fiscal_year and prev_year_3 > 0:
+            period3_start = f"{prev_year_3}-01-01"
+            period3_end = f"{prev_year_3}-12-31"
+            period3_ref = self._get_or_create_context('duration', period3_start, period3_end, 
+                                                       is_current=False, context_id='period3')
+            balans3_ref = self._get_or_create_context('instant', instant_date=period3_end, 
+                                                        is_current=False, context_id='balans3')
+        else:
+            period3_ref = None
+            balans3_ref = None
         
         # Page 0: Cover page
         self._render_cover_page(body, company_name, org_number, fiscal_year, start_date, end_date, period0_ref)
         
         # Page 1: Förvaltningsberättelse
-        self._render_forvaltningsberattelse(body, company_data, company_name, org_number, fiscal_year, prev_year, period0_ref, period1_ref, balans0_ref, balans1_ref, unit_ref)
+        self._render_forvaltningsberattelse(body, company_data, company_name, org_number, fiscal_year, prev_year, period0_ref, period1_ref, balans0_ref, balans1_ref, period2_ref, balans2_ref, unit_ref)
         
         # Page 2: Resultaträkning
         self._render_resultatrakning(body, company_data, company_name, org_number, fiscal_year, prev_year, period0_ref, period1_ref, unit_ref)
@@ -1332,7 +1392,8 @@ body {
     def _render_forvaltningsberattelse(self, body: ET.Element, company_data: Dict[str, Any],
                                       company_name: str, org_number: str, fiscal_year: Optional[int],
                                       prev_year: int, period0_ref: str, period1_ref: str,
-                                      balans0_ref: str, balans1_ref: str, unit_ref: str):
+                                      balans0_ref: str, balans1_ref: str, period2_ref: Optional[str], 
+                                      balans2_ref: Optional[str], unit_ref: str):
         """Render Förvaltningsberättelse section with proper FB mapping"""
         page1 = ET.SubElement(body, 'div')
         page1.set('class', 'pagebreak_before ar-page1')
@@ -1423,7 +1484,7 @@ body {
         ix_vasentliga.text = vasentliga_text
         
         # Flerårsöversikt - render with proper logic
-        self._render_flerarsoversikt_xbrl(page1, company_data, fiscal_year, prev_year, fb_variables, fb_mappings, period0_ref, balans0_ref, balans1_ref, unit_ref)
+        self._render_flerarsoversikt_xbrl(page1, company_data, fiscal_year, prev_year, fb_variables, fb_mappings, period0_ref, balans0_ref, balans1_ref, period2_ref, balans2_ref, unit_ref)
         
         # Förändringar i eget kapital - render with show/hide logic
         self._render_forandringar_eget_kapital_xbrl(page1, fb_table, fiscal_year, prev_year, fb_variables, fb_mappings, balans0_ref, balans1_ref, period0_ref, unit_ref)
@@ -1433,7 +1494,8 @@ body {
     
     def _render_flerarsoversikt_xbrl(self, page: ET.Element, company_data: dict, fiscal_year: int, prev_year: int,
                                      fb_variables: dict, fb_mappings: list, period0_ref: str, balans0_ref: str, 
-                                     balans1_ref: str, unit_ref: str) -> None:
+                                     balans1_ref: str, period2_ref: Optional[str], balans2_ref: Optional[str], 
+                                     unit_ref: str) -> None:
         """Render Flerårsöversikt table with 3 years"""
         p_heading = ET.SubElement(page, 'p')
         p_heading.set('class', 'H1-no-margin-top')
@@ -1546,7 +1608,7 @@ body {
             p_label.text = label
             
             # Values (3 years: current, prev, prev-1)
-            # Only current (index 0) and prev (index 1) get XBRL tags
+            # Tag all 3 years with XBRL if contexts are available
             for idx, val in enumerate(values):
                 td_val = ET.SubElement(tr, 'td')
                 td_val.set('class', 'fb-flerars-td-amount')
@@ -1557,14 +1619,15 @@ body {
                 
                 # Determine contextRef based on year index and period type
                 context_ref = None
-                if idx == 0:  # Current year
+                if idx == 0:  # Current year (2024)
                     context_ref = period0_ref if mapping and mapping.get('period_type') == 'DURATION' else balans0_ref
-                elif idx == 1:  # Previous year
+                elif idx == 1:  # Previous year (2023)
                     context_ref = 'period1' if mapping and mapping.get('period_type') == 'DURATION' else balans1_ref
-                # idx == 2 (prev-1 year) gets no XBRL tagging
+                elif idx == 2 and period2_ref and balans2_ref:  # Third year (2022) - if contexts exist
+                    context_ref = period2_ref if mapping and mapping.get('period_type') == 'DURATION' else balans2_ref
                 
-                # Apply XBRL tagging only to first 2 years (current and prev)
-                if mapping and context_ref and idx < 2:
+                # Apply XBRL tagging if mapping and context exist
+                if mapping and context_ref:
                     element_name = f"{mapping['namespace']}:{mapping['element_name']}"
                     data_type = mapping.get('data_type', '')
                     
@@ -1587,9 +1650,11 @@ body {
                     elif data_type == 'xbrli:pureItemType':
                         # Soliditet percentage - Rule 2.12.1: MUST use scale="-2"
                         # Display value in percent (e.g., "28"), scale=-2 means actual value is 0.28
+                        # Per Bolagsverket: use unitRef="procent" (xbrli:pure measure)
                         ix_elem = ET.SubElement(td_val, 'ix:nonFraction')
                         ix_elem.set('contextRef', context_ref)
                         ix_elem.set('name', element_name)
+                        ix_elem.set('unitRef', 'procent')  # Use procent unit (xbrli:pure)
                         ix_elem.set('decimals', 'INF')  # Exact value
                         ix_elem.set('scale', '-2')  # Value is 100 times smaller (28 -> 0.28)
                         ix_elem.set('format', 'ixt:numdotdecimal')  # Decimal format with dot
