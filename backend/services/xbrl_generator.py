@@ -1515,7 +1515,7 @@ body {
         if all(v == 0 for v in sol_vals):
             scraped_sol = get_scraped_values(['Soliditet'])
             sol_vals = scraped_sol
-        rows_data.append(('Soliditet', sol_vals, True, ['sol1', 'sol2', 'sol3']))  # True = percentage
+        rows_data.append(('Soliditet (%)', sol_vals, True, ['sol1', 'sol2', 'sol3']))  # True = percentage
         
         # Create table
         table = ET.SubElement(page, 'table')
@@ -1600,7 +1600,8 @@ body {
                         p_val = ET.SubElement(td_val, 'p')
                         p_val.set('class', 'P-no-margin')
                         if is_percentage:
-                            p_val.text = f"{int(round(val))}%"
+                            # Per Bolagsverket rule 2.12.1: show percentage value without % symbol
+                            p_val.text = str(int(round(val)))
                         else:
                             p_val.text = self._format_monetary_value(val, for_display=True)
                 else:
@@ -1608,7 +1609,8 @@ body {
                     p_val = ET.SubElement(td_val, 'p')
                     p_val.set('class', 'P-no-margin')
                     if is_percentage:
-                        p_val.text = f"{int(round(val))}%"
+                        # Per Bolagsverket rule 2.12.1: show percentage value without % symbol
+                        p_val.text = str(int(round(val)))
                     else:
                         p_val.text = self._format_monetary_value(val, for_display=True)
     
