@@ -9,9 +9,9 @@ import requests
 def test_firewall_access():
     """
     Testar om vi kan nå Bolagsverkets testmiljö genom brandväggen
-    Simulerar telnet till arsredovisning-accept2.bolagsverket.se:443
+    Simulerar telnet till api-accept2.bolagsverket.se:443
     """
-    host = "arsredovisning-accept2.bolagsverket.se"
+    host = "api-accept2.bolagsverket.se"
     port = 443
     timeout = 10
     
@@ -58,7 +58,7 @@ def test_https_connection():
     """
     Testar HTTPS-anslutning till Bolagsverkets API
     """
-    host = "arsredovisning-accept2.bolagsverket.se"
+    host = "api-accept2.bolagsverket.se"
     
     print("\n🌐 Test 2: HTTPS-anslutning...")
     print(f"   Testar: https://{host}/")

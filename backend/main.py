@@ -1507,24 +1507,25 @@ async def test_bolagsverket_firewall():
     🔥 Test endpoint to verify firewall access to Bolagsverket's test environment
     
     This endpoint tests if Railway backend (IP: 208.77.244.15) can reach
-    arsredovisning-accept2.bolagsverket.se through the firewall.
+    both Bolagsverket hosts through the firewall.
     
     Returns:
         Test results including IP address, socket connection, and HTTPS connection
     """
     import socket
     
-    host = "arsredovisning-accept2.bolagsverket.se"
+    # Test both hosts
+    hosts = [
+        "arsredovisning-accept2.bolagsverket.se",  # Testbänk
+        "api-accept2.bolagsverket.se"  # API
+    ]
     port = 443
     timeout = 10
     
     results = {
-        "host": host,
-        "port": port,
         "external_ip": None,
         "is_railway_backend": False,
-        "socket_test": {"success": False, "error": None},
-        "https_test": {"success": False, "error": None}
+        "hosts": {}
     }
     
     # Get external IP
@@ -1535,37 +1536,47 @@ async def test_bolagsverket_firewall():
     except Exception as e:
         results["external_ip"] = f"Error: {str(e)}"
     
-    # Test 1: Socket connection (telnet-like)
-    try:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(timeout)
-        result = sock.connect_ex((host, port))
-        sock.close()
+    # Test each host
+    for host in hosts:
+        host_results = {
+            "port": port,
+            "socket_test": {"success": False, "error": None},
+            "https_test": {"success": False, "error": None}
+        }
         
-        if result == 0:
-            results["socket_test"]["success"] = True
-        else:
-            results["socket_test"]["error"] = f"Connection failed with code: {result}"
-    except socket.timeout:
-        results["socket_test"]["error"] = "Timeout - firewall likely blocking"
-    except socket.gaierror as e:
-        results["socket_test"]["error"] = f"DNS error: {str(e)}"
-    except Exception as e:
-        results["socket_test"]["error"] = str(e)
-    
-    # Test 2: HTTPS connection
-    try:
-        response = requests.get(f"https://{host}/", timeout=10)
-        results["https_test"]["success"] = True
-        results["https_test"]["status_code"] = response.status_code
-    except requests.exceptions.Timeout:
-        results["https_test"]["error"] = "HTTPS timeout"
-    except requests.exceptions.SSLError as e:
-        results["https_test"]["error"] = f"SSL error: {str(e)}"
-    except requests.exceptions.ConnectionError as e:
-        results["https_test"]["error"] = f"Connection error: {str(e)}"
-    except Exception as e:
-        results["https_test"]["error"] = str(e)
+        # Test 1: Socket connection (telnet-like)
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            
+            if result == 0:
+                host_results["socket_test"]["success"] = True
+            else:
+                host_results["socket_test"]["error"] = f"Connection failed with code: {result}"
+        except socket.timeout:
+            host_results["socket_test"]["error"] = "Timeout - firewall likely blocking"
+        except socket.gaierror as e:
+            host_results["socket_test"]["error"] = f"DNS error: {str(e)}"
+        except Exception as e:
+            host_results["socket_test"]["error"] = str(e)
+        
+        # Test 2: HTTPS connection
+        try:
+            response = requests.get(f"https://{host}/", timeout=10)
+            host_results["https_test"]["success"] = True
+            host_results["https_test"]["status_code"] = response.status_code
+        except requests.exceptions.Timeout:
+            host_results["https_test"]["error"] = "HTTPS timeout"
+        except requests.exceptions.SSLError as e:
+            host_results["https_test"]["error"] = f"SSL error: {str(e)}"
+        except requests.exceptions.ConnectionError as e:
+            host_results["https_test"]["error"] = f"Connection error: {str(e)}"
+        except Exception as e:
+            host_results["https_test"]["error"] = str(e)
+        
+        results["hosts"][host] = host_results
     
     logger.info(f"🔥 Firewall test results: {results}")
     return results
@@ -1589,7 +1600,7 @@ async def skapa_inlamningtoken(request: SkapaInlamningTokenRequest):
     Returns:
         API response from Bolagsverket
     """
-    url = "https://arsredovisning-accept2.bolagsverket.se/testapi/lamna-in-arsredovisning/v2.1/skapa-inlamningtoken/"
+    url = "https://api-accept2.bolagsverket.se/testapi/lamna-in-arsredovisning/v2.1/skapa-inlamningtoken/"
     
     anropsobjekt = {
         "pnr": request.pnr,

@@ -17,7 +17,7 @@ def skapa_inlamningtoken(orgnr: str, pnr: str):
     Returns:
         API response
     """
-    url = "https://arsredovisning-accept2.bolagsverket.se/testapi/lamna-in-arsredovisning/v2.1/skapa-inlamningtoken/"
+    url = "https://api-accept2.bolagsverket.se/testapi/lamna-in-arsredovisning/v2.1/skapa-inlamningtoken/"
     
     # Anropsobjekt med personnummer och organisationsnummer
     anropsobjekt = {
