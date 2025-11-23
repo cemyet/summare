@@ -2084,15 +2084,9 @@ body {
                         ix_elem.set('decimals', 'INF')
                         ix_elem.set('scale', '0')
                         ix_elem.set('format', 'ixt:numspacecomma')
-                        # Get balance_type from mapping if available
-                        balance_type = mapping.get('balance_type', 'DEBIT')
-                        period_type = mapping.get('period_type', 'DURATION')
-                        # Determine section: DURATION=RR, INSTANT=BR
-                        section = 'RR' if period_type == 'DURATION' else 'BR'
-                        # Apply sign attribute based on section and balance_type
+                        # Flerårsöversikt: Simple sign handling (no balance_type check)
                         if val < 0:
-                            if (section == 'BR' and balance_type == 'DEBIT') or (section == 'RR' and balance_type == 'CREDIT'):
-                                ix_elem.set('sign', '-')
+                            ix_elem.set('sign', '-')
                         ix_elem.text = formatted_val
                     elif data_type == 'xbrli:pureItemType':
                         # Soliditet percentage - Rule 2.12.1: MUST use scale="-2"
@@ -2298,11 +2292,8 @@ body {
                     ix_elem.set('decimals', 'INF')
                     ix_elem.set('scale', '0')
                     ix_elem.set('format', 'ixt:numspacecomma')
-                    # Get balance_type from mapping if available
-                    balance_type = mapping.get('balance_type', 'DEBIT')
-                    # Förändringar eget kapital is BR-related (equity changes)
-                    # BR: Only add sign="-" if DEBIT account is negative
-                    if val < 0 and balance_type == 'DEBIT':
+                    # Förändringar eget kapital: Simple sign handling (no balance_type check)
+                    if val < 0:
                         ix_elem.set('sign', '-')
                     ix_elem.text = formatted_val
                 else:
@@ -2394,10 +2385,8 @@ body {
                 ix_elem.set('decimals', 'INF')
                 ix_elem.set('scale', '0')
                 ix_elem.set('format', 'ixt:numspacecomma')
-                # Get balance_type from mapping - Resultatdisposition is BR-related
-                balance_type = mapping.get('balance_type', 'DEBIT')
-                # BR: Only add sign="-" if DEBIT account is negative
-                if balanserat < 0 and balance_type == 'DEBIT':
+                # Resultatdisposition: Simple sign handling (no balance_type check)
+                if balanserat < 0:
                     ix_elem.set('sign', '-')
                 ix_elem.text = formatted_val
             else:
@@ -2430,10 +2419,8 @@ body {
                 ix_elem.set('decimals', 'INF')
                 ix_elem.set('scale', '0')
                 ix_elem.set('format', 'ixt:numspacecomma')
-                # Get balance_type from mapping - Resultatdisposition is BR-related
-                balance_type = mapping.get('balance_type', 'DEBIT')
-                # BR: Only add sign="-" if DEBIT account is negative
-                if arets_res < 0 and balance_type == 'DEBIT':
+                # Resultatdisposition: Simple sign handling (no balance_type check)
+                if arets_res < 0:
                     ix_elem.set('sign', '-')
                 ix_elem.text = formatted_val
             else:
@@ -2466,10 +2453,8 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            # Get balance_type from mapping - Resultatdisposition is BR-related
-            balance_type = mapping.get('balance_type', 'DEBIT')
-            # BR: Only add sign="-" if DEBIT account is negative
-            if summa < 0 and balance_type == 'DEBIT':
+            # Resultatdisposition: Simple sign handling (no balance_type check)
+            if summa < 0:
                 ix_elem.set('sign', '-')
             ix_elem.text = formatted_val
         else:
@@ -2521,10 +2506,8 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            # Get balance_type from mapping - Resultatdisposition is BR-related
-            balance_type = mapping.get('balance_type', 'DEBIT')
-            # BR: Only add sign="-" if DEBIT account is negative
-            if arets_utdelning < 0 and balance_type == 'DEBIT':
+            # Resultatdisposition: Simple sign handling (no balance_type check)
+            if arets_utdelning < 0:
                 ix_elem.set('sign', '-')
             ix_elem.text = formatted_val
         else:
@@ -2558,10 +2541,8 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            # Get balance_type from mapping - Resultatdisposition is BR-related
-            balance_type = mapping.get('balance_type', 'DEBIT')
-            # BR: Only add sign="-" if DEBIT account is negative
-            if balanseras < 0 and balance_type == 'DEBIT':
+            # Resultatdisposition: Simple sign handling (no balance_type check)
+            if balanseras < 0:
                 ix_elem.set('sign', '-')
             ix_elem.text = formatted_val
         else:
@@ -2600,10 +2581,8 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            # Get balance_type from mapping - Resultatdisposition is BR-related
-            balance_type = mapping.get('balance_type', 'DEBIT')
-            # BR: Only add sign="-" if DEBIT account is negative
-            if summa < 0 and balance_type == 'DEBIT':
+            # Resultatdisposition: Simple sign handling (no balance_type check)
+            if summa < 0:
                 ix_elem.set('sign', '-')
             ix_elem.text = formatted_val
         else:
