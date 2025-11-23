@@ -90,18 +90,25 @@ def kontrollera_via_railway(filepath: str, token: str, typ: str = "arsredovisnin
                     print("SAMMANFATTNING")
                     print("-" * 80)
                     
-                    # Kolla om det finns fel eller varningar
-                    if "fel" in data:
-                        print(f"\n❌ FEL: {len(data['fel'])} st")
-                        for i, fel in enumerate(data.get("fel", []), 1):
-                            print(f"  {i}. {fel}")
-                    
-                    if "varningar" in data:
-                        print(f"\n⚠️  VARNINGAR: {len(data['varningar'])} st")
-                        for i, varning in enumerate(data.get("varningar", []), 1):
-                            print(f"  {i}. {varning}")
-                    
-                    if not data.get("fel") and not data.get("varningar"):
+                    # Kolla "utfall" från Bolagsverket
+                    utfall = data.get("utfall", [])
+                    if utfall:
+                        fel_lista = [u for u in utfall if u.get("typ") == "error"]
+                        warn_lista = [u for u in utfall if u.get("typ") == "warn"]
+                        
+                        if fel_lista:
+                            print(f"\n❌ FEL: {len(fel_lista)} st")
+                            for i, fel in enumerate(fel_lista, 1):
+                                print(f"  {i}. [{fel.get('kod')}] {fel.get('text')}")
+                        
+                        if warn_lista:
+                            print(f"\n⚠️  VARNINGAR: {len(warn_lista)} st")
+                            for i, varning in enumerate(warn_lista, 1):
+                                print(f"  {i}. [{varning.get('kod')}] {varning.get('text')}")
+                        
+                        if not fel_lista and not warn_lista:
+                            print("\n✅ Inga fel eller varningar!")
+                    else:
                         print("\n✅ Inga fel eller varningar!")
             
             return response_json
