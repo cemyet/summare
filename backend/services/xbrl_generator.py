@@ -2303,8 +2303,15 @@ body {
             p_val.text = self._format_monetary_value(summa, for_display=True)
         
         # Add dividend policy text if utdelning > 0 (this is the LAST element - add space AFTER)
+        # Per Bolagsverket: wrap in ix:nonNumeric tag with name="se-gen-base:StyrelsensYttrandeVinstutdelning"
         if arets_utdelning > 0:
-            p_policy = ET.SubElement(page, 'p')
+            # Create XBRL wrapper for dividend statement
+            ix_dividend = ET.SubElement(page, 'ix:nonNumeric')
+            ix_dividend.set('name', 'se-gen-base:StyrelsensYttrandeVinstutdelning')
+            ix_dividend.set('contextRef', 'period0')
+            
+            # Paragraph(s) go INSIDE the ix:nonNumeric tag
+            p_policy = ET.SubElement(ix_dividend, 'p')
             p_policy.set('class', 'P')
             p_policy.set('style', 'margin-top: 18pt; margin-bottom: 27pt;')  # Space AFTER last element (75% of doubled)
             dividend_text = ("Styrelsen anser att förslaget är förenligt med försiktighetsregeln "
