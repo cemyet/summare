@@ -1233,6 +1233,7 @@ body {
           margin-top: 18pt;
           font-family: "Roboto", Arial, sans-serif;
           font-size: 10pt;
+          font-weight: 400;
         }
 
         .signature-cell {
@@ -1245,15 +1246,18 @@ body {
         .signature-name-text {
           font-weight: 500;
           margin-bottom: 6pt;
+          font-size: 10pt;
         }
 
         .signature-role-text {
-          font-size: 9pt;
+          font-weight: 400;
+          font-size: 10pt;
           margin-bottom: 6pt;
         }
 
         .signature-date-text {
-          font-size: 9pt;
+          font-weight: 400;
+          font-size: 10pt;
         }
         """
     
