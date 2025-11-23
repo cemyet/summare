@@ -426,7 +426,8 @@ class DatabaseParser:
                     'block_group': mapping.get('block_group'),
                     'always_show': self._normalize_always_show(mapping.get('always_show', False)),
                     'show_tag': show_tag,
-                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None,
+                    'balance_type': mapping.get('balance_type', 'DEBIT')
                 })
             else:
                 # Data row - calculate amounts for both years
@@ -455,7 +456,8 @@ class DatabaseParser:
                     'block_group': mapping.get('block_group'),
                     'always_show': self._normalize_always_show(mapping.get('always_show', False)),
                     'show_tag': show_tag,
-                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None,
+                    'balance_type': mapping.get('balance_type', 'DEBIT')
                 })
         
         # Second pass: Calculate formulas using all available data
@@ -639,7 +641,8 @@ class DatabaseParser:
                     'block_group': mapping.get('block_group'),
                     'always_show': self._normalize_always_show(mapping.get('always_show', False)),
                     'show_tag': show_tag,
-                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None,
+                    'balance_type': mapping.get('balance_type', 'DEBIT')
                 })
             else:
                 # Data row - calculate amounts for both years
@@ -669,7 +672,8 @@ class DatabaseParser:
                     'block_group': mapping.get('block_group'),
                     'always_show': self._normalize_always_show(mapping.get('always_show', False)),
                     'show_tag': show_tag,
-                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None
+                    'account_details': self._get_br_account_details(mapping, current_accounts) if show_tag else None,
+                    'balance_type': mapping.get('balance_type', 'DEBIT')
                 })
         
         # Second pass: Calculate formulas using all available data

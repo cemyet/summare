@@ -1304,7 +1304,7 @@ body {
     
     def _create_inline_xbrl_element(self, parent: ET.Element, element_name: str, 
                                    value: float, context_ref: str, 
-                                   is_negative_display: bool = False) -> ET.Element:
+                                   is_negative_display: bool = False, balance_type: str = None, section: str = None) -> ET.Element:
         """Create inline XBRL element with proper formatting (following Bolagsverket example)
         
         Args:
@@ -1313,6 +1313,8 @@ body {
             value: Numeric value (will be formatted with space as thousands separator)
             context_ref: Context reference (e.g. 'period0', 'balans0')
             is_negative_display: If True and value is negative, prepend '-' before tag
+            balance_type: 'DEBIT' or 'CREDIT' (from database mapping)
+            section: 'BR' or 'RR' (Balance Sheet or Income Statement)
         
         Returns:
             The created ix:nonFraction element
@@ -1323,9 +1325,9 @@ body {
         # If value is negative and displayed with minus sign, add it before the tag
         if is_negative_display and value < 0:
             if parent.text:
-                parent.text += '-'
+                parent.text += '- '
             else:
-                parent.text = '-'
+                parent.text = '- '
         
         # Create ix:nonFraction element
         ix_elem = ET.SubElement(parent, 'ix:nonFraction')
@@ -1336,8 +1338,17 @@ body {
         ix_elem.set('scale', '0')
         ix_elem.set('format', 'ixt:numspacecomma')
         
-        # Add sign attribute if value is negative and displayed with minus
-        if is_negative_display and value < 0:
+        # Add sign attribute ONLY when amount has abnormal sign for its type:
+        # BR: DEBIT accounts that are negative need sign="-"
+        # RR: CREDIT accounts that are negative need sign="-"
+        should_add_sign = False
+        if value < 0:
+            if section == 'BR' and balance_type == 'DEBIT':
+                should_add_sign = True
+            elif section == 'RR' and balance_type == 'CREDIT':
+                should_add_sign = True
+        
+        if should_add_sign:
             ix_elem.set('sign', '-')
         
         # Set text to formatted value (always positive display value)
@@ -2073,8 +2084,15 @@ body {
                         ix_elem.set('decimals', 'INF')
                         ix_elem.set('scale', '0')
                         ix_elem.set('format', 'ixt:numspacecomma')
+                        # Get balance_type from mapping if available
+                        balance_type = mapping.get('balance_type', 'DEBIT')
+                        period_type = mapping.get('period_type', 'DURATION')
+                        # Determine section: DURATION=RR, INSTANT=BR
+                        section = 'RR' if period_type == 'DURATION' else 'BR'
+                        # Apply sign attribute based on section and balance_type
                         if val < 0:
-                            ix_elem.set('sign', '-')
+                            if (section == 'BR' and balance_type == 'DEBIT') or (section == 'RR' and balance_type == 'CREDIT'):
+                                ix_elem.set('sign', '-')
                         ix_elem.text = formatted_val
                     elif data_type == 'xbrli:pureItemType':
                         # Soliditet percentage - Rule 2.12.1: MUST use scale="-2"
@@ -2280,7 +2298,11 @@ body {
                     ix_elem.set('decimals', 'INF')
                     ix_elem.set('scale', '0')
                     ix_elem.set('format', 'ixt:numspacecomma')
-                    if val < 0:
+                    # Get balance_type from mapping if available
+                    balance_type = mapping.get('balance_type', 'DEBIT')
+                    # Förändringar eget kapital is BR-related (equity changes)
+                    # BR: Only add sign="-" if DEBIT account is negative
+                    if val < 0 and balance_type == 'DEBIT':
                         ix_elem.set('sign', '-')
                     ix_elem.text = formatted_val
                 else:
@@ -2372,7 +2394,10 @@ body {
                 ix_elem.set('decimals', 'INF')
                 ix_elem.set('scale', '0')
                 ix_elem.set('format', 'ixt:numspacecomma')
-                if balanserat < 0:
+                # Get balance_type from mapping - Resultatdisposition is BR-related
+                balance_type = mapping.get('balance_type', 'DEBIT')
+                # BR: Only add sign="-" if DEBIT account is negative
+                if balanserat < 0 and balance_type == 'DEBIT':
                     ix_elem.set('sign', '-')
                 ix_elem.text = formatted_val
             else:
@@ -2405,7 +2430,10 @@ body {
                 ix_elem.set('decimals', 'INF')
                 ix_elem.set('scale', '0')
                 ix_elem.set('format', 'ixt:numspacecomma')
-                if arets_res < 0:
+                # Get balance_type from mapping - Resultatdisposition is BR-related
+                balance_type = mapping.get('balance_type', 'DEBIT')
+                # BR: Only add sign="-" if DEBIT account is negative
+                if arets_res < 0 and balance_type == 'DEBIT':
                     ix_elem.set('sign', '-')
                 ix_elem.text = formatted_val
             else:
@@ -2438,7 +2466,10 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            if summa < 0:
+            # Get balance_type from mapping - Resultatdisposition is BR-related
+            balance_type = mapping.get('balance_type', 'DEBIT')
+            # BR: Only add sign="-" if DEBIT account is negative
+            if summa < 0 and balance_type == 'DEBIT':
                 ix_elem.set('sign', '-')
             ix_elem.text = formatted_val
         else:
@@ -2490,7 +2521,10 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            if arets_utdelning < 0:
+            # Get balance_type from mapping - Resultatdisposition is BR-related
+            balance_type = mapping.get('balance_type', 'DEBIT')
+            # BR: Only add sign="-" if DEBIT account is negative
+            if arets_utdelning < 0 and balance_type == 'DEBIT':
                 ix_elem.set('sign', '-')
             ix_elem.text = formatted_val
         else:
@@ -2524,7 +2558,10 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            if balanseras < 0:
+            # Get balance_type from mapping - Resultatdisposition is BR-related
+            balance_type = mapping.get('balance_type', 'DEBIT')
+            # BR: Only add sign="-" if DEBIT account is negative
+            if balanseras < 0 and balance_type == 'DEBIT':
                 ix_elem.set('sign', '-')
             ix_elem.text = formatted_val
         else:
@@ -2563,7 +2600,10 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            if summa < 0:
+            # Get balance_type from mapping - Resultatdisposition is BR-related
+            balance_type = mapping.get('balance_type', 'DEBIT')
+            # BR: Only add sign="-" if DEBIT account is negative
+            if summa < 0 and balance_type == 'DEBIT':
                 ix_elem.set('sign', '-')
             ix_elem.text = formatted_val
         else:
@@ -2798,6 +2838,9 @@ body {
                         # All RR elements are in se-gen-base namespace
                         element_qname = f'se-gen-base:{element_name}'
                         
+                        # Get balance_type from row data
+                        balance_type = row.get('balance_type', 'DEBIT')
+                        
                         # For negative values, add minus sign before XBRL tag
                         if curr_val < 0: td_curr.text = '- '
                         ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
@@ -2814,6 +2857,9 @@ body {
                         ix_curr.set('decimals', 'INF')
                         ix_curr.set('scale', '0')
                         ix_curr.set('format', 'ixt:numspacecomma')
+                        # RR: Only add sign="-" if CREDIT account is negative
+                        if curr_val < 0 and balance_type == 'CREDIT':
+                            ix_curr.set('sign', '-')
                         ix_curr.text = self._format_monetary_value(abs(curr_val), for_display=True)
                     else:
                         # Fallback to plain text
@@ -2843,6 +2889,9 @@ body {
                         # All RR elements are in se-gen-base namespace
                         element_qname = f'se-gen-base:{element_name}'
                         
+                        # Get balance_type from row data
+                        balance_type = row.get('balance_type', 'DEBIT')
+                        
                         # For negative values, add minus sign before XBRL tag
                         if prev_val < 0: td_prev.text = '- '
                         ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
@@ -2856,6 +2905,9 @@ body {
                         ix_prev.set('decimals', 'INF')
                         ix_prev.set('scale', '0')
                         ix_prev.set('format', 'ixt:numspacecomma')
+                        # RR: Only add sign="-" if CREDIT account is negative
+                        if prev_val < 0 and balance_type == 'CREDIT':
+                            ix_prev.set('sign', '-')
                         ix_prev.text = self._format_monetary_value(abs(prev_val), for_display=True)
                     else:
                         # Fallback to plain text
