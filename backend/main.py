@@ -1501,6 +1501,142 @@ async def get_bolagsverket_full_data(organization_number: str):
             detail=f"Fel vid hämtning av data från Bolagsverket: {str(e)}"
         )
 
+@app.get("/api/bolagsverket/test-firewall")
+async def test_bolagsverket_firewall():
+    """
+    🔥 Test endpoint to verify firewall access to Bolagsverket's test environment
+    
+    This endpoint tests if Railway backend (IP: 208.77.244.15) can reach
+    arsredovisning-accept2.bolagsverket.se through the firewall.
+    
+    Returns:
+        Test results including IP address, socket connection, and HTTPS connection
+    """
+    import socket
+    
+    host = "arsredovisning-accept2.bolagsverket.se"
+    port = 443
+    timeout = 10
+    
+    results = {
+        "host": host,
+        "port": port,
+        "external_ip": None,
+        "is_railway_backend": False,
+        "socket_test": {"success": False, "error": None},
+        "https_test": {"success": False, "error": None}
+    }
+    
+    # Get external IP
+    try:
+        response = requests.get("https://api.ipify.org?format=json", timeout=5)
+        results["external_ip"] = response.json()["ip"]
+        results["is_railway_backend"] = (results["external_ip"] == "208.77.244.15")
+    except Exception as e:
+        results["external_ip"] = f"Error: {str(e)}"
+    
+    # Test 1: Socket connection (telnet-like)
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        result = sock.connect_ex((host, port))
+        sock.close()
+        
+        if result == 0:
+            results["socket_test"]["success"] = True
+        else:
+            results["socket_test"]["error"] = f"Connection failed with code: {result}"
+    except socket.timeout:
+        results["socket_test"]["error"] = "Timeout - firewall likely blocking"
+    except socket.gaierror as e:
+        results["socket_test"]["error"] = f"DNS error: {str(e)}"
+    except Exception as e:
+        results["socket_test"]["error"] = str(e)
+    
+    # Test 2: HTTPS connection
+    try:
+        response = requests.get(f"https://{host}/", timeout=10)
+        results["https_test"]["success"] = True
+        results["https_test"]["status_code"] = response.status_code
+    except requests.exceptions.Timeout:
+        results["https_test"]["error"] = "HTTPS timeout"
+    except requests.exceptions.SSLError as e:
+        results["https_test"]["error"] = f"SSL error: {str(e)}"
+    except requests.exceptions.ConnectionError as e:
+        results["https_test"]["error"] = f"Connection error: {str(e)}"
+    except Exception as e:
+        results["https_test"]["error"] = str(e)
+    
+    logger.info(f"🔥 Firewall test results: {results}")
+    return results
+
+class SkapaInlamningTokenRequest(BaseModel):
+    orgnr: str
+    pnr: str
+
+@app.post("/api/bolagsverket/skapa-inlamningtoken")
+async def skapa_inlamningtoken(request: SkapaInlamningTokenRequest):
+    """
+    📤 Create token for annual report submission to Bolagsverket
+    
+    This endpoint calls Bolagsverket's API to create a submission token.
+    Must be called from Railway backend (IP: 208.77.244.15) to pass firewall.
+    
+    Args:
+        orgnr: Organization number (10 digits, no hyphen)
+        pnr: Personal identity number including century (12 digits)
+        
+    Returns:
+        API response from Bolagsverket
+    """
+    url = "https://arsredovisning-accept2.bolagsverket.se/testapi/lamna-in-arsredovisning/v2.1/skapa-inlamningtoken/"
+    
+    anropsobjekt = {
+        "pnr": request.pnr,
+        "orgnr": request.orgnr
+    }
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+    
+    logger.info(f"📤 Creating Bolagsverket submission token for orgnr: {request.orgnr}")
+    
+    try:
+        response = requests.post(url, json=anropsobjekt, headers=headers, timeout=30)
+        
+        # Log response
+        logger.info(f"Bolagsverket response status: {response.status_code}")
+        
+        # Try to parse as JSON
+        try:
+            response_data = response.json()
+            return {
+                "success": True,
+                "status_code": response.status_code,
+                "data": response_data
+            }
+        except json.JSONDecodeError:
+            return {
+                "success": True,
+                "status_code": response.status_code,
+                "data": response.text
+            }
+            
+    except requests.exceptions.Timeout:
+        logger.error("❌ Bolagsverket API timeout")
+        raise HTTPException(
+            status_code=504,
+            detail="Timeout when calling Bolagsverket API. Check firewall access."
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Bolagsverket API error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error calling Bolagsverket API: {str(e)}"
+        )
+
 @app.post("/update-formula/{row_id}")
 async def update_formula(row_id: int, formula: str):
     """
