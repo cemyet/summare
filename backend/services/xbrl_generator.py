@@ -451,6 +451,11 @@ class XBRLGenerator:
         # ------------------------------------------------------------------
         self._generate_note_reference_tuples(ix_hidden)
         
+        # ------------------------------------------------------------------
+        # Generate depreciation principle tuples for Note 1 in hidden section
+        # ------------------------------------------------------------------
+        self._generate_depreciation_tuples(ix_hidden, company_data)
+        
         # Convert to pretty XML string with UTF-8 encoding
         rough_string = ET.tostring(root, encoding='unicode')
         reparsed = minidom.parseString(rough_string)
@@ -1455,6 +1460,80 @@ body {
             ref_typ_1.text = 'ANNUALREPORT_DISCLOSURE_REF'
             
             tuple_counter += 1
+    
+    def _generate_depreciation_tuples(self, ix_hidden: ET.Element, company_data: Dict[str, Any]):
+        """Generate depreciation principle tuples for Note 1 (Redovisningsprinciper)
+        
+        Per Bolagsverket pattern: creates tuple declarations in hidden section that link
+        to the depreciation table in Note 1. These tuples connect the asset category name
+        to its depreciation period.
+        """
+        # Check if we have depreciation data
+        noter_data = company_data.get('noterData', [])
+        avskrtid_bygg = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_bygg'), 0)
+        avskrtid_mask = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_mask'), 0)
+        avskrtid_inv = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_inv'), 0)
+        avskrtid_ovriga = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_ovriga'), 0)
+        
+        # Only generate tuples if we have at least one depreciation value
+        if not any([avskrtid_bygg, avskrtid_mask, avskrtid_inv, avskrtid_ovriga]):
+            return
+        
+        # Add blank line before section
+        blank_comment = ET.Comment(' ')
+        ix_hidden.append(blank_comment)
+        
+        # Add comment for section
+        comment = ET.Comment(' Not 1 Redovisnings- och värderingsprinciper ')
+        ix_hidden.append(comment)
+        
+        # Define asset categories with their tuple names
+        # Per Bolagsverket pattern: each asset category gets a tuple with its name
+        categories = [
+            {
+                'label': 'Tillämpade avskrivningstider: Maskiner och andra tekniska anläggningar',
+                'tuple_name': 'se-gaap-ext:AvskrivningsprincipMateriellaAnlaggningstillgangarMaskinerAndraTekniskaAnlaggningarTuple',
+                'tuple_id': 'avskr-princip-mask-id1',
+                'value': avskrtid_mask
+            },
+            {
+                'label': 'Tillämpade avskrivningstider: Inventarier, verktyg och installationer',
+                'tuple_name': 'se-gaap-ext:AvskrivningsprincipMateriellaAnlaggningstillgangarInventarierVerktygInstallationerTuple',
+                'tuple_id': 'avskr-princip-inv-id1',
+                'value': avskrtid_inv
+            },
+            {
+                'label': 'Tillämpade avskrivningstider: Byggnader och mark',
+                'tuple_name': 'se-gaap-ext:AvskrivningsprincipMateriellaAnlaggningstillgangarByggnaderTuple',
+                'tuple_id': 'avskr-princip-byggn-id1',
+                'value': avskrtid_bygg
+            },
+            {
+                'label': 'Tillämpade avskrivningstider: Övriga materiella anläggningstillgångar',
+                'tuple_name': 'se-gaap-ext:AvskrivningsprincipMateriellaAnlaggningstillgangarOvrigaTuple',
+                'tuple_id': 'avskr-princip-ovriga-id1',
+                'value': avskrtid_ovriga
+            }
+        ]
+        
+        # Generate tuples for each category
+        for category in categories:
+            # Only generate if value exists
+            if not category['value']:
+                continue
+            
+            # Tuple declaration
+            tuple_elem = ET.SubElement(ix_hidden, 'ix:tuple')
+            tuple_elem.set('name', category['tuple_name'])
+            tuple_elem.set('tupleID', category['tuple_id'])
+            
+            # Asset category name (Benamning)
+            benaming = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+            benaming.set('name', 'se-gen-base:AvskrivningsprincipMateriellAnlaggningstillgangBenamning')
+            benaming.set('contextRef', 'period0')
+            benaming.set('order', '1.0')
+            benaming.set('tupleRef', category['tuple_id'])
+            benaming.text = category['label']
     
     def _get_context_refs(self, fiscal_year: int, period_type: str = 'duration') -> tuple:
         """Get contextRef IDs for current and previous year with semantic naming
@@ -3666,11 +3745,12 @@ body {
             p_h2.text = 'År'
             
             # Data rows with XBRL tagging for depreciation periods
+            # tupleRef must match the tupleID in hidden section
             depr_items = [
-                ('Byggnader & mark', avskrtid_bygg, 'avskr-princip-bygg'),
-                ('Maskiner och andra tekniska anläggningar', avskrtid_mask, 'avskr-princip-mask'),
-                ('Inventarier, verktyg och installationer', avskrtid_inv, 'avskr-princip-inv'),
-                ('Övriga materiella anläggningstillgångar', avskrtid_ovriga, 'avskr-princip-ovriga'),
+                ('Byggnader & mark', avskrtid_bygg, 'avskr-princip-byggn-id1'),
+                ('Maskiner och andra tekniska anläggningar', avskrtid_mask, 'avskr-princip-mask-id1'),
+                ('Inventarier, verktyg och installationer', avskrtid_inv, 'avskr-princip-inv-id1'),
+                ('Övriga materiella anläggningstillgångar', avskrtid_ovriga, 'avskr-princip-ovriga-id1'),
             ]
             
             for label, val, tuple_id in depr_items:
