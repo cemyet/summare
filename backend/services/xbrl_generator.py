@@ -2084,9 +2084,7 @@ body {
                         ix_elem.set('decimals', 'INF')
                         ix_elem.set('scale', '0')
                         ix_elem.set('format', 'ixt:numspacecomma')
-                        # Flerårsöversikt: Simple sign handling (no balance_type check)
-                        if val < 0:
-                            ix_elem.set('sign', '-')
+                        # Flerårsöversikt: No sign attribute (FB section)
                         ix_elem.text = formatted_val
                     elif data_type == 'xbrli:pureItemType':
                         # Soliditet percentage - Rule 2.12.1: MUST use scale="-2"
@@ -2292,9 +2290,7 @@ body {
                     ix_elem.set('decimals', 'INF')
                     ix_elem.set('scale', '0')
                     ix_elem.set('format', 'ixt:numspacecomma')
-                    # Förändringar eget kapital: Simple sign handling (no balance_type check)
-                    if val < 0:
-                        ix_elem.set('sign', '-')
+                    # Förändringar eget kapital: No sign attribute (FB section)
                     ix_elem.text = formatted_val
                 else:
                     # No XBRL tagging: plain text in <p>
@@ -2385,9 +2381,7 @@ body {
                 ix_elem.set('decimals', 'INF')
                 ix_elem.set('scale', '0')
                 ix_elem.set('format', 'ixt:numspacecomma')
-                # Resultatdisposition: Simple sign handling (no balance_type check)
-                if balanserat < 0:
-                    ix_elem.set('sign', '-')
+                # Resultatdisposition: No sign attribute (FB section)
                 ix_elem.text = formatted_val
             else:
                 p_val = ET.SubElement(td_val, 'p')
@@ -2419,9 +2413,7 @@ body {
                 ix_elem.set('decimals', 'INF')
                 ix_elem.set('scale', '0')
                 ix_elem.set('format', 'ixt:numspacecomma')
-                # Resultatdisposition: Simple sign handling (no balance_type check)
-                if arets_res < 0:
-                    ix_elem.set('sign', '-')
+                # Resultatdisposition: No sign attribute (FB section)
                 ix_elem.text = formatted_val
             else:
                 p_val = ET.SubElement(td_val, 'p')
@@ -2453,9 +2445,7 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            # Resultatdisposition: Simple sign handling (no balance_type check)
-            if summa < 0:
-                ix_elem.set('sign', '-')
+            # Resultatdisposition: No sign attribute (FB section)
             ix_elem.text = formatted_val
         else:
             p_val = ET.SubElement(td_val, 'p')
@@ -2506,9 +2496,7 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            # Resultatdisposition: Simple sign handling (no balance_type check)
-            if arets_utdelning < 0:
-                ix_elem.set('sign', '-')
+            # Resultatdisposition: No sign attribute (FB section)
             ix_elem.text = formatted_val
         else:
             p_val = ET.SubElement(td_val, 'p')
@@ -2541,9 +2529,7 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            # Resultatdisposition: Simple sign handling (no balance_type check)
-            if balanseras < 0:
-                ix_elem.set('sign', '-')
+            # Resultatdisposition: No sign attribute (FB section)
             ix_elem.text = formatted_val
         else:
             p_val = ET.SubElement(td_val, 'p')
@@ -2581,9 +2567,7 @@ body {
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
             ix_elem.set('format', 'ixt:numspacecomma')
-            # Resultatdisposition: Simple sign handling (no balance_type check)
-            if summa < 0:
-                ix_elem.set('sign', '-')
+            # Resultatdisposition: No sign attribute (FB section)
             ix_elem.text = formatted_val
         else:
             p_val = ET.SubElement(td_val, 'p')
