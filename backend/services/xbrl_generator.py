@@ -1333,18 +1333,20 @@ body {
         
         return False
     
-    def _add_note_reference(self, note_number: str, from_id: str, to_id_pattern: str):
+    def _add_note_reference(self, note_number: str, from_id: str, to_id_pattern: str, label: str = ''):
         """Add a note reference for tuple generation in hidden section
         
         Args:
             note_number: Note number (e.g., "2", "3", "4")
             from_id: ID of the element in financial statement (e.g., 'personalkostnader-rr')
             to_id_pattern: ID pattern of the note element (e.g., 'notmedelantaletanstallda-ref-id1')
+            label: Note title/label (e.g., 'Byggnader och mark')
         """
         self.note_references.append({
             'note_number': note_number,
             'from_id': from_id,
-            'to_id_pattern': to_id_pattern
+            'to_id_pattern': to_id_pattern,
+            'label': label
         })
     
     def _generate_note_reference_tuples(self, ix_hidden: ET.Element):
@@ -1357,9 +1359,19 @@ body {
             note_num = ref['note_number']
             from_id = ref['from_id']
             to_id_pattern = ref['to_id_pattern']
+            label = ref.get('label', '')
             
-            # Add comment for readability
-            comment = ET.Comment(f" Notkoppling för not {note_num} ")
+            # Add blank line comment before each note block (except first) for readability
+            if tuple_counter > 1:
+                blank_comment = ET.Comment(' ')
+                ix_hidden.append(blank_comment)
+            
+            # Add comment with note number and label for readability
+            comment_text = f" Notkoppling för not {note_num}"
+            if label:
+                comment_text += f" - {label}"
+            comment_text += " "
+            comment = ET.Comment(comment_text)
             ix_hidden.append(comment)
             
             # Period 0 (current year)
@@ -2459,7 +2471,7 @@ body {
                     # Add ID for current year (ar-0) - we'll add this to the label cell
                     row_id = f"{mapping['from_id']}-ar-0"
                     # Track this note reference
-                    self._add_note_reference(note, mapping['from_id'], mapping['to_id_pattern'])
+                    self._add_note_reference(note, mapping['from_id'], mapping['to_id_pattern'], mapping.get('label', ''))
                 
                 # Add row spacing based on type (matching PDF spacing)
                 row_class = ''
@@ -2540,7 +2552,7 @@ body {
                             ix_curr.set('id', f"{mapping_note['from_id']}-ar-0")
                             # Track this note reference (only add once per note)
                             if not any(ref['note_number'] == note for ref in self.note_references):
-                                self._add_note_reference(note, mapping_note['from_id'], mapping_note['to_id_pattern'])
+                                self._add_note_reference(note, mapping_note['from_id'], mapping_note['to_id_pattern'], mapping_note.get('label', ''))
                         ix_curr.set('unitRef', 'SEK')
                         ix_curr.set('decimals', 'INF')
                         ix_curr.set('scale', '0')
