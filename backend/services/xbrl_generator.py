@@ -1729,10 +1729,10 @@ body {
             today = date.today()
             signing_date = today.strftime('%Y-%m-%d')
             
-            # Add Fastställelseintyg div at bottom with large top margin (15 line breaks ≈ 270pt)
+            # Add Fastställelseintyg div at bottom with large top margin (14 line breaks ≈ 252pt)
             div_cert = ET.SubElement(page0, 'div')
             div_cert.set('id', 'ar-certification')
-            div_cert.set('style', 'margin-top: 270pt;')
+            div_cert.set('style', 'margin-top: 252pt;')
             
             # Title
             strong_title = ET.SubElement(div_cert, 'strong')
@@ -1772,16 +1772,17 @@ body {
             ix_original.set('contextRef', balans0_ref)
             ix_original.text = 'Jag intygar att innehållet i dessa elektroniska handlingar överensstämmer med originalen och att originalen undertecknats av samtliga personer som enligt lag ska underteckna dessa.'
             
-            # Add two line breaks before "Elektroniskt underskriven av"
+            # Add three line breaks before "Elektroniskt underskriven av"
+            p1.append(ET.Element('br'))
             p1.append(ET.Element('br'))
             p1.append(ET.Element('br'))
             
-            # "Elektroniskt underskriven av:" section
+            # "Elektroniskt underskriven av" section
             strong_elektroniskt = ET.SubElement(p1, 'strong')
             ix_elektroniskt = ET.SubElement(strong_elektroniskt, 'ix:nonNumeric')
             ix_elektroniskt.set('name', 'se-bol-base:UnderskriftFaststallelseintygElektroniskt')
             ix_elektroniskt.set('contextRef', balans0_ref)
-            ix_elektroniskt.text = 'Elektroniskt underskriven av:'
+            ix_elektroniskt.text = 'Elektroniskt underskriven av'
             
             p1.append(ET.Element('br'))
             
