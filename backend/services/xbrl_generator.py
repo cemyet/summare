@@ -1269,7 +1269,7 @@ body {
           font-family: "Roboto", Arial, sans-serif;
           font-size: 10pt;
           font-weight: 400;
-          line-height: 1.4;
+          line-height: 12pt;
           text-align: left;
         }
 
@@ -1278,8 +1278,8 @@ body {
         }
 
         #ar-certification p {
-          margin-top: 6pt;
-          margin-bottom: 6pt;
+          margin-top: 0pt;
+          margin-bottom: 0pt;
         }
         """
     
@@ -1729,10 +1729,10 @@ body {
             today = date.today()
             signing_date = today.strftime('%Y-%m-%d')
             
-            # Add Fastställelseintyg div at bottom with large top margin (10 line breaks ≈ 180pt)
+            # Add Fastställelseintyg div at bottom with large top margin (15 line breaks ≈ 270pt)
             div_cert = ET.SubElement(page0, 'div')
             div_cert.set('id', 'ar-certification')
-            div_cert.set('style', 'margin-top: 180pt;')
+            div_cert.set('style', 'margin-top: 270pt;')
             
             # Title
             strong_title = ET.SubElement(div_cert, 'strong')
