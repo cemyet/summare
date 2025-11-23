@@ -3579,18 +3579,23 @@ body {
         # Create a container div for the note (to keep it together and control page breaks)
         note_container = ET.SubElement(page, 'div')
         note_container.set('class', 'note-container')
-        # Add ID to note container for XBRL note reference linking
-        # Find the corresponding note reference mapping
-        for ref_note_num, ref_data in self.NOTE_REFERENCE_MAPPING.items():
-            if str(note_number) == ref_note_num:
-                # Add ID that will be referenced by the tuple (using ar-0 for the container)
-                note_container.set('id', f"{ref_data['to_id_pattern']}-ar-0")
-                break
         
         # Note title (H1 heading - no extra spacing since container has margin-top)
+        # Per Bolagsverket: heading gets simple id="note-{number}" format
         p_heading = ET.SubElement(note_container, 'p')
         p_heading.set('class', 'H1 mt-0')
+        p_heading.set('id', f'note-{note_number}')  # Simple format for navigation
         p_heading.text = f'Not {note_number}  {title}'
+        
+        # Find the note reference pattern for this note (for ix:nonFraction IDs)
+        note_id_base = None
+        for ref_note_num, ref_data in self.NOTE_REFERENCE_MAPPING.items():
+            if str(note_number) == ref_note_num:
+                note_id_base = ref_data['to_id_pattern']
+                break
+        
+        # Counter for unique IDs within this note (id1, id2, id3, etc.)
+        value_counter = {'count': 1}
         
         #Special handling for NOT1 (Redovisningsprinciper - text + depreciation table)
         if block_name == 'NOT1':
@@ -3844,7 +3849,14 @@ body {
                             ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
                             ix_curr.set('contextRef', context_ref)
                             ix_curr.set('name', element_qname)
-                            ix_curr.set('unitRef', 'SEK')  # Hardcode to SEK
+                            # Add unique ID for this value (per Bolagsverket pattern)
+                            if note_id_base:
+                                year_suffix = '-ar-0' if context_ref in ['period0', 'balans0'] else '-ar-1'
+                                ix_curr.set('id', f"{note_id_base}{year_suffix}-id{value_counter['count']}")
+                                value_counter['count'] += 1
+                            # Note 2 (Medelantalet anställda) uses antal-anstallda unit, others use SEK
+                            unit_ref = 'antal-anstallda' if note_number == 2 else 'SEK'
+                            ix_curr.set('unitRef', unit_ref)
                             ix_curr.set('decimals', 'INF')  # Exact value
                             ix_curr.set('scale', '0')  # No scaling
                             ix_curr.set('format', 'ixt:numspacecomma')  # Space thousands separator
@@ -3895,7 +3907,14 @@ body {
                             ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
                             ix_prev.set('contextRef', context_ref)
                             ix_prev.set('name', element_qname)
-                            ix_prev.set('unitRef', 'SEK')  # Hardcode to SEK
+                            # Add unique ID for this value (per Bolagsverket pattern)
+                            if note_id_base:
+                                year_suffix = '-ar-0' if context_ref in ['period0', 'balans0'] else '-ar-1'
+                                ix_prev.set('id', f"{note_id_base}{year_suffix}-id{value_counter['count']}")
+                                value_counter['count'] += 1
+                            # Note 2 (Medelantalet anställda) uses antal-anstallda unit, others use SEK
+                            unit_ref = 'antal-anstallda' if note_number == 2 else 'SEK'
+                            ix_prev.set('unitRef', unit_ref)
                             ix_prev.set('decimals', 'INF')  # Exact value
                             ix_prev.set('scale', '0')  # No scaling
                             ix_prev.set('format', 'ixt:numspacecomma')  # Space thousands separator
