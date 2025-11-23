@@ -2947,7 +2947,7 @@ body {
                                 ix_curr.set('id', f"{mapping_note['from_id']}-ar-0")
                                 # Track this note reference (only add once per note)
                                 if not any(ref['note_number'] == note for ref in self.note_references):
-                                    self._add_note_reference(note, mapping_note['from_id'], mapping_note['to_id_pattern'])
+                                    self._add_note_reference(note, mapping_note['from_id'], mapping_note['to_id_pattern'], mapping_note.get('label', ''))
                             ix_curr.set('unitRef', 'SEK')
                             ix_curr.set('decimals', 'INF')
                             ix_curr.set('scale', '0')
@@ -3257,7 +3257,7 @@ body {
                                 ix_curr.set('id', f"{mapping_note['from_id']}-ar-0")
                                 # Track this note reference (only add once per note)
                                 if not any(ref['note_number'] == note for ref in self.note_references):
-                                    self._add_note_reference(note, mapping_note['from_id'], mapping_note['to_id_pattern'])
+                                    self._add_note_reference(note, mapping_note['from_id'], mapping_note['to_id_pattern'], mapping_note.get('label', ''))
                             ix_curr.set('unitRef', 'SEK')
                             ix_curr.set('decimals', 'INF')
                             ix_curr.set('scale', '0')
@@ -4068,9 +4068,13 @@ body {
         signering_data = company_data.get('signeringData') or company_data.get('signering_data', {})
         foretradare = signering_data.get('UnderskriftForetradare', [])
         
-        # Only render if we have signers
+        # If no signers, create a default one (the document must be signed)
         if not foretradare:
-            return
+            foretradare = [{
+                'UnderskriftHandlingTilltalsnamn': '',
+                'UnderskriftHandlingEfternamn': '',
+                'UnderskriftHandlingRoll': ''
+            }]
         
         # Get location (säte) from scraped data
         scraped_data = company_data.get('scraped_company_data', {})
