@@ -1792,7 +1792,6 @@ body {
             ix_elektroniskt.set('name', 'se-bol-base:UnderskriftFaststallelseintygElektroniskt')
             ix_elektroniskt.set('contextRef', balans0_ref)
             ix_elektroniskt.text = 'Elektroniskt underskriven av'
-            ix_elektroniskt.tail = ':'  # Colon inside strong tag, after ix:nonNumeric
             
             p1.append(ET.Element('br'))
             
@@ -1806,7 +1805,7 @@ body {
             ix_efternamn.set('name', 'se-bol-base:UnderskriftFaststallelseintygForetradareEfternamn')
             ix_efternamn.set('contextRef', period0_ref)
             ix_efternamn.text = efternamn
-            ix_efternamn.tail = ', '
+            ix_efternamn.tail = ' '
             
             ix_roll = ET.SubElement(p1, 'ix:nonNumeric')
             ix_roll.set('name', 'se-bol-base:UnderskriftFaststallelseintygForetradareForetradarroll')
