@@ -1226,33 +1226,15 @@ body {
           margin-bottom: 27pt;
         }
 
-        /* Signature section */
-        .signature-section {
-          margin-top: 36pt;
-          page-break-inside: avoid;
+        /* Signature section (per Bolagsverket pattern) */
+        .signature {
+          display: none;
         }
 
         .signature-location-date {
           font-family: "Roboto", Arial, sans-serif;
           font-size: 10pt;
           margin-bottom: 18pt;
-        }
-
-        .signature-line {
-          font-family: "Roboto", Arial, sans-serif;
-          font-size: 10pt;
-          margin-bottom: 36pt;
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-        }
-
-        .signature-name {
-          flex: 1;
-        }
-
-        .signature-role {
-          font-size: 10pt;
         }
 
         .signature-date {
@@ -1626,10 +1608,10 @@ body {
         self._render_balansrakning_skulder(body, company_data, company_name, org_number, fiscal_year, prev_year, 'balans0', 'balans1', unit_ref)
         
         # Page 5+: Noter
-        self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, 'period0', 'period1', 'balans0', 'balans1', unit_ref)
+        noter_page = self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, 'period0', 'period1', 'balans0', 'balans1', unit_ref)
         
-        # Signature section (after last note)
-        self._render_signatures(body, company_data, end_date)
+        # Signature section (after last note, inside the noter page)
+        self._render_signatures(noter_page, company_data, end_date)
     
     def _render_cover_page(self, body: ET.Element, company_name: str, org_number: str, 
                           fiscal_year: Optional[int], start_date: Optional[str], end_date: Optional[str],
@@ -3700,6 +3682,9 @@ body {
                                         company_data, fiscal_year, prev_year, period0_ref, period1_ref,
                                         balans0_ref, balans1_ref, unit_ref, noter_mappings_dict)
             page_note_count += 1
+        
+        # Return the last page container so signature section can be added to it
+        return current_page
     
     def _render_note_block_xbrl(self, page: ET.Element, block_name: str, block_title: str,
                                 note_number: int, visible_items: List[Dict[str, Any]], company_data: Dict[str, Any],
@@ -4060,8 +4045,8 @@ body {
                 else:
                     p_prev.text = prev_fmt
     
-    def _render_signatures(self, body: ET.Element, company_data: Dict[str, Any], end_date: Optional[str]):
-        """Render signature section at the end of the document"""
+    def _render_signatures(self, parent_container: ET.Element, company_data: Dict[str, Any], end_date: Optional[str]):
+        """Render signature section at the end of the document (inside the last noter page)"""
         from datetime import date
         
         # Get signature data
@@ -4085,16 +4070,15 @@ body {
         # Get signing date - use today's date
         signing_date = date.today().strftime('%Y-%m-%d')
         
-        # Create signature section container
-        sig_section = ET.SubElement(body, 'div')
-        sig_section.set('class', 'signature-section')
+        # Add spacing before signature (per Bolagsverket pattern: <br/><br/>)
+        ET.SubElement(parent_container, 'br')
+        ET.SubElement(parent_container, 'br')
         
-        # Location and date (single element per Bolagsverket pattern)
-        location_div = ET.SubElement(sig_section, 'div')
+        # Location and date (directly in parent, no wrapper div per Bolagsverket)
+        location_div = ET.SubElement(parent_container, 'div')
         location_div.set('class', 'signature-location-date')
         
         p_location = ET.SubElement(location_div, 'p')
-        p_location.set('class', 'P')
         
         # XBRL tag for location
         ix_location = ET.SubElement(p_location, 'ix:nonNumeric')
@@ -4102,8 +4086,8 @@ body {
         ix_location.set('contextRef', 'period0')
         ix_location.text = sate
         
-        # Signatures container
-        signatures_div = ET.SubElement(sig_section, 'div')
+        # Signatures container (directly in parent, no wrapper)
+        signatures_div = ET.SubElement(parent_container, 'div')
         signatures_div.set('class', 'signatures')
         
         # Generate tuple declarations for each signer (per Bolagsverket pattern)
@@ -4124,14 +4108,12 @@ body {
             tuple_id = f'UnderskriftArsredovisningForetradareTuple{idx}'
             full_name = f'{tilltalsnamn} {efternamn}'.strip()
             
-            # Create signature line
+            # Create signature line (per Bolagsverket: <p> without class)
             p_sig = ET.SubElement(signatures_div, 'p')
-            p_sig.set('class', 'P')
             
-            # Hidden signature span (for XBRL tagging only)
+            # Hidden signature span (for XBRL tagging only - per Bolagsverket: class="signature" only)
             span_hidden = ET.SubElement(p_sig, 'span')
             span_hidden.set('class', 'signature')
-            span_hidden.set('style', 'display:none;')
             
             # First name
             ix_first = ET.SubElement(span_hidden, 'ix:nonNumeric')
@@ -4149,12 +4131,11 @@ body {
             ix_last.set('tupleRef', tuple_id)
             ix_last.text = efternamn
             
-            # Visible name span
+            # Visible name span (per Bolagsverket: <span> without class)
             span_name = ET.SubElement(p_sig, 'span')
-            span_name.set('class', 'signature-name')
             span_name.text = full_name
             
-            # Add role if present
+            # Add role if present (per Bolagsverket: inside name span after <br/>)
             if roll:
                 br = ET.SubElement(span_name, 'br')
                 ix_roll = ET.SubElement(span_name, 'ix:nonNumeric')
@@ -4164,7 +4145,7 @@ body {
                 ix_roll.set('tupleRef', tuple_id)
                 ix_roll.text = roll
             
-            # Date span
+            # Date span (per Bolagsverket: class="signature-date")
             span_date = ET.SubElement(p_sig, 'span')
             span_date.set('class', 'signature-date')
             
