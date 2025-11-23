@@ -1281,6 +1281,14 @@ body {
           margin-top: 0pt;
           margin-bottom: 0pt;
         }
+
+        #ar-certification ix\\:nonNumeric,
+        #ar-certification ix\\:continuation {
+          display: inline;
+          margin: 0;
+          padding: 0;
+          border: 0;
+        }
         """
     
     def _num(self, v):
@@ -1766,6 +1774,7 @@ body {
             
             ix_cont = ET.SubElement(ix_arsstamma, 'ix:continuation')
             ix_cont.set('id', 'intygande_forts')
+            ix_cont.text = ' '  # Important space for proper sentence flow
             
             ix_original = ET.SubElement(ix_cont, 'ix:nonNumeric')
             ix_original.set('name', 'se-bol-base:IntygandeOriginalInnehall')
@@ -1783,6 +1792,7 @@ body {
             ix_elektroniskt.set('name', 'se-bol-base:UnderskriftFaststallelseintygElektroniskt')
             ix_elektroniskt.set('contextRef', balans0_ref)
             ix_elektroniskt.text = 'Elektroniskt underskriven av'
+            ix_elektroniskt.tail = ':'  # Colon inside strong tag, after ix:nonNumeric
             
             p1.append(ET.Element('br'))
             
