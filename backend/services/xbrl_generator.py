@@ -1226,20 +1226,34 @@ body {
           margin-bottom: 27pt;
         }
 
-        /* Signature section (per Bolagsverket pattern) */
-        .signature {
-          display: none;
-        }
-
-        .signature-location-date {
+        /* Signature section (table layout) */
+        .signature-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-top: 18pt;
           font-family: "Roboto", Arial, sans-serif;
           font-size: 10pt;
-          margin-bottom: 18pt;
         }
 
-        .signature-date {
-          margin-left: auto;
-          padding-left: 20pt;
+        .signature-cell {
+          width: 33.33%;
+          vertical-align: top;
+          padding: 12pt;
+          text-align: center;
+        }
+
+        .signature-name-text {
+          font-weight: 500;
+          margin-bottom: 6pt;
+        }
+
+        .signature-role-text {
+          font-size: 9pt;
+          margin-bottom: 6pt;
+        }
+
+        .signature-date-text {
+          font-size: 9pt;
         }
         """
     
@@ -1608,10 +1622,10 @@ body {
         self._render_balansrakning_skulder(body, company_data, company_name, org_number, fiscal_year, prev_year, 'balans0', 'balans1', unit_ref)
         
         # Page 5+: Noter
-        noter_page = self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, 'period0', 'period1', 'balans0', 'balans1', unit_ref)
+        self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, 'period0', 'period1', 'balans0', 'balans1', unit_ref)
         
-        # Signature section (after last note, inside the noter page)
-        self._render_signatures(noter_page, company_data, end_date)
+        # Page 6+: Signatures (as separate page)
+        self._render_signatures(body, company_data, end_date)
     
     def _render_cover_page(self, body: ET.Element, company_name: str, org_number: str, 
                           fiscal_year: Optional[int], start_date: Optional[str], end_date: Optional[str],
@@ -3682,9 +3696,6 @@ body {
                                         company_data, fiscal_year, prev_year, period0_ref, period1_ref,
                                         balans0_ref, balans1_ref, unit_ref, noter_mappings_dict)
             page_note_count += 1
-        
-        # Return the last page container so signature section can be added to it
-        return current_page
     
     def _render_note_block_xbrl(self, page: ET.Element, block_name: str, block_title: str,
                                 note_number: int, visible_items: List[Dict[str, Any]], company_data: Dict[str, Any],
@@ -4045,21 +4056,17 @@ body {
                 else:
                     p_prev.text = prev_fmt
     
-    def _render_signatures(self, parent_container: ET.Element, company_data: Dict[str, Any], end_date: Optional[str]):
-        """Render signature section at the end of the document (inside the last noter page)"""
+    def _render_signatures(self, body: ET.Element, company_data: Dict[str, Any], end_date: Optional[str]):
+        """Render signature section as a new page with table layout"""
         from datetime import date
         
         # Get signature data
         signering_data = company_data.get('signeringData') or company_data.get('signering_data', {})
         foretradare = signering_data.get('UnderskriftForetradare', [])
         
-        # If no signers, create a default one (the document must be signed)
+        # If no signers, return (signature is required but we'll let them add it)
         if not foretradare:
-            foretradare = [{
-                'UnderskriftHandlingTilltalsnamn': '',
-                'UnderskriftHandlingEfternamn': '',
-                'UnderskriftHandlingRoll': ''
-            }]
+            return
         
         # Get location (säte) from scraped data
         scraped_data = company_data.get('scraped_company_data', {})
@@ -4070,91 +4077,118 @@ body {
         # Get signing date - use today's date
         signing_date = date.today().strftime('%Y-%m-%d')
         
-        # Add spacing before signature (per Bolagsverket pattern: <br/><br/>)
-        ET.SubElement(parent_container, 'br')
-        ET.SubElement(parent_container, 'br')
+        # Create new signature page
+        sig_page = ET.SubElement(body, 'div')
+        sig_page.set('class', 'pagebreak_before ar-page-signatures pagebreak-before')
         
-        # Location and date (directly in parent, no wrapper div per Bolagsverket)
-        location_div = ET.SubElement(parent_container, 'div')
-        location_div.set('class', 'signature-location-date')
+        # Page title
+        p_title = ET.SubElement(sig_page, 'p')
+        p_title.set('class', 'H0')
+        p_title.text = 'Signaturer'
         
-        p_location = ET.SubElement(location_div, 'p')
+        # Explanatory text
+        p_text = ET.SubElement(sig_page, 'p')
+        p_text.set('class', 'P')
+        p_text.text = 'Denna årsredovisning har undertecknats av alla befattningshavare nedan.'
         
-        # XBRL tag for location
+        # Double line break
+        ET.SubElement(sig_page, 'br')
+        ET.SubElement(sig_page, 'br')
+        
+        # Location with XBRL tag
+        p_location = ET.SubElement(sig_page, 'p')
+        p_location.set('class', 'P')
         ix_location = ET.SubElement(p_location, 'ix:nonNumeric')
         ix_location.set('name', 'se-gen-base:UndertecknandeArsredovisningOrt')
         ix_location.set('contextRef', 'period0')
         ix_location.text = sate
         
-        # Signatures container (directly in parent, no wrapper)
-        signatures_div = ET.SubElement(parent_container, 'div')
-        signatures_div.set('class', 'signatures')
+        # Double line break
+        ET.SubElement(sig_page, 'br')
+        ET.SubElement(sig_page, 'br')
         
-        # Generate tuple declarations for each signer (per Bolagsverket pattern)
+        # Create tuple declarations (hidden, for XBRL compliance)
         for idx, person in enumerate(foretradare, start=1):
-            tuple_elem = ET.SubElement(signatures_div, 'ix:tuple')
+            tuple_elem = ET.SubElement(sig_page, 'ix:tuple')
             tuple_elem.set('name', 'se-gaap-ext:UnderskriftArsredovisningForetradareTuple')
             tuple_elem.set('tupleID', f'UnderskriftArsredovisningForetradareTuple{idx}')
+            tuple_elem.set('style', 'display:none;')
         
-        # Generate signature lines for each signer
-        for idx, person in enumerate(foretradare, start=1):
-            tilltalsnamn = person.get('UnderskriftHandlingTilltalsnamn', '').strip()
-            efternamn = person.get('UnderskriftHandlingEfternamn', '').strip()
-            roll = person.get('UnderskriftHandlingRoll', '').strip()
+        # Create signature table with 3 columns
+        table = ET.SubElement(sig_page, 'table')
+        table.set('class', 'signature-table')
+        
+        # Create rows (3 signatories per row)
+        num_signers = len(foretradare)
+        num_rows = (num_signers + 2) // 3  # Ceiling division
+        
+        for row_idx in range(num_rows):
+            tr = ET.SubElement(table, 'tr')
             
-            if not tilltalsnamn and not efternamn:
-                continue
-            
-            tuple_id = f'UnderskriftArsredovisningForetradareTuple{idx}'
-            full_name = f'{tilltalsnamn} {efternamn}'.strip()
-            
-            # Create signature line (per Bolagsverket: <p> without class)
-            p_sig = ET.SubElement(signatures_div, 'p')
-            
-            # Hidden signature span (for XBRL tagging only - per Bolagsverket: class="signature" only)
-            span_hidden = ET.SubElement(p_sig, 'span')
-            span_hidden.set('class', 'signature')
-            
-            # First name
-            ix_first = ET.SubElement(span_hidden, 'ix:nonNumeric')
-            ix_first.set('name', 'se-gen-base:UnderskriftHandlingTilltalsnamn')
-            ix_first.set('contextRef', 'period0')
-            ix_first.set('order', '1.0')
-            ix_first.set('tupleRef', tuple_id)
-            ix_first.text = tilltalsnamn
-            
-            # Last name
-            ix_last = ET.SubElement(span_hidden, 'ix:nonNumeric')
-            ix_last.set('name', 'se-gen-base:UnderskriftHandlingEfternamn')
-            ix_last.set('contextRef', 'period0')
-            ix_last.set('order', '2.0')
-            ix_last.set('tupleRef', tuple_id)
-            ix_last.text = efternamn
-            
-            # Visible name span (per Bolagsverket: <span> without class)
-            span_name = ET.SubElement(p_sig, 'span')
-            span_name.text = full_name
-            
-            # Add role if present (per Bolagsverket: inside name span after <br/>)
-            if roll:
-                br = ET.SubElement(span_name, 'br')
-                ix_roll = ET.SubElement(span_name, 'ix:nonNumeric')
-                ix_roll.set('name', 'se-gen-base:UnderskriftHandlingRoll')
-                ix_roll.set('contextRef', 'period0')
-                ix_roll.set('order', '3.0')
-                ix_roll.set('tupleRef', tuple_id)
-                ix_roll.text = roll
-            
-            # Date span (per Bolagsverket: class="signature-date")
-            span_date = ET.SubElement(p_sig, 'span')
-            span_date.set('class', 'signature-date')
-            
-            ix_date = ET.SubElement(span_date, 'ix:nonNumeric')
-            ix_date.set('name', 'se-gen-base:UndertecknandeDatum')
-            ix_date.set('contextRef', 'period0')
-            ix_date.set('order', '4.0')
-            ix_date.set('tupleRef', tuple_id)
-            ix_date.text = signing_date
+            # Add up to 3 signatories in this row
+            for col_idx in range(3):
+                signer_idx = row_idx * 3 + col_idx
+                
+                if signer_idx < num_signers:
+                    person = foretradare[signer_idx]
+                    tilltalsnamn = person.get('UnderskriftHandlingTilltalsnamn', '').strip()
+                    efternamn = person.get('UnderskriftHandlingEfternamn', '').strip()
+                    roll = person.get('UnderskriftHandlingRoll', '').strip()
+                    
+                    tuple_id = f'UnderskriftArsredovisningForetradareTuple{signer_idx + 1}'
+                    full_name = f'{tilltalsnamn} {efternamn}'.strip()
+                    
+                    # Create table cell
+                    td = ET.SubElement(tr, 'td')
+                    td.set('class', 'signature-cell')
+                    
+                    # Hidden XBRL tags
+                    span_hidden = ET.SubElement(td, 'span')
+                    span_hidden.set('style', 'display:none;')
+                    
+                    ix_first = ET.SubElement(span_hidden, 'ix:nonNumeric')
+                    ix_first.set('name', 'se-gen-base:UnderskriftHandlingTilltalsnamn')
+                    ix_first.set('contextRef', 'period0')
+                    ix_first.set('order', '1.0')
+                    ix_first.set('tupleRef', tuple_id)
+                    ix_first.text = tilltalsnamn
+                    
+                    ix_last = ET.SubElement(span_hidden, 'ix:nonNumeric')
+                    ix_last.set('name', 'se-gen-base:UnderskriftHandlingEfternamn')
+                    ix_last.set('contextRef', 'period0')
+                    ix_last.set('order', '2.0')
+                    ix_last.set('tupleRef', tuple_id)
+                    ix_last.text = efternamn
+                    
+                    # Visible name
+                    p_name = ET.SubElement(td, 'p')
+                    p_name.set('class', 'signature-name-text')
+                    p_name.text = full_name
+                    
+                    # Role
+                    if roll:
+                        p_role = ET.SubElement(td, 'p')
+                        p_role.set('class', 'signature-role-text')
+                        ix_roll = ET.SubElement(p_role, 'ix:nonNumeric')
+                        ix_roll.set('name', 'se-gen-base:UnderskriftHandlingRoll')
+                        ix_roll.set('contextRef', 'period0')
+                        ix_roll.set('order', '3.0')
+                        ix_roll.set('tupleRef', tuple_id)
+                        ix_roll.text = roll
+                    
+                    # Date
+                    p_date = ET.SubElement(td, 'p')
+                    p_date.set('class', 'signature-date-text')
+                    ix_date = ET.SubElement(p_date, 'ix:nonNumeric')
+                    ix_date.set('name', 'se-gen-base:UndertecknandeDatum')
+                    ix_date.set('contextRef', 'period0')
+                    ix_date.set('order', '4.0')
+                    ix_date.set('tupleRef', tuple_id)
+                    ix_date.text = signing_date
+                else:
+                    # Empty cell
+                    td = ET.SubElement(tr, 'td')
+                    td.set('class', 'signature-cell')
     
     def _add_general_info_facts(self, company_data: Dict[str, Any], start_date: Optional[str], end_date: Optional[str]):
         """Add general company information facts (se-cd-base namespace)"""
