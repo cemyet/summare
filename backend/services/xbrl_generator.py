@@ -2527,6 +2527,13 @@ body {
                         ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
                         ix_curr.set('contextRef', period0_ref)
                         ix_curr.set('name', element_qname)
+                        # Add ID if this row has a note (for note reference linking)
+                        if note and note in self.NOTE_REFERENCE_MAPPING:
+                            mapping_note = self.NOTE_REFERENCE_MAPPING[note]
+                            ix_curr.set('id', f"{mapping_note['from_id']}-ar-0")
+                            # Track this note reference (only add once per note)
+                            if not any(ref['note_number'] == note for ref in self.note_references):
+                                self._add_note_reference(note, mapping_note['from_id'], mapping_note['to_id_pattern'])
                         ix_curr.set('unitRef', 'SEK')
                         ix_curr.set('decimals', 'INF')
                         ix_curr.set('scale', '0')
@@ -2565,6 +2572,10 @@ body {
                         ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
                         ix_prev.set('contextRef', period1_ref)
                         ix_prev.set('name', element_qname)
+                        # Add ID if this row has a note (for note reference linking)
+                        if note and note in self.NOTE_REFERENCE_MAPPING:
+                            mapping_note = self.NOTE_REFERENCE_MAPPING[note]
+                            ix_prev.set('id', f"{mapping_note['from_id']}-ar-1")
                         ix_prev.set('unitRef', 'SEK')
                         ix_prev.set('decimals', 'INF')
                         ix_prev.set('scale', '0')
@@ -2795,6 +2806,13 @@ body {
                             ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
                             ix_curr.set('contextRef', balans0_ref)
                             ix_curr.set('name', element_qname)
+                            # Add ID if this row has a note (for note reference linking)
+                            if note and note in self.NOTE_REFERENCE_MAPPING:
+                                mapping_note = self.NOTE_REFERENCE_MAPPING[note]
+                                ix_curr.set('id', f"{mapping_note['from_id']}-ar-0")
+                                # Track this note reference (only add once per note)
+                                if not any(ref['note_number'] == note for ref in self.note_references):
+                                    self._add_note_reference(note, mapping_note['from_id'], mapping_note['to_id_pattern'])
                             ix_curr.set('unitRef', 'SEK')
                             ix_curr.set('decimals', 'INF')
                             ix_curr.set('scale', '0')
@@ -2840,6 +2858,10 @@ body {
                             ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
                             ix_prev.set('contextRef', balans1_ref)
                             ix_prev.set('name', element_qname)
+                            # Add ID if this row has a note (for note reference linking)
+                            if note and note in self.NOTE_REFERENCE_MAPPING:
+                                mapping_note = self.NOTE_REFERENCE_MAPPING[note]
+                                ix_prev.set('id', f"{mapping_note['from_id']}-ar-1")
                             ix_prev.set('unitRef', 'SEK')
                             ix_prev.set('decimals', 'INF')
                             ix_prev.set('scale', '0')
@@ -3094,6 +3116,13 @@ body {
                             ix_curr = ET.SubElement(td_curr, 'ix:nonFraction')
                             ix_curr.set('contextRef', balans0_ref)
                             ix_curr.set('name', element_qname)
+                            # Add ID if this row has a note (for note reference linking)
+                            if note and note in self.NOTE_REFERENCE_MAPPING:
+                                mapping_note = self.NOTE_REFERENCE_MAPPING[note]
+                                ix_curr.set('id', f"{mapping_note['from_id']}-ar-0")
+                                # Track this note reference (only add once per note)
+                                if not any(ref['note_number'] == note for ref in self.note_references):
+                                    self._add_note_reference(note, mapping_note['from_id'], mapping_note['to_id_pattern'])
                             ix_curr.set('unitRef', 'SEK')
                             ix_curr.set('decimals', 'INF')
                             ix_curr.set('scale', '0')
@@ -3139,6 +3168,10 @@ body {
                             ix_prev = ET.SubElement(td_prev, 'ix:nonFraction')
                             ix_prev.set('contextRef', balans1_ref)
                             ix_prev.set('name', element_qname)
+                            # Add ID if this row has a note (for note reference linking)
+                            if note and note in self.NOTE_REFERENCE_MAPPING:
+                                mapping_note = self.NOTE_REFERENCE_MAPPING[note]
+                                ix_prev.set('id', f"{mapping_note['from_id']}-ar-1")
                             ix_prev.set('unitRef', 'SEK')
                             ix_prev.set('decimals', 'INF')
                             ix_prev.set('scale', '0')
@@ -3546,6 +3579,13 @@ body {
         # Create a container div for the note (to keep it together and control page breaks)
         note_container = ET.SubElement(page, 'div')
         note_container.set('class', 'note-container')
+        # Add ID to note container for XBRL note reference linking
+        # Find the corresponding note reference mapping
+        for ref_note_num, ref_data in self.NOTE_REFERENCE_MAPPING.items():
+            if str(note_number) == ref_note_num:
+                # Add ID that will be referenced by the tuple (using ar-0 for the container)
+                note_container.set('id', f"{ref_data['to_id_pattern']}-ar-0")
+                break
         
         # Note title (H1 heading - no extra spacing since container has margin-top)
         p_heading = ET.SubElement(note_container, 'p')
