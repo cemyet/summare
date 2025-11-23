@@ -1659,6 +1659,87 @@ async def skapa_inlamningtoken(request: SkapaInlamningTokenRequest):
             detail=f"Error calling Bolagsverket API: {str(e)}"
         )
 
+class KontrolleraArsredovisningRequest(BaseModel):
+    token: str
+    fil_base64: str
+    typ: str = "arsredovisning_komplett"  # arsredovisning_komplett, arsredovisning_kompletteras, revisionsberattelse
+
+@app.post("/api/bolagsverket/kontrollera-arsredovisning")
+async def kontrollera_arsredovisning(request: KontrolleraArsredovisningRequest):
+    """
+    🔍 Kontrollera årsredovisning innan uppladdning till eget utrymme
+    
+    This endpoint calls Bolagsverket's API to validate an annual report (iXBRL).
+    Must be called from Railway backend (IP: 208.77.244.15) to pass firewall.
+    
+    Args:
+        token: Token från skapa-inlamningtoken (UUID)
+        fil_base64: Base64-enkodad iXBRL-fil (UTF-8)
+        typ: Typ av handling
+            - "arsredovisning_komplett": Årsredovisning med revisionsberättelse i samma fil eller utan
+            - "arsredovisning_kompletteras": Årsredovisning som ska kompletteras med separat revisionsberättelse
+            - "revisionsberattelse": Separat revisionsberättelse
+        
+    Returns:
+        Validation results from Bolagsverket
+    """
+    url = f"https://api-accept2.bolagsverket.se/testapi/lamna-in-arsredovisning/v2.1/kontrollera/{request.token}"
+    
+    anropsobjekt = {
+        "handling": {
+            "fil": request.fil_base64,
+            "typ": request.typ
+        }
+    }
+    
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+    
+    logger.info(f"🔍 Validating annual report with token: {request.token}")
+    logger.info(f"   File size (base64): {len(request.fil_base64)} characters")
+    logger.info(f"   Type: {request.typ}")
+    
+    # Path to TeliaSonera Root CA v1 certificate
+    cert_path = os.path.join(os.path.dirname(__file__), "teliasonera_root_ca_v1.pem")
+    
+    try:
+        # Use TeliaSonera Root CA v1 certificate for SSL verification
+        response = requests.post(url, json=anropsobjekt, headers=headers, timeout=60, verify=cert_path)
+        
+        # Log response
+        logger.info(f"Bolagsverket validation response status: {response.status_code}")
+        
+        # Try to parse as JSON
+        try:
+            response_data = response.json()
+            logger.info(f"Validation result: {response_data}")
+            return {
+                "success": True,
+                "status_code": response.status_code,
+                "data": response_data
+            }
+        except json.JSONDecodeError:
+            return {
+                "success": True,
+                "status_code": response.status_code,
+                "data": response.text
+            }
+            
+    except requests.exceptions.Timeout:
+        logger.error("❌ Bolagsverket validation API timeout")
+        raise HTTPException(
+            status_code=504,
+            detail="Timeout when calling Bolagsverket validation API. Check firewall access or file size."
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Bolagsverket validation API error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error calling Bolagsverket validation API: {str(e)}"
+        )
+
 @app.post("/update-formula/{row_id}")
 async def update_formula(row_id: int, formula: str):
     """
