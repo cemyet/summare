@@ -1628,7 +1628,7 @@ body {
         # Page 5+: Noter
         self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, 'period0', 'period1', 'balans0', 'balans1', unit_ref)
         
-        # Page 6+: Signatures (as separate page)
+        # Page 6+: Signaturer (separate page with page break)
         self._render_signatures(body, company_data, end_date)
     
     def _render_cover_page(self, body: ET.Element, company_name: str, org_number: str, 
@@ -4061,7 +4061,7 @@ body {
                     p_prev.text = prev_fmt
     
     def _render_signatures(self, body: ET.Element, company_data: Dict[str, Any], end_date: Optional[str]):
-        """Render signature section as a new page with table layout"""
+        """Render signature section as a separate page (like other sections)"""
         from datetime import date
         
         # Get signature data
