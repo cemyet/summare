@@ -1263,6 +1263,24 @@ body {
           font-weight: 400;
           font-size: 10pt;
         }
+
+        /* Fastställelseintyg section */
+        #ar-certification {
+          font-family: "Roboto", Arial, sans-serif;
+          font-size: 10pt;
+          font-weight: 400;
+          line-height: 1.4;
+          text-align: left;
+        }
+
+        #ar-certification strong {
+          font-weight: 500;
+        }
+
+        #ar-certification p {
+          margin-top: 6pt;
+          margin-bottom: 6pt;
+        }
         """
     
     def _num(self, v):
@@ -1615,7 +1633,7 @@ body {
         procent_unit_ref = 'procent'
         
         # Page 0: Cover page
-        self._render_cover_page(body, company_name, org_number, fiscal_year, start_date, end_date, 'period0')
+        self._render_cover_page(body, company_name, org_number, fiscal_year, start_date, end_date, 'period0', company_data, 'balans0')
         
         # Page 1: Förvaltningsberättelse
         self._render_forvaltningsberattelse(body, company_data, company_name, org_number, fiscal_year, prev_year, unit_ref)
@@ -1637,8 +1655,10 @@ body {
     
     def _render_cover_page(self, body: ET.Element, company_name: str, org_number: str, 
                           fiscal_year: Optional[int], start_date: Optional[str], end_date: Optional[str],
-                          period0_ref: str):
+                          period0_ref: str, company_data: Dict[str, Any], balans0_ref: str):
         """Render cover page (mirror PDF generator exactly)"""
+        from datetime import datetime, date
+        
         page0 = ET.SubElement(body, 'div')
         page0.set('class', 'ar-page0')
         
@@ -1682,6 +1702,125 @@ body {
         p_dates.set('class', 'cover-center-dates')
         period_text = f"{start_date} - {end_date}"
         p_dates.text = period_text
+        
+        # Fastställelseintyg section at bottom
+        # Get signing data to find a VD
+        signering_data = company_data.get('signeringData') or company_data.get('signering_data', {})
+        foretradare = signering_data.get('UnderskriftForetradare', [])
+        
+        # Find a signer with VD role
+        vd_signer = None
+        for person in foretradare:
+            roll = person.get('UnderskriftHandlingRoll', '').upper()
+            if 'VD' in roll:
+                vd_signer = person
+                break
+        
+        # If no VD found, use the first signer
+        if not vd_signer and foretradare:
+            vd_signer = foretradare[0]
+        
+        if vd_signer:
+            tilltalsnamn = vd_signer.get('UnderskriftHandlingTilltalsnamn', '')
+            efternamn = vd_signer.get('UnderskriftHandlingEfternamn', '')
+            roll = vd_signer.get('UnderskriftHandlingRoll', 'Styrelseledamot')
+            
+            # Use today's date (same as signature section)
+            today = date.today()
+            signing_date = today.strftime('%Y-%m-%d')
+            
+            # Calculate årsstämma date (typically 3 months after fiscal year end)
+            try:
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                arsstamma_dt = end_dt.replace(month=min(end_dt.month + 3, 12))
+                arsstamma_date = arsstamma_dt.strftime('%Y-%m-%d')
+            except:
+                arsstamma_date = signing_date
+            
+            # Add Fastställelseintyg div at bottom with top margin
+            div_cert = ET.SubElement(page0, 'div')
+            div_cert.set('id', 'ar-certification')
+            div_cert.set('style', 'margin-top: 54pt;')
+            
+            # Title
+            strong_title = ET.SubElement(div_cert, 'strong')
+            strong_title.text = 'Fastställelseintyg'
+            div_cert.append(ET.Element('br'))
+            
+            # First paragraph with årsstämma info
+            p1 = ET.SubElement(div_cert, 'p')
+            ix_arsstamma = ET.SubElement(p1, 'ix:nonNumeric')
+            ix_arsstamma.set('name', 'se-bol-base:ArsstammaIntygande')
+            ix_arsstamma.set('contextRef', balans0_ref)
+            ix_arsstamma.set('continuedAt', 'intygande_forts')
+            
+            ix_faststallelse = ET.SubElement(ix_arsstamma, 'ix:nonNumeric')
+            ix_faststallelse.set('name', 'se-bol-base:FaststallelseResultatBalansrakning')
+            ix_faststallelse.set('contextRef', balans0_ref)
+            ix_faststallelse.text = 'Jag intygar att resultaträkningen och balansräkningen har fastställts på årsstämma'
+            
+            ix_arsstamma.append(ET.Element('br'))
+            
+            ix_datum = ET.SubElement(ix_arsstamma, 'ix:nonNumeric')
+            ix_datum.set('name', 'se-bol-base:Arsstamma')
+            ix_datum.set('contextRef', balans0_ref)
+            ix_datum.text = arsstamma_date
+            ix_datum.tail = '. '
+            
+            ix_arsstamma.append(ET.Element('br'))
+            
+            ix_godkanna = ET.SubElement(ix_arsstamma, 'ix:nonNumeric')
+            ix_godkanna.set('name', 'se-bol-base:ArsstammaResultatDispositionGodkannaStyrelsensForslag')
+            ix_godkanna.set('contextRef', balans0_ref)
+            ix_godkanna.text = 'Årsstämman beslöt att godkänna styrelsens förslag till vinstdisposition.'
+            
+            # Second paragraph with continuation
+            p2 = ET.SubElement(div_cert, 'p')
+            ix_cont = ET.SubElement(p2, 'ix:continuation')
+            ix_cont.set('id', 'intygande_forts')
+            ix_cont.text = ' '
+            
+            ix_original = ET.SubElement(ix_cont, 'ix:nonNumeric')
+            ix_original.set('name', 'se-bol-base:IntygandeOriginalInnehall')
+            ix_original.set('contextRef', balans0_ref)
+            ix_original.text = 'Jag intygar att innehållet i dessa elektroniska handlingar överensstämmer med originalen och att originalen undertecknats av samtliga personer som enligt lag ska underteckna dessa.'
+            
+            # Third paragraph with signer info
+            p3 = ET.SubElement(div_cert, 'p')
+            
+            strong_elektroniskt = ET.SubElement(p3, 'strong')
+            ix_elektroniskt = ET.SubElement(strong_elektroniskt, 'ix:nonNumeric')
+            ix_elektroniskt.set('name', 'se-bol-base:UnderskriftFaststallelseintygElektroniskt')
+            ix_elektroniskt.set('contextRef', balans0_ref)
+            ix_elektroniskt.text = 'Elektroniskt underskriven av'
+            ix_elektroniskt.tail = ':'
+            
+            p3.append(ET.Element('br'))
+            
+            ix_tilltalsnamn = ET.SubElement(p3, 'ix:nonNumeric')
+            ix_tilltalsnamn.set('name', 'se-bol-base:UnderskriftFaststallelseintygForetradareTilltalsnamn')
+            ix_tilltalsnamn.set('contextRef', period0_ref)
+            ix_tilltalsnamn.text = tilltalsnamn
+            ix_tilltalsnamn.tail = ' '
+            
+            ix_efternamn = ET.SubElement(p3, 'ix:nonNumeric')
+            ix_efternamn.set('name', 'se-bol-base:UnderskriftFaststallelseintygForetradareEfternamn')
+            ix_efternamn.set('contextRef', period0_ref)
+            ix_efternamn.text = efternamn
+            ix_efternamn.tail = ', '
+            
+            ix_roll = ET.SubElement(p3, 'ix:nonNumeric')
+            ix_roll.set('name', 'se-bol-base:UnderskriftFaststallelseintygForetradareForetradarroll')
+            ix_roll.set('contextRef', period0_ref)
+            ix_roll.text = roll
+            
+            p3.append(ET.Element('br'))
+            
+            ix_datum_undertecknande = ET.SubElement(p3, 'ix:nonNumeric')
+            ix_datum_undertecknande.set('name', 'se-bol-base:UnderskriftFastallelseintygDatum')
+            ix_datum_undertecknande.set('contextRef', balans0_ref)
+            ix_datum_undertecknande.set('id', 'ID_DATUM_UNDERTECKNANDE_FASTSTALLELSEINTYG')
+            ix_datum_undertecknande.text = signing_date
         
     
     def _render_forvaltningsberattelse(self, body: ET.Element, company_data: Dict[str, Any],
