@@ -1243,7 +1243,7 @@ body {
         .signature-cell {
           width: 33.33%;
           vertical-align: top;
-          padding: 0 12pt 24pt 0;
+          padding: 0 12pt 54pt 0;
           text-align: left;
         }
 
