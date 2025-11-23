@@ -1509,10 +1509,15 @@ async def test_bolagsverket_firewall():
     This endpoint tests if Railway backend (IP: 208.77.244.15) can reach
     both Bolagsverket hosts through the firewall.
     
+    Note: Bolagsverket uses TeliaSonera Root CA v1 SSL certificate.
+    
     Returns:
         Test results including IP address, socket connection, and HTTPS connection
     """
     import socket
+    
+    # Path to TeliaSonera Root CA v1 certificate
+    cert_path = os.path.join(os.path.dirname(__file__), "teliasonera_root_ca_v1.pem")
     
     # Test both hosts
     hosts = [
@@ -1562,15 +1567,17 @@ async def test_bolagsverket_firewall():
         except Exception as e:
             host_results["socket_test"]["error"] = str(e)
         
-        # Test 2: HTTPS connection
+        # Test 2: HTTPS connection with TeliaSonera Root CA v1
         try:
-            response = requests.get(f"https://{host}/", timeout=10)
+            response = requests.get(f"https://{host}/", timeout=10, verify=cert_path)
             host_results["https_test"]["success"] = True
             host_results["https_test"]["status_code"] = response.status_code
+            host_results["https_test"]["cert_verified"] = True
         except requests.exceptions.Timeout:
             host_results["https_test"]["error"] = "HTTPS timeout"
         except requests.exceptions.SSLError as e:
             host_results["https_test"]["error"] = f"SSL error: {str(e)}"
+            host_results["https_test"]["cert_verified"] = False
         except requests.exceptions.ConnectionError as e:
             host_results["https_test"]["error"] = f"Connection error: {str(e)}"
         except Exception as e:
@@ -1614,8 +1621,12 @@ async def skapa_inlamningtoken(request: SkapaInlamningTokenRequest):
     
     logger.info(f"📤 Creating Bolagsverket submission token for orgnr: {request.orgnr}")
     
+    # Path to TeliaSonera Root CA v1 certificate
+    cert_path = os.path.join(os.path.dirname(__file__), "teliasonera_root_ca_v1.pem")
+    
     try:
-        response = requests.post(url, json=anropsobjekt, headers=headers, timeout=30)
+        # Use TeliaSonera Root CA v1 certificate for SSL verification
+        response = requests.post(url, json=anropsobjekt, headers=headers, timeout=30, verify=cert_path)
         
         # Log response
         logger.info(f"Bolagsverket response status: {response.status_code}")

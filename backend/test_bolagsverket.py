@@ -1,9 +1,15 @@
 """
 Test för Bolagsverkets API - Skapa inlämningstoken för årsredovisning
+
+Note: Bolagsverket's test environment uses TeliaSonera Root CA v1 SSL certificate.
 """
 import requests
 import json
+import os
 from pprint import pprint
+
+# Path to TeliaSonera Root CA v1 certificate
+CERT_PATH = os.path.join(os.path.dirname(__file__), "teliasonera_root_ca_v1.pem")
 
 
 def skapa_inlamningtoken(orgnr: str, pnr: str):
@@ -39,8 +45,8 @@ def skapa_inlamningtoken(orgnr: str, pnr: str):
     print("\n" + "-" * 80)
     
     try:
-        # Lägg till timeout på 10 sekunder
-        response = requests.post(url, json=anropsobjekt, headers=headers, timeout=10)
+        # Use TeliaSonera Root CA v1 certificate for SSL verification
+        response = requests.post(url, json=anropsobjekt, headers=headers, timeout=10, verify=CERT_PATH)
         
         print(f"\nStatus Code: {response.status_code}")
         print(f"Response Headers:")
