@@ -30,12 +30,38 @@ class XBRLGenerator:
         'se-k2-type': 'http://www.taxonomier.se/se/fr/k2/datatype',
     }
     
+    # Note number to note ID pattern mapping for note references
+    # Maps note number -> (from_id, to_id_pattern)
+    NOTE_REFERENCE_MAPPING = {
+        '2': {
+            'from_id': 'personalkostnader-rr',
+            'to_id_pattern': 'notmedelantaletanstallda-ref-id1',
+            'label': 'Medelantalet anställda'
+        },
+        '3': {
+            'from_id': 'byggnadermark-br',
+            'to_id_pattern': 'notbyggnadermark-ref',
+            'label': 'Byggnader och mark'
+        },
+        '4': {
+            'from_id': 'maskinerandratekniskaanlaggningar-br',
+            'to_id_pattern': 'notmaskinerandratekniskaanlaggningar-ref',
+            'label': 'Maskiner och andra tekniska anläggningar'
+        },
+        '5': {
+            'from_id': 'inventarierverktyginstallationer-br',
+            'to_id_pattern': 'notinventarierverktyginstallationer-ref',
+            'label': 'Inventarier, verktyg och installationer'
+        },
+    }
+    
     def __init__(self):
         self.contexts = {}
         self.units = {}
         self.facts = []
         self.context_counter = 0
         self.unit_counter = 0
+        self.note_references = []  # Track note references for tuple generation
     
     def _get_namespace_prefix(self, namespace: str) -> str:
         """Get namespace prefix from full namespace URL"""
@@ -406,6 +432,12 @@ class XBRLGenerator:
         meta_end.set('contextRef', period0_ref)
         meta_end.text = end_date
         
+        # Organization number
+        meta_org = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+        meta_org.set('name', 'se-cd-base:Organisationsnummer')
+        meta_org.set('contextRef', period0_ref)
+        meta_org.text = company_data.get('organization_number', '') or company_data.get('organizationNumber', '') or org_number
+        
         # NOTE: All monetary and display facts are now tagged INLINE in presentation
         # No hidden monetary facts needed
         
@@ -413,6 +445,11 @@ class XBRLGenerator:
         # Generate visible HTML content matching PDF structure
         # ------------------------------------------------------------------
         self._generate_visible_content(body, company_data, start_date, end_date, fiscal_year)
+        
+        # ------------------------------------------------------------------
+        # Generate note reference tuples (Notkoppling) in hidden section
+        # ------------------------------------------------------------------
+        self._generate_note_reference_tuples(ix_hidden)
         
         # Convert to pretty XML string with UTF-8 encoding
         rough_string = ET.tostring(root, encoding='unicode')
@@ -1295,6 +1332,117 @@ body {
                 return True
         
         return False
+    
+    def _add_note_reference(self, note_number: str, from_id: str, to_id_pattern: str):
+        """Add a note reference for tuple generation in hidden section
+        
+        Args:
+            note_number: Note number (e.g., "2", "3", "4")
+            from_id: ID of the element in financial statement (e.g., 'personalkostnader-rr')
+            to_id_pattern: ID pattern of the note element (e.g., 'notmedelantaletanstallda-ref-id1')
+        """
+        self.note_references.append({
+            'note_number': note_number,
+            'from_id': from_id,
+            'to_id_pattern': to_id_pattern
+        })
+    
+    def _generate_note_reference_tuples(self, ix_hidden: ET.Element):
+        """Generate note reference tuples (Notkoppling) per Bolagsverket pattern
+        
+        Creates tuples for both period0 and period1 for each note reference.
+        """
+        tuple_counter = 1
+        for ref in self.note_references:
+            note_num = ref['note_number']
+            from_id = ref['from_id']
+            to_id_pattern = ref['to_id_pattern']
+            
+            # Add comment for readability
+            comment = ET.Comment(f" Notkoppling för not {note_num} ")
+            ix_hidden.append(comment)
+            
+            # Period 0 (current year)
+            tuple_id_0 = f"not-ref-tabell-id{tuple_counter}-ar-0"
+            
+            # Tuple declaration
+            tuple_0 = ET.SubElement(ix_hidden, 'ix:tuple')
+            tuple_0.set('name', 'se-misc-base:ReferensInstansDokumentTuple')
+            tuple_0.set('tupleID', tuple_id_0)
+            
+            # Note number
+            ref_namn_0 = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+            ref_namn_0.set('name', 'se-misc-base:ReferensInstansDokumentNamn')
+            ref_namn_0.set('contextRef', 'period0')
+            ref_namn_0.set('order', '1.0')
+            ref_namn_0.set('tupleRef', tuple_id_0)
+            ref_namn_0.text = note_num
+            
+            # From reference
+            ref_fran_0 = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+            ref_fran_0.set('name', 'se-misc-base:ReferensInstansDokumentFran')
+            ref_fran_0.set('contextRef', 'period0')
+            ref_fran_0.set('order', '2.0')
+            ref_fran_0.set('tupleRef', tuple_id_0)
+            ref_fran_0.text = f"#xpointer(//*/*[@id='{from_id}-ar-0'])"
+            
+            # To reference
+            ref_till_0 = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+            ref_till_0.set('name', 'se-misc-base:ReferensInstansDokumentTill')
+            ref_till_0.set('contextRef', 'period0')
+            ref_till_0.set('order', '3.0')
+            ref_till_0.set('tupleRef', tuple_id_0)
+            ref_till_0.text = f"#xpointer(//*/*[starts-with(@id,'{to_id_pattern}-ar-0')])"
+            
+            # Type
+            ref_typ_0 = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+            ref_typ_0.set('name', 'se-misc-base:ReferensInstansDokumentTyp')
+            ref_typ_0.set('contextRef', 'period0')
+            ref_typ_0.set('order', '4.0')
+            ref_typ_0.set('tupleRef', tuple_id_0)
+            ref_typ_0.text = 'ANNUALREPORT_DISCLOSURE_REF'
+            
+            # Period 1 (previous year)
+            tuple_id_1 = f"not-ref-tabell-id{tuple_counter}-ar-1"
+            
+            # Tuple declaration
+            tuple_1 = ET.SubElement(ix_hidden, 'ix:tuple')
+            tuple_1.set('name', 'se-misc-base:ReferensInstansDokumentTuple')
+            tuple_1.set('tupleID', tuple_id_1)
+            
+            # Note number
+            ref_namn_1 = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+            ref_namn_1.set('name', 'se-misc-base:ReferensInstansDokumentNamn')
+            ref_namn_1.set('contextRef', 'period1')
+            ref_namn_1.set('order', '1.0')
+            ref_namn_1.set('tupleRef', tuple_id_1)
+            ref_namn_1.text = note_num
+            
+            # From reference
+            ref_fran_1 = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+            ref_fran_1.set('name', 'se-misc-base:ReferensInstansDokumentFran')
+            ref_fran_1.set('contextRef', 'period1')
+            ref_fran_1.set('order', '2.0')
+            ref_fran_1.set('tupleRef', tuple_id_1)
+            ref_fran_1.text = f"#xpointer(//*/*[@id='{from_id}-ar-1'])"
+            
+            # To reference
+            ref_till_1 = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+            ref_till_1.set('name', 'se-misc-base:ReferensInstansDokumentTill')
+            ref_till_1.set('contextRef', 'period1')
+            ref_till_1.set('order', '3.0')
+            ref_till_1.set('tupleRef', tuple_id_1)
+            ref_till_1.text = f"#xpointer(//*/*[starts-with(@id,'{to_id_pattern}-ar-1')])"
+            
+            # Type
+            ref_typ_1 = ET.SubElement(ix_hidden, 'ix:nonNumeric')
+            ref_typ_1.set('name', 'se-misc-base:ReferensInstansDokumentTyp')
+            ref_typ_1.set('contextRef', 'period1')
+            ref_typ_1.set('order', '4.0')
+            ref_typ_1.set('tupleRef', tuple_id_1)
+            ref_typ_1.text = 'ANNUALREPORT_DISCLOSURE_REF'
+            
+            tuple_counter += 1
     
     def _get_context_refs(self, fiscal_year: int, period_type: str = 'duration') -> tuple:
         """Get contextRef IDs for current and previous year with semantic naming
@@ -2297,6 +2445,14 @@ body {
                 
                 # Create table row with proper spacing
                 tr = ET.SubElement(rr_table, 'tr')
+                
+                # Add ID to row if it has a note (for note reference linking)
+                if note and note in self.NOTE_REFERENCE_MAPPING:
+                    mapping = self.NOTE_REFERENCE_MAPPING[note]
+                    # Add ID for current year (ar-0) - we'll add this to the label cell
+                    row_id = f"{mapping['from_id']}-ar-0"
+                    # Track this note reference
+                    self._add_note_reference(note, mapping['from_id'], mapping['to_id_pattern'])
                 
                 # Add row spacing based on type (matching PDF spacing)
                 row_class = ''
