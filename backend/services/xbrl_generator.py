@@ -515,7 +515,7 @@ body {
 /* Page container */
 @media screen {
   .ar-page0, .ar-page1, .ar-page2, .ar-page3, .ar-page4, 
-  .ar-page5, .ar-page6, .ar-page7, .ar-page8 {
+  .ar-page5, .ar-page6, .ar-page7, .ar-page8, .ar-page-signatures {
     width: 210mm;
     min-height: 297mm;
     margin: 10mm auto;
@@ -547,7 +547,7 @@ body {
   }
   
   .ar-page0, .ar-page1, .ar-page2, .ar-page3, .ar-page4,
-  .ar-page5, .ar-page6, .ar-page7, .ar-page8 {
+  .ar-page5, .ar-page6, .ar-page7, .ar-page8, .ar-page-signatures {
     width: 210mm;
     height: 297mm;
     margin: 0;
@@ -567,6 +567,10 @@ body {
     padding: 54pt 68pt 68pt 68pt;
     box-shadow: none;
     page-break-after: always;
+  }
+  
+  .ar-page-signatures {
+    page-break-after: auto;
   }
   
   div[style*="page-break-inside: avoid"] {
