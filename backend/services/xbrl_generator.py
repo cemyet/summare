@@ -1244,19 +1244,19 @@ body {
           width: 33.33%;
           vertical-align: top;
           padding: 12pt;
-          text-align: center;
+          text-align: left;
         }
 
         .signature-name-text {
           font-weight: 500;
-          margin-bottom: 6pt;
+          margin-bottom: 0;
           font-size: 10pt;
         }
 
         .signature-role-text {
           font-weight: 400;
           font-size: 10pt;
-          margin-bottom: 6pt;
+          margin-bottom: 0;
         }
 
         .signature-date-text {
