@@ -1861,9 +1861,10 @@ body {
             ix_godkanna.text = 'Årsstämman beslöt att godkänna styrelsens förslag till vinstdisposition.'
             ix_godkanna.tail = ' '
             
-            ix_cont = ET.SubElement(ix_arsstamma, 'ix:continuation')
+            # ix:continuation must be a SEPARATE element, not nested inside the element with continuedAt
+            # Place it after ix_arsstamma as a sibling in p1
+            ix_cont = ET.SubElement(p1, 'ix:continuation')
             ix_cont.set('id', 'intygande_forts')
-            ix_cont.text = ' '  # Important space for proper sentence flow
             
             ix_original = ET.SubElement(ix_cont, 'ix:nonNumeric')
             ix_original.set('name', 'se-bol-base:IntygandeOriginalInnehall')
