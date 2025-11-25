@@ -388,7 +388,7 @@ class XBRLGenerator:
         self._add_general_info_facts(company_data, start_date, end_date)
         
         # Process Signature info
-        self._add_signature_facts(company_data, end_date)
+        self._add_signature_facts(company_data, start_date, end_date)
         
         # ------------------------------------------------------------------
         # Contexts and units: must be children of <ix:resources>
@@ -4528,7 +4528,7 @@ body {
             data_type='enum:enumerationItemType'
         )
     
-    def _add_signature_facts(self, company_data: Dict[str, Any], end_date: Optional[str]):
+    def _add_signature_facts(self, company_data: Dict[str, Any], start_date: Optional[str], end_date: Optional[str]):
         """Add signature and auditor information facts"""
         signering_data = company_data.get('signeringData') or company_data.get('signering_data', {})
         
@@ -4550,7 +4550,7 @@ body {
                         namespace='se-gen-base',
                         value=tilltalsnamn,
                         period_type='duration',
-                        start_date=None,
+                        start_date=start_date,
                         end_date=end_date,
                         data_type='stringItemType'
                     )
@@ -4560,7 +4560,7 @@ body {
                         namespace='se-gen-base',
                         value=efternamn,
                         period_type='duration',
-                        start_date=None,
+                        start_date=start_date,
                         end_date=end_date,
                         data_type='stringItemType'
                     )
@@ -4570,7 +4570,7 @@ body {
                         namespace='se-gen-base',
                         value=roll,
                         period_type='duration',
-                        start_date=None,
+                        start_date=start_date,
                         end_date=end_date,
                         data_type='stringItemType'
                     )
@@ -4580,7 +4580,7 @@ body {
                         namespace='se-gen-base',
                         value=self._format_date(str(datum)),
                         period_type='duration',
-                        start_date=None,
+                        start_date=start_date,
                         end_date=end_date,
                         data_type='dateItemType'
                     )
@@ -4600,7 +4600,7 @@ body {
                         namespace='se-gen-base',
                         value=tilltalsnamn,
                         period_type='duration',
-                        start_date=None,
+                        start_date=start_date,
                         end_date=end_date,
                         data_type='stringItemType'
                     )
@@ -4610,7 +4610,7 @@ body {
                         namespace='se-gen-base',
                         value=efternamn,
                         period_type='duration',
-                        start_date=None,
+                        start_date=start_date,
                         end_date=end_date,
                         data_type='stringItemType'
                     )
@@ -4620,7 +4620,7 @@ body {
                         namespace='se-gen-base',
                         value=titel,
                         period_type='duration',
-                        start_date=None,
+                        start_date=start_date,
                         end_date=end_date,
                         data_type='stringItemType'
                     )
