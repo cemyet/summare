@@ -125,12 +125,17 @@ class XBRLGenerator:
             is_current: True for current year (period0/balans0), False for previous (period1/balans1)
             context_id: Optional manual context ID (e.g., 'period2', 'balans2')
         """
+        # Validate that required dates are provided
         if period_type == 'duration':
+            if not start_date or not end_date:
+                raise ValueError(f"Duration context requires both start_date and end_date. Got: start_date={start_date}, end_date={end_date}")
             key = f"duration_{start_date}_{end_date}"
             # Use semantic IDs: period0 for current year, period1 for previous (rule 2.16.5)
             if not context_id:
                 context_id = "period0" if is_current else "period1"
         else:
+            if not instant_date:
+                raise ValueError(f"Instant context requires instant_date. Got: instant_date={instant_date}")
             key = f"instant_{instant_date}"
             # Use semantic IDs: balans0 for current year end, balans1 for previous (rule 2.16.7)
             if not context_id:
@@ -394,6 +399,16 @@ class XBRLGenerator:
         
         # Add all contexts to ix:resources
         for context_key, context_info in self.contexts.items():
+            # Skip contexts with invalid/empty dates
+            if context_info['period_type'] == 'duration':
+                if not context_info.get('start_date') or not context_info.get('end_date'):
+                    print(f"Warning: Skipping invalid duration context {context_info['id']} with empty dates")
+                    continue
+            else:
+                if not context_info.get('instant_date'):
+                    print(f"Warning: Skipping invalid instant context {context_info['id']} with empty date")
+                    continue
+            
             context_element = ET.SubElement(ix_resources, 'xbrli:context')
             context_element.set('id', context_info['id'])
             
