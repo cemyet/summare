@@ -340,9 +340,9 @@ class XBRLGenerator:
         # Create body element
         body = ET.SubElement(root, 'body')
         
-        # Create container div for iXBRL content 
-        # Note: No style="display:none" needed - <ix:hidden> handles visibility
+        # Create hidden div for iXBRL content (MUST be display:none)
         hidden_div = ET.SubElement(body, 'div')
+        hidden_div.set('style', 'display:none')
         
         # <ix:header> encloses hidden facts, references and resources
         ix_header = ET.SubElement(hidden_div, 'ix:header')
