@@ -1784,24 +1784,42 @@ async def testbank_proxy(path: str = "", request: Request = None):
             params=request.query_params,
             verify=cert_path,
             timeout=60,
-            allow_redirects=False  # Handle redirects manually
+            allow_redirects=True  # Follow redirects automatically
         )
         
         # Prepare response headers
         response_headers = dict(response.headers)
         # Remove headers that might cause issues
-        excluded_response_headers = ['content-encoding', 'content-length', 'transfer-encoding']
+        excluded_response_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
         response_headers = {k: v for k, v in response_headers.items() if k.lower() not in excluded_response_headers}
         
-        # Handle redirects by rewriting location header
-        if 'location' in response_headers:
-            location = response_headers['location']
-            if location.startswith('/'):
-                response_headers['location'] = f"/api/bolagsverket/testbank-proxy{location}"
+        # Rewrite HTML content to proxy all links through our endpoint
+        content = response.content
+        content_type = response.headers.get('content-type', '')
+        
+        if 'text/html' in content_type.lower():
+            try:
+                html_content = content.decode('utf-8')
+                # Rewrite absolute URLs to go through proxy
+                html_content = html_content.replace(
+                    'href="/arsredovisning-ingivning-testbank-web/',
+                    'href="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'
+                )
+                html_content = html_content.replace(
+                    'src="/arsredovisning-ingivning-testbank-web/',
+                    'src="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'
+                )
+                html_content = html_content.replace(
+                    'action="/arsredovisning-ingivning-testbank-web/',
+                    'action="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'
+                )
+                content = html_content.encode('utf-8')
+            except Exception as e:
+                logger.warning(f"Could not rewrite HTML content: {e}")
         
         # Return the response
         return Response(
-            content=response.content,
+            content=content,
             status_code=response.status_code,
             headers=response_headers
         )
