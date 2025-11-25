@@ -322,11 +322,7 @@ class XBRLGenerator:
         # Create head element
         head = ET.SubElement(root, 'head')
         
-        # Charset MUST be first meta
-        meta_charset = ET.SubElement(head, 'meta')
-        meta_charset.set('charset', 'UTF-8')
-        
-        # Add meta tags
+        # Add meta tags (charset not needed in XHTML - XML declaration handles encoding)
         meta_program = ET.SubElement(head, 'meta')
         meta_program.set('name', 'programvara')
         meta_program.set('content', 'Summare')
