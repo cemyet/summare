@@ -1286,7 +1286,7 @@ body {
         }
 
         .signature-name-text {
-          font-weight: 500;
+          font-weight: 400;
           margin-bottom: 0;
           font-size: 10pt;
         }
