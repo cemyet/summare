@@ -8,6 +8,8 @@ from xml.dom import minidom
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import uuid
+import base64
+import os
 
 
 class XBRLGenerator:
@@ -29,6 +31,43 @@ class XBRLGenerator:
         'se-mem-base': 'http://www.taxonomier.se/se/fr/mem-base/2021-10-31',
         'se-k2-type': 'http://www.taxonomier.se/se/fr/k2/datatype',
     }
+    
+    @staticmethod
+    def _get_inline_fonts_css() -> str:
+        """
+        Generate inline @font-face CSS with base64-encoded fonts
+        This avoids external stylesheet references which Bolagsverket validation rejects
+        """
+        font_dir = os.path.join(os.path.dirname(__file__), '..', 'fonts')
+        fonts_css = []
+        
+        # Map of font files to CSS font-weight
+        font_mappings = [
+            ('Roboto-Regular.ttf', '400', 'normal'),
+            ('Roboto-Medium.ttf', '500', 'normal'),
+            ('Roboto-Bold.ttf', '700', 'normal'),
+        ]
+        
+        for font_file, weight, style in font_mappings:
+            font_path = os.path.join(font_dir, font_file)
+            try:
+                with open(font_path, 'rb') as f:
+                    font_data = f.read()
+                    font_base64 = base64.b64encode(font_data).decode('ascii')
+                    
+                    fonts_css.append(f"""
+@font-face {{
+  font-family: 'Roboto';
+  font-style: {style};
+  font-weight: {weight};
+  src: url(data:font/truetype;charset=utf-8;base64,{font_base64}) format('truetype');
+}}""")
+            except Exception as e:
+                # If font file not found, continue without it
+                print(f"Warning: Could not load font {font_file}: {e}")
+                continue
+        
+        return '\n'.join(fonts_css)
     
     # Note number to note ID pattern mapping for note references
     # Maps note number -> (from_id, to_id_pattern)
@@ -277,10 +316,8 @@ class XBRLGenerator:
         meta_version.set('name', 'programversion')
         meta_version.set('content', '1.0')
         
-        # Roboto web font to match PDF typography
-        font_link = ET.SubElement(head, 'link')
-        font_link.set('rel', 'stylesheet')
-        font_link.set('href', 'https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap')
+        # NOTE: Roboto fonts are now embedded inline in CSS (not external link)
+        # to comply with Bolagsverket validation requirements
         
         # Add title
         company_name = (company_data.get('company_name') 
@@ -490,8 +527,9 @@ class XBRLGenerator:
         return xml_string
     
     def _get_css_styles(self) -> str:
-        """Return CSS styles matching PDF generator"""
-        return """
+        """Return CSS styles matching PDF generator with inline fonts"""
+        inline_fonts = self._get_inline_fonts_css()
+        css_base = """
 /* Base reset */
 * {
   margin: 0;
@@ -1290,6 +1328,8 @@ body {
           border: 0;
         }
         """
+        # Prepend inline fonts to CSS
+        return "/* Embedded Roboto fonts (inline to avoid external references) */\n" + inline_fonts + "\n\n" + css_base
     
     def _num(self, v):
         """Convert value to float, handling bools, None, empty strings"""
