@@ -1758,8 +1758,19 @@ async def testbank_proxy(path: str = "", request: Request = None):
     """
     from fastapi.responses import HTMLResponse, Response
     
-    base_url = "https://arsredovisning-accept2.bolagsverket.se/arsredovisning-ingivning-testbank-web"
-    target_url = f"{base_url}/{path}" if path else base_url
+    # Build target URL
+    base_url = "https://arsredovisning-accept2.bolagsverket.se"
+    
+    # Handle different path formats
+    if path:
+        # If path already starts with arsredovisning-ingivning-testbank-web, use it directly
+        if path.startswith("arsredovisning-ingivning-testbank-web"):
+            target_url = f"{base_url}/{path}"
+        else:
+            # Otherwise, add the testbank path
+            target_url = f"{base_url}/arsredovisning-ingivning-testbank-web/{path}"
+    else:
+        target_url = f"{base_url}/arsredovisning-ingivning-testbank-web"
     
     # Path to TeliaSonera Root CA v1 certificate
     cert_path = os.path.join(os.path.dirname(__file__), "teliasonera_root_ca_v1.pem")
@@ -1793,29 +1804,34 @@ async def testbank_proxy(path: str = "", request: Request = None):
         excluded_response_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
         response_headers = {k: v for k, v in response_headers.items() if k.lower() not in excluded_response_headers}
         
-        # Rewrite HTML content to proxy all links through our endpoint
+        # Rewrite content to proxy all links through our endpoint
         content = response.content
         content_type = response.headers.get('content-type', '')
         
-        if 'text/html' in content_type.lower():
+        if 'text/html' in content_type.lower() or 'text/css' in content_type.lower() or 'javascript' in content_type.lower():
             try:
-                html_content = content.decode('utf-8')
-                # Rewrite absolute URLs to go through proxy
-                html_content = html_content.replace(
-                    'href="/arsredovisning-ingivning-testbank-web/',
-                    'href="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'
-                )
-                html_content = html_content.replace(
-                    'src="/arsredovisning-ingivning-testbank-web/',
-                    'src="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'
-                )
-                html_content = html_content.replace(
-                    'action="/arsredovisning-ingivning-testbank-web/',
-                    'action="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'
-                )
-                content = html_content.encode('utf-8')
+                text_content = content.decode('utf-8')
+                
+                # Rewrite all types of URLs to go through proxy
+                replacements = [
+                    ('href="/arsredovisning-ingivning-testbank-web/', 'href="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'),
+                    ('src="/arsredovisning-ingivning-testbank-web/', 'src="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'),
+                    ('action="/arsredovisning-ingivning-testbank-web/', 'action="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'),
+                    ('url(/arsredovisning-ingivning-testbank-web/', 'url(/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'),
+                    ('="/arsredovisning-ingivning-testbank-web/', '="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'),
+                    ("='/arsredovisning-ingivning-testbank-web/", "='/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/"),
+                    # Also handle paths without leading slash (relative to domain root)
+                    ('href="arsredovisning-ingivning-testbank-web/', 'href="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'),
+                    ('src="arsredovisning-ingivning-testbank-web/', 'src="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'),
+                    ('action="arsredovisning-ingivning-testbank-web/', 'action="/api/bolagsverket/testbank-proxy/arsredovisning-ingivning-testbank-web/'),
+                ]
+                
+                for old, new in replacements:
+                    text_content = text_content.replace(old, new)
+                
+                content = text_content.encode('utf-8')
             except Exception as e:
-                logger.warning(f"Could not rewrite HTML content: {e}")
+                logger.warning(f"Could not rewrite content: {e}")
         
         # Return the response
         return Response(
