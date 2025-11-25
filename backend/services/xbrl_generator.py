@@ -136,14 +136,28 @@ class XBRLGenerator:
             if not context_id:
                 context_id = "balans0" if is_current else "balans1"
         
-        if key not in self.contexts:
-            self.contexts[key] = {
-                'id': context_id,
-                'period_type': period_type,
-                'start_date': start_date,
-                'end_date': end_date,
-                'instant_date': instant_date
-            }
+        # Check if this exact context already exists
+        if key in self.contexts:
+            return self.contexts[key]['id']
+        
+        # Check if the proposed context_id is already used by a different context
+        # If so, generate a unique ID
+        existing_ids = {ctx['id'] for ctx in self.contexts.values()}
+        if context_id in existing_ids:
+            # Find a unique ID by appending a counter
+            counter = 2
+            base_id = context_id.rstrip('0123456789')  # Remove trailing numbers
+            while f"{base_id}{counter}" in existing_ids:
+                counter += 1
+            context_id = f"{base_id}{counter}"
+        
+        self.contexts[key] = {
+            'id': context_id,
+            'period_type': period_type,
+            'start_date': start_date,
+            'end_date': end_date,
+            'instant_date': instant_date
+        }
         return self.contexts[key]['id']
     
     def _get_or_create_unit(self, unit_type: str = 'SEK') -> str:
