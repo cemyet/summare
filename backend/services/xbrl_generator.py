@@ -1414,7 +1414,6 @@ body {
         ix_elem.set('unitRef', 'SEK')
         ix_elem.set('decimals', 'INF')
         ix_elem.set('scale', '0')
-        ix_elem.set('format', 'ixt:numspacecomma')
         
         # Add sign attribute ONLY when amount has abnormal sign for its type:
         # BR: DEBIT accounts that are negative need sign="-"
@@ -2162,7 +2161,7 @@ body {
                         ix_elem.set('unitRef', 'SEK')
                         ix_elem.set('decimals', 'INF')
                         ix_elem.set('scale', '0')
-                        ix_elem.set('format', 'ixt:numspacecomma')
+                
                         # Flerårsöversikt: No sign attribute (FB section)
                         ix_elem.text = formatted_val
                     elif data_type == 'xbrli:pureItemType':
@@ -2175,7 +2174,6 @@ body {
                         ix_elem.set('unitRef', 'procent')  # Use procent unit (xbrli:pure)
                         ix_elem.set('decimals', 'INF')  # Exact value
                         ix_elem.set('scale', '-2')  # Value is 100 times smaller (28 -> 0.28)
-                        ix_elem.set('format', 'ixt:numdotdecimal')  # Decimal format with dot
                         # Display as percentage value without % symbol (e.g., "28")
                         ix_elem.text = str(int(round(val)))
                     else:
@@ -2368,7 +2366,7 @@ body {
                     ix_elem.set('unitRef', 'SEK')
                     ix_elem.set('decimals', 'INF')
                     ix_elem.set('scale', '0')
-                    ix_elem.set('format', 'ixt:numspacecomma')
+            
                     # Förändringar eget kapital: No sign attribute (FB section)
                     ix_elem.text = formatted_val
                 else:
@@ -2459,7 +2457,7 @@ body {
                 ix_elem.set('unitRef', 'SEK')
                 ix_elem.set('decimals', 'INF')
                 ix_elem.set('scale', '0')
-                ix_elem.set('format', 'ixt:numspacecomma')
+        
                 # Resultatdisposition: No sign attribute (FB section)
                 ix_elem.text = formatted_val
             else:
@@ -2491,7 +2489,7 @@ body {
                 ix_elem.set('unitRef', 'SEK')
                 ix_elem.set('decimals', 'INF')
                 ix_elem.set('scale', '0')
-                ix_elem.set('format', 'ixt:numspacecomma')
+        
                 # Resultatdisposition: No sign attribute (FB section)
                 ix_elem.text = formatted_val
             else:
@@ -2523,7 +2521,7 @@ body {
             ix_elem.set('unitRef', 'SEK')
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
-            ix_elem.set('format', 'ixt:numspacecomma')
+    
             # Resultatdisposition: No sign attribute (FB section)
             ix_elem.text = formatted_val
         else:
@@ -2574,7 +2572,7 @@ body {
             ix_elem.set('unitRef', 'SEK')
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
-            ix_elem.set('format', 'ixt:numspacecomma')
+    
             # Resultatdisposition: No sign attribute (FB section)
             ix_elem.text = formatted_val
         else:
@@ -2607,7 +2605,7 @@ body {
             ix_elem.set('unitRef', 'SEK')
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
-            ix_elem.set('format', 'ixt:numspacecomma')
+    
             # Resultatdisposition: No sign attribute (FB section)
             ix_elem.text = formatted_val
         else:
@@ -2645,7 +2643,7 @@ body {
             ix_elem.set('unitRef', 'SEK')
             ix_elem.set('decimals', 'INF')
             ix_elem.set('scale', '0')
-            ix_elem.set('format', 'ixt:numspacecomma')
+    
             # Resultatdisposition: No sign attribute (FB section)
             ix_elem.text = formatted_val
         else:
@@ -2898,7 +2896,7 @@ body {
                         ix_curr.set('unitRef', 'SEK')
                         ix_curr.set('decimals', 'INF')
                         ix_curr.set('scale', '0')
-                        ix_curr.set('format', 'ixt:numspacecomma')
+
                         # RR: Only add sign="-" if CREDIT account is negative
                         if curr_val < 0 and balance_type == 'CREDIT':
                             ix_curr.set('sign', '-')
@@ -2946,7 +2944,7 @@ body {
                         ix_prev.set('unitRef', 'SEK')
                         ix_prev.set('decimals', 'INF')
                         ix_prev.set('scale', '0')
-                        ix_prev.set('format', 'ixt:numspacecomma')
+
                         # RR: Only add sign="-" if CREDIT account is negative
                         if prev_val < 0 and balance_type == 'CREDIT':
                             ix_prev.set('sign', '-')
@@ -3186,7 +3184,7 @@ body {
                             ix_curr.set('unitRef', 'SEK')
                             ix_curr.set('decimals', 'INF')
                             ix_curr.set('scale', '0')
-                            ix_curr.set('format', 'ixt:numspacecomma')
+    
                             ix_curr.text = self._format_monetary_value(abs(curr_val), for_display=True)
                         else:
                             # Fallback to plain text
@@ -3235,7 +3233,7 @@ body {
                             ix_prev.set('unitRef', 'SEK')
                             ix_prev.set('decimals', 'INF')
                             ix_prev.set('scale', '0')
-                            ix_prev.set('format', 'ixt:numspacecomma')
+    
                             ix_prev.text = self._format_monetary_value(abs(prev_val), for_display=True)
                         else:
                             # Fallback to plain text
@@ -3496,7 +3494,7 @@ body {
                             ix_curr.set('unitRef', 'SEK')
                             ix_curr.set('decimals', 'INF')
                             ix_curr.set('scale', '0')
-                            ix_curr.set('format', 'ixt:numspacecomma')
+    
                             ix_curr.text = self._format_monetary_value(abs(curr_val), for_display=True)
                         else:
                             # Fallback to plain text
@@ -3545,7 +3543,7 @@ body {
                             ix_prev.set('unitRef', 'SEK')
                             ix_prev.set('decimals', 'INF')
                             ix_prev.set('scale', '0')
-                            ix_prev.set('format', 'ixt:numspacecomma')
+    
                             ix_prev.text = self._format_monetary_value(abs(prev_val), for_display=True)
                         else:
                             # Fallback to plain text
@@ -4230,7 +4228,7 @@ body {
                             ix_curr.set('unitRef', unit_ref)
                             ix_curr.set('decimals', 'INF')  # Exact value
                             ix_curr.set('scale', '0')  # No scaling
-                            ix_curr.set('format', 'ixt:numspacecomma')  # Space thousands separator
+      # Space thousands separator
                             ix_curr.text = self._format_monetary_value(abs(cur), for_display=True)
                     else:
                         p_curr.text = curr_fmt
@@ -4288,7 +4286,7 @@ body {
                             ix_prev.set('unitRef', unit_ref)
                             ix_prev.set('decimals', 'INF')  # Exact value
                             ix_prev.set('scale', '0')  # No scaling
-                            ix_prev.set('format', 'ixt:numspacecomma')  # Space thousands separator
+      # Space thousands separator
                             ix_prev.text = self._format_monetary_value(abs(prev), for_display=True)
                     else:
                         p_prev.text = prev_fmt
