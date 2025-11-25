@@ -1290,6 +1290,15 @@ body {
           margin-bottom: 0;
           font-size: 10pt;
         }
+        
+        /* Hide XBRL signature tags visually (Bolagsverket pattern) */
+        .signature {
+          position: absolute;
+          left: -10000px;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+        }
 
         .signature-role-text {
           font-weight: 400;
@@ -4307,12 +4316,11 @@ body {
         ET.SubElement(sig_page, 'br')
         ET.SubElement(sig_page, 'br')
         
-        # Create tuple declarations (hidden, for XBRL compliance)
+        # Create tuple declarations (for XBRL compliance, no style needed)
         for idx, person in enumerate(foretradare, start=1):
             tuple_elem = ET.SubElement(sig_page, 'ix:tuple')
             tuple_elem.set('name', 'se-gaap-ext:UnderskriftArsredovisningForetradareTuple')
             tuple_elem.set('tupleID', f'UnderskriftArsredovisningForetradareTuple{idx}')
-            tuple_elem.set('style', 'display:none;')
         
         # Create signature table with 3 columns
         table = ET.SubElement(sig_page, 'table')
@@ -4342,28 +4350,33 @@ body {
                     td = ET.SubElement(tr, 'td')
                     td.set('class', 'signature-cell')
                     
-                    # Hidden XBRL tags
-                    span_hidden = ET.SubElement(td, 'span')
-                    span_hidden.set('style', 'display:none;')
+                    # Visible name paragraph with inline XBRL tags (Bolagsverket pattern)
+                    p_name = ET.SubElement(td, 'p')
+                    p_name.set('class', 'signature-name-text')
                     
-                    ix_first = ET.SubElement(span_hidden, 'ix:nonNumeric')
+                    # Inline XBRL tags wrapped in span with class="signature" 
+                    # (following Bolagsverket's pattern - tags are inline, not hidden)
+                    span_signature = ET.SubElement(p_name, 'span')
+                    span_signature.set('class', 'signature')
+                    
+                    ix_first = ET.SubElement(span_signature, 'ix:nonNumeric')
                     ix_first.set('name', 'se-gen-base:UnderskriftHandlingTilltalsnamn')
                     ix_first.set('contextRef', 'period0')
                     ix_first.set('order', '1.0')
                     ix_first.set('tupleRef', tuple_id)
                     ix_first.text = tilltalsnamn
                     
-                    ix_last = ET.SubElement(span_hidden, 'ix:nonNumeric')
+                    # Add space between names
+                    if tilltalsnamn and efternamn:
+                        span_signature.text = (span_signature.text or '') + ' '
+                        ix_first.tail = ' '
+                    
+                    ix_last = ET.SubElement(span_signature, 'ix:nonNumeric')
                     ix_last.set('name', 'se-gen-base:UnderskriftHandlingEfternamn')
                     ix_last.set('contextRef', 'period0')
                     ix_last.set('order', '2.0')
                     ix_last.set('tupleRef', tuple_id)
                     ix_last.text = efternamn
-                    
-                    # Visible name
-                    p_name = ET.SubElement(td, 'p')
-                    p_name.set('class', 'signature-name-text')
-                    p_name.text = full_name
                     
                     # Role
                     if roll:
