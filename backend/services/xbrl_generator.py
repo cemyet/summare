@@ -4378,11 +4378,14 @@ body {
                     ix_last.set('tupleRef', tuple_id)
                     ix_last.text = efternamn
                     
-                    # Role
+                    # Add visible name span (Bolagsverket pattern - separate from XBRL tags)
+                    span_visible = ET.SubElement(p_name, 'span')
+                    span_visible.text = full_name
+                    
+                    # Role - add inline with line break (Bolagsverket pattern)
                     if roll:
-                        p_role = ET.SubElement(td, 'p')
-                        p_role.set('class', 'signature-role-text')
-                        ix_roll = ET.SubElement(p_role, 'ix:nonNumeric')
+                        br = ET.SubElement(span_visible, 'br')
+                        ix_roll = ET.SubElement(span_visible, 'ix:nonNumeric')
                         ix_roll.set('name', 'se-gen-base:UnderskriftHandlingRoll')
                         ix_roll.set('contextRef', 'period0')
                         ix_roll.set('order', '3.0')
