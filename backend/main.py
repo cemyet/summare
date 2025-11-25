@@ -1740,6 +1740,88 @@ async def kontrollera_arsredovisning(request: KontrolleraArsredovisningRequest):
             detail=f"Error calling Bolagsverket validation API: {str(e)}"
         )
 
+@app.api_route("/api/bolagsverket/testbank-proxy", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=True)
+@app.api_route("/api/bolagsverket/testbank-proxy/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def testbank_proxy(path: str = "", request: Request = None):
+    """
+    🌐 Proxy till Bolagsverkets testbank webbsida
+    
+    Denna endpoint fungerar som proxy för att komma åt Bolagsverkets testbank
+    som bara är tillgänglig från Railway backend (IP: 208.77.244.15).
+    
+    Stödjer alla HTTP-metoder (GET, POST, PUT, DELETE) för full funktionalitet.
+    
+    Usage:
+        https://api.summare.se/api/bolagsverket/testbank-proxy/
+        
+    Detta kommer att visa Bolagsverkets testbank där du kan validera filer.
+    """
+    from fastapi.responses import HTMLResponse, Response
+    
+    base_url = "https://arsredovisning-accept2.bolagsverket.se/arsredovisning-ingivning-testbank-web"
+    target_url = f"{base_url}/{path}" if path else base_url
+    
+    # Path to TeliaSonera Root CA v1 certificate
+    cert_path = os.path.join(os.path.dirname(__file__), "teliasonera_root_ca_v1.pem")
+    
+    logger.info(f"🌐 Proxying {request.method} request to: {target_url}")
+    
+    try:
+        # Get request body if present
+        body = await request.body()
+        
+        # Get headers (exclude host-related headers)
+        headers = dict(request.headers)
+        excluded_headers = ['host', 'content-length']
+        headers = {k: v for k, v in headers.items() if k.lower() not in excluded_headers}
+        
+        # Forward the request to Bolagsverket's testbank
+        response = requests.request(
+            method=request.method,
+            url=target_url,
+            headers=headers,
+            data=body if body else None,
+            params=request.query_params,
+            verify=cert_path,
+            timeout=60,
+            allow_redirects=False  # Handle redirects manually
+        )
+        
+        # Prepare response headers
+        response_headers = dict(response.headers)
+        # Remove headers that might cause issues
+        excluded_response_headers = ['content-encoding', 'content-length', 'transfer-encoding']
+        response_headers = {k: v for k, v in response_headers.items() if k.lower() not in excluded_response_headers}
+        
+        # Handle redirects by rewriting location header
+        if 'location' in response_headers:
+            location = response_headers['location']
+            if location.startswith('/'):
+                response_headers['location'] = f"/api/bolagsverket/testbank-proxy{location}"
+        
+        # Return the response
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            headers=response_headers
+        )
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"❌ Proxy error: {str(e)}")
+        return HTMLResponse(
+            content=f"""
+            <html>
+                <head><title>Proxy Error</title></head>
+                <body>
+                    <h1>Fel vid anslutning till Bolagsverkets testbank</h1>
+                    <p>Error: {str(e)}</p>
+                    <p>URL: {target_url}</p>
+                </body>
+            </html>
+            """,
+            status_code=500
+        )
+
 @app.post("/update-formula/{row_id}")
 async def update_formula(row_id: int, formula: str):
     """
