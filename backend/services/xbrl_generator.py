@@ -1643,7 +1643,8 @@ body {
         avskrtid_ovriga = next((self._num(item.get('current_amount', 0)) for item in noter_data if item.get('variable_name') == 'avskrtid_ovriga'), 0)
         
         # Only generate tuples if we have at least one depreciation value
-        if not any([avskrtid_bygg, avskrtid_mask, avskrtid_inv, avskrtid_ovriga]):
+        # Note: avskrtid_ovriga removed - OvrigaTuple not supported in K2 RISBS 2021-10-31 taxonomy
+        if not any([avskrtid_bygg, avskrtid_mask, avskrtid_inv]):
             return
         
         # Add blank line before section
@@ -1674,13 +1675,8 @@ body {
                 'tuple_name': 'se-gaap-ext:AvskrivningsprincipMateriellaAnlaggningstillgangarByggnaderTuple',
                 'tuple_id': 'avskr-princip-byggn-id1',
                 'value': avskrtid_bygg
-            },
-            {
-                'label': 'Tillämpade avskrivningstider: Övriga materiella anläggningstillgångar',
-                'tuple_name': 'se-gaap-ext:AvskrivningsprincipMateriellaAnlaggningstillgangarOvrigaTuple',
-                'tuple_id': 'avskr-princip-ovriga-id1',
-                'value': avskrtid_ovriga
             }
+            # Note: OvrigaTuple removed - not supported in K2 RISBS 2021-10-31 taxonomy
         ]
         
         # Generate tuples for each category
@@ -4045,11 +4041,11 @@ body {
             
             # Data rows with XBRL tagging for depreciation periods
             # tupleRef must match the tupleID in hidden section
+            # Note: OvrigaTuple removed - not supported in K2 RISBS 2021-10-31 taxonomy
             depr_items = [
                 ('Byggnader & mark', avskrtid_bygg, 'avskr-princip-byggn-id1'),
                 ('Maskiner och andra tekniska anläggningar', avskrtid_mask, 'avskr-princip-mask-id1'),
                 ('Inventarier, verktyg och installationer', avskrtid_inv, 'avskr-princip-inv-id1'),
-                ('Övriga materiella anläggningstillgångar', avskrtid_ovriga, 'avskr-princip-ovriga-id1'),
             ]
             
             for label, val, tuple_id in depr_items:
