@@ -410,7 +410,7 @@ class XBRLGenerator:
             
             entity = ET.SubElement(context_element, 'xbrli:entity')
             identifier = ET.SubElement(entity, 'xbrli:identifier')
-            identifier.set('scheme', 'http://www.bolagsverket.se/se/organisationsnummer')
+            identifier.set('scheme', 'http://www.bolagsverket.se')
             identifier.text = org_number_clean
             
             period = ET.SubElement(context_element, 'xbrli:period')
