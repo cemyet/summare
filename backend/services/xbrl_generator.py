@@ -1383,6 +1383,75 @@ body {
         # Prepend inline fonts to CSS
         return "/* Embedded Roboto fonts (inline to avoid external references) */\n" + inline_fonts + "\n\n" + css_base
     
+    def _normalize_role(self, role: str) -> str:
+        """Normalize role to valid XBRL Foretradarroll value.
+        
+        Valid values per Bolagsverket schema (se-comp-base):
+        - Verkställande direktör (VD)
+        - Vice verkställande direktör (VVD)
+        - Styrelseledamot (LE)
+        - Styrelsesuppleant (SU)
+        - Ordförande (OF)
+        - Revisor (REV)
+        - Huvudansvarig revisor (REVH)
+        - Lekmannarevisor (REVL)
+        - Revisorssuppleant (REVS)
+        - Suppleant för lekmannarevisor (REVSL)
+        - Extern VD (EVD)
+        - Extern Vice VD (EVVD)
+        - Extern firmatecknare (EFT)
+        - Likvidator
+        """
+        if not role:
+            return 'Styrelseledamot'
+        
+        role_upper = role.upper().strip()
+        
+        # Map common combinations and variations to valid single values
+        # Priority: VD takes precedence over Styrelseledamot
+        if 'VD' in role_upper and 'VICE' not in role_upper and 'VVD' not in role_upper:
+            if 'EXTERN' in role_upper or 'EVD' in role_upper:
+                return 'Extern VD'
+            return 'Verkställande direktör'
+        
+        if 'VVD' in role_upper or 'VICE VD' in role_upper or 'VICE VERKSTÄLLANDE' in role_upper:
+            if 'EXTERN' in role_upper:
+                return 'Extern Vice VD'
+            return 'Vice verkställande direktör'
+        
+        if 'ORDFÖRANDE' in role_upper or role_upper == 'OF':
+            return 'Ordförande'
+        
+        if 'SUPPLEANT' in role_upper and 'REVISOR' not in role_upper and 'LEKMAN' not in role_upper:
+            return 'Styrelsesuppleant'
+        
+        if 'STYRELSELEDAMOT' in role_upper or role_upper == 'LE':
+            return 'Styrelseledamot'
+        
+        if 'LEKMANNAREVISOR' in role_upper and 'SUPPLEANT' in role_upper:
+            return 'Suppleant för lekmannarevisor'
+        
+        if 'LEKMANNAREVISOR' in role_upper or role_upper == 'REVL':
+            return 'Lekmannarevisor'
+        
+        if 'REVISORSSUPPLEANT' in role_upper or role_upper == 'REVS':
+            return 'Revisorssuppleant'
+        
+        if 'HUVUDANSVARIG' in role_upper and 'REVISOR' in role_upper:
+            return 'Huvudansvarig revisor'
+        
+        if 'REVISOR' in role_upper or role_upper == 'REV':
+            return 'Revisor'
+        
+        if 'LIKVIDATOR' in role_upper:
+            return 'Likvidator'
+        
+        if 'FIRMATECKNARE' in role_upper or role_upper == 'EFT':
+            return 'Extern firmatecknare'
+        
+        # Default fallback
+        return 'Styrelseledamot'
+
     def _num(self, v):
         """Convert value to float, handling bools, None, empty strings"""
         try:
@@ -1830,7 +1899,7 @@ body {
         if vd_signer:
             tilltalsnamn = vd_signer.get('UnderskriftHandlingTilltalsnamn', '')
             efternamn = vd_signer.get('UnderskriftHandlingEfternamn', '')
-            roll = vd_signer.get('UnderskriftHandlingRoll', 'Styrelseledamot')
+            roll = self._normalize_role(vd_signer.get('UnderskriftHandlingRoll', ''))
             
             # Use today's date (same as signature section)
             today = date.today()
@@ -4394,7 +4463,7 @@ body {
                     person = foretradare[signer_idx]
                     tilltalsnamn = person.get('UnderskriftHandlingTilltalsnamn', '').strip()
                     efternamn = person.get('UnderskriftHandlingEfternamn', '').strip()
-                    roll = person.get('UnderskriftHandlingRoll', '').strip()
+                    roll = self._normalize_role(person.get('UnderskriftHandlingRoll', ''))
                     
                     tuple_id = f'UnderskriftArsredovisningForetradareTuple{signer_idx + 1}'
                     full_name = f'{tilltalsnamn} {efternamn}'.strip()
@@ -4562,7 +4631,7 @@ body {
             # Create tuple for each signer
             tilltalsnamn = person.get('UnderskriftHandlingTilltalsnamn', '')
             efternamn = person.get('UnderskriftHandlingEfternamn', '')
-            roll = person.get('UnderskriftHandlingRoll', '')
+            roll = self._normalize_role(person.get('UnderskriftHandlingRoll', ''))
             datum = person.get('UnderskriftHandlingDagForUndertecknande', end_date)
             
             if tilltalsnamn or efternamn:
