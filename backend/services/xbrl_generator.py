@@ -2077,8 +2077,9 @@ body {
         p_vasentliga = ET.SubElement(page1, 'p')
         p_vasentliga.set('class', 'P-spaced-bottom')
         # Add XBRL tagging for Väsentliga händelser text
+        # Note: Correct element name is VasentligaHandelserRakenskapsaret (not UnderRakenskapsaret)
         ix_vasentliga = ET.SubElement(p_vasentliga, 'ix:nonNumeric')
-        ix_vasentliga.set('name', 'se-gen-base:VasentligaHandelserUnderRakenskapsaret')
+        ix_vasentliga.set('name', 'se-gen-base:VasentligaHandelserRakenskapsaret')
         ix_vasentliga.set('contextRef', 'period0')
         ix_vasentliga.text = vasentliga_text
         
