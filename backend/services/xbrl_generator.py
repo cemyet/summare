@@ -365,13 +365,31 @@ class XBRLGenerator:
         # ix:hidden – non-visible facts (document metadata, duplicates, etc.)
         ix_hidden = ET.SubElement(ix_header, 'ix:hidden')
         
-        # ix:references – schemaRef to K2 AB RISBS 2024 taxonomy
+        # ix:references – schemaRef to K2 taxonomy (matching Bolagsverket's format)
         ix_references = ET.SubElement(ix_header, 'ix:references')
+        
+        # Main K2 RISBS schema
         schema_ref = ET.SubElement(ix_references, 'link:schemaRef')
         schema_ref.set('xlink:type', 'simple')
         schema_ref.set(
             'xlink:href',
-            'http://www.taxonomier.se/se/fr/gaap/k2-all/ab/risbs/2024-09-12/se-k2-ab-risbs-2024-09-12.xsd'
+            'http://xbrl.taxonomier.se/se/fr/gaap/k2/risbs/2021-10-31/se-k2-risbs-2021-10-31.xsd'
+        )
+        
+        # COA RPLC schema
+        schema_ref2 = ET.SubElement(ix_references, 'link:schemaRef')
+        schema_ref2.set('xlink:type', 'simple')
+        schema_ref2.set(
+            'xlink:href',
+            'http://xbrl.taxonomier.se/se/fr/gaap/coa/rplc/2020-12-01/se-coa-rplc-2020-12-01.xsd'
+        )
+        
+        # MISC RACE schema
+        schema_ref3 = ET.SubElement(ix_references, 'link:schemaRef')
+        schema_ref3.set('xlink:type', 'simple')
+        schema_ref3.set(
+            'xlink:href',
+            'http://xbrl.taxonomier.se/se/fr/misc/race/2017-09-30/se-misc-race-2017-09-30.xsd'
         )
         
         # ix:resources – contexts and units live here in Inline XBRL
