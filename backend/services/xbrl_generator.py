@@ -2233,7 +2233,9 @@ body {
                     data_type = mapping.get('data_type', '')
                     
                     if data_type == 'xbrli:monetaryItemType':
-                        # Monetary value
+                        # Monetary value - Flerårsöversikt displays in tkr (thousands)
+                        # Per Bolagsverket: use scale="3" and decimals="-3" for tkr values
+                        # This means displayed value "1 936" → XBRL value 1 936 000 kr
                         formatted_val = self._format_monetary_value(abs(val), for_display=True)
                         if val < 0:
                             td_val.text = '- '
@@ -2242,8 +2244,8 @@ body {
                         ix_elem.set('contextRef', context_ref)
                         ix_elem.set('name', element_name)
                         ix_elem.set('unitRef', 'SEK')
-                        ix_elem.set('decimals', 'INF')
-                        ix_elem.set('scale', '0')
+                        ix_elem.set('decimals', '-3')  # Rounded to nearest thousand
+                        ix_elem.set('scale', '3')  # Value is in thousands (×10³)
                         ix_elem.set('format', 'ixt:numspacecomma')
                 
                         # Flerårsöversikt: No sign attribute (FB section)
