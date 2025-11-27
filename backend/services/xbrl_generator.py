@@ -2296,8 +2296,11 @@ body {
                         ix_elem.set('decimals', '-3')  # Rounded to nearest thousand
                         ix_elem.set('scale', '3')  # Value is in thousands (×10³)
                         ix_elem.set('format', 'ixt:numspacecomma')
+                        
+                        # Add sign attribute for negative values (XBRL requirement)
+                        if val < 0:
+                            ix_elem.set('sign', '-')
                 
-                        # Flerårsöversikt: No sign attribute (FB section)
                         ix_elem.text = formatted_val
                     elif data_type == 'xbrli:pureItemType':
                         # Soliditet percentage - Rule 2.12.1: MUST use scale="-2"
