@@ -500,17 +500,8 @@ class XBRLGenerator:
         meta_report.set('contextRef', period0_ref)
         meta_report.text = 'se-mem-base:FinansiellRapportStyrelsenVerkstallandeDirektorenAvgerArsredovisningMember'
         
-        # Fiscal year first day
-        meta_start = ET.SubElement(ix_hidden, 'ix:nonNumeric')
-        meta_start.set('name', 'se-cd-base:RakenskapsarForstaDag')
-        meta_start.set('contextRef', period0_ref)
-        meta_start.text = start_date
-        
-        # Fiscal year last day
-        meta_end = ET.SubElement(ix_hidden, 'ix:nonNumeric')
-        meta_end.set('name', 'se-cd-base:RakenskapsarSistaDag')
-        meta_end.set('contextRef', period0_ref)
-        meta_end.text = end_date
+        # NOTE: RakenskapsarForstaDag and RakenskapsarSistaDag are now tagged INLINE
+        # in the visible "avseende perioden" section on the cover page (not in hidden)
         
         # Organization number
         meta_org = ET.SubElement(ix_hidden, 'ix:nonNumeric')
@@ -1873,11 +1864,22 @@ body {
         p_period_label.set('class', 'cover-label-spaced')
         p_period_label.text = 'avseende perioden'
         
-        # Fiscal period dates - 14pt normal, centered
+        # Fiscal period dates - 14pt normal, centered with iXBRL tags
         p_dates = ET.SubElement(page0, 'p')
         p_dates.set('class', 'cover-center-dates')
-        period_text = f"{start_date} - {end_date}"
-        p_dates.text = period_text
+        
+        # Start date with iXBRL tag
+        ix_start_date = ET.SubElement(p_dates, 'ix:nonNumeric')
+        ix_start_date.set('name', 'se-cd-base:RakenskapsarForstaDag')
+        ix_start_date.set('contextRef', period0_ref)
+        ix_start_date.text = start_date
+        ix_start_date.tail = ' - '
+        
+        # End date with iXBRL tag
+        ix_end_date = ET.SubElement(p_dates, 'ix:nonNumeric')
+        ix_end_date.set('name', 'se-cd-base:RakenskapsarSistaDag')
+        ix_end_date.set('contextRef', period0_ref)
+        ix_end_date.text = end_date
         
         # Fastställelseintyg section at bottom
         # Get signing data to find a VD
