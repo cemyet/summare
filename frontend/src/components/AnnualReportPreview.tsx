@@ -1724,9 +1724,6 @@ const handleTaxCalculationClick = () => {
         fiscalYear: companyData.fiscalYear,
         // NEW: SLP amount
         inkSarskildLoneskatt,
-        // NEW: FB data for recalculation when årets resultat changes
-        fb_variables: companyData.seFileData?.fb_variables || companyData.fbVariables || null,
-        fb_table: companyData.seFileData?.fb_table || companyData.fbTable || null,
       };
       
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
@@ -1765,34 +1762,14 @@ const handleTaxCalculationClick = () => {
         //   duration: 4000,
         // });
         
-      // Update company data with new RR/BR data (and FB if provided)
-      const updatedSeFileData: any = {
-        ...companyData.seFileData,
-        rr_data: result.rr_data,
-        br_data: result.br_data,
-      };
-      
-      // Include FB data if it was returned
-      if (result.fb_variables) {
-        updatedSeFileData.fb_variables = result.fb_variables;
-      }
-      if (result.fb_table) {
-        updatedSeFileData.fb_table = result.fb_table;
-      }
-      
-      const updatePayload: any = {
-        seFileData: updatedSeFileData,
-      };
-      
-      // Also update top-level FB data for components that use it directly
-      if (result.fb_variables) {
-        updatePayload.fbVariables = result.fb_variables;
-      }
-      if (result.fb_table) {
-        updatePayload.fbTable = result.fb_table;
-      }
-      
-      onDataUpdate(updatePayload);
+      // Update company data with new RR/BR data
+      onDataUpdate({
+        seFileData: {
+          ...companyData.seFileData,
+          rr_data: result.rr_data,
+          br_data: result.br_data,
+        }
+      });
       } else {
         console.error('❌ Failed to update RR/BR data:', result.error);
       }
