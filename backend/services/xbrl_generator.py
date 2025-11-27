@@ -585,11 +585,8 @@ class XBRLGenerator:
         # NOTE: RakenskapsarForstaDag and RakenskapsarSistaDag are now tagged INLINE
         # in the visible "avseende perioden" section on the cover page (not in hidden)
         
-        # Organization number
-        meta_org = ET.SubElement(ix_hidden, 'ix:nonNumeric')
-        meta_org.set('name', 'se-cd-base:Organisationsnummer')
-        meta_org.set('contextRef', period0_ref)
-        meta_org.text = company_data.get('organization_number', '') or company_data.get('organizationNumber', '') or org_number
+        # NOTE: Organisationsnummer is tagged INLINE on the cover page (not in hidden)
+        # Having it both in hidden AND visible causes "hidden ixbrl tags" warning
         
         # NOTE: All monetary and display facts are now tagged INLINE in presentation
         # No hidden monetary facts needed
