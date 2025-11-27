@@ -2147,36 +2147,85 @@ body {
                     return [self._num(x) for x in arr[:3]]
             return [0, 0, 0]
         
+        # Helper to get value from RR/BR data by variable_name
+        # IMPORTANT: Values affected by INK2 adjustments must come from RR/BR to ensure XBRL consistency
+        rr_data = (company_data.get('rrData') or company_data.get('rr_data') or 
+                   company_data.get('seFileData', {}).get('rr_data', []))
+        br_data = (company_data.get('brData') or company_data.get('br_data') or 
+                   company_data.get('seFileData', {}).get('br_data', []))
+        
+        def get_from_rr(var_name):
+            """Get value from RR data, convert to tkr (rounded to nearest thousand)"""
+            for row in rr_data:
+                if row.get('variable_name') == var_name:
+                    curr = self._num(row.get('current_amount', 0))
+                    prev = self._num(row.get('previous_amount', 0))
+                    # Convert to tkr (divide by 1000 and round)
+                    return round(curr / 1000), round(prev / 1000)
+            return None, None  # Return None to indicate not found
+        
+        def get_from_br(var_name):
+            """Get value from BR data, convert to tkr (rounded to nearest thousand)"""
+            for row in br_data:
+                if row.get('variable_name') == var_name:
+                    curr = self._num(row.get('current_amount', 0))
+                    prev = self._num(row.get('previous_amount', 0))
+                    # Convert to tkr (divide by 1000 and round)
+                    return round(curr / 1000), round(prev / 1000)
+            return None, None
+        
         # Build rows with proper variable mapping from CSV
-        # oms1;oms2;oms3 -> current, prev, prev-1
         rows_data = []
         
-        # Nettoomsättning (row 31 in CSV) - variable: oms1;oms2;oms3
+        # Nettoomsättning - NOT affected by INK2, use fb_variables
         oms_vals = [get_var('oms1'), get_var('oms2'), get_var('oms3')]
         if all(v == 0 for v in oms_vals):
             scraped_oms = get_scraped_values(['Omsättning', 'Total omsättning', 'omsättning'])
             oms_vals = scraped_oms
         rows_data.append(('Nettoomsättning', oms_vals, False, ['oms1', 'oms2', 'oms3']))
         
-        # Resultat efter finansiella poster (row 34) - variable: ref1;ref2;ref3
-        ref_vals = [get_var('ref1'), get_var('ref2'), get_var('ref3')]
-        if all(v == 0 for v in ref_vals):
-            scraped_ref = get_scraped_values(['Resultat efter finansnetto', 'Resultat efter finansiella poster'])
-            ref_vals = scraped_ref
+        # Resultat efter finansiella poster - AFFECTED by SLP adjustment in INK2
+        # Must get from RR to match the adjusted value
+        ref_curr, ref_prev = get_from_rr('SumResultatEfterFinansiellaPoster')
+        if ref_curr is not None:
+            # Got values from RR - use them (already in tkr)
+            ref_third = get_var('ref3')  # Third year from fb_variables (already in tkr)
+            ref_vals = [ref_curr, ref_prev, ref_third]
+        else:
+            # Fallback to fb_variables
+            ref_vals = [get_var('ref1'), get_var('ref2'), get_var('ref3')]
+            if all(v == 0 for v in ref_vals):
+                scraped_ref = get_scraped_values(['Resultat efter finansnetto', 'Resultat efter finansiella poster'])
+                ref_vals = scraped_ref
         rows_data.append(('Resultat efter finansiella poster', ref_vals, False, ['ref1', 'ref2', 'ref3']))
         
-        # Balansomslutning (row 39) - variable: bal1;bal2;bal3
+        # Balansomslutning - NOT affected by INK2, use fb_variables
         bal_vals = [get_var('bal1'), get_var('bal2'), get_var('bal3')]
         if all(v == 0 for v in bal_vals):
             scraped_bal = get_scraped_values(['Summa tillgångar', 'Balansomslutning'])
             bal_vals = scraped_bal
         rows_data.append(('Balansomslutning', bal_vals, False, ['bal1', 'bal2', 'bal3']))
         
-        # Soliditet (row 41) - percentage - variable: sol1;sol2;sol3
-        sol_vals = [get_var('sol1'), get_var('sol2'), get_var('sol3')]
-        if all(v == 0 for v in sol_vals):
-            scraped_sol = get_scraped_values(['Soliditet'])
-            sol_vals = scraped_sol
+        # Soliditet (%) - AFFECTED by INK2 (eget kapital changes when årets resultat changes)
+        # Calculate from BR if possible: Soliditet = Eget kapital / Summa tillgångar * 100
+        sol_curr, sol_prev = None, None
+        ek_curr, ek_prev = get_from_br('SumEgetKapital')
+        tillg_curr, tillg_prev = get_from_br('SumTillgangar')
+        if ek_curr is not None and tillg_curr is not None and tillg_curr != 0:
+            # Calculate soliditet from BR data (values are in tkr, ratio is same)
+            sol_curr = round((ek_curr / tillg_curr) * 100) if tillg_curr else 0
+        if ek_prev is not None and tillg_prev is not None and tillg_prev != 0:
+            sol_prev = round((ek_prev / tillg_prev) * 100) if tillg_prev else 0
+        
+        if sol_curr is not None:
+            sol_third = get_var('sol3')  # Third year from fb_variables
+            sol_vals = [sol_curr, sol_prev if sol_prev is not None else get_var('sol2'), sol_third]
+        else:
+            # Fallback to fb_variables
+            sol_vals = [get_var('sol1'), get_var('sol2'), get_var('sol3')]
+            if all(v == 0 for v in sol_vals):
+                scraped_sol = get_scraped_values(['Soliditet'])
+                sol_vals = scraped_sol
         rows_data.append(('Soliditet (%)', sol_vals, True, ['sol1', 'sol2', 'sol3']))  # True = percentage
         
         # Create table
