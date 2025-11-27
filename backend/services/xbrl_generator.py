@@ -218,6 +218,86 @@ class XBRLGenerator:
             return "0"
         return f"{value:.{decimals}f}"
     
+    def _fix_rr_sum_rounding(self, rr_data: list) -> list:
+        """Fix rounding errors in RR sum rows by recalculating from rounded sub-values.
+        
+        XBRL requires: Rörelseintäkter - Rörelsekostnader = Rörelseresultat
+        But if each value is rounded independently, the equation may not hold.
+        
+        Solution: Recalculate sum rows from the rounded sub-values that are displayed.
+        This ensures XBRL calculation consistency.
+        """
+        if not rr_data:
+            return rr_data
+        
+        # Create a copy to avoid modifying original
+        rr_data = [dict(row) for row in rr_data]
+        
+        # Build lookup by variable_name
+        by_var = {row.get('variable_name'): row for row in rr_data if row.get('variable_name')}
+        
+        # Define RR sum calculations (sum_var: [component_vars with signs])
+        # Positive = add, Negative = subtract
+        rr_sums = {
+            # Rörelseresultat = Rörelseintäkter - Rörelsekostnader
+            'SumRorelseresultat': [
+                ('SumRorelseintakterLagerforandringarMm', 1),
+                ('SumRorelsekostnader', -1)
+            ],
+            # Resultat efter finansiella poster = Rörelseresultat + Finansiella intäkter - Finansiella kostnader
+            'SumResultatEfterFinansiellaPoster': [
+                ('SumRorelseresultat', 1),
+                ('SumFinansiellaIntakter', 1),
+                ('SumFinansiellaKostnader', -1)
+            ],
+            # Resultat före skatt = Resultat efter finansiella poster + Bokslutsdispositioner
+            # Note: Simplified - may need adjustment based on actual structure
+            'SumResultatForeSkatt': [
+                ('SumResultatEfterFinansiellaPoster', 1),
+                ('SumBokslutsdispositioner', 1)
+            ],
+            # Årets resultat = Resultat före skatt - Skatt
+            'SumAretsResultat': [
+                ('SumResultatEfterFinansiellaPoster', 1),
+                ('SkattAretsResultat', -1)
+            ]
+        }
+        
+        # Recalculate each sum from rounded component values
+        for sum_var, components in rr_sums.items():
+            if sum_var not in by_var:
+                continue
+            
+            sum_row = by_var[sum_var]
+            
+            # Calculate current_amount from components
+            calc_curr = 0
+            calc_prev = 0
+            all_components_found = True
+            
+            for comp_var, sign in components:
+                if comp_var in by_var:
+                    comp_row = by_var[comp_var]
+                    # Use rounded values (int) to match displayed values
+                    calc_curr += sign * int(round(self._num(comp_row.get('current_amount', 0))))
+                    calc_prev += sign * int(round(self._num(comp_row.get('previous_amount', 0))))
+                else:
+                    # Component not found, skip recalculation for this sum
+                    all_components_found = False
+                    break
+            
+            if all_components_found:
+                # Only update if there's a rounding difference (1-2 kr)
+                orig_curr = int(round(self._num(sum_row.get('current_amount', 0))))
+                orig_prev = int(round(self._num(sum_row.get('previous_amount', 0))))
+                
+                if abs(calc_curr - orig_curr) <= 2:
+                    sum_row['current_amount'] = calc_curr
+                if abs(calc_prev - orig_prev) <= 2:
+                    sum_row['previous_amount'] = calc_prev
+        
+        return rr_data
+    
     def add_fact(self, element_name: str, namespace: str, value: Any, 
                  period_type: str, start_date: Optional[str] = None,
                  end_date: Optional[str] = None, instant_date: Optional[str] = None,
@@ -2871,6 +2951,10 @@ body {
         rr_data_raw = (company_data.get('rrData') or 
                       company_data.get('rrRows') or 
                       company_data.get('seFileData', {}).get('rr_data', []))
+        
+        # Fix rounding errors in RR sum rows by recalculating from rounded sub-values
+        # This ensures XBRL calculation consistency: sum of rounded parts = displayed sum
+        rr_data_raw = self._fix_rr_sum_rounding(rr_data_raw)
         
         if rr_data_raw:
             rr_table = ET.SubElement(page2, 'table')
