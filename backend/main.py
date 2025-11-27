@@ -3584,6 +3584,9 @@ class TaxUpdateRequest(BaseModel):
     fiscalYear: Optional[int] = None
     # NEW: accepted SLP (Särskild löneskatt). Pass 0 or omit if not accepted/entered.
     inkSarskildLoneskatt: Optional[float] = 0.0
+    # NEW: FB data for recalculation when årets resultat changes
+    fb_variables: Optional[dict] = None
+    fb_table: Optional[List[dict]] = None
 
 @app.get("/api/test-tax-endpoint")
 async def test_tax_endpoint():
@@ -4013,8 +4016,88 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
             new_total = old_total + total_delta
             _set(br_sum_total, new_total)
 
+        # ------------------------------
+        # 3) OPTIONAL: UPDATE FB (Förändringar i eget kapital) with new årets resultat
+        #    Only if fb_variables and fb_table are provided in request
+        # ------------------------------
+        fb_variables_out = None
+        fb_table_out = None
+        
+        if request.fb_variables is not None and request.fb_table is not None:
+            try:
+                # Make copies to avoid mutating request data
+                fb_vars = dict(request.fb_variables)
+                fb_tbl = [dict(row) for row in request.fb_table]
+                
+                # The new årets resultat from RR (rr_result_new) should update FB
+                new_arets_resultat = rr_result_new
+                old_arets_resultat = _num(fb_vars.get('fb_aretsresultat_arets_resultat', 0))
+                
+                # Only update if there's a change
+                if abs(new_arets_resultat - old_arets_resultat) > 0.01:
+                    print(f"📊 FB Update: årets resultat {old_arets_resultat} → {new_arets_resultat}")
+                    
+                    # Update fb_aretsresultat_arets_resultat
+                    fb_vars['fb_aretsresultat_arets_resultat'] = new_arets_resultat
+                    
+                    # Recalculate fb_aretsresultat_ub (sum of all components in årets resultat column)
+                    fb_vars['fb_aretsresultat_ub'] = (
+                        _num(fb_vars.get('fb_aretsresultat_ib', 0)) +
+                        _num(fb_vars.get('fb_aretsresultat_utdelning', 0)) +
+                        _num(fb_vars.get('fb_aretsresultat_aterbetalda_aktieagartillskott', 0)) +
+                        _num(fb_vars.get('fb_aretsresultat_balanseras_nyrakning', 0)) +
+                        _num(fb_vars.get('fb_aretsresultat_forandring_reservfond', 0)) +
+                        _num(fb_vars.get('fb_aretsresultat_fondemission', 0)) +
+                        new_arets_resultat
+                    )
+                    fb_vars['fb_aretsresultat_ub_red_varde'] = fb_vars['fb_aretsresultat_ub']
+                    
+                    # Update fb_table rows that use these values
+                    for row in fb_tbl:
+                        row_id = row.get('id')
+                        
+                        if row_id == 12:  # "Årets resultat" row
+                            row['arets_resultat'] = new_arets_resultat
+                            row['total'] = new_arets_resultat
+                            
+                        elif row_id == 13:  # "Belopp vid årets utgång" row
+                            row['arets_resultat'] = fb_vars['fb_aretsresultat_ub']
+                            # Recalculate total
+                            row['total'] = (
+                                _num(row.get('aktiekapital', 0)) +
+                                _num(row.get('reservfond', 0)) +
+                                _num(row.get('uppskrivningsfond', 0)) +
+                                _num(row.get('balanserat_resultat', 0)) +
+                                fb_vars['fb_aretsresultat_ub']
+                            )
+                            
+                        elif row_id == 14:  # "Redovisat värde" row
+                            row['arets_resultat'] = fb_vars['fb_aretsresultat_ub_red_varde']
+                            # Recalculate total
+                            row['total'] = (
+                                _num(row.get('aktiekapital', 0)) +
+                                _num(row.get('reservfond', 0)) +
+                                _num(row.get('uppskrivningsfond', 0)) +
+                                _num(row.get('balanserat_resultat', 0)) +
+                                fb_vars['fb_aretsresultat_ub_red_varde']
+                            )
+                    
+                    fb_variables_out = fb_vars
+                    fb_table_out = fb_tbl
+                    print(f"✅ FB updated: fb_aretsresultat_ub = {fb_vars['fb_aretsresultat_ub']}")
+                else:
+                    # No change needed, return original data
+                    fb_variables_out = fb_vars
+                    fb_table_out = fb_tbl
+                    
+            except Exception as fb_error:
+                print(f"⚠️ FB update failed (non-critical): {fb_error}")
+                # Don't fail the entire request - FB update is optional
+                fb_variables_out = request.fb_variables
+                fb_table_out = request.fb_table
+
         # return updated arrays
-        return {
+        response_data = {
             "success": True,
             "message": "Successfully updated RR and BR data with tax changes",
             "rr_data": rr,
@@ -4029,6 +4112,14 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                 "br_delta_skatteskulder": d_tax_liab,
             }
         }
+        
+        # Only include FB data in response if it was provided in request
+        if fb_variables_out is not None:
+            response_data["fb_variables"] = fb_variables_out
+        if fb_table_out is not None:
+            response_data["fb_table"] = fb_table_out
+            
+        return response_data
         
     except Exception as e:
         print(f"Error updating tax in financial data: {str(e)}")
