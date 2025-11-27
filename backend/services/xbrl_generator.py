@@ -433,12 +433,16 @@ class XBRLGenerator:
         style.set('type', 'text/css')
         style.text = self._get_css_styles()
         
-        # <ix:header> belongs in <head> per iXBRL standard (not in body with display:none)
-        # This avoids "hidden ixbrl tags" warnings from validators
-        ix_header = ET.SubElement(head, 'ix:header')
-        
         # Create body element
         body = ET.SubElement(root, 'body')
+        
+        # Create hidden div for iXBRL header content (per Bolagsverket pattern)
+        # NOTE: This MUST be in <body> with display:none - XHTML schema doesn't allow ix:header in <head>
+        hidden_div = ET.SubElement(body, 'div')
+        hidden_div.set('style', 'display:none')
+        
+        # <ix:header> encloses hidden facts, references and resources
+        ix_header = ET.SubElement(hidden_div, 'ix:header')
         
         # ix:hidden – non-visible facts (document metadata, duplicates, etc.)
         ix_hidden = ET.SubElement(ix_header, 'ix:hidden')
