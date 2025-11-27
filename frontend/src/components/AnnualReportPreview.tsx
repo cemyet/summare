@@ -1792,6 +1792,17 @@ const handleTaxCalculationClick = () => {
         updatePayload.fbTable = result.fb_table;
       }
       
+      // Extract updated sumFrittEgetKapital from new BR data
+      // This is needed for arets_balanseras_nyrakning calculation in chat step 501
+      if (result.br_data) {
+        const sumFrittItem = result.br_data.find((item: any) => 
+          item.variable_name === 'SumFrittEgetKapital'
+        );
+        if (sumFrittItem && sumFrittItem.current_amount !== null) {
+          updatePayload.sumFrittEgetKapital = Math.abs(sumFrittItem.current_amount);
+        }
+      }
+      
       onDataUpdate(updatePayload);
       } else {
         console.error('❌ Failed to update RR/BR data:', result.error);
