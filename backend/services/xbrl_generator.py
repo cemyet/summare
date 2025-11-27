@@ -1815,7 +1815,7 @@ body {
         self._render_balansrakning_skulder(body, company_data, company_name, org_number, fiscal_year, prev_year, 'balans0', 'balans1', unit_ref)
         
         # Page 5+: Noter
-        self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, 'period0', 'period1', 'balans0', 'balans1', unit_ref)
+        self._render_noter(body, company_data, company_name, org_number, fiscal_year, prev_year, 'period0', 'period1', 'balans0', 'balans1', 'balans2', unit_ref)
         
         # Page 6+: Signaturer (separate page with page break)
         self._render_signatures(body, company_data, end_date)
@@ -3955,7 +3955,7 @@ body {
     def _render_noter(self, body: ET.Element, company_data: Dict[str, Any],
                      company_name: str, org_number: str, fiscal_year: Optional[int],
                      prev_year: int, period0_ref: str, period1_ref: str,
-                     balans0_ref: str, balans1_ref: str, unit_ref: str):
+                     balans0_ref: str, balans1_ref: str, balans2_ref: str, unit_ref: str):
         """Render Noter section mirroring PDF generator logic"""
         # Create a flexible page container for Noter (no fixed height, allows natural pagination)
         page5 = ET.SubElement(body, 'div')
@@ -4028,13 +4028,13 @@ body {
             # Render note on current page
             self._render_note_block_xbrl(current_page, block_name, block_title, note_number, visible_items, 
                                         company_data, fiscal_year, prev_year, period0_ref, period1_ref,
-                                        balans0_ref, balans1_ref, unit_ref, noter_mappings_dict)
+                                        balans0_ref, balans1_ref, balans2_ref, unit_ref, noter_mappings_dict)
             page_note_count += 1
     
     def _render_note_block_xbrl(self, page: ET.Element, block_name: str, block_title: str,
                                 note_number: int, visible_items: List[Dict[str, Any]], company_data: Dict[str, Any],
                                 fiscal_year: int, prev_year: int, period0_ref: str, period1_ref: str,
-                                balans0_ref: str, balans1_ref: str, unit_ref: str, noter_mappings_dict: Dict[str, Any]):
+                                balans0_ref: str, balans1_ref: str, balans2_ref: str, unit_ref: str, noter_mappings_dict: Dict[str, Any]):
         """Render a single note block with proper XBRL tagging (mirrors PDF _render_note_block)"""
         
         # Format note title
@@ -4295,7 +4295,13 @@ body {
                         namespace = 'se-gen-base'  # Default namespace for noter
                         element_qname = f'{namespace}:{element_name}'
                         
-                        context_ref = period0_ref if period_type == 'duration' else balans0_ref
+                        # For "Ingående" (opening balance) rows in asset notes,
+                        # use previous period's ending balance (balans1 instead of balans0)
+                        is_ingaende = lbl.startswith('ingående ')
+                        if is_ingaende and period_type != 'duration':
+                            context_ref = balans1_ref  # Opening = previous year's closing
+                        else:
+                            context_ref = period0_ref if period_type == 'duration' else balans0_ref
                         cur = self._num(it.get('current_amount', 0))
                         
                         # Use ix:nonNumeric for string/text types, ix:nonFraction for monetary/numeric
@@ -4353,7 +4359,13 @@ body {
                         namespace = 'se-gen-base'  # Default namespace for noter
                         element_qname = f'{namespace}:{element_name}'
                         
-                        context_ref = period1_ref if period_type == 'duration' else balans1_ref
+                        # For "Ingående" (opening balance) rows in asset notes,
+                        # use previous period's ending balance (balans2 instead of balans1)
+                        is_ingaende = lbl.startswith('ingående ')
+                        if is_ingaende and period_type != 'duration':
+                            context_ref = balans2_ref  # Opening = two years ago closing
+                        else:
+                            context_ref = period1_ref if period_type == 'duration' else balans1_ref
                         prev = self._num(it.get('previous_amount', 0))
                         
                         # Use ix:nonNumeric for string/text types, ix:nonFraction for monetary/numeric
