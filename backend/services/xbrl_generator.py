@@ -237,29 +237,30 @@ class XBRLGenerator:
         by_var = {row.get('variable_name'): row for row in rr_data if row.get('variable_name')}
         
         # Define RR sum calculations (sum_var: [component_vars with signs])
-        # Positive = add, Negative = subtract
+        # Based on variable_mapping_rr table - variable_name column
+        # Positive = add, Negative = subtract (for DEBIT balance_type costs)
         rr_sums = {
-            # Rörelseresultat = Rörelseintäkter - Rörelsekostnader
+            # Rörelseresultat = SumRorelseintakter + SumRorelsekostnader
+            # Note: SumRorelsekostnader is DEBIT (negative value), so we ADD it
             'SumRorelseresultat': [
-                ('SumRorelseintakterLagerforandringarMm', 1),
-                ('SumRorelsekostnader', -1)
+                ('SumRorelseintakter', 1),
+                ('SumRorelsekostnader', 1)  # Already negative in data
             ],
-            # Resultat efter finansiella poster = Rörelseresultat + Finansiella intäkter - Finansiella kostnader
+            # Resultat efter finansiella poster = SumRorelseresultat + SumFinansiellaPoster
             'SumResultatEfterFinansiellaPoster': [
                 ('SumRorelseresultat', 1),
-                ('SumFinansiellaIntakter', 1),
-                ('SumFinansiellaKostnader', -1)
+                ('SumFinansiellaPoster', 1)  # Net of financial items
             ],
-            # Resultat före skatt = Resultat efter finansiella poster + Bokslutsdispositioner
-            # Note: Simplified - may need adjustment based on actual structure
+            # Resultat före skatt = SumResultatEfterFinansiellaPoster + SumBokslutsdispositioner
             'SumResultatForeSkatt': [
                 ('SumResultatEfterFinansiellaPoster', 1),
                 ('SumBokslutsdispositioner', 1)
             ],
-            # Årets resultat = Resultat före skatt - Skatt
+            # Årets resultat = SumResultatForeSkatt + SkattAretsResultat + OvrigaSkatter
             'SumAretsResultat': [
-                ('SumResultatEfterFinansiellaPoster', 1),
-                ('SkattAretsResultat', -1)
+                ('SumResultatForeSkatt', 1),
+                ('SkattAretsResultat', 1),  # Already negative in data (DEBIT)
+                ('OvrigaSkatter', 1)
             ]
         }
         
