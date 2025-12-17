@@ -244,6 +244,43 @@ class ApiService {
   async checkUserExists(username: string, organizationNumber: string): Promise<{ success: boolean; user_exist: boolean; org_in_user: boolean }> {
     return this.makeRequest(`${API_ENDPOINTS.base}/api/users/check-exists?username=${encodeURIComponent(username)}&organization_number=${encodeURIComponent(organizationNumber)}`);
   }
+
+  // Annual Report Data Storage for Mina Sidor
+  async saveAnnualReportData(data: {
+    organization_number: string;
+    fiscal_year_start: string;
+    fiscal_year_end: string;
+    company_name?: string;
+    fb_data?: any;
+    rr_data?: any[];
+    br_data?: any[];
+    noter_data?: any[];
+    ink2_data?: any[];
+    signering_data?: any;
+    company_data?: any;
+    status?: string;
+  }): Promise<{ success: boolean; message: string; action?: string }> {
+    return this.makeRequest(`${API_ENDPOINTS.base}/api/annual-report-data/save`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getAnnualReportData(
+    organizationNumber: string,
+    fiscalYearStart?: string,
+    fiscalYearEnd?: string
+  ): Promise<{ success: boolean; message: string; data: any }> {
+    let url = `${API_ENDPOINTS.base}/api/annual-report-data/get?organization_number=${encodeURIComponent(organizationNumber)}`;
+    if (fiscalYearStart && fiscalYearEnd) {
+      url += `&fiscal_year_start=${encodeURIComponent(fiscalYearStart)}&fiscal_year_end=${encodeURIComponent(fiscalYearEnd)}`;
+    }
+    return this.makeRequest(url);
+  }
+
+  async listAnnualReportsByUser(username: string): Promise<{ success: boolean; message: string; data: any[] }> {
+    return this.makeRequest(`${API_ENDPOINTS.base}/api/annual-report-data/list-by-user?username=${encodeURIComponent(username)}`);
+  }
 }
 
 export const apiService = new ApiService();

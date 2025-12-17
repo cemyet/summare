@@ -4416,6 +4416,377 @@ async def pdf_bokforing_instruktion(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error generating Bokföringsinstruktion PDF: {str(e)}")
 
+# ==============================================================================
+# MINA SIDOR (My Pages) - User Authentication & Report Data Storage
+# ==============================================================================
+
+class LoginRequest(BaseModel):
+    """Request body for user login"""
+    email: str
+    password: str
+
+class LoginResponse(BaseModel):
+    """Response body for user login"""
+    success: bool
+    message: str
+    user_id: Optional[str] = None
+    username: Optional[str] = None
+    organizations: Optional[List[str]] = None
+
+@app.post("/api/auth/login", response_model=LoginResponse)
+async def login_user(request: LoginRequest):
+    """
+    Authenticate user with email and password.
+    Returns user info and list of organizations if successful.
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        email = request.email.strip().lower()
+        password = request.password.strip()
+        
+        if not email or not password:
+            return LoginResponse(
+                success=False,
+                message="Email och lösenord krävs"
+            )
+        
+        # Query users table for matching email (username column)
+        user_result = supabase.table('users')\
+            .select('id, username, password, organization_number')\
+            .eq('username', email)\
+            .execute()
+        
+        if not user_result.data or len(user_result.data) == 0:
+            return LoginResponse(
+                success=False,
+                message="Felaktig email eller lösenord"
+            )
+        
+        user = user_result.data[0]
+        
+        # Check password (Note: In production, use proper password hashing!)
+        if user.get('password') != password:
+            return LoginResponse(
+                success=False,
+                message="Felaktig email eller lösenord"
+            )
+        
+        # Get organizations (stored as JSONB array)
+        organizations = user.get('organization_number', [])
+        if isinstance(organizations, str):
+            organizations = [organizations]
+        
+        return LoginResponse(
+            success=True,
+            message="Inloggning lyckades",
+            user_id=str(user.get('id')),
+            username=user.get('username'),
+            organizations=organizations
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error during login: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Login error: {str(e)}")
+
+
+class AnnualReportDataRequest(BaseModel):
+    """Request body for saving annual report data"""
+    organization_number: str
+    fiscal_year_start: str  # e.g., "2024-01-01"
+    fiscal_year_end: str    # e.g., "2024-12-31"
+    company_name: Optional[str] = None
+    fb_data: Optional[dict] = None
+    rr_data: Optional[List[dict]] = None
+    br_data: Optional[List[dict]] = None
+    noter_data: Optional[List[dict]] = None
+    ink2_data: Optional[List[dict]] = None
+    signering_data: Optional[dict] = None
+    company_data: Optional[dict] = None  # Full company data object
+    status: Optional[str] = "draft"  # draft, submitted, signed
+
+@app.post("/api/annual-report-data/save")
+async def save_annual_report_data(request: AnnualReportDataRequest):
+    """
+    Save or update annual report data for a company/fiscal year combination.
+    Uses upsert logic - creates new row or updates existing.
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        org_number = request.organization_number.replace("-", "").replace(" ", "").strip()
+        
+        if not org_number:
+            raise HTTPException(status_code=400, detail="Organization number is required")
+        
+        # Build data object
+        data = {
+            "organization_number": org_number,
+            "fiscal_year_start": request.fiscal_year_start,
+            "fiscal_year_end": request.fiscal_year_end,
+            "company_name": request.company_name,
+            "fb_data": request.fb_data,
+            "rr_data": request.rr_data,
+            "br_data": request.br_data,
+            "noter_data": request.noter_data,
+            "ink2_data": request.ink2_data,
+            "signering_data": request.signering_data,
+            "company_data": request.company_data,
+            "status": request.status,
+            "updated_at": datetime.now().isoformat()
+        }
+        
+        # Check if record exists
+        existing = supabase.table('annual_report_data')\
+            .select('id')\
+            .eq('organization_number', org_number)\
+            .eq('fiscal_year_start', request.fiscal_year_start)\
+            .eq('fiscal_year_end', request.fiscal_year_end)\
+            .execute()
+        
+        if existing.data and len(existing.data) > 0:
+            # Update existing record
+            result = supabase.table('annual_report_data')\
+                .update(data)\
+                .eq('id', existing.data[0]['id'])\
+                .execute()
+            action = "updated"
+        else:
+            # Insert new record
+            data["created_at"] = datetime.now().isoformat()
+            result = supabase.table('annual_report_data')\
+                .insert(data)\
+                .execute()
+            action = "created"
+        
+        return {
+            "success": True,
+            "message": f"Annual report data {action} successfully",
+            "action": action,
+            "organization_number": org_number,
+            "fiscal_year": f"{request.fiscal_year_start} - {request.fiscal_year_end}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error saving annual report data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error saving annual report data: {str(e)}")
+
+
+@app.get("/api/annual-report-data/get")
+async def get_annual_report_data(
+    organization_number: str,
+    fiscal_year_start: Optional[str] = None,
+    fiscal_year_end: Optional[str] = None
+):
+    """
+    Get annual report data for a company. 
+    If fiscal year is not specified, returns the most recent.
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        org_number = organization_number.replace("-", "").replace(" ", "").strip()
+        
+        if not org_number:
+            raise HTTPException(status_code=400, detail="Organization number is required")
+        
+        query = supabase.table('annual_report_data')\
+            .select('*')\
+            .eq('organization_number', org_number)
+        
+        if fiscal_year_start and fiscal_year_end:
+            query = query.eq('fiscal_year_start', fiscal_year_start)\
+                        .eq('fiscal_year_end', fiscal_year_end)
+        
+        result = query.order('fiscal_year_end', desc=True).execute()
+        
+        if not result.data or len(result.data) == 0:
+            return {
+                "success": False,
+                "message": "No annual report data found",
+                "data": None
+            }
+        
+        return {
+            "success": True,
+            "message": "Annual report data retrieved successfully",
+            "data": result.data[0] if fiscal_year_start else result.data  # Single or list
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting annual report data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error getting annual report data: {str(e)}")
+
+
+@app.get("/api/annual-report-data/list-by-user")
+async def list_annual_reports_by_user(username: str):
+    """
+    Get all annual reports for a user (across all their organizations).
+    Returns a list of companies with their annual reports.
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # First get the user's organizations
+        user_result = supabase.table('users')\
+            .select('organization_number')\
+            .eq('username', username)\
+            .execute()
+        
+        if not user_result.data or len(user_result.data) == 0:
+            return {
+                "success": False,
+                "message": "User not found",
+                "data": []
+            }
+        
+        organizations = user_result.data[0].get('organization_number', [])
+        if isinstance(organizations, str):
+            organizations = [organizations]
+        
+        if not organizations:
+            return {
+                "success": True,
+                "message": "No organizations found for user",
+                "data": []
+            }
+        
+        # Get all annual reports for these organizations
+        all_reports = []
+        for org_number in organizations:
+            org_number_clean = org_number.replace("-", "").replace(" ", "").strip()
+            
+            reports_result = supabase.table('annual_report_data')\
+                .select('id, organization_number, company_name, fiscal_year_start, fiscal_year_end, status, updated_at, created_at')\
+                .eq('organization_number', org_number_clean)\
+                .order('fiscal_year_end', desc=True)\
+                .execute()
+            
+            if reports_result.data:
+                all_reports.extend(reports_result.data)
+        
+        # Group by organization
+        grouped = {}
+        for report in all_reports:
+            org = report.get('organization_number')
+            if org not in grouped:
+                grouped[org] = {
+                    "organization_number": org,
+                    "company_name": report.get('company_name'),
+                    "reports": []
+                }
+            grouped[org]["reports"].append({
+                "id": report.get('id'),
+                "fiscal_year_start": report.get('fiscal_year_start'),
+                "fiscal_year_end": report.get('fiscal_year_end'),
+                "status": report.get('status'),
+                "updated_at": report.get('updated_at'),
+                "created_at": report.get('created_at')
+            })
+        
+        return {
+            "success": True,
+            "message": f"Found {len(all_reports)} annual reports for {len(grouped)} companies",
+            "data": list(grouped.values())
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error listing annual reports: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error listing annual reports: {str(e)}")
+
+
+@app.get("/api/company/info-by-org/{organization_number}")
+async def get_company_info_by_org(organization_number: str):
+    """
+    Get company information including latest payment and annual report status.
+    Used by Mina Sidor to display company cards.
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        org_number = organization_number.replace("-", "").replace(" ", "").strip()
+        
+        # Get latest payment info
+        payment_result = supabase.table('payments')\
+            .select('customer_email, paid_at, amount_total')\
+            .eq('organization_number', org_number)\
+            .eq('payment_status', 'paid')\
+            .order('paid_at', desc=True)\
+            .limit(1)\
+            .execute()
+        
+        payment_info = payment_result.data[0] if payment_result.data else None
+        
+        # Get latest annual report
+        report_result = supabase.table('annual_report_data')\
+            .select('company_name, fiscal_year_start, fiscal_year_end, status, updated_at')\
+            .eq('organization_number', org_number)\
+            .order('fiscal_year_end', desc=True)\
+            .limit(1)\
+            .execute()
+        
+        report_info = report_result.data[0] if report_result.data else None
+        
+        # Get signing status if available
+        signing_result = supabase.table('signing_sessions')\
+            .select('status, created_at')\
+            .eq('organization_number', org_number)\
+            .order('created_at', desc=True)\
+            .limit(1)\
+            .execute()
+        
+        signing_info = signing_result.data[0] if signing_result.data else None
+        
+        return {
+            "success": True,
+            "organization_number": org_number,
+            "company_name": report_info.get('company_name') if report_info else None,
+            "latest_fiscal_year": f"{report_info.get('fiscal_year_start')} - {report_info.get('fiscal_year_end')}" if report_info else None,
+            "report_status": report_info.get('status') if report_info else None,
+            "last_updated": report_info.get('updated_at') if report_info else None,
+            "signing_status": signing_info.get('status') if signing_info else None,
+            "payment_info": {
+                "email": payment_info.get('customer_email'),
+                "paid_at": payment_info.get('paid_at'),
+                "amount": payment_info.get('amount_total')
+            } if payment_info else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting company info: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error getting company info: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     import os

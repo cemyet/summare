@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import LandingPage from "./pages/LandingPage";
+import MinaSidor from "./pages/MinaSidor";
 import NotFound from "./pages/NotFound";
 import { Forvaltningsberattelse } from "./components/Forvaltningsberattelse";
 
@@ -19,6 +20,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/app" element={<Index />} />
+          <Route path="/mina-sidor" element={<MinaSidor />} />
           <Route path="/forvaltningsberattelse" element={<Forvaltningsberattelse />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
