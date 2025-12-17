@@ -246,18 +246,9 @@ class ApiService {
   }
 
   // Annual Report Data Storage for Mina Sidor
+  // Pass the full companyData object - backend extracts what it needs (like XBRL export)
   async saveAnnualReportData(data: {
-    organization_number: string;
-    fiscal_year_start: string;
-    fiscal_year_end: string;
-    company_name?: string;
-    fb_data?: any;
-    rr_data?: any[];
-    br_data?: any[];
-    noter_data?: any[];
-    ink2_data?: any[];
-    signering_data?: any;
-    company_data?: any;
+    companyData: any;
     status?: string;
   }): Promise<{ success: boolean; message: string; action?: string }> {
     return this.makeRequest(`${API_ENDPOINTS.base}/api/annual-report-data/save`, {

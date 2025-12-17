@@ -825,53 +825,13 @@ interface ChatFlowResponse {
                   }
                   
                   // === SAVE ANNUAL REPORT DATA FOR MINA SIDOR ===
+                  // Pass the full companyData object - backend extracts what it needs (like XBRL export)
                   try {
-                    const seFileData = dataToUse.seFileData || {};
-                    const companyInfo = seFileData.company_info || {};
-                    
-                    // Extract fiscal year dates
-                    const fiscalYearStart = companyInfo.fiscal_year_start || companyInfo.rar_from || '';
-                    const fiscalYearEnd = companyInfo.fiscal_year_end || companyInfo.rar_to || '';
-                    
-                    // Build the annual report data object
-                    const annualReportData = {
-                      organization_number: cleanOrgNumber,
-                      fiscal_year_start: fiscalYearStart,
-                      fiscal_year_end: fiscalYearEnd,
-                      company_name: companyName,
-                      fb_data: {
-                        fb_variables: dataToUse.fbVariables || seFileData.fb_variables,
-                        fb_table: dataToUse.fbTable || seFileData.fb_table,
-                      },
-                      rr_data: seFileData.rr_data || [],
-                      br_data: seFileData.br_data || [],
-                      noter_data: dataToUse.noterData || seFileData.noter_data || [],
-                      ink2_data: dataToUse.ink2Data || [],
-                      signering_data: dataToUse.signeringData || {
-                        boardMembers: dataToUse.boardMembers,
-                        date: dataToUse.date,
-                      },
-                      company_data: {
-                        // Store essential company data for later retrieval
-                        result: dataToUse.result,
-                        dividend: dataToUse.dividend,
-                        customDividend: dataToUse.customDividend,
-                        arets_utdelning: dataToUse.arets_utdelning,
-                        significantEvents: dataToUse.significantEvents,
-                        hasEvents: dataToUse.hasEvents,
-                        depreciation: dataToUse.depreciation,
-                        employees: dataToUse.employees,
-                        location: dataToUse.location,
-                        inkBeraknadSkatt: dataToUse.inkBeraknadSkatt,
-                        sumAretsResultat: dataToUse.sumAretsResultat,
-                        sumFrittEgetKapital: dataToUse.sumFrittEgetKapital,
-                        username: username,
-                      },
-                      status: 'submitted', // Mark as submitted after payment
-                    };
-                    
                     console.log('💾 Saving annual report data for Mina Sidor...');
-                    const saveResult = await apiService.saveAnnualReportData(annualReportData);
+                    const saveResult = await apiService.saveAnnualReportData({
+                      companyData: dataToUse,
+                      status: 'submitted'
+                    });
                     
                     if (saveResult.success) {
                       console.log('✅ Annual report data saved successfully:', saveResult.action);

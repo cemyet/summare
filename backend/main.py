@@ -4497,24 +4497,29 @@ async def login_user(request: LoginRequest):
 
 
 class AnnualReportDataRequest(BaseModel):
-    """Request body for saving annual report data"""
-    organization_number: str
-    fiscal_year_start: str  # e.g., "2024-01-01"
-    fiscal_year_end: str    # e.g., "2024-12-31"
-    company_name: Optional[str] = None
-    fb_data: Optional[dict] = None
-    rr_data: Optional[List[dict]] = None
-    br_data: Optional[List[dict]] = None
-    noter_data: Optional[List[dict]] = None
-    ink2_data: Optional[List[dict]] = None
-    signering_data: Optional[dict] = None
-    company_data: Optional[dict] = None  # Full company data object
+    """Request body for saving annual report data - accepts full companyData like XBRL export"""
+    companyData: dict  # Full companyData object - backend extracts what it needs
     status: Optional[str] = "draft"  # draft, submitted, signed
+
+
+def _format_date_for_db(date_str: str) -> Optional[str]:
+    """Format date string (YYYYMMDD or YYYY-MM-DD) to YYYY-MM-DD for database"""
+    if not date_str:
+        return None
+    # If already in YYYY-MM-DD format
+    if len(date_str) == 10 and date_str[4] == '-' and date_str[7] == '-':
+        return date_str
+    # If in YYYYMMDD format
+    if len(date_str) == 8 and date_str.isdigit():
+        return f"{date_str[0:4]}-{date_str[4:6]}-{date_str[6:8]}"
+    return None
+
 
 @app.post("/api/annual-report-data/save")
 async def save_annual_report_data(request: AnnualReportDataRequest):
     """
     Save or update annual report data for a company/fiscal year combination.
+    Extracts data from companyData just like XBRL export does.
     Uses upsert logic - creates new row or updates existing.
     """
     try:
@@ -4522,57 +4527,106 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
         if not supabase:
             raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
         
-        org_number = request.organization_number.replace("-", "").replace(" ", "").strip()
+        company_data = request.companyData
+        
+        # Extract company info (same pattern as XBRL generator)
+        se_file_data = company_data.get('seFileData', {})
+        company_info = se_file_data.get('company_info', {})
+        
+        # Extract organization number
+        org_number = (
+            company_data.get('organizationNumber') or 
+            company_info.get('organization_number') or 
+            company_info.get('orgnr') or 
+            ''
+        )
+        org_number = org_number.replace("-", "").replace(" ", "").strip()
         
         if not org_number:
-            raise HTTPException(status_code=400, detail="Organization number is required")
+            raise HTTPException(status_code=400, detail="Organization number is required in companyData")
         
-        # Build data object
-        data = {
+        # Extract fiscal year dates (same pattern as XBRL generator)
+        fiscal_year = company_data.get('fiscalYear') or company_info.get('fiscal_year')
+        start_date = company_info.get('start_date')
+        end_date = company_info.get('end_date')
+        
+        # Format dates (YYYYMMDD -> YYYY-MM-DD)
+        fiscal_year_start = _format_date_for_db(start_date)
+        fiscal_year_end = _format_date_for_db(end_date)
+        
+        # Fallback: if no dates but we have fiscal_year, construct calendar year dates
+        if (not fiscal_year_start or not fiscal_year_end) and fiscal_year:
+            fiscal_year_start = f"{fiscal_year}-01-01"
+            fiscal_year_end = f"{fiscal_year}-12-31"
+            print(f"📅 Constructed fiscal year dates from year {fiscal_year}: {fiscal_year_start} - {fiscal_year_end}")
+        
+        if not fiscal_year_start or not fiscal_year_end:
+            raise HTTPException(status_code=400, detail="Fiscal year dates could not be determined from companyData")
+        
+        # Extract company name
+        company_name = (
+            company_data.get('companyName') or 
+            company_info.get('company_name') or 
+            company_info.get('fnamn') or 
+            ''
+        )
+        
+        # Build data object with all the report sections
+        db_data = {
             "organization_number": org_number,
-            "fiscal_year_start": request.fiscal_year_start,
-            "fiscal_year_end": request.fiscal_year_end,
-            "company_name": request.company_name,
-            "fb_data": request.fb_data,
-            "rr_data": request.rr_data,
-            "br_data": request.br_data,
-            "noter_data": request.noter_data,
-            "ink2_data": request.ink2_data,
-            "signering_data": request.signering_data,
-            "company_data": request.company_data,
+            "fiscal_year_start": fiscal_year_start,
+            "fiscal_year_end": fiscal_year_end,
+            "company_name": company_name,
+            "fb_data": {
+                "fb_variables": company_data.get('fbVariables') or se_file_data.get('fb_variables'),
+                "fb_table": company_data.get('fbTable') or se_file_data.get('fb_table'),
+            },
+            "rr_data": se_file_data.get('rr_data', []),
+            "br_data": se_file_data.get('br_data', []),
+            "noter_data": company_data.get('noterData') or se_file_data.get('noter_data', []),
+            "ink2_data": company_data.get('ink2Data', []),
+            "signering_data": company_data.get('signeringData') or {
+                "boardMembers": company_data.get('boardMembers'),
+                "date": company_data.get('date'),
+            },
+            "company_data": company_data,  # Store full companyData for later retrieval
             "status": request.status,
             "updated_at": datetime.now().isoformat()
         }
+        
+        print(f"💾 Saving annual report: org={org_number}, period={fiscal_year_start} to {fiscal_year_end}")
         
         # Check if record exists
         existing = supabase.table('annual_report_data')\
             .select('id')\
             .eq('organization_number', org_number)\
-            .eq('fiscal_year_start', request.fiscal_year_start)\
-            .eq('fiscal_year_end', request.fiscal_year_end)\
+            .eq('fiscal_year_start', fiscal_year_start)\
+            .eq('fiscal_year_end', fiscal_year_end)\
             .execute()
         
         if existing.data and len(existing.data) > 0:
             # Update existing record
             result = supabase.table('annual_report_data')\
-                .update(data)\
+                .update(db_data)\
                 .eq('id', existing.data[0]['id'])\
                 .execute()
             action = "updated"
         else:
             # Insert new record
-            data["created_at"] = datetime.now().isoformat()
+            db_data["created_at"] = datetime.now().isoformat()
             result = supabase.table('annual_report_data')\
-                .insert(data)\
+                .insert(db_data)\
                 .execute()
             action = "created"
+        
+        print(f"✅ Annual report data {action}: {org_number} ({fiscal_year_start} - {fiscal_year_end})")
         
         return {
             "success": True,
             "message": f"Annual report data {action} successfully",
             "action": action,
             "organization_number": org_number,
-            "fiscal_year": f"{request.fiscal_year_start} - {request.fiscal_year_end}"
+            "fiscal_year": f"{fiscal_year_start} - {fiscal_year_end}"
         }
         
     except HTTPException:
