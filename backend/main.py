@@ -4638,6 +4638,118 @@ def _slim_fb_data(fb_data: dict) -> list:
     return []
 
 
+def _slim_ink2_row(row: dict) -> dict:
+    """
+    Extract only essential fields from INK2 rows for storage.
+    Keeps: variable_name, row_id, row_title, amount, account_details
+    """
+    if not isinstance(row, dict):
+        return row
+    
+    return {
+        "row_id": row.get("row_id") or row.get("id"),
+        "row_title": row.get("row_title") or row.get("label"),
+        "variable_name": row.get("variable_name"),
+        "amount": row.get("amount") or row.get("current_amount"),
+        "account_details": row.get("account_details"),
+    }
+
+
+def _slim_ink2_data(data: list) -> list:
+    """Slim down INK2 data list to essential fields only"""
+    if not isinstance(data, list):
+        return data
+    return [_slim_ink2_row(row) for row in data]
+
+
+# Signature tuple row IDs - these contain multiple sub-items (board members, auditors)
+SIGNATURE_TUPLE_IDS = {1233, 1254}  # UnderskriftArsredovisningForetradareTuple, UnderskriftRevisorspateckningTuple
+
+
+def _slim_signering_data(signering_data: dict) -> list:
+    """
+    Slim down signature data following variable_mapping_signature structure.
+    Keeps: ID, Radrubrik, value
+    Tuple rows (1233, 1254) contain arrays of sub-items.
+    """
+    if not signering_data:
+        return []
+    
+    result = []
+    
+    # Date of signing (ID 1232)
+    if signering_data.get('date'):
+        result.append({
+            "id": 1232,
+            "radrubrik": "Datering av årsredovisning",
+            "value": signering_data.get('date')
+        })
+    
+    # Board members tuple (ID 1233) - contains multiple members
+    board_members = signering_data.get('boardMembers') or []
+    if board_members:
+        members_data = []
+        for member in board_members:
+            if isinstance(member, dict):
+                members_data.append({
+                    "tilltalsnamn": member.get('tilltalsnamn') or member.get('firstName') or member.get('name', '').split()[0] if member.get('name') else '',
+                    "efternamn": member.get('efternamn') or member.get('lastName') or ' '.join(member.get('name', '').split()[1:]) if member.get('name') else '',
+                    "roll": member.get('roll') or member.get('role') or member.get('title'),
+                })
+            elif isinstance(member, str):
+                # If just a string name
+                parts = member.split()
+                members_data.append({
+                    "tilltalsnamn": parts[0] if parts else '',
+                    "efternamn": ' '.join(parts[1:]) if len(parts) > 1 else '',
+                    "roll": None,
+                })
+        
+        result.append({
+            "id": 1233,
+            "radrubrik": "Undertecknande av företrädare",
+            "value": members_data
+        })
+    
+    # Signing date for members (ID 1238)
+    if signering_data.get('signingDate') or signering_data.get('date'):
+        result.append({
+            "id": 1238,
+            "radrubrik": "Dag för undertecknande",
+            "value": signering_data.get('signingDate') or signering_data.get('date')
+        })
+    
+    # Auditor tuple (ID 1254) - contains auditor info if present
+    auditors = signering_data.get('auditors') or signering_data.get('revisor') or []
+    if auditors:
+        auditors_data = []
+        for auditor in (auditors if isinstance(auditors, list) else [auditors]):
+            if isinstance(auditor, dict):
+                auditors_data.append({
+                    "tilltalsnamn": auditor.get('tilltalsnamn') or auditor.get('firstName'),
+                    "efternamn": auditor.get('efternamn') or auditor.get('lastName'),
+                    "titel": auditor.get('titel') or auditor.get('title'),
+                    "huvudansvarig": auditor.get('huvudansvarig', True),
+                })
+        
+        if auditors_data:
+            result.append({
+                "id": 1254,
+                "radrubrik": "Underskrift av revisor",
+                "value": auditors_data
+            })
+    
+    # Audit firm (ID 1253)
+    if signering_data.get('revisionsbolag') or signering_data.get('auditFirm'):
+        result.append({
+            "id": 1253,
+            "radrubrik": "Valt revisionsbolag",
+            "value": signering_data.get('revisionsbolag') or signering_data.get('auditFirm')
+        })
+    
+    return result
+
+
 @app.post("/api/annual-report-data/save")
 async def save_annual_report_data(request: AnnualReportDataRequest):
     """
@@ -4694,10 +4806,15 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             ''
         )
         
-        # Slim down RR/BR/Noter/FB data - only keep essential fields for storage
+        # Slim down all data - only keep essential fields for storage
         rr_data_raw = se_file_data.get('rr_data', [])
         br_data_raw = se_file_data.get('br_data', [])
         noter_data_raw = company_data.get('noterData') or se_file_data.get('noter_data', [])
+        ink2_data_raw = company_data.get('ink2Data', [])
+        signering_data_raw = company_data.get('signeringData') or {
+            "boardMembers": company_data.get('boardMembers'),
+            "date": company_data.get('date'),
+        }
         fb_data_raw = {
             "fb_variables": company_data.get('fbVariables') or se_file_data.get('fb_variables'),
             "fb_table": company_data.get('fbTable') or se_file_data.get('fb_table'),
@@ -4707,6 +4824,8 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
         br_data_slim = _slim_financial_data(br_data_raw)
         noter_data_slim = _slim_noter_data(noter_data_raw)
         fb_data_slim = _slim_fb_data(fb_data_raw)
+        ink2_data_slim = _slim_ink2_data(ink2_data_raw)
+        signering_data_slim = _slim_signering_data(signering_data_raw)
         
         # Build data object with all the report sections
         db_data = {
@@ -4718,11 +4837,8 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             "rr_data": rr_data_slim,
             "br_data": br_data_slim,
             "noter_data": noter_data_slim,
-            "ink2_data": company_data.get('ink2Data', []),
-            "signering_data": company_data.get('signeringData') or {
-                "boardMembers": company_data.get('boardMembers'),
-                "date": company_data.get('date'),
-            },
+            "ink2_data": ink2_data_slim,
+            "signering_data": signering_data_slim,
             "company_data": company_data,  # Store full companyData for later retrieval
             "status": request.status,
             "updated_at": datetime.now().isoformat()
