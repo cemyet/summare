@@ -4540,6 +4540,30 @@ def _slim_financial_data(data: list) -> list:
     return [_slim_financial_row(row) for row in data]
 
 
+def _slim_noter_row(row: dict) -> dict:
+    """
+    Extract only essential fields from noter rows for storage.
+    Keeps: row_id, row_title, variable_name, current_amount, previous_amount
+    """
+    if not isinstance(row, dict):
+        return row
+    
+    return {
+        "row_id": row.get("row_id"),
+        "row_title": row.get("row_title"),
+        "variable_name": row.get("variable_name"),
+        "current_amount": row.get("current_amount"),
+        "previous_amount": row.get("previous_amount"),
+    }
+
+
+def _slim_noter_data(data: list) -> list:
+    """Slim down noter data list to essential fields only"""
+    if not isinstance(data, list):
+        return data
+    return [_slim_noter_row(row) for row in data]
+
+
 @app.post("/api/annual-report-data/save")
 async def save_annual_report_data(request: AnnualReportDataRequest):
     """
@@ -4596,11 +4620,14 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             ''
         )
         
-        # Slim down RR/BR data - only keep essential fields for storage
+        # Slim down RR/BR/Noter data - only keep essential fields for storage
         rr_data_raw = se_file_data.get('rr_data', [])
         br_data_raw = se_file_data.get('br_data', [])
+        noter_data_raw = company_data.get('noterData') or se_file_data.get('noter_data', [])
+        
         rr_data_slim = _slim_financial_data(rr_data_raw)
         br_data_slim = _slim_financial_data(br_data_raw)
+        noter_data_slim = _slim_noter_data(noter_data_raw)
         
         # Build data object with all the report sections
         db_data = {
@@ -4614,7 +4641,7 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             },
             "rr_data": rr_data_slim,
             "br_data": br_data_slim,
-            "noter_data": company_data.get('noterData') or se_file_data.get('noter_data', []),
+            "noter_data": noter_data_slim,
             "ink2_data": company_data.get('ink2Data', []),
             "signering_data": company_data.get('signeringData') or {
                 "boardMembers": company_data.get('boardMembers'),
