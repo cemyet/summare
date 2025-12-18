@@ -305,7 +305,11 @@ const MinaSidor = () => {
                             <span className="text-sm text-gray-500">
                               Uppdaterad {formatDate(report.updated_at)}
                             </span>
-                            <Button variant="outline" size="sm">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => navigate(`/report/${report.id}`)}
+                            >
                               Öppna
                             </Button>
                           </div>

@@ -5023,6 +5023,118 @@ async def list_annual_reports_by_user(username: str):
         raise HTTPException(status_code=500, detail=f"Error listing annual reports: {str(e)}")
 
 
+@app.get("/api/annual-report-data/view/{report_id}")
+async def get_annual_report_for_view(report_id: str):
+    """
+    Get annual report data merged with variable_mapping for display in Mina Sidor.
+    Returns stored values merged with display metadata from variable_mapping tables.
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Get the stored report data
+        report_result = supabase.table('annual_report_data')\
+            .select('*')\
+            .eq('id', report_id)\
+            .execute()
+        
+        if not report_result.data or len(report_result.data) == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report = report_result.data[0]
+        
+        # Get variable mappings for RR, BR, Noter
+        rr_mapping_result = supabase.table('variable_mapping_rr')\
+            .select('*')\
+            .order('id')\
+            .execute()
+        
+        br_mapping_result = supabase.table('variable_mapping_br')\
+            .select('*')\
+            .order('id')\
+            .execute()
+        
+        noter_mapping_result = supabase.table('variable_mapping_noter')\
+            .select('*')\
+            .order('id')\
+            .execute()
+        
+        # Create lookup dictionaries from stored slim data
+        stored_rr = {item.get('id'): item for item in (report.get('rr_data') or []) if item.get('id')}
+        stored_br = {item.get('id'): item for item in (report.get('br_data') or []) if item.get('id')}
+        stored_noter = {item.get('row_id'): item for item in (report.get('noter_data') or []) if item.get('row_id')}
+        
+        # Merge RR: template + stored values
+        merged_rr = []
+        for template in (rr_mapping_result.data or []):
+            row_id = template.get('id')
+            stored = stored_rr.get(row_id, {})
+            merged_rr.append({
+                **template,  # All display metadata from variable_mapping
+                'current_amount': stored.get('current_amount'),
+                'previous_amount': stored.get('previous_amount'),
+                'account_details': stored.get('account_details'),
+            })
+        
+        # Merge BR: template + stored values
+        merged_br = []
+        for template in (br_mapping_result.data or []):
+            row_id = template.get('id')
+            stored = stored_br.get(row_id, {})
+            merged_br.append({
+                **template,
+                'current_amount': stored.get('current_amount'),
+                'previous_amount': stored.get('previous_amount'),
+                'account_details': stored.get('account_details'),
+            })
+        
+        # Merge Noter: template + stored values
+        merged_noter = []
+        for template in (noter_mapping_result.data or []):
+            row_id = template.get('row_id')
+            stored = stored_noter.get(row_id, {})
+            merged_noter.append({
+                **template,
+                'current_amount': stored.get('current_amount'),
+                'previous_amount': stored.get('previous_amount'),
+            })
+        
+        # Get fiscal year from dates
+        fiscal_year_end = report.get('fiscal_year_end')
+        fiscal_year = int(fiscal_year_end[:4]) if fiscal_year_end else None
+        
+        return {
+            "success": True,
+            "data": {
+                "id": report.get('id'),
+                "organization_number": report.get('organization_number'),
+                "company_name": report.get('company_name'),
+                "fiscal_year": fiscal_year,
+                "fiscal_year_start": report.get('fiscal_year_start'),
+                "fiscal_year_end": report.get('fiscal_year_end'),
+                "status": report.get('status'),
+                "rr_data": merged_rr,
+                "br_data": merged_br,
+                "noter_data": merged_noter,
+                "fb_data": report.get('fb_data'),
+                "ink2_data": report.get('ink2_data'),
+                "signering_data": report.get('signering_data'),
+                "updated_at": report.get('updated_at'),
+                "created_at": report.get('created_at'),
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting annual report for view: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error getting annual report for view: {str(e)}")
+
+
 @app.get("/api/company/info-by-org/{organization_number}")
 async def get_company_info_by_org(organization_number: str):
     """
