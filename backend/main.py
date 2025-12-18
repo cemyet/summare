@@ -5062,9 +5062,20 @@ async def get_annual_report_for_view(report_id: str):
             .execute()
         
         # Create lookup dictionaries from stored slim data
-        stored_rr = {item.get('id'): item for item in (report.get('rr_data') or []) if item.get('id')}
-        stored_br = {item.get('id'): item for item in (report.get('br_data') or []) if item.get('id')}
-        stored_noter = {item.get('row_id'): item for item in (report.get('noter_data') or []) if item.get('row_id')}
+        raw_rr_data = report.get('rr_data') or []
+        raw_br_data = report.get('br_data') or []
+        raw_noter_data = report.get('noter_data') or []
+        
+        print(f"📊 Debug: raw_rr_data has {len(raw_rr_data)} items")
+        if raw_rr_data:
+            print(f"📊 Debug: First RR item keys: {list(raw_rr_data[0].keys()) if raw_rr_data[0] else 'empty'}")
+            print(f"📊 Debug: First RR item: {raw_rr_data[0]}")
+        
+        stored_rr = {item.get('id'): item for item in raw_rr_data if item.get('id')}
+        stored_br = {item.get('id'): item for item in raw_br_data if item.get('id')}
+        stored_noter = {item.get('row_id'): item for item in raw_noter_data if item.get('row_id')}
+        
+        print(f"📊 Debug: stored_rr has {len(stored_rr)} items after keying by 'id'")
         
         # Merge RR: template + stored values
         merged_rr = []
