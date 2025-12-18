@@ -4515,6 +4515,31 @@ def _format_date_for_db(date_str: str) -> Optional[str]:
     return None
 
 
+def _slim_financial_row(row: dict) -> dict:
+    """
+    Extract only essential fields from BR/RR rows for storage.
+    Keeps: id, label, variable_name, current_amount, previous_amount, account_details
+    """
+    if not isinstance(row, dict):
+        return row
+    
+    return {
+        "id": row.get("id"),
+        "label": row.get("label"),
+        "variable_name": row.get("variable_name"),
+        "current_amount": row.get("current_amount"),
+        "previous_amount": row.get("previous_amount"),
+        "account_details": row.get("account_details"),  # For VISA tag display
+    }
+
+
+def _slim_financial_data(data: list) -> list:
+    """Slim down BR/RR data list to essential fields only"""
+    if not isinstance(data, list):
+        return data
+    return [_slim_financial_row(row) for row in data]
+
+
 @app.post("/api/annual-report-data/save")
 async def save_annual_report_data(request: AnnualReportDataRequest):
     """
@@ -4571,6 +4596,12 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             ''
         )
         
+        # Slim down RR/BR data - only keep essential fields for storage
+        rr_data_raw = se_file_data.get('rr_data', [])
+        br_data_raw = se_file_data.get('br_data', [])
+        rr_data_slim = _slim_financial_data(rr_data_raw)
+        br_data_slim = _slim_financial_data(br_data_raw)
+        
         # Build data object with all the report sections
         db_data = {
             "organization_number": org_number,
@@ -4581,8 +4612,8 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
                 "fb_variables": company_data.get('fbVariables') or se_file_data.get('fb_variables'),
                 "fb_table": company_data.get('fbTable') or se_file_data.get('fb_table'),
             },
-            "rr_data": se_file_data.get('rr_data', []),
-            "br_data": se_file_data.get('br_data', []),
+            "rr_data": rr_data_slim,
+            "br_data": br_data_slim,
             "noter_data": company_data.get('noterData') or se_file_data.get('noter_data', []),
             "ink2_data": company_data.get('ink2Data', []),
             "signering_data": company_data.get('signeringData') or {
