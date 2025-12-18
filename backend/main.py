@@ -4564,6 +4564,80 @@ def _slim_noter_data(data: list) -> list:
     return [_slim_noter_row(row) for row in data]
 
 
+# Flerårsöversikt row IDs that have 4 periods (period0-period3) instead of current/previous
+FLERARSOVERSIKT_IDS = {31, 34, 39, 41}  # Nettoomsättning, Resultat efter fin poster, Balansomslutning, Soliditet
+
+
+def _slim_fb_row(row: dict, fb_variables: dict) -> dict:
+    """
+    Extract only essential fields from FB rows for storage.
+    Follows variable_mapping_fb structure.
+    Keeps: id, radrubrik, variable, and amounts (period0-3 for flerårsöversikt, current/previous for others)
+    """
+    if not isinstance(row, dict):
+        return row
+    
+    row_id = row.get("id")
+    variable = row.get("variable") or row.get("variable_name")
+    
+    slim = {
+        "id": row_id,
+        "radrubrik": row.get("radrubrik") or row.get("row_title") or row.get("label"),
+        "variable": variable,
+    }
+    
+    # For Flerårsöversikt rows, store 4 periods
+    if row_id in FLERARSOVERSIKT_IDS:
+        # These have variables like "oms1;oms2;oms3;oms4" - get values from fb_variables
+        if variable and fb_variables:
+            var_parts = variable.split(';')
+            for i, var_name in enumerate(var_parts):
+                var_name = var_name.strip()
+                if var_name and var_name in fb_variables:
+                    slim[f"period{i}"] = fb_variables.get(var_name)
+        # Also check for direct period values
+        for i in range(4):
+            if f"period{i}" in row:
+                slim[f"period{i}"] = row[f"period{i}"]
+    else:
+        # Regular rows with current/previous amounts
+        # Try to get value from fb_variables if variable exists
+        if variable and fb_variables and variable in fb_variables:
+            slim["current_amount"] = fb_variables.get(variable)
+        elif "current_amount" in row:
+            slim["current_amount"] = row.get("current_amount")
+        elif "value" in row:
+            slim["current_amount"] = row.get("value")
+        
+        if "previous_amount" in row:
+            slim["previous_amount"] = row.get("previous_amount")
+    
+    return slim
+
+
+def _slim_fb_data(fb_data: dict) -> list:
+    """
+    Slim down FB data to essential fields only.
+    Converts fb_variables + fb_table into a flat list of rows with values.
+    """
+    if not isinstance(fb_data, dict):
+        return []
+    
+    fb_variables = fb_data.get("fb_variables") or {}
+    fb_table = fb_data.get("fb_table") or []
+    
+    # If fb_table is a list of rows, slim each one
+    if isinstance(fb_table, list) and len(fb_table) > 0:
+        return [_slim_fb_row(row, fb_variables) for row in fb_table]
+    
+    # If no fb_table but we have fb_variables, create rows from variables
+    if fb_variables and not fb_table:
+        # Just store the variables directly as a simplified structure
+        return [{"variables": fb_variables}]
+    
+    return []
+
+
 @app.post("/api/annual-report-data/save")
 async def save_annual_report_data(request: AnnualReportDataRequest):
     """
@@ -4620,14 +4694,19 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             ''
         )
         
-        # Slim down RR/BR/Noter data - only keep essential fields for storage
+        # Slim down RR/BR/Noter/FB data - only keep essential fields for storage
         rr_data_raw = se_file_data.get('rr_data', [])
         br_data_raw = se_file_data.get('br_data', [])
         noter_data_raw = company_data.get('noterData') or se_file_data.get('noter_data', [])
+        fb_data_raw = {
+            "fb_variables": company_data.get('fbVariables') or se_file_data.get('fb_variables'),
+            "fb_table": company_data.get('fbTable') or se_file_data.get('fb_table'),
+        }
         
         rr_data_slim = _slim_financial_data(rr_data_raw)
         br_data_slim = _slim_financial_data(br_data_raw)
         noter_data_slim = _slim_noter_data(noter_data_raw)
+        fb_data_slim = _slim_fb_data(fb_data_raw)
         
         # Build data object with all the report sections
         db_data = {
@@ -4635,10 +4714,7 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             "fiscal_year_start": fiscal_year_start,
             "fiscal_year_end": fiscal_year_end,
             "company_name": company_name,
-            "fb_data": {
-                "fb_variables": company_data.get('fbVariables') or se_file_data.get('fb_variables'),
-                "fb_table": company_data.get('fbTable') or se_file_data.get('fb_table'),
-            },
+            "fb_data": fb_data_slim,
             "rr_data": rr_data_slim,
             "br_data": br_data_slim,
             "noter_data": noter_data_slim,
