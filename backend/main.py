@@ -5062,6 +5062,9 @@ async def get_annual_report_for_view(report_id: str):
             .execute()
         
         # Create lookup dictionaries from stored slim data
+        # NOTE: Stored RR/BR data has 'id' field which is actually the 'row_id' from variable_mapping
+        # variable_mapping_rr has 'id' (auto-increment 1,2,3) and 'row_id' (240, 241, 242...)
+        # The stored data's 'id' field = variable_mapping's 'row_id' field
         raw_rr_data = report.get('rr_data') or []
         raw_br_data = report.get('br_data') or []
         raw_noter_data = report.get('noter_data') or []
@@ -5071,31 +5074,39 @@ async def get_annual_report_for_view(report_id: str):
             print(f"📊 Debug: First RR item keys: {list(raw_rr_data[0].keys()) if raw_rr_data[0] else 'empty'}")
             print(f"📊 Debug: First RR item: {raw_rr_data[0]}")
         
+        # Key by 'id' field (which is the row_id from variable_mapping)
         stored_rr = {item.get('id'): item for item in raw_rr_data if item.get('id')}
         stored_br = {item.get('id'): item for item in raw_br_data if item.get('id')}
         stored_noter = {item.get('row_id'): item for item in raw_noter_data if item.get('row_id')}
         
-        print(f"📊 Debug: stored_rr has {len(stored_rr)} items after keying by 'id'")
+        print(f"📊 Debug: stored_rr has {len(stored_rr)} items, keys: {list(stored_rr.keys())[:5]}...")
         
         # Merge RR: template + stored values
+        # Use 'row_id' from template to match 'id' from stored data
         merged_rr = []
         for template in (rr_mapping_result.data or []):
-            row_id = template.get('id')
+            row_id = template.get('row_id')  # Use row_id, not id!
             stored = stored_rr.get(row_id, {})
             merged_rr.append({
                 **template,  # All display metadata from variable_mapping
+                'id': row_id,  # Ensure id is set to row_id for frontend compatibility
+                'label': template.get('row_title'),  # Frontend expects 'label'
                 'current_amount': stored.get('current_amount'),
                 'previous_amount': stored.get('previous_amount'),
                 'account_details': stored.get('account_details'),
             })
         
+        print(f"📊 Debug: merged_rr has {len(merged_rr)} items, first has current_amount: {merged_rr[0].get('current_amount') if merged_rr else 'N/A'}")
+        
         # Merge BR: template + stored values
         merged_br = []
         for template in (br_mapping_result.data or []):
-            row_id = template.get('id')
+            row_id = template.get('row_id')  # Use row_id, not id!
             stored = stored_br.get(row_id, {})
             merged_br.append({
                 **template,
+                'id': row_id,
+                'label': template.get('row_title'),
                 'current_amount': stored.get('current_amount'),
                 'previous_amount': stored.get('previous_amount'),
                 'account_details': stored.get('account_details'),
