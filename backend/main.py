@@ -5067,6 +5067,11 @@ async def get_annual_report_for_view(report_id: str):
             .order('id')\
             .execute()
         
+        ink2_mapping_result = supabase.table('variable_mapping_ink2')\
+            .select('*')\
+            .order('row_id')\
+            .execute()
+        
         # Create lookup dictionaries from stored slim data
         # NOTE: Stored RR/BR data has 'id' field which is actually the 'row_id' from variable_mapping
         # variable_mapping_rr has 'id' (auto-increment 1,2,3) and 'row_id' (240, 241, 242...)
@@ -5219,6 +5224,20 @@ async def get_annual_report_for_view(report_id: str):
             if row_id == 252 or rr_item.get('variable_name') == 'Personalkostnader' or rr_item.get('row_title') == 'Personalkostnader':
                 rr_item['note_number'] = 2
         
+        # Merge INK2: template + stored values
+        raw_ink2_data = report.get('ink2_data') or []
+        stored_ink2 = {item.get('variable_name'): item for item in raw_ink2_data if item.get('variable_name')}
+        
+        merged_ink2 = []
+        for template in (ink2_mapping_result.data or []):
+            variable_name = template.get('variable_name')
+            stored = stored_ink2.get(variable_name, {})
+            merged_ink2.append({
+                **template,  # All display metadata from variable_mapping
+                'amount': stored.get('amount'),  # Stored amount
+                'account_details': stored.get('account_details'),
+            })
+        
         # Get fiscal year from dates
         fiscal_year_end = report.get('fiscal_year_end')
         fiscal_year = int(fiscal_year_end[:4]) if fiscal_year_end else None
@@ -5275,7 +5294,7 @@ async def get_annual_report_for_view(report_id: str):
                 "br_data": merged_br,
                 "noter_data": merged_noter,
                 "fb_data": report.get('fb_data'),
-                "ink2_data": report.get('ink2_data'),
+                "ink2_data": merged_ink2,
                 "signering_data": report.get('signering_data'),
                 "scraped_company_data": scraped_company_data,
                 "avskrivningstider": avskrivningstider,

@@ -1026,6 +1026,186 @@ const ReportView = () => {
               <p className="text-gray-500">Inga noter tillgängliga.</p>
             )}
           </div>
+
+          {/* Skattedeklaration Section */}
+          <div
+            ref={(el) => (sectionRefs.current["skattedeklaration"] = el)}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
+          >
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Skatteberäkning</h2>
+            </div>
+
+            {report.ink2_data && report.ink2_data.length > 0 ? (
+              <div>
+                {/* Column Headers */}
+                <div
+                  className="grid gap-4 text-sm text-gray-500 border-b pb-2 font-semibold mb-2"
+                  style={{ gridTemplateColumns: "3fr 1fr" }}
+                >
+                  <span></span>
+                  <span className="text-right">{report.fiscal_year}</span>
+                </div>
+
+                {/* INK2 Rows */}
+                <div className="space-y-0">
+                  {(() => {
+                    // Helper to check if row should be visible
+                    const shouldShowInk2Row = (item: any): boolean => {
+                      // Always exclude hidden helper rows
+                      if (item.variable_name === 'INK4.23b' || item.variable_name === 'INK4.24b') return false;
+                      if (item.variable_name === 'INK4.3a') return false; // Skatt row handled separately
+                      
+                      // Always show rows marked always_show
+                      if (item.always_show === true) return true;
+                      
+                      // Hide rows explicitly marked as not to show
+                      if (item.always_show === false) return false;
+                      
+                      // For headers, check if block has any visible content
+                      if (item.header === true) {
+                        const blockItems = report.ink2_data.filter((r: any) => 
+                          r.block === item.block && r.header !== true
+                        );
+                        return blockItems.some((r: any) => 
+                          r.always_show === true || 
+                          (r.amount !== null && r.amount !== undefined && r.amount !== 0)
+                        );
+                      }
+                      
+                      // Show if has non-zero amount
+                      const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && item.amount !== 0;
+                      return hasNonZeroAmount;
+                    };
+
+                    // Style helper for INK2 rows
+                    const getInk2StyleClasses = (style?: string, variableName?: string) => {
+                      const s = style || '';
+                      let additionalClasses = "";
+                      let inlineStyle: React.CSSProperties = { gridTemplateColumns: "3fr 1fr" };
+                      
+                      // Bold styles
+                      const boldStyles = ['H0','H1','H2','H3','S1','S2','S3','TH0','TH1','TH2','TH3','TS1','TS2','TS3'];
+                      const specialBoldVariables = ['INK_skattemassigt_resultat'];
+                      if (boldStyles.includes(s) || (variableName && specialBoldVariables.includes(variableName))) {
+                        additionalClasses += ' font-semibold';
+                      }
+                      
+                      // Heading styles
+                      const headingStyles = ['H0','H1','H2','H3','TH0','TH1','TH2','TH3'];
+                      if (headingStyles.includes(s)) {
+                        additionalClasses += ' py-1.5';
+                      }
+                      
+                      // Line styles (borders)
+                      const lineStyles = ['S2','S3','TS2','TS3'];
+                      if (lineStyles.includes(s) || variableName === 'INK_skattemassigt_resultat') {
+                        additionalClasses += ' border-t border-b border-gray-200 py-1';
+                      }
+                      
+                      // TH3: space before heading
+                      if (s === 'TH3') {
+                        inlineStyle = { ...inlineStyle, marginTop: '8pt', paddingTop: '8pt' };
+                      }
+                      
+                      // TS2: more space
+                      if (s === 'TS2') {
+                        inlineStyle = { ...inlineStyle, marginTop: '6pt', marginBottom: '6pt' };
+                      }
+                      
+                      // Extra space before "Skattemässigt resultat"
+                      if (variableName === 'INK_skattemassigt_resultat') {
+                        inlineStyle = { ...inlineStyle, marginTop: '12pt' };
+                      }
+                      
+                      return {
+                        className: `grid gap-4${additionalClasses}`,
+                        style: inlineStyle,
+                      };
+                    };
+
+                    return report.ink2_data
+                      .filter((item: any) => shouldShowInk2Row(item))
+                      .map((item: any, index: number) => {
+                        const styleClasses = getInk2StyleClasses(item.style, item.variable_name);
+                        const isHeading = ['TH1', 'TH2', 'TH3'].includes(item.style || '');
+                        
+                        return (
+                          <div
+                            key={item.variable_name || index}
+                            className={`${styleClasses.className} py-1`}
+                            style={styleClasses.style}
+                          >
+                            <span className="text-gray-600 flex items-center">
+                              <span>{item.row_title}</span>
+                              {/* VISA button for rows with account_details */}
+                              {item.show_tag && item.account_details?.length > 0 && (
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button variant="outline" size="sm" className="ml-2 h-5 px-2 text-xs">
+                                      VISA
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
+                                    <div className="space-y-3">
+                                      <h4 className="font-medium text-sm">Detaljer för {item.row_title}</h4>
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                          <thead>
+                                            <tr className="border-b">
+                                              <th className="text-left py-2 w-16">Konto</th>
+                                              <th className="text-left py-2">Kontotext</th>
+                                              <th className="text-right py-2 w-24">Belopp</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {item.account_details.map((detail: any, i: number) => (
+                                              <tr key={i} className="border-b">
+                                                <td className="py-2 w-16">{detail.account_id}</td>
+                                                <td className="py-2">{detail.account_text || ""}</td>
+                                                <td className="text-right py-2 w-24">
+                                                  {new Intl.NumberFormat("sv-SE").format(Math.abs(detail.balance))} kr
+                                                </td>
+                                              </tr>
+                                            ))}
+                                            <tr className="border-t border-gray-300 font-semibold">
+                                              <td className="py-2">Summa</td>
+                                              <td></td>
+                                              <td className="text-right py-2">
+                                                {new Intl.NumberFormat("sv-SE").format(
+                                                  Math.abs(item.account_details.reduce(
+                                                    (sum: number, d: any) => sum + (d.balance || 0),
+                                                    0
+                                                  ))
+                                                )} kr
+                                              </td>
+                                            </tr>
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              )}
+                            </span>
+                            {!isHeading && (
+                              <span className="text-right font-medium">
+                                {item.amount !== null && item.amount !== undefined
+                                  ? `${new Intl.NumberFormat("sv-SE").format(Math.round(item.amount))} kr`
+                                  : ""}
+                              </span>
+                            )}
+                            {isHeading && <span></span>}
+                          </div>
+                        );
+                      });
+                  })()}
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-500">Ingen skatteberäkning tillgänglig.</p>
+            )}
+          </div>
         </div>
       </main>
     </div>
