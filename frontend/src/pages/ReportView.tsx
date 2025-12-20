@@ -718,71 +718,124 @@ const ReportView = () => {
               <section className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Förändringar i eget kapital</h3>
                 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2 font-medium w-48"></th>
-                        <th className="text-right py-2 font-medium">Aktiekapital</th>
-                        <th className="text-right py-2 font-medium">Reservfond</th>
-                        <th className="text-right py-2 font-medium">Uppskriv-ningsfond</th>
-                        <th className="text-right py-2 font-medium">Balanserat resultat</th>
-                        <th className="text-right py-2 font-medium">Årets resultat</th>
-                        <th className="text-right py-2 font-medium">Summa</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.fb_data.fb_table.map((row: any, index: number) => {
-                        // Show rows 1 (Belopp vid årets ingång) and 13 (Belopp vid årets utgång)
-                        // and any row with non-zero values
-                        const hasValues = row.aktiekapital || row.reservfond || 
-                          row.uppskrivningsfond || row.balanserat_resultat || row.arets_resultat;
-                        const isKeyRow = row.id === 1 || row.id === 13;
-                        
-                        if (!isKeyRow && !hasValues) return null;
-                        
-                        const formatValue = (val: number) => {
-                          if (!val || val === 0) return '-';
-                          return new Intl.NumberFormat('sv-SE', {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0
-                          }).format(Math.round(val));
-                        };
-                        
-                        const isSummaryRow = row.id === 1 || row.id === 13;
-                        
-                        return (
-                          <tr key={row.id || index} className={`border-b ${isSummaryRow ? 'font-semibold bg-gray-50' : ''}`}>
-                            <td className="py-2 text-gray-600">{row.label}</td>
-                            <td className="text-right py-2">{formatValue(row.aktiekapital)}</td>
-                            <td className="text-right py-2">{formatValue(row.reservfond)}</td>
-                            <td className="text-right py-2">{formatValue(row.uppskrivningsfond)}</td>
-                            <td className="text-right py-2">{formatValue(row.balanserat_resultat)}</td>
-                            <td className="text-right py-2">{formatValue(row.arets_resultat)}</td>
-                            <td className="text-right py-2">{formatValue(row.total)}</td>
+                {(() => {
+                  const fbTable = report.fb_data.fb_table;
+                  
+                  // Check which columns have non-zero values
+                  const hasNonZeroValues = {
+                    aktiekapital: fbTable.some((row: any) => row.aktiekapital !== 0 && row.aktiekapital !== null),
+                    reservfond: fbTable.some((row: any) => row.reservfond !== 0 && row.reservfond !== null),
+                    uppskrivningsfond: fbTable.some((row: any) => row.uppskrivningsfond !== 0 && row.uppskrivningsfond !== null),
+                    balanserat_resultat: fbTable.some((row: any) => row.balanserat_resultat !== 0 && row.balanserat_resultat !== null),
+                    arets_resultat: fbTable.some((row: any) => row.arets_resultat !== 0 && row.arets_resultat !== null),
+                    total: fbTable.some((row: any) => row.total !== 0 && row.total !== null)
+                  };
+                  
+                  const formatValue = (val: number) => {
+                    if (val === null || val === undefined || val === 0) return '-';
+                    return new Intl.NumberFormat('sv-SE', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0
+                    }).format(Math.round(val));
+                  };
+                  
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b">
+                            <th className="text-left py-2 font-medium w-48"></th>
+                            {hasNonZeroValues.aktiekapital && (
+                              <th className="text-right py-2 font-medium">Aktiekapital</th>
+                            )}
+                            {hasNonZeroValues.reservfond && (
+                              <th className="text-right py-2 font-medium">Reservfond</th>
+                            )}
+                            {hasNonZeroValues.uppskrivningsfond && (
+                              <th className="text-right py-2 font-medium">Uppskrivningsfond</th>
+                            )}
+                            {hasNonZeroValues.balanserat_resultat && (
+                              <th className="text-right py-2 font-medium">Balanserat resultat</th>
+                            )}
+                            {hasNonZeroValues.arets_resultat && (
+                              <th className="text-right py-2 font-medium">Årets resultat</th>
+                            )}
+                            {hasNonZeroValues.total && (
+                              <th className="text-right py-2 font-medium">Summa</th>
+                            )}
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                        </thead>
+                        <tbody>
+                          {fbTable.map((row: any, index: number) => {
+                            // Always hide "Redovisat värde" row (id=14)
+                            if (row.id === 14) return null;
+                            
+                            // Show rows 1 (Belopp vid årets ingång) and 13 (Belopp vid årets utgång)
+                            // and any row with non-zero values
+                            const hasValues = row.aktiekapital || row.reservfond || 
+                              row.uppskrivningsfond || row.balanserat_resultat || row.arets_resultat;
+                            const isKeyRow = row.id === 1 || row.id === 13;
+                            
+                            if (!isKeyRow && !hasValues) return null;
+                            
+                            // Only row 13 (Belopp vid årets utgång) is bold, not shaded
+                            const isSummaryRow = row.id === 13;
+                            
+                            return (
+                              <tr key={row.id || index} className={`border-b ${isSummaryRow ? 'font-semibold' : ''}`}>
+                                <td className="py-2 text-gray-600">{row.label}</td>
+                                {hasNonZeroValues.aktiekapital && (
+                                  <td className="text-right py-2">{formatValue(row.aktiekapital)}</td>
+                                )}
+                                {hasNonZeroValues.reservfond && (
+                                  <td className="text-right py-2">{formatValue(row.reservfond)}</td>
+                                )}
+                                {hasNonZeroValues.uppskrivningsfond && (
+                                  <td className="text-right py-2">{formatValue(row.uppskrivningsfond)}</td>
+                                )}
+                                {hasNonZeroValues.balanserat_resultat && (
+                                  <td className="text-right py-2">{formatValue(row.balanserat_resultat)}</td>
+                                )}
+                                {hasNonZeroValues.arets_resultat && (
+                                  <td className="text-right py-2">{formatValue(row.arets_resultat)}</td>
+                                )}
+                                {hasNonZeroValues.total && (
+                                  <td className="text-right py-2">{formatValue(row.total)}</td>
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
               </section>
             )}
 
             {/* Resultatdisposition */}
-            {report.fb_data?.fb_variables && (
+            {report.fb_data?.fb_table && report.fb_data.fb_table.length > 0 && (
               <section>
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">Resultatdisposition</h3>
                 
                 {(() => {
-                  const vars = report.fb_data.fb_variables;
-                  const utdelning = vars.fb_aretsresultat_utdelning || 0;
-                  const balanseras = vars.fb_aretsresultat_ub_red_varde || vars.fb_balansresultat_ub_red_varde || 0;
-                  const aretsResultat = vars.fb_aretsresultat_ub || 0;
-                  const balResultatIB = vars.fb_balansresultat_ib || 0;
+                  const fbTable = report.fb_data.fb_table;
+                  const vars = report.fb_data.fb_variables || {};
+                  
+                  // Get values from row 13 (Belopp vid årets utgång)
+                  const row13 = fbTable.find((r: any) => r.id === 13);
+                  const balResultat = row13?.balanserat_resultat || 0;
+                  const aretsResultat = row13?.arets_resultat || 0;
+                  const summa = balResultat + aretsResultat;
+                  
+                  // Get utdelning from fb_variables
+                  const utdelning = vars.fb_aretsresultat_utdelning || vars.fb_arets_utdelning || 0;
+                  
+                  // Balanseras i ny räkning = Summa - Utdelning
+                  const balanseras = summa - utdelning;
                   
                   const formatAmount = (val: number) => {
-                    if (!val || val === 0) return '0 kr';
+                    if (val === null || val === undefined) return '0 kr';
                     return new Intl.NumberFormat('sv-SE', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 0
@@ -797,7 +850,7 @@ const ReportView = () => {
                         <tbody>
                           <tr>
                             <td className="py-1">Balanserat resultat</td>
-                            <td className="text-right py-1">{formatAmount(balResultatIB)}</td>
+                            <td className="text-right py-1">{formatAmount(balResultat)}</td>
                           </tr>
                           <tr>
                             <td className="py-1">Årets resultat</td>
@@ -805,7 +858,7 @@ const ReportView = () => {
                           </tr>
                           <tr className="border-t border-gray-200">
                             <td className="py-1 font-medium">Summa</td>
-                            <td className="text-right py-1 font-medium">{formatAmount(balResultatIB + aretsResultat)}</td>
+                            <td className="text-right py-1 font-medium">{formatAmount(summa)}</td>
                           </tr>
                         </tbody>
                       </table>
@@ -816,7 +869,7 @@ const ReportView = () => {
                         <tbody>
                           {utdelning > 0 && (
                             <tr>
-                              <td className="py-1">Utdelning till aktieägarna</td>
+                              <td className="py-1">Utdelas till aktieägare</td>
                               <td className="text-right py-1">{formatAmount(utdelning)}</td>
                             </tr>
                           )}
@@ -826,10 +879,17 @@ const ReportView = () => {
                           </tr>
                           <tr className="border-t border-gray-200">
                             <td className="py-1 font-medium">Summa</td>
-                            <td className="text-right py-1 font-medium">{formatAmount(utdelning + balanseras)}</td>
+                            <td className="text-right py-1 font-medium">{formatAmount(summa)}</td>
                           </tr>
                         </tbody>
                       </table>
+                      
+                      {/* Försiktighetsregeln text when dividend > 0 */}
+                      {utdelning > 0 && (
+                        <p className="mt-4 text-sm">
+                          Styrelsen anser att förslaget är förenligt med försiktighetsregeln i 17 kap. 3 § aktiebolagslagen enligt följande redogörelse. Styrelsens uppfattning är att vinstutdelningen är försvarlig med hänsyn till de krav verksamhetens art, omfattning och risk ställer på storleken på det egna kapitalet, bolagets konsolideringsbehov, likviditet och ställning i övrigt.
+                        </p>
+                      )}
                     </div>
                   );
                 })()}
