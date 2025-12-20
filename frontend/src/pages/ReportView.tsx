@@ -280,6 +280,29 @@ const ReportView = () => {
     };
   };
 
+  // Helper function to check if a block group has any content (mirrors AnnualReportPreview)
+  const blockGroupHasContent = (data: any[], blockGroup: string): boolean => {
+    if (!blockGroup) return true; // Show items without block_group
+    
+    const blockItems = data.filter(item => item.block_group === blockGroup);
+    
+    for (const item of blockItems) {
+      const isHeading = item.style && ['H0', 'H1', 'H2', 'H3', 'S1', 'S2', 'S3'].includes(item.style);
+      if (isHeading) continue; // Skip headings when checking block content
+      
+      const hasNonZeroAmount = (item.current_amount !== null && item.current_amount !== 0) ||
+                              (item.previous_amount !== null && item.previous_amount !== 0);
+      const isAlwaysShow = item.always_show === true;
+      const hasNoteNumber = item.note_number !== undefined && item.note_number !== null;
+      
+      // Show if: (has non-zero amount) OR (always_show = true) OR (has note number)
+      if (hasNonZeroAmount || isAlwaysShow || hasNoteNumber) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const shouldShowRow = (item: any, showAll: boolean, data: any[]): boolean => {
     const hiddenRowIds = [312, 310, 240, 241];
     if (item.id && hiddenRowIds.includes(Number(item.id))) return false;
@@ -289,15 +312,9 @@ const ReportView = () => {
 
     const isHeading = ["H0", "H1", "H2", "H3", "S1", "S2", "S3"].includes(item.style || "");
     if (isHeading) {
-      // Check if any non-heading row in same block_group has values
+      // Check if any non-heading row in same block_group has values OR note numbers
       if (item.block_group) {
-        const blockRows = data.filter(
-          (r) => r.block_group === item.block_group && !["H0", "H1", "H2", "H3", "S1", "S2", "S3"].includes(r.style || "")
-        );
-        return blockRows.some(
-          (r) => (r.current_amount !== null && r.current_amount !== 0) ||
-                 (r.previous_amount !== null && r.previous_amount !== 0)
-        );
+        return blockGroupHasContent(data, item.block_group);
       }
       return true;
     }
@@ -306,8 +323,10 @@ const ReportView = () => {
       (item.current_amount !== null && item.current_amount !== 0) ||
       (item.previous_amount !== null && item.previous_amount !== 0);
     const isAlwaysShow = item.always_show === true;
+    const hasNoteNumber = item.note_number !== undefined && item.note_number !== null;
 
-    return hasNonZeroAmount || isAlwaysShow;
+    // Show if: (has non-zero amount) OR (always_show = true) OR (has note number)
+    return hasNonZeroAmount || isAlwaysShow || hasNoteNumber;
   };
 
   // Noter styling helper (3-column grid for notes)
