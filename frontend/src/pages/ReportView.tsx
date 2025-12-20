@@ -547,20 +547,19 @@ const ReportView = () => {
                   return null;
                 }
 
-                // BR-specific styling: no borders for S2
                 const styleClasses = getStyleClasses(item.style);
-                let brClassName = styleClasses.className;
                 
-                // Remove borders from S2 in BR
+                // BR-specific: add 4pt padding above S2 rows
+                let brStyle = { ...styleClasses.style };
                 if (item.style === "S2") {
-                  brClassName = "grid gap-4 font-semibold"; // No borders
+                  brStyle = { ...brStyle, marginTop: "4pt" };
                 }
 
                 return (
                   <div
                     key={item.id || index}
-                    className={`${brClassName} ${item.level === 0 ? "border-b pb-1" : ""} py-1`}
-                    style={styleClasses.style}
+                    className={`${styleClasses.className} ${item.level === 0 ? "border-b pb-1" : ""} py-1`}
+                    style={brStyle}
                   >
                     <span className="text-gray-600 flex items-center justify-between">
                       <span>{item.label}</span>
