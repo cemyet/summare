@@ -649,12 +649,12 @@ const ReportView = () => {
             <section className="mb-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">Verksamheten</h3>
               
-              <h4 className="text-base font-medium text-gray-700 mb-1">Allmänt om verksamheten</h4>
+              <h4 className="text-base font-medium text-gray-700 mb-1" style={{ paddingTop: '4pt' }}>Allmänt om verksamheten</h4>
               <p className="text-sm text-gray-600 mb-4">
                 {report.fb_data?.verksamheten?.allmant_om_verksamheten || 'Ingen beskrivning tillgänglig.'}
               </p>
               
-              <h4 className="text-base font-medium text-gray-700 mb-1">Väsentliga händelser under räkenskapsåret</h4>
+              <h4 className="text-base font-medium text-gray-700 mb-1" style={{ paddingTop: '4pt' }}>Väsentliga händelser under räkenskapsåret</h4>
               <p className="text-sm text-gray-600">
                 {report.fb_data?.verksamheten?.vasentliga_handelser || 'Inga väsentliga händelser under året.'}
               </p>
@@ -816,7 +816,7 @@ const ReportView = () => {
             {/* Resultatdisposition */}
             {report.fb_data?.fb_table && report.fb_data.fb_table.length > 0 && (
               <section>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">Resultatdisposition</h3>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2" style={{ paddingTop: '8pt' }}>Resultatdisposition</h3>
                 
                 {(() => {
                   const fbTable = report.fb_data.fb_table;
@@ -844,7 +844,7 @@ const ReportView = () => {
                   
                   return (
                     <div className="text-sm text-gray-600 space-y-2">
-                      <p className="text-gray-700" style={{ paddingTop: '14pt' }}>Styrelsen föreslår att till förfogande stående vinstmedel:</p>
+                      <p className="text-gray-700" style={{ paddingTop: '10pt' }}>Styrelsen föreslår att till förfogande stående vinstmedel:</p>
                       
                       <table className="w-full max-w-md">
                         <tbody>
