@@ -139,6 +139,35 @@ const ReportView = () => {
     fetchUserCompanies(user.username);
   }, [reportId, navigate]);
 
+  // Update fiscal years when report or companies change
+  useEffect(() => {
+    if (report && companies.length > 0) {
+      const storedUser = localStorage.getItem("summare_user");
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        fetch(`${API_BASE_URL}/api/annual-report-data/list-by-user?username=${encodeURIComponent(user.username)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.success && data.data) {
+              const currentCompany = data.data.find(
+                (c: any) => c.organization_number === report.organization_number
+              );
+              if (currentCompany && currentCompany.reports) {
+                setFiscalYears(
+                  currentCompany.reports.map((r: any) => ({
+                    id: r.id,
+                    fiscal_year_start: r.fiscal_year_start,
+                    fiscal_year_end: r.fiscal_year_end,
+                    label: `${r.fiscal_year_start} - ${r.fiscal_year_end}`,
+                  }))
+                );
+              }
+            }
+          });
+      }
+    }
+  }, [report, companies]);
+
   const fetchReportData = async (id: string) => {
     setIsLoading(true);
     setError("");

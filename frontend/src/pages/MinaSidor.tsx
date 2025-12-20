@@ -150,6 +150,30 @@ const MinaSidor = () => {
     });
   };
 
+  const formatDateTime = (dateString: string) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const datePart = date.toLocaleDateString("sv-SE", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    const timePart = date.toLocaleTimeString("sv-SE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    return `${datePart} ${timePart}`;
+  };
+
+  const formatFiscalYear = (start: string, end: string) => {
+    if (!start || !end) return "";
+    // Extract just the date part (YYYY-MM-DD) from ISO strings
+    const startDate = start.split("T")[0];
+    const endDate = end.split("T")[0];
+    return `${startDate} - ${endDate}`;
+  };
+
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { label: string; className: string }> = {
       draft: { label: "Utkast", className: "bg-gray-100 text-gray-700" },
@@ -220,13 +244,6 @@ const MinaSidor = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Välkommen tillbaka!</h1>
-          <p className="text-gray-600 mt-1">
-            Här kan du se och hantera dina årsredovisningar.
-          </p>
-        </div>
-
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
             <div className="flex items-center gap-3 text-gray-500">
@@ -262,13 +279,13 @@ const MinaSidor = () => {
           <div className="grid gap-6">
             {companies.map((company) => (
               <Card key={company.organization_number} className="overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-summare-navy to-summare-navy/80 text-white">
+                <CardHeader className="bg-gradient-to-r from-summare-navy to-summare-navy/80 text-white py-3">
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="text-xl">
+                      <CardTitle className="text-lg">
                         {company.company_name || `Företag ${formatOrgNumber(company.organization_number)}`}
                       </CardTitle>
-                      <p className="text-white/80 text-sm mt-1">
+                      <p className="text-white/80 text-xs mt-0.5">
                         {formatOrgNumber(company.organization_number)}
                       </p>
                     </div>
@@ -295,7 +312,7 @@ const MinaSidor = () => {
                                 Årsredovisning {report.fiscal_year_end?.slice(0, 4)}
                               </p>
                               <p className="text-sm text-gray-500">
-                                {formatDate(report.fiscal_year_start)} – {formatDate(report.fiscal_year_end)}
+                                {formatFiscalYear(report.fiscal_year_start, report.fiscal_year_end)}
                               </p>
                             </div>
                           </div>
@@ -303,7 +320,7 @@ const MinaSidor = () => {
                           <div className="flex items-center gap-4">
                             {getStatusBadge(report.status)}
                             <span className="text-sm text-gray-500">
-                              Uppdaterad {formatDate(report.updated_at)}
+                              Uppdaterad {formatDateTime(report.updated_at)}
                             </span>
                             <Button 
                               variant="outline" 
@@ -327,33 +344,6 @@ const MinaSidor = () => {
                     </div>
                   )}
 
-                  {/* Quick Actions */}
-                  <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-gray-500">
-                        {company.payment_info && (
-                          <>
-                            Senaste betalning: {formatDate(company.payment_info.paid_at)} •{" "}
-                            {company.payment_info.amount} kr
-                          </>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="ghost" size="sm">
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                          </svg>
-                          Ladda ner
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                          </svg>
-                          Dela
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             ))}
