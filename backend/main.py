@@ -4290,7 +4290,7 @@ async def generate_sru_from_stored(report_id: str):
     Generate SRU files from stored data.
     """
     try:
-        from services.sru_generator import generate_sru_files
+        from services.sru_generator import generate_sru_file
         from fastapi.responses import Response
         
         supabase = get_supabase_client()
@@ -4313,7 +4313,7 @@ async def generate_sru_from_stored(report_id: str):
             raise HTTPException(status_code=400, detail="No company data stored for this report")
         
         # Generate SRU files - returns a zip file as bytes
-        zip_bytes = generate_sru_files(company_data)
+        zip_bytes = generate_sru_file(company_data)
         
         company_name = report.get('company_name') or 'bolag'
         filename = f'INK2_{company_name}.zip'
