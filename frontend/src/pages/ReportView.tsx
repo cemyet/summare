@@ -866,7 +866,7 @@ const ReportView = () => {
                   };
                   
                   const formatValue = (val: number) => {
-                    if (val === null || val === undefined || val === 0) return '-';
+                    if (val === null || val === undefined || val === 0) return '';
                     return new Intl.NumberFormat('sv-SE', {
                       minimumFractionDigits: 0,
                       maximumFractionDigits: 0
