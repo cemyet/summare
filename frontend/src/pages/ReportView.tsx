@@ -108,7 +108,7 @@ const ReportView = () => {
   const [report, setReport] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeSection, setActiveSection] = useState("resultatrakning");
+  const [activeSection, setActiveSection] = useState("forvaltningsberattelse");
   // Always false since we don't show toggles in Mina Sidor
   const showAllRR = false;
   const showAllBR = false;
