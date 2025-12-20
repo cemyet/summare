@@ -432,12 +432,18 @@ const ReportView = () => {
                 }
 
                 const styleClasses = getStyleClasses(item.style);
+                
+                // RR-specific: add 6pt padding above S1 and S2 rows
+                let rrStyle = { ...styleClasses.style };
+                if (item.style === "S1" || item.style === "S2") {
+                  rrStyle = { ...rrStyle, marginTop: "6pt" };
+                }
 
                 return (
                   <div
                     key={item.id || index}
                     className={`${styleClasses.className} ${item.level === 0 ? "border-b pb-1" : ""} py-1`}
-                    style={styleClasses.style}
+                    style={rrStyle}
                   >
                     <span className="text-gray-600 flex items-center justify-between">
                       <span>{item.label}</span>
