@@ -61,9 +61,20 @@ const NAV_ITEMS = [
 
 // Note order for proper numbering
 const NOTE_ORDER = [
-  'NOT1', 'NOT2', 'BYGG', 'MASKIN', 'INV', 'MAT',
-  'KONCERN', 'INTRESSEFTG', 'FORDRKONC', 'LVP',
+  'NOT1', 'NOT2', 'BYGG', 'MASKIN', 'INV', 'MAT', 'NYANLAGG',
+  'KONCERN', 'INTRESSEFTG', 'FORDRKONC', 'FORDRINTRE', 
+  'OVRIGAFTG', 'FORDROVRFTG', 'LVP',
   'SAKERHET', 'EVENTUAL', 'OVRIGA'
+];
+
+// Blocks that should be completely hidden if they have no non-zero amounts
+// These are asset/liability note blocks that only show when there's actual data
+const BLOCKS_TO_HIDE_IF_ZERO = [
+  'BYGG', 'MASKIN', 'INV', 'MAT', 'NYANLAGG',
+  'KONCERN', 'INTRESSEFTG', 'FORDRKONC', 'FORDRINTRE',
+  'OVRIGAFTG', 'FORDROVRFTG', 'LVP',
+  'NOT', // The generic "Noter" header block
+  '', // Empty block name (Förbättringsutgifter på annans fastighet)
 ];
 
 // Block headings mapping
@@ -74,9 +85,13 @@ const BLOCK_HEADINGS: Record<string, string> = {
   'MASKIN': 'Maskiner och andra tekniska anläggningar',
   'INV': 'Inventarier, verktyg och installationer',
   'MAT': 'Övriga materiella anläggningstillgångar',
+  'NYANLAGG': 'Pågående nyanläggningar och förskott avseende materiella anläggningstillgångar',
   'KONCERN': 'Andelar i koncernföretag',
   'INTRESSEFTG': 'Andelar i intresseföretag och gemensamt styrda företag',
   'FORDRKONC': 'Fordringar hos koncernföretag',
+  'FORDRINTRE': 'Fordringar hos intresseföretag och gemensamt styrda företag',
+  'OVRIGAFTG': 'Ägarintressen i övriga företag',
+  'FORDROVRFTG': 'Fordringar hos övriga företag som det finns ett ägarintresse i',
   'LVP': 'Andra långfristiga värdepappersinnehav',
   'SAKERHET': 'Ställda säkerheter',
   'EVENTUAL': 'Eventualförpliktelser',
@@ -376,9 +391,6 @@ const ReportView = () => {
     let noteNumber = 3; // Start at 3 since NOT1=1, NOT2=2
     const numbers: Record<string, number> = { NOT1: 1, NOT2: 2 };
     
-    // Blocks that should be hidden if all amounts are zero
-    const blocksToHideIfZero = ['KONCERN', 'INTRESSEFTG', 'BYGG', 'MASKIN', 'INV', 'MAT', 'LVP', 'FORDRKONC'];
-    
     blocks.forEach(block => {
       if (block === 'NOT1' || block === 'NOT2') return;
       
@@ -387,8 +399,8 @@ const ReportView = () => {
       // Check if block has any non-zero amounts
       const hasNonZeroAmounts = blockHasNonZeroAmounts(blockItems);
       
-      // Blocks in blocksToHideIfZero need non-zero amounts to get a number
-      if (blocksToHideIfZero.includes(block)) {
+      // Blocks in BLOCKS_TO_HIDE_IF_ZERO need non-zero amounts to get a number
+      if (BLOCKS_TO_HIDE_IF_ZERO.includes(block)) {
         if (hasNonZeroAmounts) {
           numbers[block] = noteNumber++;
         }
@@ -410,8 +422,8 @@ const ReportView = () => {
         if (isVisible) {
           numbers[block] = noteNumber++;
         }
-      } else {
-        // Other blocks always get a number if they have data
+      } else if (hasNonZeroAmounts) {
+        // Other blocks only get a number if they have data
         numbers[block] = noteNumber++;
       }
     });
@@ -811,7 +823,6 @@ const ReportView = () => {
                   
                   return blocks.map(block => {
                     const blockItems = grouped[block];
-                    const toggleOn = noterBlockToggles[block] || false;
                     const noteNumber = noteNumbers[block];
                     
                     // Get block heading
@@ -824,9 +835,8 @@ const ReportView = () => {
                     // Check if block has any non-zero amounts
                     const hasNonZeroAmounts = blockHasNonZeroAmounts(blockItems);
                     
-                    // Hide blocks with no data (these blocks should only show if they have actual amounts)
-                    const blocksToHideIfZero = ['BYGG', 'MASKIN', 'INV', 'MAT', 'KONCERN', 'INTRESSEFTG', 'FORDRKONC', 'LVP'];
-                    if (blocksToHideIfZero.includes(block) && !hasNonZeroAmounts) {
+                    // Hide blocks with no data using the global constant
+                    if (BLOCKS_TO_HIDE_IF_ZERO.includes(block) && !hasNonZeroAmounts) {
                       return null;
                     }
                     
@@ -841,8 +851,13 @@ const ReportView = () => {
                       return null;
                     }
                     
-                    // Filter visible items
-                    const visibleItems = blockItems.filter(item => shouldShowNoterRow(item, toggleOn));
+                    // Filter visible items (in Mina Sidor we don't use toggles, so always false)
+                    const visibleItems = blockItems.filter(item => shouldShowNoterRow(item, false));
+                    
+                    // Skip blocks with no visible items
+                    if (visibleItems.length === 0) {
+                      return null;
+                    }
                     
                     // Special handling for NOT1 (Redovisningsprinciper - text note)
                     if (block === 'NOT1') {
@@ -880,19 +895,9 @@ const ReportView = () => {
                     // Regular block rendering
                     return (
                       <div key={block} className="border-b border-gray-100 pb-4">
-                        {/* Block header with toggle */}
-                        <div className="flex items-center justify-between mb-3">
+                        {/* Block header */}
+                        <div className="mb-3">
                           <h3 className="text-lg font-semibold">{fullHeading}</h3>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-sm text-gray-500">Visa alla rader</span>
-                            <Switch
-                              checked={toggleOn}
-                              onCheckedChange={(checked) => 
-                                setNoterBlockToggles(prev => ({ ...prev, [block]: checked }))
-                              }
-                              className={toggleOn ? "bg-green-500" : "bg-gray-300"}
-                            />
-                          </div>
                         </div>
                         
                         {/* Column headers */}
