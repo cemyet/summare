@@ -218,8 +218,8 @@ const ReportView = () => {
       inlineStyle = { ...inlineStyle, paddingTop: "14pt" };
     }
     
-    // Handle specific styling for S2 and S3 (thin grey lines above and below)
-    if (style === "S2" || style === "S3") {
+    // Handle specific styling for S1, S2 and S3 (thin grey lines above and below)
+    if (style === "S1" || style === "S2" || style === "S3") {
       additionalClasses += " border-t border-b border-gray-200 pt-1 pb-1";
     }
     
