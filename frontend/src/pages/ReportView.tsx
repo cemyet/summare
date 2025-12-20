@@ -1482,6 +1482,8 @@ const ReportView = () => {
                 {/* INK2 Rows */}
                 <div className="space-y-0">
                   {(() => {
+                    const headingStyles = ['TH1', 'TH2', 'TH3', 'H0', 'H1', 'H2', 'H3'];
+                    
                     // Helper to check if row has a value (non-zero amount or Ja/Nej)
                     const hasValue = (item: any): boolean => {
                       // Check for Ja/Nej rows
@@ -1492,37 +1494,64 @@ const ReportView = () => {
                       return item.amount !== null && item.amount !== undefined && item.amount !== 0;
                     };
                     
-                    // Helper to check if row should be visible
-                    const shouldShowInk2Row = (item: any): boolean => {
-                      // Always exclude hidden helper rows
+                    // Helper to check if item is a heading
+                    const isHeading = (item: any): boolean => {
+                      return headingStyles.includes(item.style || '');
+                    };
+                    
+                    // Helper to check if row is basically eligible (before value check)
+                    const isEligibleRow = (item: any): boolean => {
                       if (item.variable_name === 'INK4.23b' || item.variable_name === 'INK4.24b') return false;
-                      
-                      // Exclude duplicate "Skatteberäkning" header
                       if (item.variable_name === 'INK4_header') return false;
-                      
-                      // Always exclude rows explicitly marked to never show
                       if (item.show_amount === 'NEVER') return false;
+                      if (item.variable_name === 'INK_sarskild_loneskatt' && item.toggle_show === false) return false;
+                      if (item.toggle_show !== true) return false;
+                      return true;
+                    };
+                    
+                    // Pre-compute which headings have visible children (only needed when showAllInk2 is OFF)
+                    const headingsWithChildren = new Set<number>();
+                    if (!showAllInk2) {
+                      const data = report.ink2_data;
+                      for (let i = 0; i < data.length; i++) {
+                        const item = data[i];
+                        if (!isEligibleRow(item)) continue;
+                        if (isHeading(item)) continue;
+                        
+                        // This is a non-heading row - check if it has value
+                        if (hasValue(item)) {
+                          // Find all headings before this row and mark them as having children
+                          for (let j = i - 1; j >= 0; j--) {
+                            const prevItem = data[j];
+                            if (isHeading(prevItem) && isEligibleRow(prevItem)) {
+                              headingsWithChildren.add(j);
+                              // Don't break - continue to mark parent headings too
+                            }
+                          }
+                        }
+                      }
+                    }
+                    
+                    // Helper to check if row should be visible
+                    const shouldShowInk2Row = (item: any, index: number): boolean => {
+                      // Basic eligibility check
+                      if (!isEligibleRow(item)) return false;
                       
-                      // Special case: INK_sarskild_loneskatt - hide unless there's an actual difference
+                      // Special case: INK_sarskild_loneskatt
                       if (item.variable_name === 'INK_sarskild_loneskatt') {
-                        if (item.toggle_show === false) return false;
                         return hasValue(item);
                       }
-                      
-                      // Must have toggle_show = true to be eligible
-                      if (item.toggle_show !== true) return false;
                       
                       // If showAllInk2 is ON, show all eligible rows
                       if (showAllInk2) return true;
                       
-                      // If showAllInk2 is OFF, only show rows with values or headings
-                      const isHeading = ['TH1', 'TH2', 'TH3', 'H0', 'H1', 'H2', 'H3'].includes(item.style || '');
-                      if (isHeading) {
-                        // Show heading if any child row in its section has a value
-                        // For simplicity, we'll show headings that have toggle_show = true
-                        return true;
+                      // If showAllInk2 is OFF:
+                      if (isHeading(item)) {
+                        // Only show heading if it has visible children
+                        return headingsWithChildren.has(index);
                       }
                       
+                      // For non-headings, only show if has value
                       return hasValue(item);
                     };
                     
@@ -1587,17 +1616,18 @@ const ReportView = () => {
                     };
 
                     return report.ink2_data
-                      .filter((item: any) => shouldShowInk2Row(item))
-                      .map((item: any, index: number) => {
+                      .map((item: any, originalIndex: number) => ({ item, originalIndex }))
+                      .filter(({ item, originalIndex }) => shouldShowInk2Row(item, originalIndex))
+                      .map(({ item, originalIndex }) => {
                         const styleClasses = getInk2StyleClasses(item.style, item.variable_name);
-                        const isHeading = ['TH1', 'TH2', 'TH3'].includes(item.style || '');
+                        const isHeadingRow = ['TH1', 'TH2', 'TH3'].includes(item.style || '');
                         const isJaNej = isJaNejRow(item.variable_name);
                         const hasVisa = item.show_tag && item.account_details?.length > 0;
                         
                         return (
                           <div
-                            key={item.variable_name || index}
-                            className={`${styleClasses.className} ${isHeading ? 'py-1' : 'py-0.5'}`}
+                            key={item.variable_name || originalIndex}
+                            className={`${styleClasses.className} ${isHeadingRow ? 'py-1' : 'py-0.5'}`}
                             style={{ ...styleClasses.style, gridTemplateColumns: "5fr 0.7fr 1fr" }}
                           >
                             {/* Row title */}
@@ -1656,7 +1686,7 @@ const ReportView = () => {
                             </span>
                             
                             {/* Amount/value column */}
-                            {!isHeading && (
+                            {!isHeadingRow && (
                               <span className="text-right font-medium">
                                 {isJaNej 
                                   ? getJaNejValue(item.variable_name)
@@ -1664,7 +1694,7 @@ const ReportView = () => {
                                 }
                               </span>
                             )}
-                            {isHeading && <span></span>}
+                            {isHeadingRow && <span></span>}
                           </div>
                         );
                       });
