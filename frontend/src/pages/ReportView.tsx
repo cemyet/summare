@@ -883,9 +883,6 @@ const ReportView = () => {
                       if (avskrivningstider['avskrtid_inv'] || avskrivningstider['avskrivningstid_inv']) {
                         avskrivningsRows.push({ label: 'Inventarier, verktyg och installationer', years: avskrivningstider['avskrtid_inv'] || avskrivningstider['avskrivningstid_inv'] });
                       }
-                      if (avskrivningstider['avskrtid_mat'] || avskrivningstider['avskrivningstid_mat']) {
-                        avskrivningsRows.push({ label: 'Övriga materiella anläggningstillgångar', years: avskrivningstider['avskrtid_mat'] || avskrivningstider['avskrivningstid_mat'] });
-                      }
                       
                       return (
                         <div key={block} className="pb-4">

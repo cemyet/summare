@@ -7050,27 +7050,6 @@ export function Noter({ noterData, fiscalYear, previousYear, companyData, onData
                             )}
                           </TableCell>
                         </TableRow>
-                        <TableRow>
-                          <TableCell className="py-1">Övriga materiella anläggningstillgångar</TableCell>
-                          <TableCell className="text-right py-1">
-                            {isEditingNOT1 ? (
-                              <AmountCell
-                                year="cur"
-                                varName="avskrtid_ovriga"
-                                baseVar="avskrtid_ovriga"
-                                label="Övriga materiella anläggningstillgångar"
-                                editable={true}
-                                value={getVal('avskrtid_ovriga') as number}
-                                ord={4}
-                                onCommit={(n) => setEditedValues(prev => ({ ...prev, 'avskrtid_ovriga': n }))}
-                                onTabNavigate={(el, dir) => focusByOrd(el, dir)}
-                                expectedSignFor={() => null}
-                              />
-                            ) : (
-                              getVal('avskrtid_ovriga') !== null ? getVal('avskrtid_ovriga') : '-'
-                            )}
-                          </TableCell>
-                        </TableRow>
                       </TableBody>
                     </Table>
                   </div>
