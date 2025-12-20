@@ -247,6 +247,7 @@ const ReportView = () => {
   const showAllRR = false;
   const showAllBR = false;
   const [noterBlockToggles, setNoterBlockToggles] = useState<Record<string, boolean>>({});
+  const [showAllInk2, setShowAllInk2] = useState(false);
   
   // Company/fiscal year selection
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -1456,8 +1457,15 @@ const ReportView = () => {
             ref={(el) => (sectionRefs.current["skattedeklaration"] = el)}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
-            <div className="mb-6">
+            <div className="mb-6 flex justify-between items-center">
               <h2 className="text-xl font-semibold text-gray-900">Skattedeklaration</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Visa alla rader</span>
+                <Switch
+                  checked={showAllInk2}
+                  onCheckedChange={setShowAllInk2}
+                />
+              </div>
             </div>
 
             {report.ink2_data && report.ink2_data.length > 0 ? (
@@ -1471,11 +1479,20 @@ const ReportView = () => {
                   <span className="text-right">{report.fiscal_year}</span>
                 </div>
 
-                {/* INK2 Rows - Shows full skattedeklaration (like "Visa hela INK2S" toggle ON) */}
+                {/* INK2 Rows */}
                 <div className="space-y-0">
                   {(() => {
+                    // Helper to check if row has a value (non-zero amount or Ja/Nej)
+                    const hasValue = (item: any): boolean => {
+                      // Check for Ja/Nej rows
+                      if (item.variable_name === 'INK4.23a' || item.variable_name === 'INK4.24a') {
+                        return true; // Always has Ja or Nej
+                      }
+                      // Check for non-zero amount
+                      return item.amount !== null && item.amount !== undefined && item.amount !== 0;
+                    };
+                    
                     // Helper to check if row should be visible
-                    // Mirrors "Visa hela INK2S" toggle ON behavior - shows toggle_show=true rows
                     const shouldShowInk2Row = (item: any): boolean => {
                       // Always exclude hidden helper rows
                       if (item.variable_name === 'INK4.23b' || item.variable_name === 'INK4.24b') return false;
@@ -1487,15 +1504,26 @@ const ReportView = () => {
                       if (item.show_amount === 'NEVER') return false;
                       
                       // Special case: INK_sarskild_loneskatt - hide unless there's an actual difference
-                      // (we don't have pension data in Mina Sidor, so just hide if amount is 0)
                       if (item.variable_name === 'INK_sarskild_loneskatt') {
                         if (item.toggle_show === false) return false;
-                        const hasAmount = item.amount !== null && item.amount !== undefined && item.amount !== 0;
-                        return hasAmount;
+                        return hasValue(item);
                       }
                       
-                      // Show all rows with toggle_show = true (full skattedeklaration view)
-                      return item.toggle_show === true;
+                      // Must have toggle_show = true to be eligible
+                      if (item.toggle_show !== true) return false;
+                      
+                      // If showAllInk2 is ON, show all eligible rows
+                      if (showAllInk2) return true;
+                      
+                      // If showAllInk2 is OFF, only show rows with values or headings
+                      const isHeading = ['TH1', 'TH2', 'TH3', 'H0', 'H1', 'H2', 'H3'].includes(item.style || '');
+                      if (isHeading) {
+                        // Show heading if any child row in its section has a value
+                        // For simplicity, we'll show headings that have toggle_show = true
+                        return true;
+                      }
+                      
+                      return hasValue(item);
                     };
                     
                     // Helper to check if row is a Ja/Nej row (radio button type)
