@@ -213,9 +213,9 @@ const ReportView = () => {
       additionalClasses += " font-semibold";
     }
     
-    // Add 20pt padding before H2 headings
+    // Add 14pt padding before H2 headings
     if (style === "H2") {
-      inlineStyle = { ...inlineStyle, paddingTop: "20pt" };
+      inlineStyle = { ...inlineStyle, paddingTop: "14pt" };
     }
     
     // Handle specific styling for S2 and S3 (thin grey lines above and below)
