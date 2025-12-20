@@ -538,16 +538,28 @@ const ReportView = () => {
             {/* BR Rows */}
             <div className="mt-2 space-y-0">
               {report.br_data.map((item, index) => {
+                // Hide H1 rows in BR
+                if (item.style === "H1") {
+                  return null;
+                }
+                
                 if (!shouldShowRow(item, showAllBR, report.br_data)) {
                   return null;
                 }
 
+                // BR-specific styling: no borders for S2
                 const styleClasses = getStyleClasses(item.style);
+                let brClassName = styleClasses.className;
+                
+                // Remove borders from S2 in BR
+                if (item.style === "S2") {
+                  brClassName = "grid gap-4 font-semibold"; // No borders
+                }
 
                 return (
                   <div
                     key={item.id || index}
-                    className={`${styleClasses.className} ${item.level === 0 ? "border-b pb-1" : ""} py-1`}
+                    className={`${brClassName} ${item.level === 0 ? "border-b pb-1" : ""} py-1`}
                     style={styleClasses.style}
                   >
                     <span className="text-gray-600 flex items-center justify-between">
