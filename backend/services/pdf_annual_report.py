@@ -131,9 +131,10 @@ def _company_meta(data: Dict[str, Any]) -> Tuple[str, str, int]:
     se = (data or {}).get('seFileData') or {}
     info = se.get('company_info') or {}
     name = data.get('company_name') or info.get('company_name') or "Bolag"
-    orgnr = data.get('organizationNumber') or info.get('organization_number') or ""
+    orgnr_raw = data.get('organizationNumber') or info.get('organization_number') or ""
+    orgnr = _format_orgnr(str(orgnr_raw))
     fy = data.get('fiscalYear') or info.get('fiscal_year') or 0
-    return str(name), str(orgnr), int(fy) if fy else 0
+    return str(name), orgnr, int(fy) if fy else 0
 
 def _format_date(date_str: str) -> str:
     """Format date from YYYYMMDD to YYYY-MM-DD"""
@@ -144,6 +145,17 @@ def _format_date(date_str: str) -> str:
     except Exception:
         return date_str
 
+def _format_orgnr(orgnr: str) -> str:
+    """Format organization number from XXXXXXXXXX to XXXXXX-XXXX"""
+    if not orgnr:
+        return orgnr
+    # Remove any existing hyphens or spaces
+    clean = orgnr.replace("-", "").replace(" ", "").strip()
+    # If it's 10 digits, format with hyphen
+    if len(clean) == 10 and clean.isdigit():
+        return f"{clean[:6]}-{clean[6:]}"
+    return orgnr
+
 def _render_cover_page(elems, company_data):
     """Render cover page with company info and fiscal period"""
     # Extract company metadata
@@ -151,7 +163,8 @@ def _render_cover_page(elems, company_data):
     info = se.get('company_info') or {}
     
     name = company_data.get('company_name') or info.get('company_name') or "Bolag"
-    orgnr = company_data.get('organizationNumber') or info.get('organization_number') or ""
+    orgnr_raw = company_data.get('organizationNumber') or info.get('organization_number') or ""
+    orgnr = _format_orgnr(str(orgnr_raw))
     
     # Get fiscal period dates
     start_date = info.get('start_date', '')
@@ -2025,15 +2038,13 @@ def _render_note_block(elems, block_name, block_title, note_number, visible, com
         avskrtid_bygg = next((item['current_amount'] for item in noter_data if item.get('variable_name') == 'avskrtid_bygg'), 0)
         avskrtid_mask = next((item['current_amount'] for item in noter_data if item.get('variable_name') == 'avskrtid_mask'), 0)
         avskrtid_inv = next((item['current_amount'] for item in noter_data if item.get('variable_name') == 'avskrtid_inv'), 0)
-        avskrtid_ovriga = next((item['current_amount'] for item in noter_data if item.get('variable_name') == 'avskrtid_ovriga'), 0)
         
-        # Create the depreciation table
+        # Create the depreciation table (without "Övriga materiella anläggningstillgångar")
         depr_table_data = [
             ['Anläggningstillgångar', 'År'],
             ['Byggnader & mark', _fmt_int(avskrtid_bygg) if avskrtid_bygg else '0'],
             ['Maskiner och andra tekniska anläggningar', _fmt_int(avskrtid_mask) if avskrtid_mask else '0'],
             ['Inventarier, verktyg och installationer', _fmt_int(avskrtid_inv) if avskrtid_inv else '0'],
-            ['Övriga materiella anläggningstillgångar', _fmt_int(avskrtid_ovriga) if avskrtid_ovriga else '0'],
         ]
         
         # Create table with appropriate column widths
