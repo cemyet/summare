@@ -5223,6 +5223,44 @@ async def get_annual_report_for_view(report_id: str):
         fiscal_year_end = report.get('fiscal_year_end')
         fiscal_year = int(fiscal_year_end[:4]) if fiscal_year_end else None
         
+        # Extract scraped_company_data from stored company_data
+        stored_company_data = report.get('company_data') or {}
+        se_file_data = stored_company_data.get('seFileData', {})
+        scraped_company_data = se_file_data.get('scraped_company_data', {})
+        
+        # Extract employee count for NOT2
+        nyckeltal = scraped_company_data.get('nyckeltal', {})
+        antal_anstallda_list = nyckeltal.get('Antal anställda', [0, 0])
+        employee_current = antal_anstallda_list[0] if len(antal_anstallda_list) > 0 else 0
+        employee_previous = antal_anstallda_list[1] if len(antal_anstallda_list) > 1 else employee_current
+        
+        # Update NOT2 ant_anstallda row with employee count if not already set
+        for item in merged_noter:
+            if item.get('block') == 'NOT2' and item.get('variable_name') == 'ant_anstallda':
+                if not item.get('current_amount') or item.get('current_amount') == 0:
+                    item['current_amount'] = employee_current
+                if not item.get('previous_amount') or item.get('previous_amount') == 0:
+                    item['previous_amount'] = employee_previous
+                print(f"📊 Updated NOT2 employee count: current={item.get('current_amount')}, previous={item.get('previous_amount')}")
+        
+        # Extract avskrivningstider from noter data or company_data
+        avskrivningstider = {}
+        for item in merged_noter:
+            if item.get('block') == 'NOT1' and item.get('variable_name'):
+                var_name = item.get('variable_name')
+                if var_name.startswith('avskrtid_') or 'avskrivningstid' in var_name.lower():
+                    avskrivningstider[var_name] = item.get('current_amount')
+        
+        # Fallback: check stored noter_data for avskrivningstider
+        for item in raw_noter_data:
+            if item.get('block') == 'NOT1' or item.get('row_id', 0) >= 9000:
+                var_name = item.get('variable_name')
+                if var_name and (var_name.startswith('avskrtid_') or 'avskrivningstid' in var_name.lower()):
+                    if var_name not in avskrivningstider:
+                        avskrivningstider[var_name] = item.get('current_amount')
+        
+        print(f"📊 Avskrivningstider: {avskrivningstider}")
+        
         return {
             "success": True,
             "data": {
@@ -5239,6 +5277,8 @@ async def get_annual_report_for_view(report_id: str):
                 "fb_data": report.get('fb_data'),
                 "ink2_data": report.get('ink2_data'),
                 "signering_data": report.get('signering_data'),
+                "scraped_company_data": scraped_company_data,
+                "avskrivningstider": avskrivningstider,
                 "updated_at": report.get('updated_at'),
                 "created_at": report.get('created_at'),
             }

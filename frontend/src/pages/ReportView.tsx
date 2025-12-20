@@ -31,6 +31,8 @@ interface ReportData {
   fb_data: any;
   ink2_data: any[];
   signering_data: any;
+  scraped_company_data?: any;
+  avskrivningstider?: Record<string, number>;
   updated_at: string;
   created_at: string;
 }
@@ -861,15 +863,52 @@ const ReportView = () => {
                       return null;
                     }
                     
-                    // Special handling for NOT1 (Redovisningsprinciper - text note)
+                    // Special handling for NOT1 (Redovisningsprinciper - text note with avskrivningstider table)
                     if (block === 'NOT1') {
                       const textItem = blockItems.find((item: any) => item.variable_name === 'redovisning_principer');
+                      
+                      // Get avskrivningstider from report data
+                      const avskrivningstider = report.avskrivningstider || {};
+                      
+                      // Build avskrivningstider rows from the data
+                      const avskrivningsRows: { label: string; years: number | null }[] = [];
+                      
+                      // Check for each asset type
+                      if (avskrivningstider['avskrtid_bygg'] || avskrivningstider['avskrivningstid_bygg']) {
+                        avskrivningsRows.push({ label: 'Byggnader & mark', years: avskrivningstider['avskrtid_bygg'] || avskrivningstider['avskrivningstid_bygg'] });
+                      }
+                      if (avskrivningstider['avskrtid_mask'] || avskrivningstider['avskrivningstid_mask']) {
+                        avskrivningsRows.push({ label: 'Maskiner och andra tekniska anläggningar', years: avskrivningstider['avskrtid_mask'] || avskrivningstider['avskrivningstid_mask'] });
+                      }
+                      if (avskrivningstider['avskrtid_inv'] || avskrivningstider['avskrivningstid_inv']) {
+                        avskrivningsRows.push({ label: 'Inventarier, verktyg och installationer', years: avskrivningstider['avskrtid_inv'] || avskrivningstider['avskrivningstid_inv'] });
+                      }
+                      if (avskrivningstider['avskrtid_mat'] || avskrivningstider['avskrivningstid_mat']) {
+                        avskrivningsRows.push({ label: 'Övriga materiella anläggningstillgångar', years: avskrivningstider['avskrtid_mat'] || avskrivningstider['avskrivningstid_mat'] });
+                      }
+                      
                       return (
                         <div key={block} className="pb-4">
                           <h3 className="text-lg font-semibold mb-3">{fullHeading}</h3>
-                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                            {textItem?.variable_text || 'Årsredovisningen är upprättad i enlighet med årsredovisningslagen och Bokföringsnämndens allmänna råd (BFNAR 2016:10) om årsredovisning i mindre företag.'}
+                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap mb-4">
+                            {textItem?.variable_text || 'Årsredovisningen är upprättad i enlighet med årsredovisningslagen och Bokföringsnämndens allmänna råd (BFNAR 2016:10) om årsredovisning i mindre företag. Avskrivningstider för anläggningstillgångar finns redovisade i tabellen nedan.'}
                           </p>
+                          
+                          {/* Avskrivningstider table */}
+                          {avskrivningsRows.length > 0 && (
+                            <div className="mt-4">
+                              <div className="grid gap-4 font-semibold border-b border-gray-200 pb-1 mb-1" style={{ gridTemplateColumns: "4fr 1fr" }}>
+                                <span className="text-gray-700">Anläggningstillgångar</span>
+                                <span className="text-right text-gray-700">År</span>
+                              </div>
+                              {avskrivningsRows.map((row, idx) => (
+                                <div key={idx} className="grid gap-4 py-1 border-b border-gray-100" style={{ gridTemplateColumns: "4fr 1fr" }}>
+                                  <span className="text-gray-600">{row.label}</span>
+                                  <span className="text-right">{row.years}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     }
@@ -880,7 +919,7 @@ const ReportView = () => {
                       return (
                         <div key={block} className="pb-4">
                           <h3 className="text-lg font-semibold mb-3">{fullHeading}</h3>
-                          <div className="grid gap-4" style={{ gridTemplateColumns: "4fr 1fr 1fr" }}>
+                          <div className="grid gap-4 border-b border-gray-200 pb-1" style={{ gridTemplateColumns: "4fr 1fr 1fr" }}>
                             <span className="text-sm text-gray-500"></span>
                             <span className="text-sm text-gray-500 text-right">{report.fiscal_year}</span>
                             <span className="text-sm text-gray-500 text-right">{report.fiscal_year - 1}</span>
