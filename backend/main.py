@@ -4709,11 +4709,16 @@ def _prepare_fb_data(company_data: dict, se_file_data: dict) -> dict:
             'soliditet': [round(soliditet_fy), sol1, sol2, sol3]
         }
     
+    # Get arets_utdelning (dividend amount) from company_data
+    # This is the value entered in the chat when user specifies dividend
+    arets_utdelning = company_data.get('arets_utdelning') or 0
+    
     return {
         'fb_table': fb_table,
         'fb_variables': fb_variables,
         'verksamheten': verksamheten,
-        'flerarsoversikt': flerarsoversikt
+        'flerarsoversikt': flerarsoversikt,
+        'arets_utdelning': arets_utdelning
     }
 
 

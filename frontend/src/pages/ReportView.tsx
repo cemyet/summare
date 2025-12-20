@@ -549,8 +549,8 @@ const ReportView = () => {
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                <Icon className="w-5 h-5" />
-                <span className="font-medium">{item.label}</span>
+                <Icon className="w-5 h-5 flex-shrink-0" />
+                <span className="font-medium truncate">{item.label}</span>
               </button>
             );
           })}
@@ -741,27 +741,27 @@ const ReportView = () => {
                   
                   return (
                     <div className="overflow-x-auto">
-                      <table className="w-full text-sm">
+                      <table className="w-full text-sm table-fixed">
                         <thead>
                           <tr className="border-b">
-                            <th className="text-left py-2 font-medium w-48"></th>
+                            <th className="text-left py-2 font-medium" style={{ width: '200px' }}></th>
                             {hasNonZeroValues.aktiekapital && (
-                              <th className="text-right py-2 font-medium">Aktiekapital</th>
+                              <th className="text-right py-2 font-medium" style={{ minWidth: '100px' }}>Aktiekapital</th>
                             )}
                             {hasNonZeroValues.reservfond && (
-                              <th className="text-right py-2 font-medium">Reservfond</th>
+                              <th className="text-right py-2 font-medium" style={{ minWidth: '100px' }}>Reservfond</th>
                             )}
                             {hasNonZeroValues.uppskrivningsfond && (
-                              <th className="text-right py-2 font-medium">Uppskrivningsfond</th>
+                              <th className="text-right py-2 font-medium" style={{ minWidth: '120px' }}>Uppskrivningsfond</th>
                             )}
                             {hasNonZeroValues.balanserat_resultat && (
-                              <th className="text-right py-2 font-medium">Balanserat resultat</th>
+                              <th className="text-right py-2 font-medium" style={{ minWidth: '130px' }}>Balanserat resultat</th>
                             )}
                             {hasNonZeroValues.arets_resultat && (
-                              <th className="text-right py-2 font-medium">Årets resultat</th>
+                              <th className="text-right py-2 font-medium" style={{ minWidth: '110px' }}>Årets resultat</th>
                             )}
                             {hasNonZeroValues.total && (
-                              <th className="text-right py-2 font-medium">Summa</th>
+                              <th className="text-right py-2 font-medium" style={{ minWidth: '100px' }}>Summa</th>
                             )}
                           </tr>
                         </thead>
@@ -828,8 +828,8 @@ const ReportView = () => {
                   const aretsResultat = row13?.arets_resultat || 0;
                   const summa = balResultat + aretsResultat;
                   
-                  // Get utdelning from fb_variables
-                  const utdelning = vars.fb_aretsresultat_utdelning || vars.fb_arets_utdelning || 0;
+                  // Get utdelning - first from fb_data.arets_utdelning, then from fb_variables
+                  const utdelning = report.fb_data.arets_utdelning || vars.fb_aretsresultat_utdelning || vars.fb_arets_utdelning || 0;
                   
                   // Balanseras i ny räkning = Summa - Utdelning
                   const balanseras = summa - utdelning;
@@ -844,7 +844,7 @@ const ReportView = () => {
                   
                   return (
                     <div className="text-sm text-gray-600 space-y-2">
-                      <p className="font-medium text-gray-700">Styrelsen föreslår att till förfogande stående vinstmedel:</p>
+                      <p className="text-gray-700">Styrelsen föreslår att till förfogande stående vinstmedel:</p>
                       
                       <table className="w-full max-w-md">
                         <tbody>
@@ -863,7 +863,7 @@ const ReportView = () => {
                         </tbody>
                       </table>
                       
-                      <p className="font-medium text-gray-700 mt-4">disponeras enligt följande:</p>
+                      <p className="text-gray-700 mt-4">Disponeras enligt följande:</p>
                       
                       <table className="w-full max-w-md">
                         <tbody>
