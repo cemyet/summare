@@ -1520,12 +1520,12 @@ const ReportView = () => {
                         
                         // This is a non-heading row - check if it has value
                         if (hasValue(item)) {
-                          // Find all headings before this row and mark them as having children
+                          // Find the IMMEDIATE parent heading (first heading going backwards)
                           for (let j = i - 1; j >= 0; j--) {
                             const prevItem = data[j];
                             if (isHeading(prevItem) && isEligibleRow(prevItem)) {
                               headingsWithChildren.add(j);
-                              // Don't break - continue to mark parent headings too
+                              break; // Only mark the immediate parent heading, not all ancestors
                             }
                           }
                         }
