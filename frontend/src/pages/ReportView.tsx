@@ -59,6 +59,30 @@ const NAV_ITEMS = [
   { id: "support", label: "Support", icon: HelpCircle },
 ];
 
+// Note order for proper numbering
+const NOTE_ORDER = [
+  'NOT1', 'NOT2', 'BYGG', 'MASKIN', 'INV', 'MAT',
+  'KONCERN', 'INTRESSEFTG', 'FORDRKONC', 'LVP',
+  'SAKERHET', 'EVENTUAL', 'OVRIGA'
+];
+
+// Block headings mapping
+const BLOCK_HEADINGS: Record<string, string> = {
+  'NOT1': 'Redovisningsprinciper',
+  'NOT2': 'Medelantalet anställda',
+  'BYGG': 'Byggnader och mark',
+  'MASKIN': 'Maskiner och andra tekniska anläggningar',
+  'INV': 'Inventarier, verktyg och installationer',
+  'MAT': 'Övriga materiella anläggningstillgångar',
+  'KONCERN': 'Andelar i koncernföretag',
+  'INTRESSEFTG': 'Andelar i intresseföretag och gemensamt styrda företag',
+  'FORDRKONC': 'Fordringar hos koncernföretag',
+  'LVP': 'Andra långfristiga värdepappersinnehav',
+  'SAKERHET': 'Ställda säkerheter',
+  'EVENTUAL': 'Eventualförpliktelser',
+  'OVRIGA': 'Övriga upplysningar',
+};
+
 const ReportView = () => {
   const navigate = useNavigate();
   const { reportId } = useParams<{ reportId: string }>();
@@ -70,6 +94,7 @@ const ReportView = () => {
   const [activeSection, setActiveSection] = useState("resultatrakning");
   const [showAllRR, setShowAllRR] = useState(false);
   const [showAllBR, setShowAllBR] = useState(false);
+  const [noterBlockToggles, setNoterBlockToggles] = useState<Record<string, boolean>>({});
   
   // Company/fiscal year selection
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -257,6 +282,126 @@ const ReportView = () => {
     const isAlwaysShow = item.always_show === true;
 
     return hasNonZeroAmount || isAlwaysShow;
+  };
+
+  // Noter styling helper (3-column grid for notes)
+  const getNoterStyleClasses = (style?: string) => {
+    const baseClasses = "grid gap-4";
+    let additionalClasses = "";
+    const s = style || "NORMAL";
+    
+    // Bold styling for headers and sum rows
+    const boldStyles = ['H0', 'H1', 'H2', 'H3', 'S1', 'S2', 'S3'];
+    if (boldStyles.includes(s)) {
+      additionalClasses += " font-semibold";
+    }
+    
+    // Lines for S2/S3 rows
+    const lineStyles = ['S2', 'S3'];
+    if (lineStyles.includes(s)) {
+      additionalClasses += " border-t border-b border-gray-200 pt-1 pb-1";
+    }
+    
+    // Padding before H2/H3 headings
+    let inlineStyle: React.CSSProperties = { gridTemplateColumns: "4fr 1fr 1fr" };
+    if (s === "H2" || s === "H3") {
+      inlineStyle = { ...inlineStyle, paddingTop: "10pt" };
+    }
+    
+    return {
+      className: `${baseClasses}${additionalClasses}`,
+      style: inlineStyle,
+    };
+  };
+
+  // Helper to check if a noter row should be visible
+  const shouldShowNoterRow = (item: any, toggleOn: boolean): boolean => {
+    // Always show if always_show is true
+    if (item.always_show) return true;
+    
+    // Show if has non-zero amounts
+    const hasNonZero = 
+      (item.current_amount !== null && item.current_amount !== 0) ||
+      (item.previous_amount !== null && item.previous_amount !== 0);
+    if (hasNonZero) return true;
+    
+    // Show toggle_show rows only if toggle is on
+    if (item.toggle_show) return toggleOn;
+    
+    return false;
+  };
+
+  // Group noter items by block
+  const getGroupedNoterData = () => {
+    if (!report?.noter_data) return {};
+    
+    const grouped: Record<string, any[]> = {};
+    report.noter_data.forEach((item: any) => {
+      const block = item.block || 'OTHER';
+      if (!grouped[block]) grouped[block] = [];
+      grouped[block].push(item);
+    });
+    
+    // Sort each block by row_id
+    Object.keys(grouped).forEach(block => {
+      grouped[block].sort((a, b) => (a.row_id || 0) - (b.row_id || 0));
+    });
+    
+    return grouped;
+  };
+
+  // Get sorted block keys
+  const getSortedBlockKeys = (grouped: Record<string, any[]>): string[] => {
+    const allBlocks = Object.keys(grouped);
+    return [
+      ...NOTE_ORDER.filter(b => allBlocks.includes(b)),
+      ...allBlocks.filter(b => !NOTE_ORDER.includes(b))
+    ];
+  };
+
+  // Check if a block has any visible content
+  const blockHasVisibleContent = (blockItems: any[], toggleOn: boolean): boolean => {
+    return blockItems.some(item => {
+      if (item.always_show) return true;
+      const hasNonZero = 
+        (item.current_amount !== null && item.current_amount !== 0) ||
+        (item.previous_amount !== null && item.previous_amount !== 0);
+      return hasNonZero;
+    });
+  };
+
+  // Calculate note numbers for visible blocks
+  const calculateNoteNumbers = (grouped: Record<string, any[]>): Record<string, number> => {
+    const blocks = getSortedBlockKeys(grouped);
+    let noteNumber = 3; // Start at 3 since NOT1=1, NOT2=2
+    const numbers: Record<string, number> = { NOT1: 1, NOT2: 2 };
+    
+    blocks.forEach(block => {
+      if (block === 'NOT1' || block === 'NOT2') return;
+      
+      const blockItems = grouped[block];
+      const toggleOn = noterBlockToggles[block] || false;
+      
+      // Check if block should get a number (has visible content)
+      const hasVisibleContent = blockHasVisibleContent(blockItems, toggleOn);
+      
+      // For SAKERHET/EVENTUAL, check visibility toggle
+      if (block === 'SAKERHET') {
+        const isVisible = noterBlockToggles['sakerhet-visibility'] === true;
+        if (isVisible && hasVisibleContent) {
+          numbers[block] = noteNumber++;
+        }
+      } else if (block === 'EVENTUAL') {
+        const isVisible = noterBlockToggles['eventual-visibility'] === true;
+        if (isVisible && hasVisibleContent) {
+          numbers[block] = noteNumber++;
+        }
+      } else if (hasVisibleContent) {
+        numbers[block] = noteNumber++;
+      }
+    });
+    
+    return numbers;
   };
 
   if (isLoading) {
@@ -635,12 +780,152 @@ const ReportView = () => {
             </div>
           </div>
 
+          {/* Noter Section */}
           <div
             ref={(el) => (sectionRefs.current["noter"] = el)}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Noter</h2>
-            <p className="text-gray-500">Noter kommer snart...</p>
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Noter</h2>
+            
+            {report.noter_data && report.noter_data.length > 0 ? (
+              <div className="space-y-6">
+                {(() => {
+                  const grouped = getGroupedNoterData();
+                  const blocks = getSortedBlockKeys(grouped);
+                  const noteNumbers = calculateNoteNumbers(grouped);
+                  
+                  return blocks.map(block => {
+                    const blockItems = grouped[block];
+                    const toggleOn = noterBlockToggles[block] || false;
+                    const noteNumber = noteNumbers[block];
+                    
+                    // Get block heading
+                    const firstItemTitle = blockItems[0]?.row_title || '';
+                    const blockHeading = BLOCK_HEADINGS[block] || firstItemTitle || block;
+                    const fullHeading = noteNumber 
+                      ? `Not ${noteNumber} ${blockHeading}`
+                      : `Not ${blockHeading}`;
+                    
+                    // Check if block should be visible
+                    const hasVisibleContent = blockHasVisibleContent(blockItems, toggleOn);
+                    
+                    // Hide blocks with no content (except NOT1, NOT2 which always show)
+                    const blocksToHideIfEmpty = ['BYGG', 'MASKIN', 'INV', 'MAT', 'KONCERN', 'INTRESSEFTG', 'FORDRKONC', 'LVP'];
+                    if (blocksToHideIfEmpty.includes(block) && !hasVisibleContent) {
+                      return null;
+                    }
+                    
+                    // Filter visible items
+                    const visibleItems = blockItems.filter(item => shouldShowNoterRow(item, toggleOn));
+                    
+                    // Special handling for NOT1 (Redovisningsprinciper - text note)
+                    if (block === 'NOT1') {
+                      const textItem = blockItems.find((item: any) => item.variable_name === 'redovisning_principer');
+                      return (
+                        <div key={block} className="border-b border-gray-100 pb-4">
+                          <h3 className="text-lg font-semibold mb-3">{fullHeading}</h3>
+                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                            {textItem?.variable_text || 'Årsredovisningen är upprättad i enlighet med årsredovisningslagen och Bokföringsnämndens allmänna råd (BFNAR 2016:10) om årsredovisning i mindre företag.'}
+                          </p>
+                        </div>
+                      );
+                    }
+                    
+                    // Special handling for NOT2 (Medelantalet anställda)
+                    if (block === 'NOT2') {
+                      const employeesItem = blockItems.find((item: any) => item.variable_name === 'ant_anstallda');
+                      return (
+                        <div key={block} className="border-b border-gray-100 pb-4">
+                          <h3 className="text-lg font-semibold mb-3">{fullHeading}</h3>
+                          <div className="grid gap-4" style={{ gridTemplateColumns: "4fr 1fr 1fr" }}>
+                            <span className="text-sm text-gray-500"></span>
+                            <span className="text-sm text-gray-500 text-right">{report.fiscal_year}</span>
+                            <span className="text-sm text-gray-500 text-right">{report.fiscal_year - 1}</span>
+                          </div>
+                          <div className="grid gap-4 py-1" style={{ gridTemplateColumns: "4fr 1fr 1fr" }}>
+                            <span className="text-gray-700">Medelantalet anställda under året</span>
+                            <span className="text-right">{employeesItem?.current_amount ?? 0}</span>
+                            <span className="text-right">{employeesItem?.previous_amount ?? 0}</span>
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    // Regular block rendering
+                    return (
+                      <div key={block} className="border-b border-gray-100 pb-4">
+                        {/* Block header with toggle */}
+                        <div className="flex items-center justify-between mb-3">
+                          <h3 className="text-lg font-semibold">{fullHeading}</h3>
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-500">Visa alla rader</span>
+                            <Switch
+                              checked={toggleOn}
+                              onCheckedChange={(checked) => 
+                                setNoterBlockToggles(prev => ({ ...prev, [block]: checked }))
+                              }
+                              className={toggleOn ? "bg-green-500" : "bg-gray-300"}
+                            />
+                          </div>
+                        </div>
+                        
+                        {/* Column headers */}
+                        <div 
+                          className="grid gap-4 text-sm text-gray-500 border-b pb-1 font-semibold mb-1"
+                          style={{ gridTemplateColumns: "4fr 1fr 1fr" }}
+                        >
+                          <span></span>
+                          <span className="text-right">{report.fiscal_year}-12-31</span>
+                          <span className="text-right">{report.fiscal_year - 1}-12-31</span>
+                        </div>
+                        
+                        {/* Block rows */}
+                        <div className="space-y-0">
+                          {visibleItems.map((item: any, index: number) => {
+                            const styleClasses = getNoterStyleClasses(item.style);
+                            const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(item.style || '');
+                            
+                            return (
+                              <div
+                                key={item.row_id || index}
+                                className={`${styleClasses.className} py-1`}
+                                style={styleClasses.style}
+                              >
+                                <span className="text-gray-700">
+                                  {item.row_title}
+                                </span>
+                                {!isHeading && (
+                                  <>
+                                    <span className="text-right">
+                                      {item.current_amount !== null && item.current_amount !== undefined
+                                        ? formatAmount(item.current_amount)
+                                        : ""}
+                                    </span>
+                                    <span className="text-right">
+                                      {item.previous_amount !== null && item.previous_amount !== undefined
+                                        ? formatAmount(item.previous_amount)
+                                        : ""}
+                                    </span>
+                                  </>
+                                )}
+                                {isHeading && (
+                                  <>
+                                    <span></span>
+                                    <span></span>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            ) : (
+              <p className="text-gray-500">Inga noter tillgängliga.</p>
+            )}
           </div>
         </div>
       </main>

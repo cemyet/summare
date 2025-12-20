@@ -4543,18 +4543,24 @@ def _slim_financial_data(data: list) -> list:
 def _slim_noter_row(row: dict) -> dict:
     """
     Extract only essential fields from noter rows for storage.
-    Keeps: row_id, row_title, variable_name, current_amount, previous_amount
+    Keeps: row_id, row_title, variable_name, current_amount, previous_amount, variable_text
     """
     if not isinstance(row, dict):
         return row
     
-    return {
+    slim = {
         "row_id": row.get("row_id"),
         "row_title": row.get("row_title"),
         "variable_name": row.get("variable_name"),
         "current_amount": row.get("current_amount"),
         "previous_amount": row.get("previous_amount"),
     }
+    
+    # Include variable_text for text-based notes (e.g., redovisning_principer)
+    if row.get("variable_text"):
+        slim["variable_text"] = row.get("variable_text")
+    
+    return slim
 
 
 def _slim_noter_data(data: list) -> list:
@@ -5117,11 +5123,15 @@ async def get_annual_report_for_view(report_id: str):
         for template in (noter_mapping_result.data or []):
             row_id = template.get('row_id')
             stored = stored_noter.get(row_id, {})
-            merged_noter.append({
+            merged_item = {
                 **template,
                 'current_amount': stored.get('current_amount'),
                 'previous_amount': stored.get('previous_amount'),
-            })
+            }
+            # Include variable_text from stored data if present (for text notes like redovisning_principer)
+            if stored.get('variable_text'):
+                merged_item['variable_text'] = stored.get('variable_text')
+            merged_noter.append(merged_item)
         
         # Get fiscal year from dates
         fiscal_year_end = report.get('fiscal_year_end')
