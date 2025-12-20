@@ -203,17 +203,39 @@ const ReportView = () => {
 
   const getStyleClasses = (style?: string) => {
     const baseClasses = "grid gap-4";
-    let additionalClasses = "";
-
-    if (["H0", "H1", "H2", "H3", "S1", "S2", "S3"].includes(style || "")) {
-      additionalClasses += " font-semibold";
+    const classes: string[] = [baseClasses];
+    const s = style || "";
+    
+    const headingStyles = ["H0", "H1", "H2", "H3"];
+    const isHeading = headingStyles.includes(s);
+    
+    if (isHeading) {
+      classes.push("py-1.5", "font-semibold");
     }
-    if (style === "S2" || style === "S3") {
-      additionalClasses += " border-t border-b border-gray-200 pt-1 pb-1";
+    
+    // Summary/total lines
+    const lineStyles = ["S1", "S2", "S3"];
+    const isLine = lineStyles.includes(s);
+    
+    if (isLine) {
+      classes.push("font-semibold");
+    }
+    
+    if (s === "S2" || s === "S3") {
+      classes.push("border-t", "border-b", "border-gray-200", "py-1");
+    }
+    
+    if (s === "S1") {
+      classes.push("border-t", "border-gray-300", "py-1");
+    }
+    
+    // Compact default rows (not heading, not line)
+    if (!isHeading && !isLine) {
+      classes.push("py-0"); // Keep rows ultra-tight by default
     }
 
     return {
-      className: `${baseClasses}${additionalClasses}`,
+      className: classes.join(" "),
       style: { gridTemplateColumns: "4fr 0.5fr 1fr 1fr" },
     };
   };
@@ -425,7 +447,7 @@ const ReportView = () => {
                 return (
                   <div
                     key={item.id || index}
-                    className={`${styleClasses.className} ${item.level === 0 ? "border-b pb-1" : ""} py-1`}
+                    className={styleClasses.className}
                     style={styleClasses.style}
                   >
                     <span className="text-gray-600 flex items-center justify-between">
