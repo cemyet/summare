@@ -1047,35 +1047,28 @@ const ReportView = () => {
                   <span className="text-right">{report.fiscal_year}</span>
                 </div>
 
-                {/* INK2 Rows */}
+                {/* INK2 Rows - Shows full skattedeklaration (like "Visa hela INK2S" toggle ON) */}
                 <div className="space-y-0">
                   {(() => {
                     // Helper to check if row should be visible
+                    // Mirrors "Visa hela INK2S" toggle ON behavior - shows toggle_show=true rows
                     const shouldShowInk2Row = (item: any): boolean => {
                       // Always exclude hidden helper rows
                       if (item.variable_name === 'INK4.23b' || item.variable_name === 'INK4.24b') return false;
-                      if (item.variable_name === 'INK4.3a') return false; // Skatt row handled separately
                       
-                      // Always show rows marked always_show
-                      if (item.always_show === true) return true;
+                      // Always exclude rows explicitly marked to never show
+                      if (item.show_amount === 'NEVER') return false;
                       
-                      // Hide rows explicitly marked as not to show
-                      if (item.always_show === false) return false;
-                      
-                      // For headers, check if block has any visible content
-                      if (item.header === true) {
-                        const blockItems = report.ink2_data.filter((r: any) => 
-                          r.block === item.block && r.header !== true
-                        );
-                        return blockItems.some((r: any) => 
-                          r.always_show === true || 
-                          (r.amount !== null && r.amount !== undefined && r.amount !== 0)
-                        );
+                      // Special case: INK_sarskild_loneskatt - hide unless there's an actual difference
+                      // (we don't have pension data in Mina Sidor, so just hide if amount is 0)
+                      if (item.variable_name === 'INK_sarskild_loneskatt') {
+                        if (item.toggle_show === false) return false;
+                        const hasAmount = item.amount !== null && item.amount !== undefined && item.amount !== 0;
+                        return hasAmount;
                       }
                       
-                      // Show if has non-zero amount
-                      const hasNonZeroAmount = item.amount !== null && item.amount !== undefined && item.amount !== 0;
-                      return hasNonZeroAmount;
+                      // Show all rows with toggle_show = true (full skattedeklaration view)
+                      return item.toggle_show === true;
                     };
 
                     // Style helper for INK2 rows
