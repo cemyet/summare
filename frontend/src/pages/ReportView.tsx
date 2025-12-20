@@ -1457,15 +1457,20 @@ const ReportView = () => {
             ref={(el) => (sectionRefs.current["skattedeklaration"] = el)}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
-            <div className="mb-6 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Skattedeklaration</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Visa alla rader</span>
-                <Switch
-                  checked={showAllInk2}
-                  onCheckedChange={setShowAllInk2}
-                />
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <h2 className="text-xl font-semibold text-gray-900">Skattedeklaration INK2S</h2>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Visa alla rader</span>
+                  <Switch
+                    checked={showAllInk2}
+                    onCheckedChange={setShowAllInk2}
+                  />
+                </div>
               </div>
+              <p className="text-sm text-gray-500">
+                Här kan du se din INK2S deklaration. För att se hela skattedeklarationen gå till Mina dokument och ladda ner Inkomstdeklaration som pdf eller SRU-filer.
+              </p>
             </div>
 
             {report.ink2_data && report.ink2_data.length > 0 ? (
@@ -1738,7 +1743,7 @@ const ReportView = () => {
               {/* Inkomstdeklaration SRU */}
               <DownloadCard
                 title="Inkomstdeklaration"
-                subtitle="Ladda ner SRU-fil"
+                subtitle="Ladda ner SRU-filer"
                 reportId={report?.id}
                 endpoint="sru"
                 filename="INK2.zip"
