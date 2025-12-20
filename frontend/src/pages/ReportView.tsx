@@ -1056,6 +1056,9 @@ const ReportView = () => {
                       // Always exclude hidden helper rows
                       if (item.variable_name === 'INK4.23b' || item.variable_name === 'INK4.24b') return false;
                       
+                      // Exclude duplicate "Skatteberäkning" header
+                      if (item.variable_name === 'INK4_header') return false;
+                      
                       // Always exclude rows explicitly marked to never show
                       if (item.show_amount === 'NEVER') return false;
                       
@@ -1069,6 +1072,20 @@ const ReportView = () => {
                       
                       // Show all rows with toggle_show = true (full skattedeklaration view)
                       return item.toggle_show === true;
+                    };
+                    
+                    // Helper to check if row is a Ja/Nej row (radio button type)
+                    const isJaNejRow = (variableName: string): boolean => {
+                      return variableName === 'INK4.23a' || variableName === 'INK4.24a';
+                    };
+                    
+                    // Get Ja/Nej value from stored data
+                    const getJaNejValue = (variableName: string): string => {
+                      // For INK4.23a: if amount = 1, then "Ja", else "Nej"
+                      // For INK4.24a: if amount = 1, then "Ja", else "Nej"
+                      const item = report.ink2_data.find((r: any) => r.variable_name === variableName);
+                      const amount = item?.amount;
+                      return amount === 1 ? "Ja" : "Nej";
                     };
 
                     // Style helper for INK2 rows
@@ -1122,20 +1139,24 @@ const ReportView = () => {
                       .map((item: any, index: number) => {
                         const styleClasses = getInk2StyleClasses(item.style, item.variable_name);
                         const isHeading = ['TH1', 'TH2', 'TH3'].includes(item.style || '');
+                        const isJaNej = isJaNejRow(item.variable_name);
+                        const hasVisa = item.show_tag && item.account_details?.length > 0;
                         
                         return (
                           <div
                             key={item.variable_name || index}
                             className={`${styleClasses.className} py-1`}
-                            style={styleClasses.style}
+                            style={{ ...styleClasses.style, gridTemplateColumns: "3fr 0.5fr 1fr" }}
                           >
-                            <span className="text-gray-600 flex items-center">
-                              <span>{item.row_title}</span>
-                              {/* VISA button for rows with account_details */}
-                              {item.show_tag && item.account_details?.length > 0 && (
+                            {/* Row title */}
+                            <span className="text-gray-600">{item.row_title}</span>
+                            
+                            {/* VISA button column - aligned */}
+                            <span className="flex justify-end">
+                              {hasVisa && (
                                 <Popover>
                                   <PopoverTrigger asChild>
-                                    <Button variant="outline" size="sm" className="ml-2 h-5 px-2 text-xs">
+                                    <Button variant="outline" size="sm" className="h-5 px-2 text-xs">
                                       VISA
                                     </Button>
                                   </PopoverTrigger>
@@ -1181,11 +1202,14 @@ const ReportView = () => {
                                 </Popover>
                               )}
                             </span>
+                            
+                            {/* Amount/value column */}
                             {!isHeading && (
                               <span className="text-right font-medium">
-                                {item.amount !== null && item.amount !== undefined
-                                  ? `${new Intl.NumberFormat("sv-SE").format(Math.round(item.amount))} kr`
-                                  : ""}
+                                {isJaNej 
+                                  ? getJaNejValue(item.variable_name)
+                                  : `${new Intl.NumberFormat("sv-SE").format(Math.round(item.amount || 0))} kr`
+                                }
                               </span>
                             )}
                             {isHeading && <span></span>}
