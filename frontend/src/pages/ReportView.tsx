@@ -107,8 +107,9 @@ const ReportView = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeSection, setActiveSection] = useState("resultatrakning");
-  const [showAllRR, setShowAllRR] = useState(false);
-  const [showAllBR, setShowAllBR] = useState(false);
+  // Always false since we don't show toggles in Mina Sidor
+  const showAllRR = false;
+  const showAllBR = false;
   const [noterBlockToggles, setNoterBlockToggles] = useState<Record<string, boolean>>({});
   
   // Company/fiscal year selection
@@ -222,7 +223,15 @@ const ReportView = () => {
     setActiveSection(sectionId);
     const ref = sectionRefs.current[sectionId];
     if (ref) {
-      ref.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Get the header height and add some padding
+      const headerHeight = 80; // Approximate header height
+      const elementPosition = ref.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerHeight;
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: "smooth"
+      });
     }
   };
 
@@ -383,6 +392,15 @@ const ReportView = () => {
         (item.previous_amount !== null && item.previous_amount !== undefined && item.previous_amount !== 0);
       return hasNonZero;
     });
+  };
+
+  // Get note number for a BR/RR row (now served from backend)
+  const getNoteNumberForRow = (item: any): string => {
+    // Backend now calculates and includes note_number in the merged data
+    if (item.note_number !== undefined && item.note_number !== null) {
+      return item.note_number.toString();
+    }
+    return '';
   };
 
   // Calculate note numbers for visible blocks
@@ -573,16 +591,8 @@ const ReportView = () => {
             ref={(el) => (sectionRefs.current["resultatrakning"] = el)}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
-            <div className="flex items-center justify-between mb-6">
+            <div className="mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Resultaträkning</h2>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500">Visa alla rader</span>
-                <Switch
-                  checked={showAllRR}
-                  onCheckedChange={setShowAllRR}
-                  className={showAllRR ? "bg-green-500" : "bg-gray-300"}
-                />
-              </div>
             </div>
 
             {/* Column Headers */}
@@ -671,7 +681,7 @@ const ReportView = () => {
                       )}
                     </span>
                     <span className="text-right font-medium text-gray-500">
-                      {item.not_number || ""}
+                      {getNoteNumberForRow(item)}
                     </span>
                     <span className="text-right font-medium">
                       {formatAmount(item.current_amount)}
@@ -690,16 +700,8 @@ const ReportView = () => {
             ref={(el) => (sectionRefs.current["balansrakning"] = el)}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
-            <div className="flex items-center justify-between mb-6">
+            <div className="mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Balansräkning</h2>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-500">Visa alla rader</span>
-                <Switch
-                  checked={showAllBR}
-                  onCheckedChange={setShowAllBR}
-                  className={showAllBR ? "bg-green-500" : "bg-gray-300"}
-                />
-              </div>
             </div>
 
             {/* Column Headers */}
@@ -793,7 +795,7 @@ const ReportView = () => {
                       )}
                     </span>
                     <span className="text-right font-medium text-gray-500">
-                      {item.note_number || ""}
+                      {getNoteNumberForRow(item)}
                     </span>
                     <span className="text-right font-medium">
                       {formatAmount(item.current_amount)}

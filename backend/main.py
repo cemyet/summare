@@ -5133,6 +5133,89 @@ async def get_annual_report_for_view(report_id: str):
                 merged_item['variable_text'] = stored.get('variable_text')
             merged_noter.append(merged_item)
         
+        # Calculate dynamic note numbers based on visible noter blocks
+        # Group noter data by block
+        noter_by_block = {}
+        for item in merged_noter:
+            block = item.get('block', 'OTHER')
+            if block not in noter_by_block:
+                noter_by_block[block] = []
+            noter_by_block[block].append(item)
+        
+        # Note order (same as in PDF/XBRL generators)
+        NOTE_ORDER = [
+            'NOT1', 'NOT2', 'KONCERN', 'INTRESSEFTG', 'BYGG', 'MASKIN', 'INV', 'MAT', 
+            'LVP', 'FORDRKONC', 'FORDRINTRE', 'OVRIGAFTG', 'FORDROVRFTG', 
+            'EVENTUAL', 'SAKERHET', 'OVRIGA'
+        ]
+        
+        # Blocks that should only get note numbers if they have non-zero amounts
+        BLOCKS_TO_HIDE_IF_ZERO = [
+            'KONCERN', 'INTRESSEFTG', 'BYGG', 'MASKIN', 'INV', 'MAT', 'LVP',
+            'FORDRKONC', 'FORDRINTRE', 'OVRIGAFTG', 'FORDROVRFTG'
+        ]
+        
+        def block_has_nonzero_amounts(block_items):
+            """Check if block has any non-zero amounts"""
+            for item in block_items:
+                cur = item.get('current_amount')
+                prev = item.get('previous_amount')
+                if (cur is not None and cur != 0) or (prev is not None and prev != 0):
+                    return True
+            return False
+        
+        # Calculate note numbers for visible blocks
+        note_numbers = {'NOT1': 1, 'NOT2': 2}  # Fixed numbers for NOT1 and NOT2
+        next_note = 3
+        
+        for block in NOTE_ORDER:
+            if block in ['NOT1', 'NOT2']:
+                continue
+            block_items = noter_by_block.get(block, [])
+            
+            # Check if block should be visible (has non-zero amounts)
+            if block in BLOCKS_TO_HIDE_IF_ZERO:
+                if block_has_nonzero_amounts(block_items):
+                    note_numbers[block] = next_note
+                    next_note += 1
+            else:
+                # For blocks not in hide-if-zero list, assign number if block exists
+                if block_items:
+                    note_numbers[block] = next_note
+                    next_note += 1
+        
+        print(f"📊 Debug: Calculated note_numbers: {note_numbers}")
+        
+        # Create mappings from br_not/rr_not to note numbers
+        br_not_to_note = {}
+        rr_not_to_note = {}
+        
+        for noter_item in (noter_mapping_result.data or []):
+            block = noter_item.get('block')
+            br_not = noter_item.get('br_not')
+            rr_not = noter_item.get('rr_not')
+            
+            if block in note_numbers:
+                if br_not:
+                    br_not_to_note[br_not] = note_numbers[block]
+                if rr_not:
+                    rr_not_to_note[rr_not] = note_numbers[block]
+        
+        print(f"📊 Debug: BR note mappings: {br_not_to_note}")
+        print(f"📊 Debug: RR note mappings: {rr_not_to_note}")
+        
+        # Add note numbers to merged BR data
+        for br_item in merged_br:
+            row_id = br_item.get('id') or br_item.get('row_id')
+            if row_id in br_not_to_note:
+                br_item['note_number'] = br_not_to_note[row_id]
+        
+        # Add note numbers to merged RR data
+        for rr_item in merged_rr:
+            row_id = rr_item.get('id') or rr_item.get('row_id')
+            if row_id in rr_not_to_note:
+                rr_item['note_number'] = rr_not_to_note[row_id]
+        
         # Get fiscal year from dates
         fiscal_year_end = report.get('fiscal_year_end')
         fiscal_year = int(fiscal_year_end[:4]) if fiscal_year_end else None
