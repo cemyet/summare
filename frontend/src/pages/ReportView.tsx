@@ -201,41 +201,24 @@ const ReportView = () => {
     }).format(Math.round(amount))} kr`;
   };
 
+  // Match exactly the getStyleClasses from AnnualReportPreview.tsx
   const getStyleClasses = (style?: string) => {
     const baseClasses = "grid gap-4";
-    const classes: string[] = [baseClasses];
-    const s = style || "";
+    let additionalClasses = "";
     
-    const headingStyles = ["H0", "H1", "H2", "H3"];
-    const isHeading = headingStyles.includes(s);
-    
-    if (isHeading) {
-      classes.push("py-1.5", "font-semibold");
+    // Handle bold styling for header styles only
+    if (style === "H0" || style === "H1" || style === "H2" || style === "H3" || 
+        style === "S1" || style === "S2" || style === "S3") {
+      additionalClasses += " font-semibold";
     }
     
-    // Summary/total lines
-    const lineStyles = ["S1", "S2", "S3"];
-    const isLine = lineStyles.includes(s);
-    
-    if (isLine) {
-      classes.push("font-semibold");
+    // Handle specific styling for S2 and S3 (thin grey lines above and below)
+    if (style === "S2" || style === "S3") {
+      additionalClasses += " border-t border-b border-gray-200 pt-1 pb-1";
     }
     
-    if (s === "S2" || s === "S3") {
-      classes.push("border-t", "border-b", "border-gray-200", "py-1");
-    }
-    
-    if (s === "S1") {
-      classes.push("border-t", "border-gray-300", "py-1");
-    }
-    
-    // Compact default rows (not heading, not line)
-    if (!isHeading && !isLine) {
-      classes.push("py-0"); // Keep rows ultra-tight by default
-    }
-
     return {
-      className: classes.join(" "),
+      className: `${baseClasses}${additionalClasses}`,
       style: { gridTemplateColumns: "4fr 0.5fr 1fr 1fr" },
     };
   };
