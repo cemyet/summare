@@ -4167,6 +4167,235 @@ async def pdf_annual_report(request: Request):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
 
+
+@app.get("/api/pdf/annual-report/{report_id}")
+async def pdf_annual_report_from_stored(report_id: str):
+    """
+    Generate full annual report PDF using stored data from annual_report_data table.
+    Uses the full company_data column which contains all original data.
+    """
+    try:
+        from services.pdf_annual_report import generate_full_annual_report_pdf
+        from fastapi.responses import Response
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Fetch stored report data
+        report_result = supabase.table('annual_report_data')\
+            .select('company_data, company_name, fiscal_year_end')\
+            .eq('id', report_id)\
+            .execute()
+        
+        if not report_result.data or len(report_result.data) == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report = report_result.data[0]
+        company_data = report.get('company_data') or {}
+        
+        if not company_data:
+            raise HTTPException(status_code=400, detail="No company data stored for this report")
+        
+        pdf_bytes = generate_full_annual_report_pdf(company_data)
+        
+        # Extract name and fiscal year for filename
+        company_name = report.get('company_name') or 'bolag'
+        fiscal_year_end = report.get('fiscal_year_end', '')
+        fy = fiscal_year_end[:4] if fiscal_year_end else ''
+        
+        filename = f'arsredovisning_{company_name}_{fy}.pdf'
+        
+        return Response(
+            content=pdf_bytes,
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error generating PDF from stored data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
+
+
+@app.get("/api/pdf/ink2-form/{report_id}")
+async def pdf_ink2_form_from_stored(report_id: str):
+    """
+    Generate filled INK2 tax declaration PDF form from stored data.
+    """
+    try:
+        from services.ink2_pdf_filler import generate_filled_ink2_pdf
+        from fastapi.responses import Response
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Fetch stored report data
+        report_result = supabase.table('annual_report_data')\
+            .select('company_data, company_name, organization_number, fiscal_year_end')\
+            .eq('id', report_id)\
+            .execute()
+        
+        if not report_result.data or len(report_result.data) == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report = report_result.data[0]
+        company_data = report.get('company_data') or {}
+        
+        organization_number = report.get('organization_number')
+        fiscal_year_end = report.get('fiscal_year_end', '')
+        fiscal_year = fiscal_year_end[:4] if fiscal_year_end else ''
+        
+        if not organization_number:
+            raise HTTPException(status_code=400, detail="No organization number for this report")
+        
+        # Generate filled PDF
+        pdf_bytes = generate_filled_ink2_pdf(organization_number, fiscal_year, company_data)
+        
+        # Extract name for filename
+        company_name = report.get('company_name') or 'bolag'
+        
+        filename = f'INK2_inkomstdeklaration_{company_name}_{fiscal_year}.pdf'
+        
+        return Response(
+            content=pdf_bytes,
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error generating INK2 PDF from stored data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating INK2 PDF: {str(e)}")
+
+
+@app.get("/api/sru/generate/{report_id}")
+async def generate_sru_from_stored(report_id: str):
+    """
+    Generate SRU files from stored data.
+    """
+    try:
+        from services.sru_generator import generate_sru_files
+        from fastapi.responses import Response
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Fetch stored report data
+        report_result = supabase.table('annual_report_data')\
+            .select('company_data, company_name')\
+            .eq('id', report_id)\
+            .execute()
+        
+        if not report_result.data or len(report_result.data) == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report = report_result.data[0]
+        company_data = report.get('company_data') or {}
+        
+        if not company_data:
+            raise HTTPException(status_code=400, detail="No company data stored for this report")
+        
+        # Generate SRU files - returns a zip file as bytes
+        zip_bytes = generate_sru_files(company_data)
+        
+        company_name = report.get('company_name') or 'bolag'
+        filename = f'INK2_{company_name}.zip'
+        
+        return Response(
+            content=zip_bytes,
+            media_type='application/zip',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error generating SRU from stored data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating SRU: {str(e)}")
+
+
+@app.get("/api/pdf/bokforing-instruktion/{report_id}")
+async def pdf_bokforing_instruktion_from_stored(report_id: str):
+    """
+    Generate Bokföringsinstruktion PDF from stored data.
+    """
+    try:
+        from services.bokforing_pdf import generate_bokforing_instruktion_pdf
+        from fastapi.responses import Response
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Fetch stored report data
+        report_result = supabase.table('annual_report_data')\
+            .select('company_data, company_name, fiscal_year_end')\
+            .eq('id', report_id)\
+            .execute()
+        
+        if not report_result.data or len(report_result.data) == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report = report_result.data[0]
+        company_data = report.get('company_data') or {}
+        
+        if not company_data:
+            raise HTTPException(status_code=400, detail="No company data stored for this report")
+        
+        # Generate PDF - may return None if no adjustments needed
+        pdf_bytes = generate_bokforing_instruktion_pdf(company_data)
+        
+        if not pdf_bytes:
+            raise HTTPException(status_code=400, detail="Ingen bokföringsinstruktion krävs - inga justeringar behövs")
+        
+        company_name = report.get('company_name') or 'bolag'
+        fiscal_year_end = report.get('fiscal_year_end', '')
+        fy = fiscal_year_end[:4] if fiscal_year_end else ''
+        
+        filename = f'bokforingsinstruktion_{company_name}_{fy}.pdf'
+        
+        return Response(
+            content=pdf_bytes,
+            media_type='application/pdf',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"',
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error generating Bokföringsinstruktion from stored data: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating Bokföringsinstruktion: {str(e)}")
+
+
 @app.post("/api/pdf/ink2-form")
 async def pdf_ink2_form(request: Request):
     """

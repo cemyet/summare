@@ -100,6 +100,140 @@ const BLOCK_HEADINGS: Record<string, string> = {
   'OVRIGA': 'Övriga upplysningar',
 };
 
+// Download Card Component for Mina dokument section
+interface DownloadCardProps {
+  title: string;
+  subtitle: string;
+  reportId?: string;
+  endpoint: string;
+  filename: string;
+}
+
+const DownloadCard = ({ title, subtitle, reportId, endpoint, filename }: DownloadCardProps) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+
+  const handleDownload = async () => {
+    if (!reportId) return;
+    
+    try {
+      setIsGenerating(true);
+      
+      // Determine the correct API endpoint
+      let url = '';
+      if (endpoint === 'annual-report') {
+        url = `${API_BASE_URL}/api/pdf/annual-report/${reportId}`;
+      } else if (endpoint === 'ink2-form') {
+        url = `${API_BASE_URL}/api/pdf/ink2-form/${reportId}`;
+      } else if (endpoint === 'sru') {
+        url = `${API_BASE_URL}/api/sru/generate/${reportId}`;
+      } else if (endpoint === 'bokforing-instruktion') {
+        url = `${API_BASE_URL}/api/pdf/bokforing-instruktion/${reportId}`;
+      }
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`${endpoint} error:`, errorText);
+        
+        // Handle specific error for bokforing-instruktion (no adjustments needed)
+        if (response.status === 400 && endpoint === 'bokforing-instruktion') {
+          alert('Ingen bokföringsinstruktion krävs - inga justeringar behövs för detta bolag.');
+          setIsGenerating(false);
+          return;
+        }
+        
+        throw new Error(`Server responded with ${response.status}`);
+      }
+      
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      
+      // Use filename from Content-Disposition header if available
+      const contentDisposition = response.headers.get('Content-Disposition');
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          a.download = filenameMatch[1];
+        } else {
+          a.download = filename;
+        }
+      } else {
+        a.download = filename;
+      }
+      
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+      a.remove();
+      
+      setDownloaded(true);
+      setIsGenerating(false);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Ett fel uppstod vid nedladdning. Försök igen.');
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div
+      className={`border-2 border-dashed rounded-lg p-6 text-center transition-all duration-300 ${
+        downloaded
+          ? 'border-green-500 bg-green-50'
+          : 'border-gray-200 hover:border-gray-400'
+      }`}
+    >
+      <div className="space-y-3">
+        <div className="mx-auto w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+          {downloaded ? (
+            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          ) : (
+            <FileText className="w-5 h-5 text-gray-500" />
+          )}
+        </div>
+
+        <div className="space-y-1">
+          <h3 className="text-base font-semibold text-gray-900">
+            {title}
+          </h3>
+          <p className="text-sm text-gray-500">
+            {subtitle}
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          className="cursor-pointer w-full mt-2"
+          onClick={handleDownload}
+          disabled={isGenerating || !reportId}
+        >
+          {isGenerating ? (
+            <>
+              <div className="w-4 h-4 mr-2 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+              Genererar...
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4 mr-2" />
+              Ladda ner
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 const ReportView = () => {
   const navigate = useNavigate();
   const { reportId } = useParams<{ reportId: string }>();
@@ -1512,6 +1646,55 @@ const ReportView = () => {
             ) : (
               <p className="text-gray-500">Ingen skatteberäkning tillgänglig.</p>
             )}
+          </div>
+
+          {/* Mina dokument Section */}
+          <div
+            ref={(el) => (sectionRefs.current["mina-dokument"] = el)}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
+          >
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Dokument och filer</h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Nu finns alla dokument och filer klara för nedladdning. Signering av årsredovisning kommer att göras digitalt i nästa steg, men du kan också ladda ner den som pdf. Inkomstdeklarationen kan du antingen ladda ner som pdf eller som SRU-filer, som du sen kan ladda upp på Skatteverkets hemsida för att lämna in deklarationen. Dessutom finns en bokföringsinstruktion att ladda ner om justeringar på årets resultat har gjorts.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Årsredovisning PDF */}
+              <DownloadCard
+                title="Årsredovisning"
+                subtitle="Ladda ner pdf"
+                reportId={report?.id}
+                endpoint="annual-report"
+                filename="arsredovisning.pdf"
+              />
+              
+              {/* Inkomstdeklaration PDF */}
+              <DownloadCard
+                title="Inkomstdeklaration"
+                subtitle="Ladda ner pdf"
+                reportId={report?.id}
+                endpoint="ink2-form"
+                filename="INK2_inkomstdeklaration.pdf"
+              />
+              
+              {/* Inkomstdeklaration SRU */}
+              <DownloadCard
+                title="Inkomstdeklaration"
+                subtitle="Ladda ner SRU-fil"
+                reportId={report?.id}
+                endpoint="sru"
+                filename="INK2.zip"
+              />
+              
+              {/* Bokföringsinstruktion */}
+              <DownloadCard
+                title="Bokföringsinstruktion"
+                subtitle="Ladda ner pdf"
+                reportId={report?.id}
+                endpoint="bokforing-instruktion"
+                filename="bokforingsinstruktion.pdf"
+              />
+            </div>
           </div>
         </div>
       </main>
