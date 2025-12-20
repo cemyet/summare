@@ -581,7 +581,7 @@ const ReportView = () => {
 
               {/* Fiscal Year Dropdown */}
               <Select value={selectedFiscalYear} onValueChange={handleFiscalYearChange}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="w-[230px]">
                   <SelectValue placeholder="Välj räkenskapsår">
                     {report?.fiscal_year_start && report?.fiscal_year_end
                       ? `${report.fiscal_year_start} - ${report.fiscal_year_end}`
