@@ -549,10 +549,10 @@ const ReportView = () => {
 
                 const styleClasses = getStyleClasses(item.style);
                 
-                // BR-specific: add 4pt padding above S2 rows
+                // BR-specific: add 6pt padding above S1 and S2 rows
                 let brStyle = { ...styleClasses.style };
-                if (item.style === "S2") {
-                  brStyle = { ...brStyle, marginTop: "4pt" };
+                if (item.style === "S1" || item.style === "S2") {
+                  brStyle = { ...brStyle, marginTop: "6pt" };
                 }
 
                 return (
