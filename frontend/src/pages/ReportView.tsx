@@ -1146,7 +1146,7 @@ const ReportView = () => {
                           <div
                             key={item.variable_name || index}
                             className={`${styleClasses.className} ${isHeading ? 'py-1' : 'py-0.5'}`}
-                            style={{ ...styleClasses.style, gridTemplateColumns: "3fr 0.5fr 1fr" }}
+                            style={{ ...styleClasses.style, gridTemplateColumns: "5fr 0.7fr 1fr" }}
                           >
                             {/* Row title */}
                             <span className="text-gray-600">{item.row_title}</span>
