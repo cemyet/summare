@@ -1469,7 +1469,8 @@ const ReportView = () => {
                 </div>
               </div>
               <p className="text-sm text-gray-500">
-                Här kan du se din INK2S deklaration. För att se hela skattedeklarationen gå till Mina dokument och ladda ner Inkomstdeklaration som pdf eller SRU-filer.
+                Här kan du se din INK2S deklaration. För att se hela skattedeklarationen gå till Mina dokument och<br />
+                ladda ner Inkomstdeklaration som pdf eller SRU-filer.
               </p>
             </div>
 
