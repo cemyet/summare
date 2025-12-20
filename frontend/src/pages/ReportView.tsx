@@ -501,13 +501,115 @@ const ReportView = () => {
             </div>
           </div>
 
-          {/* Placeholder sections for other nav items */}
+          {/* Balansräkning Section */}
           <div
             ref={(el) => (sectionRefs.current["balansrakning"] = el)}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Balansräkning</h2>
-            <p className="text-gray-500">Balansräkning kommer snart...</p>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Balansräkning</h2>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500">Visa alla rader</span>
+                <Switch
+                  checked={showAllBR}
+                  onCheckedChange={setShowAllBR}
+                  className={showAllBR ? "bg-green-500" : "bg-gray-300"}
+                />
+              </div>
+            </div>
+
+            {/* Column Headers */}
+            <div
+              className="grid gap-4 text-sm text-gray-500 border-b pb-2 font-semibold"
+              style={{ gridTemplateColumns: "4fr 0.5fr 1fr 1fr" }}
+            >
+              <span></span>
+              <span className="text-right">Not</span>
+              <span className="text-right">{report.fiscal_year}-12-31</span>
+              <span className="text-right">{report.fiscal_year - 1}-12-31</span>
+            </div>
+
+            {/* BR Rows */}
+            <div className="mt-2 space-y-0">
+              {report.br_data.map((item, index) => {
+                if (!shouldShowRow(item, showAllBR, report.br_data)) {
+                  return null;
+                }
+
+                const styleClasses = getStyleClasses(item.style);
+
+                return (
+                  <div
+                    key={item.id || index}
+                    className={`${styleClasses.className} ${item.level === 0 ? "border-b pb-1" : ""} py-1`}
+                    style={styleClasses.style}
+                  >
+                    <span className="text-gray-600 flex items-center justify-between">
+                      <span>{item.label}</span>
+                      {/* VISA button for rows with account_details */}
+                      {item.show_tag && item.account_details?.length > 0 &&
+                       item.current_amount !== null && Math.abs(item.current_amount) > 0 && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="ml-2 h-5 px-2 text-xs">
+                              VISA
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
+                            <div className="space-y-3">
+                              <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="border-b">
+                                      <th className="text-left py-2 w-16">Konto</th>
+                                      <th className="text-left py-2">Kontotext</th>
+                                      <th className="text-right py-2 w-24">{report.fiscal_year}</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {item.account_details.map((detail: any, i: number) => (
+                                      <tr key={i} className="border-b">
+                                        <td className="py-2 w-16">{detail.account_id}</td>
+                                        <td className="py-2">{detail.account_text || ""}</td>
+                                        <td className="text-right py-2 w-24">
+                                          {new Intl.NumberFormat("sv-SE").format(detail.balance)} kr
+                                        </td>
+                                      </tr>
+                                    ))}
+                                    <tr className="border-t border-gray-300 font-semibold">
+                                      <td className="py-2">Summa</td>
+                                      <td></td>
+                                      <td className="text-right py-2">
+                                        {new Intl.NumberFormat("sv-SE").format(
+                                          item.account_details.reduce(
+                                            (sum: number, d: any) => sum + (d.balance || 0),
+                                            0
+                                          )
+                                        )} kr
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    </span>
+                    <span className="text-right font-medium text-gray-500">
+                      {item.note_number || ""}
+                    </span>
+                    <span className="text-right font-medium">
+                      {formatAmount(item.current_amount)}
+                    </span>
+                    <span className="text-right font-medium">
+                      {formatAmount(item.previous_amount)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div
