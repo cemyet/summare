@@ -1013,7 +1013,10 @@ async def upload_se_file(file: UploadFile = File(...)):
                 # ORIGINAL VALUES for Bokföringsinstruktion (never modified by INK2 adjustments)
                 "arets_resultat_original": arets_resultat_original,
                 "arets_skatt_original": arets_skatt_original,
-                "__original_rr_snapshot__": original_rr_snapshot  # Deep snapshot of pre-INK2 RR
+                "__original_rr_snapshot__": original_rr_snapshot,  # Deep snapshot of pre-INK2 RR
+                # Raw SIE file content for troubleshooting
+                "sie_content_current": se_content,
+                "sie_content_previous": None  # Single file upload has no previous year
             },
             "message": "SE-fil laddad framgångsrikt"
         }
@@ -1271,7 +1274,10 @@ async def upload_two_se_files(
                 # ORIGINAL VALUES for Bokföringsinstruktion (never modified by INK2 adjustments)
                 "arets_resultat_original": arets_resultat_original,
                 "arets_skatt_original": arets_skatt_original,
-                "__original_rr_snapshot__": original_rr_snapshot  # Deep snapshot of pre-INK2 RR
+                "__original_rr_snapshot__": original_rr_snapshot,  # Deep snapshot of pre-INK2 RR
+                # Raw SIE file content for troubleshooting
+                "sie_content_current": current_se_content,
+                "sie_content_previous": previous_se_content
             },
             "message": "Båda SE-filerna laddades framgångsrikt"
         }
@@ -5136,6 +5142,10 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
         ink2_data_slim = _slim_ink2_data(ink2_data_raw)
         signering_data_slim = _slim_signering_data(signering_data_raw)
         
+        # Extract raw SIE file content for troubleshooting (if available)
+        sie_content_current = se_file_data.get('sie_content_current')
+        sie_content_previous = se_file_data.get('sie_content_previous')
+        
         # Build data object with all the report sections
         db_data = {
             "organization_number": org_number,
@@ -5152,6 +5162,12 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             "status": request.status,
             "updated_at": datetime.now().isoformat()
         }
+        
+        # Add SIE content if available (for troubleshooting)
+        if sie_content_current:
+            db_data["sie_content_current"] = sie_content_current
+        if sie_content_previous:
+            db_data["sie_content_previous"] = sie_content_previous
         
         print(f"💾 Saving annual report: org={org_number}, period={fiscal_year_start} to {fiscal_year_end}")
         
