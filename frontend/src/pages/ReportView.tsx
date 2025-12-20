@@ -550,7 +550,7 @@ const ReportView = () => {
                 }`}
               >
                 <Icon className="w-5 h-5 flex-shrink-0" />
-                <span className="font-medium truncate">{item.label}</span>
+                <span className="font-medium text-sm">{item.label}</span>
               </button>
             );
           })}
