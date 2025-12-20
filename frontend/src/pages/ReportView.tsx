@@ -430,7 +430,7 @@ const ReportView = () => {
                 return (
                   <div
                     key={item.id || index}
-                    className={styleClasses.className}
+                    className={`${styleClasses.className} ${item.level === 0 ? "border-b pb-1" : ""} py-1`}
                     style={styleClasses.style}
                   >
                     <span className="text-gray-600 flex items-center justify-between">
