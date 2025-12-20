@@ -865,7 +865,7 @@ const ReportView = () => {
                     if (block === 'NOT1') {
                       const textItem = blockItems.find((item: any) => item.variable_name === 'redovisning_principer');
                       return (
-                        <div key={block} className="border-b border-gray-100 pb-4">
+                        <div key={block} className="pb-4">
                           <h3 className="text-lg font-semibold mb-3">{fullHeading}</h3>
                           <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
                             {textItem?.variable_text || 'Årsredovisningen är upprättad i enlighet med årsredovisningslagen och Bokföringsnämndens allmänna råd (BFNAR 2016:10) om årsredovisning i mindre företag.'}
@@ -878,7 +878,7 @@ const ReportView = () => {
                     if (block === 'NOT2') {
                       const employeesItem = blockItems.find((item: any) => item.variable_name === 'ant_anstallda');
                       return (
-                        <div key={block} className="border-b border-gray-100 pb-4">
+                        <div key={block} className="pb-4">
                           <h3 className="text-lg font-semibold mb-3">{fullHeading}</h3>
                           <div className="grid gap-4" style={{ gridTemplateColumns: "4fr 1fr 1fr" }}>
                             <span className="text-sm text-gray-500"></span>
@@ -896,7 +896,7 @@ const ReportView = () => {
                     
                     // Regular block rendering
                     return (
-                      <div key={block} className="border-b border-gray-100 pb-4">
+                      <div key={block} className="pb-4">
                         {/* Block header */}
                         <div className="mb-3">
                           <h3 className="text-lg font-semibold">{fullHeading}</h3>
