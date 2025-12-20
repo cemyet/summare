@@ -844,7 +844,7 @@ const ReportView = () => {
                   
                   return (
                     <div className="text-sm text-gray-600 space-y-2">
-                      <p className="text-gray-700">Styrelsen föreslår att till förfogande stående vinstmedel:</p>
+                      <p className="text-gray-700" style={{ paddingTop: '14pt' }}>Styrelsen föreslår att till förfogande stående vinstmedel:</p>
                       
                       <table className="w-full max-w-md">
                         <tbody>
@@ -863,7 +863,7 @@ const ReportView = () => {
                         </tbody>
                       </table>
                       
-                      <p className="text-gray-700 mt-4">Disponeras enligt följande:</p>
+                      <p className="text-gray-700" style={{ paddingTop: '20pt' }}>Disponeras enligt följande:</p>
                       
                       <table className="w-full max-w-md">
                         <tbody>
@@ -886,7 +886,7 @@ const ReportView = () => {
                       
                       {/* Försiktighetsregeln text when dividend > 0 */}
                       {utdelning > 0 && (
-                        <p className="mt-4 text-sm">
+                        <p className="text-sm" style={{ paddingTop: '20pt' }}>
                           Styrelsen anser att förslaget är förenligt med försiktighetsregeln i 17 kap. 3 § aktiebolagslagen enligt följande redogörelse. Styrelsens uppfattning är att vinstutdelningen är försvarlig med hänsyn till de krav verksamhetens art, omfattning och risk ställer på storleken på det egna kapitalet, bolagets konsolideringsbehov, likviditet och ställning i övrigt.
                         </p>
                       )}
