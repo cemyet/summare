@@ -205,11 +205,17 @@ const ReportView = () => {
   const getStyleClasses = (style?: string) => {
     const baseClasses = "grid gap-4";
     let additionalClasses = "";
+    let inlineStyle: React.CSSProperties = { gridTemplateColumns: "4fr 0.5fr 1fr 1fr" };
     
     // Handle bold styling for header styles only
     if (style === "H0" || style === "H1" || style === "H2" || style === "H3" || 
         style === "S1" || style === "S2" || style === "S3") {
       additionalClasses += " font-semibold";
+    }
+    
+    // Add 20pt padding before H2 headings
+    if (style === "H2") {
+      inlineStyle = { ...inlineStyle, paddingTop: "20pt" };
     }
     
     // Handle specific styling for S2 and S3 (thin grey lines above and below)
@@ -219,7 +225,7 @@ const ReportView = () => {
     
     return {
       className: `${baseClasses}${additionalClasses}`,
-      style: { gridTemplateColumns: "4fr 0.5fr 1fr 1fr" },
+      style: inlineStyle,
     };
   };
 
