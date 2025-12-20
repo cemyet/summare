@@ -5215,6 +5215,9 @@ async def get_annual_report_for_view(report_id: str):
             row_id = rr_item.get('id') or rr_item.get('row_id')
             if row_id in rr_not_to_note:
                 rr_item['note_number'] = rr_not_to_note[row_id]
+            # Special case: Personalkostnader always gets note 2
+            if row_id == 252 or rr_item.get('variable_name') == 'Personalkostnader' or rr_item.get('row_title') == 'Personalkostnader':
+                rr_item['note_number'] = 2
         
         # Get fiscal year from dates
         fiscal_year_end = report.get('fiscal_year_end')
