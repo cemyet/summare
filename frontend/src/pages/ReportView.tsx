@@ -359,13 +359,13 @@ const ReportView = () => {
     ];
   };
 
-  // Check if a block has any visible content
-  const blockHasVisibleContent = (blockItems: any[], toggleOn: boolean): boolean => {
+  // Check if a block has any non-zero amounts (for deciding if block should be shown)
+  // This checks if there's actual DATA in the block, not just always_show rows
+  const blockHasNonZeroAmounts = (blockItems: any[]): boolean => {
     return blockItems.some(item => {
-      if (item.always_show) return true;
       const hasNonZero = 
-        (item.current_amount !== null && item.current_amount !== 0) ||
-        (item.previous_amount !== null && item.previous_amount !== 0);
+        (item.current_amount !== null && item.current_amount !== undefined && item.current_amount !== 0) ||
+        (item.previous_amount !== null && item.previous_amount !== undefined && item.previous_amount !== 0);
       return hasNonZero;
     });
   };
@@ -376,27 +376,42 @@ const ReportView = () => {
     let noteNumber = 3; // Start at 3 since NOT1=1, NOT2=2
     const numbers: Record<string, number> = { NOT1: 1, NOT2: 2 };
     
+    // Blocks that should be hidden if all amounts are zero
+    const blocksToHideIfZero = ['KONCERN', 'INTRESSEFTG', 'BYGG', 'MASKIN', 'INV', 'MAT', 'LVP', 'FORDRKONC'];
+    
     blocks.forEach(block => {
       if (block === 'NOT1' || block === 'NOT2') return;
       
       const blockItems = grouped[block];
-      const toggleOn = noterBlockToggles[block] || false;
       
-      // Check if block should get a number (has visible content)
-      const hasVisibleContent = blockHasVisibleContent(blockItems, toggleOn);
+      // Check if block has any non-zero amounts
+      const hasNonZeroAmounts = blockHasNonZeroAmounts(blockItems);
       
-      // For SAKERHET/EVENTUAL, check visibility toggle
-      if (block === 'SAKERHET') {
+      // Blocks in blocksToHideIfZero need non-zero amounts to get a number
+      if (blocksToHideIfZero.includes(block)) {
+        if (hasNonZeroAmounts) {
+          numbers[block] = noteNumber++;
+        }
+      } else if (block === 'SAKERHET') {
+        // SAKERHET needs visibility toggle AND non-zero amounts
         const isVisible = noterBlockToggles['sakerhet-visibility'] === true;
-        if (isVisible && hasVisibleContent) {
+        if (isVisible && hasNonZeroAmounts) {
           numbers[block] = noteNumber++;
         }
       } else if (block === 'EVENTUAL') {
+        // EVENTUAL needs visibility toggle AND non-zero amounts
         const isVisible = noterBlockToggles['eventual-visibility'] === true;
-        if (isVisible && hasVisibleContent) {
+        if (isVisible && hasNonZeroAmounts) {
           numbers[block] = noteNumber++;
         }
-      } else if (hasVisibleContent) {
+      } else if (block === 'OVRIGA') {
+        // OVRIGA needs visibility toggle
+        const isVisible = noterBlockToggles['ovriga-visibility'] === true;
+        if (isVisible) {
+          numbers[block] = noteNumber++;
+        }
+      } else {
+        // Other blocks always get a number if they have data
         numbers[block] = noteNumber++;
       }
     });
@@ -806,12 +821,23 @@ const ReportView = () => {
                       ? `Not ${noteNumber} ${blockHeading}`
                       : `Not ${blockHeading}`;
                     
-                    // Check if block should be visible
-                    const hasVisibleContent = blockHasVisibleContent(blockItems, toggleOn);
+                    // Check if block has any non-zero amounts
+                    const hasNonZeroAmounts = blockHasNonZeroAmounts(blockItems);
                     
-                    // Hide blocks with no content (except NOT1, NOT2 which always show)
-                    const blocksToHideIfEmpty = ['BYGG', 'MASKIN', 'INV', 'MAT', 'KONCERN', 'INTRESSEFTG', 'FORDRKONC', 'LVP'];
-                    if (blocksToHideIfEmpty.includes(block) && !hasVisibleContent) {
+                    // Hide blocks with no data (these blocks should only show if they have actual amounts)
+                    const blocksToHideIfZero = ['BYGG', 'MASKIN', 'INV', 'MAT', 'KONCERN', 'INTRESSEFTG', 'FORDRKONC', 'LVP'];
+                    if (blocksToHideIfZero.includes(block) && !hasNonZeroAmounts) {
+                      return null;
+                    }
+                    
+                    // For SAKERHET/EVENTUAL/OVRIGA, check visibility toggle
+                    if (block === 'SAKERHET' && noterBlockToggles['sakerhet-visibility'] !== true) {
+                      return null;
+                    }
+                    if (block === 'EVENTUAL' && noterBlockToggles['eventual-visibility'] !== true) {
+                      return null;
+                    }
+                    if (block === 'OVRIGA' && noterBlockToggles['ovriga-visibility'] !== true) {
                       return null;
                     }
                     
@@ -884,12 +910,23 @@ const ReportView = () => {
                           {visibleItems.map((item: any, index: number) => {
                             const styleClasses = getNoterStyleClasses(item.style);
                             const isHeading = ['H0', 'H1', 'H2', 'H3'].includes(item.style || '');
+                            const isS2 = item.style === 'S2';
+                            
+                            // Check if previous row was also S2 to add spacing
+                            const prevItem = index > 0 ? visibleItems[index - 1] : null;
+                            const prevWasS2 = prevItem?.style === 'S2';
+                            
+                            // Build inline style with S2-consecutive padding
+                            let rowStyle = { ...styleClasses.style };
+                            if (isS2 && prevWasS2) {
+                              rowStyle = { ...rowStyle, marginTop: '6pt' };
+                            }
                             
                             return (
                               <div
                                 key={item.row_id || index}
                                 className={`${styleClasses.className} py-1`}
-                                style={styleClasses.style}
+                                style={rowStyle}
                               >
                                 <span className="text-gray-700">
                                   {item.row_title}
