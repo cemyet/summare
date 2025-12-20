@@ -4343,7 +4343,7 @@ async def pdf_bokforing_instruktion_from_stored(report_id: str):
     Generate Bokföringsinstruktion PDF from stored data.
     """
     try:
-        from services.bokforing_pdf import generate_bokforing_instruktion_pdf
+        from services.pdf_bokforing_instruktion import generate_bokforing_instruktion_pdf
         from fastapi.responses import Response
         
         supabase = get_supabase_client()
