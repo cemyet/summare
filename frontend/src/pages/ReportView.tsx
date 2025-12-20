@@ -1033,7 +1033,7 @@ const ReportView = () => {
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Skatteberäkning</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Skattedeklaration</h2>
             </div>
 
             {report.ink2_data && report.ink2_data.length > 0 ? (
@@ -1145,7 +1145,7 @@ const ReportView = () => {
                         return (
                           <div
                             key={item.variable_name || index}
-                            className={`${styleClasses.className} py-1`}
+                            className={`${styleClasses.className} ${isHeading ? 'py-1' : 'py-0.5'}`}
                             style={{ ...styleClasses.style, gridTemplateColumns: "3fr 0.5fr 1fr" }}
                           >
                             {/* Row title */}
