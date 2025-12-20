@@ -636,6 +636,207 @@ const ReportView = () => {
 
         {/* Content Area */}
         <div className="p-6 max-w-5xl mx-auto">
+          {/* Förvaltningsberättelse Section */}
+          <div
+            ref={(el) => (sectionRefs.current["forvaltningsberattelse"] = el)}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
+          >
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">Förvaltningsberättelse</h2>
+            </div>
+
+            {/* Verksamheten */}
+            <section className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Verksamheten</h3>
+              
+              <h4 className="text-base font-medium text-gray-700 mb-1">Allmänt om verksamheten</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                {report.fb_data?.verksamheten?.allmant_om_verksamheten || 'Ingen beskrivning tillgänglig.'}
+              </p>
+              
+              <h4 className="text-base font-medium text-gray-700 mb-1">Väsentliga händelser under räkenskapsåret</h4>
+              <p className="text-sm text-gray-600">
+                {report.fb_data?.verksamheten?.vasentliga_handelser || 'Inga väsentliga händelser under året.'}
+              </p>
+            </section>
+
+            {/* Flerårsöversikt */}
+            {report.fb_data?.flerarsoversikt && (
+              <section className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Flerårsöversikt</h3>
+                <p className="text-xs text-gray-500 mb-2">Belopp i tkr</p>
+                
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 font-medium"></th>
+                      {report.fb_data.flerarsoversikt.years?.map((year: number, i: number) => (
+                        <th key={i} className="text-right py-2 font-medium w-20">{year}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b">
+                      <td className="py-2 text-gray-600">Omsättning</td>
+                      {report.fb_data.flerarsoversikt.omsattning?.map((val: number, i: number) => (
+                        <td key={i} className="text-right py-2">
+                          {new Intl.NumberFormat('sv-SE').format(val || 0)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 text-gray-600">Resultat efter finansiella poster</td>
+                      {report.fb_data.flerarsoversikt.resultat_efter_finansiella_poster?.map((val: number, i: number) => (
+                        <td key={i} className="text-right py-2">
+                          {new Intl.NumberFormat('sv-SE').format(val || 0)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr className="border-b">
+                      <td className="py-2 text-gray-600">Balansomslutning</td>
+                      {report.fb_data.flerarsoversikt.balansomslutning?.map((val: number, i: number) => (
+                        <td key={i} className="text-right py-2">
+                          {new Intl.NumberFormat('sv-SE').format(val || 0)}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <td className="py-2 text-gray-600">Soliditet (%)</td>
+                      {report.fb_data.flerarsoversikt.soliditet?.map((val: number, i: number) => (
+                        <td key={i} className="text-right py-2">
+                          {Math.round(val || 0)}
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </section>
+            )}
+
+            {/* Förändringar i eget kapital */}
+            {report.fb_data?.fb_table && report.fb_data.fb_table.length > 0 && (
+              <section className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Förändringar i eget kapital</h3>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2 font-medium w-48"></th>
+                        <th className="text-right py-2 font-medium">Aktiekapital</th>
+                        <th className="text-right py-2 font-medium">Reservfond</th>
+                        <th className="text-right py-2 font-medium">Uppskriv-ningsfond</th>
+                        <th className="text-right py-2 font-medium">Balanserat resultat</th>
+                        <th className="text-right py-2 font-medium">Årets resultat</th>
+                        <th className="text-right py-2 font-medium">Summa</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.fb_data.fb_table.map((row: any, index: number) => {
+                        // Show rows 1 (Belopp vid årets ingång) and 13 (Belopp vid årets utgång)
+                        // and any row with non-zero values
+                        const hasValues = row.aktiekapital || row.reservfond || 
+                          row.uppskrivningsfond || row.balanserat_resultat || row.arets_resultat;
+                        const isKeyRow = row.id === 1 || row.id === 13;
+                        
+                        if (!isKeyRow && !hasValues) return null;
+                        
+                        const formatValue = (val: number) => {
+                          if (!val || val === 0) return '-';
+                          return new Intl.NumberFormat('sv-SE', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          }).format(Math.round(val));
+                        };
+                        
+                        const isSummaryRow = row.id === 1 || row.id === 13;
+                        
+                        return (
+                          <tr key={row.id || index} className={`border-b ${isSummaryRow ? 'font-semibold bg-gray-50' : ''}`}>
+                            <td className="py-2 text-gray-600">{row.label}</td>
+                            <td className="text-right py-2">{formatValue(row.aktiekapital)}</td>
+                            <td className="text-right py-2">{formatValue(row.reservfond)}</td>
+                            <td className="text-right py-2">{formatValue(row.uppskrivningsfond)}</td>
+                            <td className="text-right py-2">{formatValue(row.balanserat_resultat)}</td>
+                            <td className="text-right py-2">{formatValue(row.arets_resultat)}</td>
+                            <td className="text-right py-2">{formatValue(row.total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {/* Resultatdisposition */}
+            {report.fb_data?.fb_variables && (
+              <section>
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">Resultatdisposition</h3>
+                
+                {(() => {
+                  const vars = report.fb_data.fb_variables;
+                  const utdelning = vars.fb_aretsresultat_utdelning || 0;
+                  const balanseras = vars.fb_aretsresultat_ub_red_varde || vars.fb_balansresultat_ub_red_varde || 0;
+                  const aretsResultat = vars.fb_aretsresultat_ub || 0;
+                  const balResultatIB = vars.fb_balansresultat_ib || 0;
+                  
+                  const formatAmount = (val: number) => {
+                    if (!val || val === 0) return '0 kr';
+                    return new Intl.NumberFormat('sv-SE', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0
+                    }).format(Math.round(val)) + ' kr';
+                  };
+                  
+                  return (
+                    <div className="text-sm text-gray-600 space-y-2">
+                      <p className="font-medium text-gray-700">Styrelsen föreslår att till förfogande stående vinstmedel:</p>
+                      
+                      <table className="w-full max-w-md">
+                        <tbody>
+                          <tr>
+                            <td className="py-1">Balanserat resultat</td>
+                            <td className="text-right py-1">{formatAmount(balResultatIB)}</td>
+                          </tr>
+                          <tr>
+                            <td className="py-1">Årets resultat</td>
+                            <td className="text-right py-1">{formatAmount(aretsResultat)}</td>
+                          </tr>
+                          <tr className="border-t border-gray-200">
+                            <td className="py-1 font-medium">Summa</td>
+                            <td className="text-right py-1 font-medium">{formatAmount(balResultatIB + aretsResultat)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      
+                      <p className="font-medium text-gray-700 mt-4">disponeras enligt följande:</p>
+                      
+                      <table className="w-full max-w-md">
+                        <tbody>
+                          {utdelning > 0 && (
+                            <tr>
+                              <td className="py-1">Utdelning till aktieägarna</td>
+                              <td className="text-right py-1">{formatAmount(utdelning)}</td>
+                            </tr>
+                          )}
+                          <tr>
+                            <td className="py-1">Balanseras i ny räkning</td>
+                            <td className="text-right py-1">{formatAmount(balanseras)}</td>
+                          </tr>
+                          <tr className="border-t border-gray-200">
+                            <td className="py-1 font-medium">Summa</td>
+                            <td className="text-right py-1 font-medium">{formatAmount(utdelning + balanseras)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+              </section>
+            )}
+          </div>
+
           {/* Resultaträkning Section */}
           <div
             ref={(el) => (sectionRefs.current["resultatrakning"] = el)}

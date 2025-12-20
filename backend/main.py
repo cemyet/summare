@@ -4570,78 +4570,151 @@ def _slim_noter_data(data: list) -> list:
     return [_slim_noter_row(row) for row in data]
 
 
-# Flerårsöversikt row IDs that have 4 periods (period0-period3) instead of current/previous
-FLERARSOVERSIKT_IDS = {31, 34, 39, 41}  # Nettoomsättning, Resultat efter fin poster, Balansomslutning, Soliditet
-
-
-def _slim_fb_row(row: dict, fb_variables: dict) -> dict:
+def _prepare_fb_data(company_data: dict, se_file_data: dict) -> dict:
     """
-    Extract only essential fields from FB rows for storage.
-    Follows variable_mapping_fb structure.
-    Keeps: id, radrubrik, variable, and amounts (period0-3 for flerårsöversikt, current/previous for others)
+    Prepare FB data for storage.
+    Stores the full structure as requested:
+    - fb_table: Förändringar i eget kapital table rows
+    - fb_variables: All FB calculation variables
+    - verksamheten: Allmänt om verksamheten + Väsentliga händelser
+    - flerarsoversikt: Multi-year overview data (3-4 years)
     """
-    if not isinstance(row, dict):
-        return row
+    fb_variables = company_data.get('fbVariables') or se_file_data.get('fb_variables') or {}
+    fb_table = company_data.get('fbTable') or se_file_data.get('fb_table') or []
     
-    row_id = row.get("id")
-    variable = row.get("variable") or row.get("variable_name")
+    # Extract verksamheten data from scraped_company_data and companyData
+    scraped = company_data.get('scraped_company_data') or se_file_data.get('scraped_company_data') or {}
     
-    slim = {
-        "id": row_id,
-        "radrubrik": row.get("radrubrik") or row.get("row_title") or row.get("label"),
-        "variable": variable,
+    # Build verksamheten text
+    verksamhetsbeskrivning = scraped.get('verksamhetsbeskrivning') or scraped.get('Verksamhetsbeskrivning') or ''
+    sate = scraped.get('säte') or scraped.get('sate') or scraped.get('Säte') or ''
+    moderbolag = scraped.get('moderbolag') or scraped.get('Moderbolag') or ''
+    moderbolag_orgnr = scraped.get('moderbolag_orgnr') or scraped.get('ModerbolagOrgNr') or ''
+    
+    # Build default allmant text
+    allmant_default = (verksamhetsbeskrivning or '').strip()
+    if sate:
+        allmant_default += ((' ' if allmant_default else '') + f'Bolaget har sitt säte i {sate}.')
+    if moderbolag:
+        moder_sate = scraped.get('moderbolag_säte') or scraped.get('moderbolag_sate') or sate
+        allmant_default += f' Bolaget är dotterbolag till {moderbolag}'
+        if moderbolag_orgnr:
+            allmant_default += f' med organisationsnummer {moderbolag_orgnr}'
+        allmant_default += f', som har sitt säte i {moder_sate or sate}.'
+    
+    # Get verksamheten values (edited values take precedence)
+    verksamheten = {
+        'allmant_om_verksamheten': company_data.get('verksamhetContent') or allmant_default,
+        'vasentliga_handelser': company_data.get('vasentligaHandelser') or 'Inga väsentliga händelser under året.'
     }
     
-    # For Flerårsöversikt rows, store 4 periods
-    if row_id in FLERARSOVERSIKT_IDS:
-        # These have variables like "oms1;oms2;oms3;oms4" - get values from fb_variables
-        if variable and fb_variables:
-            var_parts = variable.split(';')
-            for i, var_name in enumerate(var_parts):
-                var_name = var_name.strip()
-                if var_name and var_name in fb_variables:
-                    slim[f"period{i}"] = fb_variables.get(var_name)
-        # Also check for direct period values
-        for i in range(4):
-            if f"period{i}" in row:
-                slim[f"period{i}"] = row[f"period{i}"]
+    # Extract flerårsöversikt data
+    flerarsoversikt_data = company_data.get('flerarsoversikt') or {}
+    nyckeltal = scraped.get('nyckeltal') or {}
+    
+    # Get fiscal year from company_data
+    fiscal_year = company_data.get('fiscalYear') or 0
+    
+    # Current year values from RR/BR data
+    rr_data = se_file_data.get('rr_data') or []
+    br_data = se_file_data.get('br_data') or []
+    
+    def get_amount_by_variable(data: list, var_names: list) -> float:
+        for var_name in var_names:
+            for item in data:
+                if item.get('variable_name', '').lower() == var_name.lower():
+                    amt = item.get('current_amount')
+                    if amt is not None:
+                        return float(amt)
+        return 0.0
+    
+    # Calculate current year values (in kronor)
+    netto_oms_fy = get_amount_by_variable(rr_data, ['SumRorelseintakter', 'sumrorelseintakter'])
+    refp_fy = get_amount_by_variable(rr_data, ['SumResultatEfterFinansiellaPoster', 'sumresultatefterfinansiellaposter'])
+    tillg_fy = get_amount_by_variable(br_data, ['SumTillgangar', 'sumtillgangar'])
+    eget_kap_fy = get_amount_by_variable(br_data, ['SumEgetKapital', 'sumegetkapital'])
+    ob_res_fy = get_amount_by_variable(br_data, ['SumObeskattadeReserver', 'sumobeskattadereserver'])
+    
+    # Calculate soliditet
+    soliditet_fy = 0.0
+    if tillg_fy > 0:
+        soliditet_fy = ((eget_kap_fy + 0.794 * ob_res_fy) / tillg_fy) * 100
+    
+    # Convert to tkr (thousands)
+    netto_oms_fy_tkr = round(netto_oms_fy / 1000)
+    refp_fy_tkr = round(refp_fy / 1000)
+    tillg_fy_tkr = round(tillg_fy / 1000)
+    
+    # Helper to get array values from nyckeltal
+    def arr3(arr):
+        if not arr or not isinstance(arr, list):
+            return [0, 0, 0]
+        return [
+            float(arr[0]) if len(arr) > 0 and arr[0] is not None else 0,
+            float(arr[1]) if len(arr) > 1 and arr[1] is not None else 0,
+            float(arr[2]) if len(arr) > 2 and arr[2] is not None else 0
+        ]
+    
+    # Get scraped historical data
+    oms_arr = nyckeltal.get('Omsättning') or nyckeltal.get('Total omsättning') or []
+    ref_arr = nyckeltal.get('Resultat efter finansnetto') or nyckeltal.get('Resultat efter finansiella poster') or []
+    bal_arr = nyckeltal.get('Balansomslutning') or nyckeltal.get('Summa tillgångar') or []
+    sol_arr = nyckeltal.get('Soliditet') or []
+    
+    oms1, oms2, oms3 = arr3(oms_arr)
+    ref1, ref2, ref3 = arr3(ref_arr)
+    bal1, bal2, bal3 = arr3(bal_arr)
+    sol1, sol2, sol3 = arr3(sol_arr)
+    
+    # Check if scraped data includes fiscal year
+    scraped_years = nyckeltal.get('years') or []
+    scraped_includes_fiscal_year = len(scraped_years) > 0 and scraped_years[0] == fiscal_year
+    
+    # Use edited flerårsöversikt values if available
+    if flerarsoversikt_data:
+        oms1 = flerarsoversikt_data.get('oms1', oms1)
+        oms2 = flerarsoversikt_data.get('oms2', oms2)
+        oms3 = flerarsoversikt_data.get('oms3', oms3)
+        ref1 = flerarsoversikt_data.get('ref1', ref1)
+        ref2 = flerarsoversikt_data.get('ref2', ref2)
+        ref3 = flerarsoversikt_data.get('ref3', ref3)
+        bal1 = flerarsoversikt_data.get('bal1', bal1)
+        bal2 = flerarsoversikt_data.get('bal2', bal2)
+        bal3 = flerarsoversikt_data.get('bal3', bal3)
+        sol1 = flerarsoversikt_data.get('sol1', sol1)
+        sol2 = flerarsoversikt_data.get('sol2', sol2)
+        sol3 = flerarsoversikt_data.get('sol3', sol3)
+        netto_oms_fy_tkr = flerarsoversikt_data.get('nettoOmsFY_tkr', netto_oms_fy_tkr)
+        refp_fy_tkr = flerarsoversikt_data.get('refpFY_tkr', refp_fy_tkr)
+        tillg_fy_tkr = flerarsoversikt_data.get('tillgFY_tkr', tillg_fy_tkr)
+        soliditet_fy = flerarsoversikt_data.get('soliditetFY', soliditet_fy)
+    
+    # Build flerårsöversikt structure
+    if scraped_includes_fiscal_year:
+        # 3 years from scraped data
+        flerarsoversikt = {
+            'years': scraped_years[:3] if scraped_years else [fiscal_year, fiscal_year - 1, fiscal_year - 2],
+            'omsattning': [oms1, oms2, oms3],
+            'resultat_efter_finansiella_poster': [ref1, ref2, ref3],
+            'balansomslutning': [bal1, bal2, bal3],
+            'soliditet': [sol1, sol2, sol3]
+        }
     else:
-        # Regular rows with current/previous amounts
-        # Try to get value from fb_variables if variable exists
-        if variable and fb_variables and variable in fb_variables:
-            slim["current_amount"] = fb_variables.get(variable)
-        elif "current_amount" in row:
-            slim["current_amount"] = row.get("current_amount")
-        elif "value" in row:
-            slim["current_amount"] = row.get("value")
-        
-        if "previous_amount" in row:
-            slim["previous_amount"] = row.get("previous_amount")
+        # 4 years: current fiscal year + 3 scraped years
+        flerarsoversikt = {
+            'years': [fiscal_year, fiscal_year - 1, fiscal_year - 2, fiscal_year - 3],
+            'omsattning': [netto_oms_fy_tkr, oms1, oms2, oms3],
+            'resultat_efter_finansiella_poster': [refp_fy_tkr, ref1, ref2, ref3],
+            'balansomslutning': [tillg_fy_tkr, bal1, bal2, bal3],
+            'soliditet': [round(soliditet_fy), sol1, sol2, sol3]
+        }
     
-    return slim
-
-
-def _slim_fb_data(fb_data: dict) -> list:
-    """
-    Slim down FB data to essential fields only.
-    Converts fb_variables + fb_table into a flat list of rows with values.
-    """
-    if not isinstance(fb_data, dict):
-        return []
-    
-    fb_variables = fb_data.get("fb_variables") or {}
-    fb_table = fb_data.get("fb_table") or []
-    
-    # If fb_table is a list of rows, slim each one
-    if isinstance(fb_table, list) and len(fb_table) > 0:
-        return [_slim_fb_row(row, fb_variables) for row in fb_table]
-    
-    # If no fb_table but we have fb_variables, create rows from variables
-    if fb_variables and not fb_table:
-        # Just store the variables directly as a simplified structure
-        return [{"variables": fb_variables}]
-    
-    return []
+    return {
+        'fb_table': fb_table,
+        'fb_variables': fb_variables,
+        'verksamheten': verksamheten,
+        'flerarsoversikt': flerarsoversikt
+    }
 
 
 def _slim_ink2_row(row: dict) -> dict:
@@ -4821,15 +4894,11 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             "boardMembers": company_data.get('boardMembers'),
             "date": company_data.get('date'),
         }
-        fb_data_raw = {
-            "fb_variables": company_data.get('fbVariables') or se_file_data.get('fb_variables'),
-            "fb_table": company_data.get('fbTable') or se_file_data.get('fb_table'),
-        }
         
         rr_data_slim = _slim_financial_data(rr_data_raw)
         br_data_slim = _slim_financial_data(br_data_raw)
         noter_data_slim = _slim_noter_data(noter_data_raw)
-        fb_data_slim = _slim_fb_data(fb_data_raw)
+        fb_data_prepared = _prepare_fb_data(company_data, se_file_data)
         ink2_data_slim = _slim_ink2_data(ink2_data_raw)
         signering_data_slim = _slim_signering_data(signering_data_raw)
         
@@ -4839,7 +4908,7 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             "fiscal_year_start": fiscal_year_start,
             "fiscal_year_end": fiscal_year_end,
             "company_name": company_name,
-            "fb_data": fb_data_slim,
+            "fb_data": fb_data_prepared,
             "rr_data": rr_data_slim,
             "br_data": br_data_slim,
             "noter_data": noter_data_slim,
