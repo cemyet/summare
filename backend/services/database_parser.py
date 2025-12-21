@@ -24,6 +24,27 @@ USE_168X_RECLASS = os.getenv("USE_168X_RECLASS", "1") == "1"  # default ON
 USE_17XX_RECLASS = os.getenv("USE_17XX_RECLASS", "1") == "1"  # default ON
 USE_296X_RECLASS = os.getenv("USE_296X_RECLASS", "1") == "1"  # default ON
 USE_28XX_POSITIVE_RECLASS = os.getenv("USE_28XX_POSITIVE_RECLASS", "1") == "1"  # default ON - reclassify positive 28xx balances as receivables
+USE_NEGATIVE_BALANCE_RECLASS = os.getenv("USE_NEGATIVE_BALANCE_RECLASS", "0") == "1"  # default OFF - bidirectional reclassification of negative balances between asset/liability pairs
+
+# Reclassification pairs: maps asset rows to liability rows (and vice versa)
+# When a debt row has negative balance, move to corresponding asset row (as positive)
+# When an asset row has negative balance, move to corresponding debt row (as positive)
+RECLASS_PAIRS = [
+    {"asset_row": 330, "asset_label": "Långfristiga fordringar hos koncernföretag",
+     "debt_row": 397, "debt_label": "Långfristiga skulder till koncernföretag"},
+    {"asset_row": 332, "asset_label": "Långfristiga fordringar hos intresseföretag och gemensamt styrda företag",
+     "debt_row": 398, "debt_label": "Långfristiga skulder till intresseföretag och gemensamt styrda företag"},
+    {"asset_row": 334, "asset_label": "Långfristiga fordringar hos övriga företag som det finns ett ägarintresse i",
+     "debt_row": 399, "debt_label": "Långfristiga skulder till övriga företag som det finns ett ägarintresse i"},
+    {"asset_row": 351, "asset_label": "Kortfristiga fordringar hos koncernföretag",
+     "debt_row": 410, "debt_label": "Kortfristiga skulder till koncernföretag"},
+    {"asset_row": 352, "asset_label": "Kortfristiga fordringar hos intresseföretag och gemensamt styrda företag",
+     "debt_row": 411, "debt_label": "Kortfristiga skulder till intresseföretag och gemensamt styrda företag"},
+    {"asset_row": 353, "asset_label": "Kortfristiga fordringar hos övriga företag som det finns ett ägarintresse i",
+     "debt_row": 412, "debt_label": "Kortfristiga skulder till övriga företag som det finns ett ägarintresse i"},
+    {"asset_row": 354, "asset_label": "Övriga kortfristiga fordringar",
+     "debt_row": 414, "debt_label": "Övriga kortfristiga skulder"},
+]
 
 class DatabaseParser:
     """Database-driven parser for financial data"""
@@ -777,6 +798,13 @@ class DatabaseParser:
                         br_rows=results,
                         current_accounts=current_accounts,
                         previous_accounts=previous_accounts,
+                        account_movements=account_movements
+                    )
+                # Bidirectional negative balance reclassification (substance over form)
+                # Runs LAST after all other reclassifications to catch any remaining negative balances
+                if USE_NEGATIVE_BALANCE_RECLASS:
+                    self._reclassify_negative_balances_bidirectional(
+                        br_rows=results,
                         account_movements=account_movements
                     )
             except Exception as e:
@@ -2133,7 +2161,198 @@ class DatabaseParser:
             if row_412 and previous_reclass_from_dict["ovriga"] > 0.5:
                 prev_412 = float(row_412.get("previous_amount") or 0.0)
                 row_412["previous_amount"] = prev_412 - previous_reclass_from_dict["ovriga"]
-    
+
+    # ----------------- NEGATIVE BALANCE BIDIRECTIONAL RECLASS (substance over form) -----------------
+    def _reclassify_negative_balances_bidirectional(
+        self,
+        br_rows: List[Dict[str, Any]],
+        account_movements: Dict[int, Dict[str, Any]] = None
+    ) -> None:
+        """
+        Bidirectional reclassification of negative balances between asset/liability pairs.
+        
+        Accounting principle (substance over form, K2/K3/IFRS-aligned):
+        - Debt (liability) with negative balance → actually an asset (claim/receivable)
+        - Claim (asset) with negative balance → actually a liability (debt/payable)
+        
+        This function runs AFTER all other reclassifications and works at the
+        account_details level within each row, moving individual accounts with
+        negative balances to their paired row.
+        
+        Uses RECLASS_PAIRS defined at module level.
+        """
+        import re, unicodedata
+
+        def _norm(s: str) -> str:
+            if not s: return ""
+            s = unicodedata.normalize("NFKD", s)
+            s = "".join(ch for ch in s if not unicodedata.combining(ch))
+            s = s.lower().replace("\u00a0", " ").replace("\t", " ")
+            return re.sub(r"\s+", " ", s).strip()
+
+        def _find_row_by_id(rows: List[Dict[str, Any]], rid: int):
+            for r in rows:
+                if str(r.get("id")) == str(rid):
+                    return r
+            return None
+
+        def _find_row_by_label(rows: List[Dict[str, Any]], text: str):
+            n = _norm(text)
+            for r in rows:
+                lbl = _norm(r.get("label") or r.get("row_title") or "")
+                if lbl == n:
+                    return r
+            for r in rows:
+                lbl = _norm(r.get("label") or r.get("row_title") or "")
+                if n in lbl:
+                    return r
+            return None
+
+        # Process each reclassification pair
+        for pair in RECLASS_PAIRS:
+            asset_row_id = pair["asset_row"]
+            debt_row_id = pair["debt_row"]
+            asset_label = pair["asset_label"]
+            debt_label = pair["debt_label"]
+
+            # Find the rows
+            asset_row = _find_row_by_id(br_rows, asset_row_id) or _find_row_by_label(br_rows, asset_label)
+            debt_row = _find_row_by_id(br_rows, debt_row_id) or _find_row_by_label(br_rows, debt_label)
+
+            if not asset_row or not debt_row:
+                continue
+
+            # Get account_details from both rows
+            asset_details = asset_row.get("account_details", []) or []
+            debt_details = debt_row.get("account_details", []) or []
+
+            # Track accounts to move
+            # From debt row: accounts with negative balance (displayed) → move to asset row as positive
+            # From asset row: accounts with negative balance (displayed) → move to debt row as positive
+            
+            accounts_to_move_to_asset = []  # from debt row
+            accounts_to_move_to_debt = []   # from asset row
+            
+            # Check debt row for negative balances (these are actually claims)
+            new_debt_details = []
+            for acc in debt_details:
+                balance = float(acc.get("balance", 0))
+                if balance < -0.5:  # Negative balance in debt row = actually a claim
+                    # Move to asset row with negated (positive) balance
+                    accounts_to_move_to_asset.append({
+                        "account_id": acc["account_id"],
+                        "account_text": acc.get("account_text", ""),
+                        "balance": -balance  # Negate to make positive
+                    })
+                else:
+                    new_debt_details.append(acc)
+
+            # Check asset row for negative balances (these are actually debts)
+            new_asset_details = []
+            for acc in asset_details:
+                balance = float(acc.get("balance", 0))
+                if balance < -0.5:  # Negative balance in asset row = actually a debt
+                    # Move to debt row with negated (positive) balance
+                    accounts_to_move_to_debt.append({
+                        "account_id": acc["account_id"],
+                        "account_text": acc.get("account_text", ""),
+                        "balance": -balance  # Negate to make positive
+                    })
+                else:
+                    new_asset_details.append(acc)
+
+            # Calculate amounts to transfer
+            amount_to_asset_current = sum(acc["balance"] for acc in accounts_to_move_to_asset)
+            amount_to_debt_current = sum(acc["balance"] for acc in accounts_to_move_to_debt)
+
+            # Update row amounts (current year)
+            if amount_to_asset_current > 0.5:
+                # Add to asset row
+                cur_asset = float(asset_row.get("current_amount") or 0.0)
+                asset_row["current_amount"] = cur_asset + amount_to_asset_current
+                # Subtract from debt row (the negative accounts were contributing negative, so we add their absolute value back)
+                cur_debt = float(debt_row.get("current_amount") or 0.0)
+                debt_row["current_amount"] = cur_debt + amount_to_asset_current  # Add back (removes the negative contribution)
+
+            if amount_to_debt_current > 0.5:
+                # Add to debt row
+                cur_debt = float(debt_row.get("current_amount") or 0.0)
+                debt_row["current_amount"] = cur_debt + amount_to_debt_current
+                # Subtract from asset row (the negative accounts were contributing negative, so we add their absolute value back)
+                cur_asset = float(asset_row.get("current_amount") or 0.0)
+                asset_row["current_amount"] = cur_asset + amount_to_debt_current  # Add back (removes the negative contribution)
+
+            # Update account_details
+            # Add moved accounts to their new rows
+            for acc in accounts_to_move_to_asset:
+                new_asset_details.append(acc)
+            for acc in accounts_to_move_to_debt:
+                new_debt_details.append(acc)
+
+            # Sort and update
+            new_asset_details.sort(key=lambda x: int(x["account_id"]))
+            new_debt_details.sort(key=lambda x: int(x["account_id"]))
+            
+            asset_row["account_details"] = new_asset_details
+            debt_row["account_details"] = new_debt_details
+
+            # Track account movements if provided
+            if account_movements is not None:
+                asset_row_id_int = int(asset_row.get('id')) if asset_row.get('id') is not None else None
+                debt_row_id_int = int(debt_row.get('id')) if debt_row.get('id') is not None else None
+
+                # Record movements for asset row
+                if asset_row_id_int is not None and accounts_to_move_to_asset:
+                    if asset_row_id_int not in account_movements:
+                        account_movements[asset_row_id_int] = {'added': [], 'removed': []}
+                    account_movements[asset_row_id_int]['added'].extend(accounts_to_move_to_asset)
+
+                if asset_row_id_int is not None and accounts_to_move_to_debt:
+                    if asset_row_id_int not in account_movements:
+                        account_movements[asset_row_id_int] = {'added': [], 'removed': []}
+                    account_movements[asset_row_id_int]['removed'].extend([acc['account_id'] for acc in accounts_to_move_to_debt])
+
+                # Record movements for debt row
+                if debt_row_id_int is not None and accounts_to_move_to_debt:
+                    if debt_row_id_int not in account_movements:
+                        account_movements[debt_row_id_int] = {'added': [], 'removed': []}
+                    account_movements[debt_row_id_int]['added'].extend(accounts_to_move_to_debt)
+
+                if debt_row_id_int is not None and accounts_to_move_to_asset:
+                    if debt_row_id_int not in account_movements:
+                        account_movements[debt_row_id_int] = {'added': [], 'removed': []}
+                    account_movements[debt_row_id_int]['removed'].extend([acc['account_id'] for acc in accounts_to_move_to_asset])
+
+        # Also handle previous year amounts by checking if there are previous_amount values
+        # and recalculating based on account_details patterns
+        # For now, we apply the same logic to previous_amount if the row has it
+        for pair in RECLASS_PAIRS:
+            asset_row_id = pair["asset_row"]
+            debt_row_id = pair["debt_row"]
+            asset_label = pair["asset_label"]
+            debt_label = pair["debt_label"]
+
+            asset_row = _find_row_by_id(br_rows, asset_row_id) or _find_row_by_label(br_rows, asset_label)
+            debt_row = _find_row_by_id(br_rows, debt_row_id) or _find_row_by_label(br_rows, debt_label)
+
+            if not asset_row or not debt_row:
+                continue
+
+            # For previous year, we need to check if previous_amount is negative
+            # and reclassify the entire amount (since we don't have previous account_details)
+            prev_asset = float(asset_row.get("previous_amount") or 0.0)
+            prev_debt = float(debt_row.get("previous_amount") or 0.0)
+
+            # If debt row has negative previous_amount, move to asset row
+            if prev_debt < -0.5:
+                asset_row["previous_amount"] = prev_asset + (-prev_debt)  # Add absolute value
+                debt_row["previous_amount"] = 0.0  # Zero out the debt row
+
+            # If asset row has negative previous_amount, move to debt row
+            if prev_asset < -0.5:
+                debt_row["previous_amount"] = prev_debt + (-prev_asset)  # Add absolute value
+                asset_row["previous_amount"] = 0.0  # Zero out the asset row
+
     def _get_level_from_style(self, style: str) -> int:
         """Get hierarchy level from style"""
         style_map = {
