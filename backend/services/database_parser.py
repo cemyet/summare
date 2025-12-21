@@ -2593,30 +2593,43 @@ class DatabaseParser:
         Recalculate all sum rows in BR data after a reclassification.
         This is a simplified version that works with already-calculated data.
         
+        CRITICAL: This method NEVER recalculates AretsResultat (row 380) or 
+        Skatteskulder (row 413) as these are driven by INK2/RR calculations
+        and must preserve their values from the tax calculation flow.
+
         Args:
             br_data: List of BR data items with current/previous amounts
             rr_data: Optional RR data for cross-referencing variables
-        
+
         Returns:
             Updated BR data with recalculated sum rows
         """
         if not self.br_mappings:
             print("Warning: No BR mappings loaded, cannot recalculate sum rows")
             return br_data
-        
+
+        # CRITICAL: These rows are driven by INK2/RR and must NEVER be recalculated
+        # 380 = AretsResultat (Årets resultat) - driven by RR SumAretsResultat
+        # 413 = Skatteskulder - driven by INK2 beräknad skatt
+        PROTECTED_ROW_IDS = {380, 413}
+
         # Get calculated mappings sorted by row_id
         calculated_mappings = [(mapping) for mapping in self.br_mappings
                               if mapping.get('is_calculated')]
         calculated_mappings.sort(key=lambda x: int(x['row_id']))
-        
+
         # Recalculate each sum row
         for mapping in calculated_mappings:
             formula = mapping.get('calculation_formula', '')
             if not formula:
                 continue
-            
+
             row_id = mapping.get('row_id')
             
+            # CRITICAL: Skip protected rows - they're driven by INK2/RR flow
+            if int(row_id) in PROTECTED_ROW_IDS:
+                continue
+
             # Check if this formula references any RR variables - if so, skip
             references_rr = False
             if rr_data:
@@ -2629,7 +2642,7 @@ class DatabaseParser:
                     if in_rr and not in_br:
                         references_rr = True
                         break
-            
+
             if references_rr:
                 continue
             
