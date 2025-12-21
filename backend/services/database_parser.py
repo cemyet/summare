@@ -394,13 +394,15 @@ class DatabaseParser:
             print(f"Formula evaluation error: {e}")
             return 0.0
 
-    def _recalculate_formula_from_results(self, mapping: Dict[str, Any], results: List[Dict[str, Any]], use_previous_year: bool = False) -> float:
+    def _recalculate_formula_from_results(self, mapping: Dict[str, Any], results: List[Dict[str, Any]], use_previous_year: bool = False, rr_data: List[Dict[str, Any]] = None) -> float:
         """
         Recalculate a formula-based row using current values from results.
         
         This is used after reclassification to update sum rows with the new values.
         Unlike calculate_formula_value, this doesn't need account data - it reads
         directly from the already-calculated results.
+        
+        Also searches rr_data for variables like AretsResultat that come from RR.
         """
         formula = mapping.get('calculation_formula', '')
         if not formula:
@@ -413,11 +415,17 @@ class DatabaseParser:
         
         def replace_variable(match):
             var_name = match.group(1)
-            # Find the variable in results
+            # First, find the variable in BR results
             for item in results:
                 if item.get('variable_name') == var_name:
                     value = item.get('previous_amount' if use_previous_year else 'current_amount', 0)
                     return str(value if value is not None else 0)
+            # If not found in BR, try RR data (for AretsResultat, etc.)
+            if rr_data:
+                for item in rr_data:
+                    if item.get('variable_name') == var_name:
+                        value = item.get('previous_amount' if use_previous_year else 'current_amount', 0)
+                        return str(value if value is not None else 0)
             return '0'
         
         # Replace all variable references
@@ -828,8 +836,9 @@ class DatabaseParser:
         # This ensures sums reflect the updated amounts from reclassification
         for i, mapping in calculated_mappings:
             # Recalculate using the updated results (which now have reclassified amounts)
-            current_amount = self._recalculate_formula_from_results(mapping, results, use_previous_year=False)
-            previous_amount = self._recalculate_formula_from_results(mapping, results, use_previous_year=True)
+            # Pass rr_data so that references to AretsResultat (from RR) are resolved correctly
+            current_amount = self._recalculate_formula_from_results(mapping, results, use_previous_year=False, rr_data=rr_data)
+            previous_amount = self._recalculate_formula_from_results(mapping, results, use_previous_year=True, rr_data=rr_data)
             
             # Update the result
             for result in results:
