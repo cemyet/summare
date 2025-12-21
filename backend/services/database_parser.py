@@ -1927,12 +1927,12 @@ class DatabaseParser:
                         'balance': current_bal
                     })
             
-            # Previous year: check previous_accounts or SIE for positive balance
-            prev_bal = 0.0
-            if previous_accounts:
-                prev_bal = float(previous_accounts.get(acct_str, 0.0))
-            else:
-                # No previous_accounts dict, derive from SIE (UB -1 or IB 0)
+            # Previous year: check previous_accounts first, then fallback to SIE parsing
+            prev_bal = float((previous_accounts or {}).get(acct_str, 0.0))
+            
+            # If not found in previous_accounts (or is 0), fallback to SIE parsing
+            # This handles cases where #UB -1 doesn't exist but #IB 0 does
+            if abs(prev_bal) < 0.5:
                 prev_bal = _get_prev_ub_balance(acct)
             
             if prev_bal > 0.5:  # Positive = debit = actually a receivable
