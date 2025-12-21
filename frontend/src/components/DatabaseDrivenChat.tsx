@@ -2309,12 +2309,17 @@ const selectiveMergeInk2 = (
         }
       );
       addMessage(resultText, true, step103Response.question_icon, () => {
-        // Follow database flow - load next step from step 103's no_option_next_step
-        const nextStep = step103Response.no_option_next_step;
-        if (nextStep) {
-          loadChatStep(nextStep);
+        // Check if step 103 has options - if so, show them and wait for user click
+        if (step103Response.options && step103Response.options.length > 0) {
+          // Show options and wait for user to click
+          setCurrentStep(103);
+          setCurrentOptions(step103Response.options);
+          setIsWaitingForUser(true);
+        } else if (step103Response.no_option_next_step) {
+          // Auto-continue to next step if defined
+          loadChatStep(step103Response.no_option_next_step);
         } else {
-          // Fallback to old behavior if no next step defined
+          // Fallback to old behavior if no options and no next step
           continueTaxFlow();
         }
       });
