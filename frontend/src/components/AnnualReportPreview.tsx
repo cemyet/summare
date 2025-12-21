@@ -176,6 +176,7 @@ interface CompanyData {
   fbVariables?: Record<string, number>;
   seFileData?: SEData & {
     current_accounts?: Record<string, number>;
+    previous_accounts?: Record<string, number>;
     annualReport?: {
       header: {
         organization_number: string;
@@ -1169,17 +1170,27 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const handleOpenReclassDialog = (
     account: { account_id: string; account_text: string; balance: number },
     fromRowId: number,
-    fromRowTitle: string,
-    balancePrevious?: number
+    fromRowTitle: string
   ) => {
     const side = getRowSide(fromRowId);
     const currentType = getRowType(fromRowId);
+    
+    // Look up previous year balance from previous_accounts
+    const previousAccounts = seFileData?.previous_accounts || {};
+    const accountIdStr = String(account.account_id);
+    let balancePrevious = previousAccounts[accountIdStr] || 0;
+    
+    // Apply same sign reversal as current year (2000-9999 accounts get reversed)
+    const accountNum = parseInt(accountIdStr, 10);
+    if (!isNaN(accountNum) && accountNum >= 2000 && accountNum <= 9999) {
+      balancePrevious = -balancePrevious;
+    }
     
     setReclassAccount({
       account_id: account.account_id,
       account_text: account.account_text,
       balance: account.balance,
-      balance_previous: balancePrevious || 0,
+      balance_previous: balancePrevious,
       from_row_id: fromRowId,
       from_row_title: fromRowTitle,
       side,
@@ -2419,8 +2430,7 @@ const handleTaxCalculationClick = () => {
                                               onClick={() => handleOpenReclassDialog(
                                                 detail,
                                                 item.id || item.row_id,
-                                                item.label,
-                                                detail.balance_previous
+                                                item.label
                                               )}
                                               className="opacity-60 hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity p-1 rounded hover:bg-blue-50"
                                               title="Flytta konto till annan kontogrupp"

@@ -996,6 +996,7 @@ async def upload_se_file(file: UploadFile = File(...)):
                 "current_accounts_sample": dict(list(current_accounts.items())[:10]),
                 "previous_accounts_sample": dict(list(previous_accounts.items())[:10]),
                 "current_accounts": current_accounts,  # Add full accounts for recalculation
+                "previous_accounts": previous_accounts,  # Add previous year accounts for reclassification
                 "rr_data": rr_data,
                 "br_data": br_data,
                 "ink2_data": ink2_data,
@@ -1256,6 +1257,7 @@ async def upload_two_se_files(
                 "current_accounts_sample": dict(list(current_accounts.items())[:10]),
                 "previous_accounts_sample": dict(list(previous_accounts.items())[:10]),
                 "current_accounts": current_accounts,
+                "previous_accounts": previous_accounts,  # Add previous year accounts for reclassification
                 "rr_data": rr_data,
                 "br_data": br_data,
                 "ink2_data": ink2_data,

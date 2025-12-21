@@ -8,6 +8,10 @@ export interface SEData {
   incomeStatement?: Array<{account: string, amount: number, description?: string}>;
   balanceSheet?: Array<{account: string, amount: number, description?: string, type?: string}>;
   
+  // Account balances for current and previous year
+  current_accounts?: Record<string, number>;
+  previous_accounts?: Record<string, number>;
+  
   // New database-driven parser format
   rr_data?: Array<{
     id: string;
