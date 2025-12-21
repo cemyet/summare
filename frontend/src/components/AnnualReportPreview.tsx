@@ -5,7 +5,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -3144,116 +3143,109 @@ const handleTaxCalculationClick = () => {
         </div>
       </Card>
       
-      {/* Reclassification Dialog */}
-      <Dialog open={reclassDialogOpen} onOpenChange={setReclassDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Flytta konto till annan kontogrupp</DialogTitle>
-            <DialogDescription>
-              Flytta konto {reclassAccount?.account_id} till följande kontogrupp
-            </DialogDescription>
-          </DialogHeader>
-          
-          {reclassAccount && accountGroups && (
-            <div className="space-y-4 py-4">
-              {/* Current account info */}
-              <div className="text-sm bg-gray-50 p-3 rounded-lg">
-                <div className="font-medium mb-1">Konto {reclassAccount.account_id}</div>
-                <div className="text-muted-foreground">{reclassAccount.account_text}</div>
-                <div className="text-muted-foreground mt-1">
-                  Belopp: {new Intl.NumberFormat('sv-SE').format(reclassAccount.balance)} kr
-                </div>
-                <div className="text-muted-foreground text-xs mt-2">
-                  Nuvarande plats: {reclassAccount.from_row_title}
-                </div>
-              </div>
-              
-              {/* Group selection dropdown */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Välj kontogrupp</label>
+      {/* Reclassification Popover - compact overlay */}
+      {reclassDialogOpen && reclassAccount && accountGroups && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/20" 
+            onClick={() => {
+              setReclassDialogOpen(false);
+              setReclassAccount(null);
+            }}
+          />
+          {/* Compact popup */}
+          <div className="relative bg-white rounded-lg shadow-lg border p-4 w-72 z-10">
+            {/* Header */}
+            <div className="text-sm font-medium text-gray-900 mb-3">
+              Flytta konto {reclassAccount.account_id}
+            </div>
+            
+            {/* Group selection */}
+            <div className="mb-2">
+              <Select
+                value={selectedGroupType}
+                onValueChange={(value) => {
+                  setSelectedGroupType(value);
+                  setSelectedTargetRowId(null);
+                }}
+              >
+                <SelectTrigger className="w-full h-8 text-xs">
+                  <SelectValue placeholder="Välj kontogrupp..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-48">
+                  {accountGroups[reclassAccount.side]?.groups.map((group: any) => (
+                    <SelectItem key={group.type} value={group.type} className="text-xs py-1">
+                      {group.group_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Row selection */}
+            {selectedGroupType && (
+              <div className="mb-3">
                 <Select
-                  value={selectedGroupType}
-                  onValueChange={(value) => {
-                    setSelectedGroupType(value);
-                    setSelectedTargetRowId(null); // Reset row selection when group changes
-                  }}
+                  value={selectedTargetRowId?.toString() || ''}
+                  onValueChange={(value) => setSelectedTargetRowId(parseInt(value))}
                 >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Välj kontogrupp..." />
+                  <SelectTrigger className="w-full h-8 text-xs">
+                    <SelectValue placeholder="Välj rad..." />
                   </SelectTrigger>
-                  <SelectContent>
-                    {accountGroups[reclassAccount.side]?.groups.map((group: any) => (
-                      <SelectItem key={group.type} value={group.type}>
-                        {group.group_name}
+                  <SelectContent className="max-h-48">
+                    {accountGroups[reclassAccount.side]?.rows_by_type[selectedGroupType]?.map((row: any) => (
+                      <SelectItem 
+                        key={row.row_id} 
+                        value={row.row_id.toString()}
+                        disabled={row.row_id === reclassAccount.from_row_id}
+                        className="text-xs py-1"
+                      >
+                        {row.row_title_popup}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              
-              {/* Row selection dropdown */}
-              {selectedGroupType && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Välj rad</label>
-                  <Select
-                    value={selectedTargetRowId?.toString() || ''}
-                    onValueChange={(value) => setSelectedTargetRowId(parseInt(value))}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Välj rad..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {accountGroups[reclassAccount.side]?.rows_by_type[selectedGroupType]?.map((row: any) => (
-                        <SelectItem 
-                          key={row.row_id} 
-                          value={row.row_id.toString()}
-                          disabled={row.row_id === reclassAccount.from_row_id}
-                        >
-                          {row.row_title_popup}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+            )}
+            
+            {/* Buttons */}
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setReclassDialogOpen(false);
+                  setReclassAccount(null);
+                }}
+                className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+              >
+                Avbryt
+              </button>
+              <button
+                onClick={handleApplyReclassification}
+                disabled={!selectedTargetRowId || isReclassifying || selectedTargetRowId === reclassAccount.from_row_id}
+                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              >
+                {isReclassifying ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Flyttar...
+                  </>
+                ) : (
+                  <>
+                    Flytta
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </>
+                )}
+              </button>
             </div>
-          )}
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setReclassDialogOpen(false);
-                setReclassAccount(null);
-              }}
-            >
-              Avbryt
-            </Button>
-            <Button
-              onClick={handleApplyReclassification}
-              disabled={!selectedTargetRowId || isReclassifying || selectedTargetRowId === reclassAccount?.from_row_id}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isReclassifying ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Flyttar...
-                </span>
-              ) : (
-                <span className="flex items-center gap-2">
-                  Genomför flytt
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </span>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
