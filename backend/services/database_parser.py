@@ -393,6 +393,42 @@ class DatabaseParser:
         except Exception as e:
             print(f"Formula evaluation error: {e}")
             return 0.0
+
+    def _recalculate_formula_from_results(self, mapping: Dict[str, Any], results: List[Dict[str, Any]], use_previous_year: bool = False) -> float:
+        """
+        Recalculate a formula-based row using current values from results.
+        
+        This is used after reclassification to update sum rows with the new values.
+        Unlike calculate_formula_value, this doesn't need account data - it reads
+        directly from the already-calculated results.
+        """
+        formula = mapping.get('calculation_formula', '')
+        if not formula:
+            return 0.0
+        
+        import re
+        
+        # Map variable names to their values from results
+        pattern = r'\b([A-Z][a-zA-Z0-9_]*)\b'
+        
+        def replace_variable(match):
+            var_name = match.group(1)
+            # Find the variable in results
+            for item in results:
+                if item.get('variable_name') == var_name:
+                    value = item.get('previous_amount' if use_previous_year else 'current_amount', 0)
+                    return str(value if value is not None else 0)
+            return '0'
+        
+        # Replace all variable references
+        formula_with_values = re.sub(pattern, replace_variable, formula)
+        
+        try:
+            result = eval(formula_with_values)
+            return float(result)
+        except Exception as e:
+            print(f"Formula recalculation error: {e}")
+            return 0.0
     
     def parse_rr_data(self, current_accounts: Dict[str, float], previous_accounts: Dict[str, float] = None, sie_text: Optional[str] = None) -> List[Dict[str, Any]]:
         """Parse RR (Resultaträkning) data using database mappings"""
@@ -787,6 +823,20 @@ class DatabaseParser:
                 
                 # Update account_details with adjusted list
                 result['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
+        
+        # THIRD PASS: Recalculate all formula-based (sum) rows after reclassification
+        # This ensures sums reflect the updated amounts from reclassification
+        for i, mapping in calculated_mappings:
+            # Recalculate using the updated results (which now have reclassified amounts)
+            current_amount = self._recalculate_formula_from_results(mapping, results, use_previous_year=False)
+            previous_amount = self._recalculate_formula_from_results(mapping, results, use_previous_year=True)
+            
+            # Update the result
+            for result in results:
+                if result['id'] == mapping['row_id']:
+                    result['current_amount'] = current_amount
+                    result['previous_amount'] = previous_amount
+                    break
         
         # Store calculated values in database for future use
         self.store_calculated_values(results, 'BR')
