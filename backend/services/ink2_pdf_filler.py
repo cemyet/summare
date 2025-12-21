@@ -73,12 +73,20 @@ def build_override_map(company_data: dict) -> dict:
             M[_norm(k)] = val
 
     # 3) RR/BR current values (affects many sums used by INK2)
+    # IMPORTANT: Prefer top-level rrData/brData (which include reclassifications and updates)
+    # over seFileData.rr_data/br_data (which are original/baseline)
     se = (company_data.get("seFileData") or {})
-    for row in se.get("rr_data", []) or []:
+    
+    # Use rrData if available, fallback to seFileData.rr_data
+    rr_data = company_data.get("rrData") or se.get("rr_data", []) or []
+    for row in rr_data:
         k, v = row.get("variable_name"), _sv_num(row.get("current_amount"))
         if k and v is not None:
             M[_norm(k)] = v
-    for row in se.get("br_data", []) or []:
+    
+    # Use brData if available, fallback to seFileData.br_data
+    br_data = company_data.get("brData") or se.get("br_data", []) or []
+    for row in br_data:
         k, v = row.get("variable_name"), _sv_num(row.get("current_amount"))
         if k and v is not None:
             M[_norm(k)] = v

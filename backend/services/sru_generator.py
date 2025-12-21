@@ -283,8 +283,9 @@ def _choose_rows(company_data: Dict[str, Any]) -> ResolverContext:
         or (company_data.get("seFileData") or {}).get("ink2_data")
         or []
     )
-    rr_rows = company_data.get("rr_data") or (company_data.get("seFileData") or {}).get("rr_data") or []
-    br_rows = company_data.get("br_data") or (company_data.get("seFileData") or {}).get("br_data") or []
+    # IMPORTANT: Prefer rrData/brData (which include reclassifications and updates)
+    rr_rows = company_data.get("rrData") or company_data.get("rr_data") or (company_data.get("seFileData") or {}).get("rr_data") or []
+    br_rows = company_data.get("brData") or company_data.get("br_data") or (company_data.get("seFileData") or {}).get("br_data") or []
     return ResolverContext(accepted, ink2_rows, rr_rows, br_rows)
 
 def _is_numeric_sru(x: Any) -> bool:
