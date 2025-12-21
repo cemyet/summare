@@ -1187,13 +1187,36 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         setBrDataWithNotes(response.br_data);
         
         // Store the reclassification for saving later
-        setUserReclassifications(prev => [...prev, response.reclassification]);
+        const newReclassifications = [...userReclassifications, response.reclassification];
+        setUserReclassifications(newReclassifications);
         
         // Update parent companyData with new BR data
-        onDataUpdate?.({
+        const updatedData = {
           brData: response.br_data,
-          userReclassifications: [...userReclassifications, response.reclassification]
-        });
+          userReclassifications: newReclassifications
+        };
+        onDataUpdate?.(updatedData);
+        
+        // Auto-save to database if payment has been completed (report exists)
+        // This ensures Mina Sidor always has the latest data
+        try {
+          const dataToSave = {
+            ...companyData,
+            ...updatedData,
+            seFileData: {
+              ...companyData.seFileData,
+              br_data: response.br_data  // Update br_data in seFileData as well
+            }
+          };
+          await apiService.saveAnnualReportData({
+            companyData: dataToSave,
+            status: 'submitted'
+          });
+          console.log('✅ Reclassification saved to database');
+        } catch (saveError) {
+          console.warn('⚠️ Could not save reclassification to database:', saveError);
+          // Don't fail the operation - the local state is updated
+        }
         
         // Reset reclassification state
         setReclassAccount(null);
@@ -1908,6 +1931,25 @@ const handleTaxCalculationClick = () => {
       }
       
       onDataUpdate(updatePayload);
+      
+      // Auto-save to database to keep Mina Sidor updated
+      // This runs in background and doesn't block the UI
+      try {
+        const dataToSave = {
+          ...companyData,
+          ...updatePayload,
+          brData: result.br_data,
+          rrData: result.rr_data,
+        };
+        await apiService.saveAnnualReportData({
+          companyData: dataToSave,
+          status: 'submitted'
+        });
+        console.log('✅ Tax update saved to database');
+      } catch (saveError) {
+        console.warn('⚠️ Could not save tax update to database:', saveError);
+        // Don't fail the operation - the local state is updated
+      }
       } else {
         console.error('❌ Failed to update RR/BR data:', result.error);
       }
