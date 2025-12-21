@@ -2660,6 +2660,59 @@ class DatabaseParser:
         
         return br_data
     
+    def _recalculate_rr_sum_rows(self, rr_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Recalculate all sum rows in RR data after a reclassification.
+        
+        CRITICAL: This method NEVER recalculates SkattAretsResultat (row 277) or 
+        SumAretsResultat (row 279) as these may be driven by INK2 calculations.
+
+        Args:
+            rr_data: List of RR data items with current/previous amounts
+
+        Returns:
+            Updated RR data with recalculated sum rows
+        """
+        if not self.rr_mappings:
+            print("Warning: No RR mappings loaded, cannot recalculate sum rows")
+            return rr_data
+
+        # CRITICAL: These rows should NOT be recalculated - they're driven by tax flow
+        # 277 = SkattAretsResultat - may be updated by INK2
+        # 279 = SumAretsResultat - depends on SkattAretsResultat
+        PROTECTED_ROW_IDS = {277, 279}
+
+        # Get calculated mappings sorted by row_id
+        calculated_mappings = [mapping for mapping in self.rr_mappings
+                              if mapping.get('is_calculated')]
+        calculated_mappings.sort(key=lambda x: int(x['row_id']))
+
+        # Recalculate each sum row
+        for mapping in calculated_mappings:
+            formula = mapping.get('calculation_formula', '')
+            if not formula:
+                continue
+
+            row_id = mapping.get('row_id')
+            
+            # Skip protected rows
+            if int(row_id) in PROTECTED_ROW_IDS:
+                continue
+            
+            # Recalculate from results
+            current_amount = self._recalculate_formula_from_results(mapping, rr_data, use_previous_year=False)
+            previous_amount = self._recalculate_formula_from_results(mapping, rr_data, use_previous_year=True)
+            
+            # Update the result
+            for result in rr_data:
+                result_id = result.get('id') or result.get('row_id')
+                if str(result_id) == str(row_id):
+                    result['current_amount'] = current_amount
+                    result['previous_amount'] = previous_amount
+                    break
+        
+        return rr_data
+
     def add_note_numbers_to_financial_data(self, br_data: List[Dict[str, Any]], rr_data: List[Dict[str, Any]], dynamic_note_numbers: Dict[str, int] = None) -> Dict[str, List[Dict[str, Any]]]:
         """
         Add note numbers to both BR and RR data based on mappings from noter table.

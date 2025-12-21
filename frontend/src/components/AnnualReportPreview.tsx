@@ -329,6 +329,17 @@ interface CompanyData {
     balance_current: number;
     balance_previous: number;
   }>;
+  
+  // User reclassifications for RR accounts
+  userReclassificationsRR?: Array<{
+    account_id: string;
+    account_text: string;
+    from_row_id: number;
+    to_row_id: number;
+    balance_current: number;
+    balance_previous: number;
+    report_type: string;
+  }>;
 }
 
 interface AnnualReportPreviewProps {
@@ -1061,6 +1072,23 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const [userReclassifications, setUserReclassifications] = useState<any[]>(
     () => companyData?.userReclassifications || []
   );
+
+  // Account reclassification state (RR)
+  const [accountGroupsRR, setAccountGroupsRR] = useState<any>(null);
+  const [reclassAccountRR, setReclassAccountRR] = useState<{
+    account_id: string;
+    account_text: string;
+    balance: number;
+    balance_previous: number;
+    from_row_id: number;
+    current_group: string;
+  } | null>(null);
+  const [selectedGroupRR, setSelectedGroupRR] = useState<string>('');
+  const [selectedTargetRowIdRR, setSelectedTargetRowIdRR] = useState<number | null>(null);
+  const [isReclassifyingRR, setIsReclassifyingRR] = useState(false);
+  const [userReclassificationsRR, setUserReclassificationsRR] = useState<any[]>(
+    () => companyData?.userReclassificationsRR || []
+  );
   
   // Unified edit gate: works for both taxEditingEnabled and isInk2ManualEdit paths
   const canEdit = Boolean(isEditing || isInk2ManualEdit);
@@ -1134,7 +1162,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     }
   }, [ink2Data, rrData, brData]);
 
-  // Fetch account groups for reclassification on mount
+  // Fetch account groups for BR reclassification on mount
   useEffect(() => {
     const fetchAccountGroups = async () => {
       try {
@@ -1147,6 +1175,21 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       }
     };
     fetchAccountGroups();
+  }, []);
+
+  // Fetch account groups for RR reclassification on mount
+  useEffect(() => {
+    const fetchAccountGroupsRR = async () => {
+      try {
+        const response = await apiService.getAccountGroupsRR();
+        if (response.success) {
+          setAccountGroupsRR(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch RR account groups:', error);
+      }
+    };
+    fetchAccountGroupsRR();
   }, []);
 
   // Determine which side a row belongs to based on row_id ranges
@@ -1226,6 +1269,74 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     } finally {
       setIsReclassifying(false);
     }
+  };
+
+  // Handle applying RR reclassification
+  const handleApplyReclassificationRR = async () => {
+    if (!reclassAccountRR || !selectedTargetRowIdRR) return;
+    
+    setIsReclassifyingRR(true);
+    try {
+      const response = await apiService.applyReclassificationRR({
+        account_id: reclassAccountRR.account_id,
+        account_text: reclassAccountRR.account_text,
+        from_row_id: reclassAccountRR.from_row_id,
+        to_row_id: selectedTargetRowIdRR,
+        balance_current: reclassAccountRR.balance,
+        balance_previous: reclassAccountRR.balance_previous,
+        rr_data: rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData,
+        br_data: brDataWithNotes.length > 0 ? brDataWithNotes : brData
+      });
+      
+      if (response.success) {
+        // Update RR data with the reclassified data
+        setRrDataWithNotes(response.rr_data);
+        
+        // Store the reclassification for saving later
+        const newReclassifications = [...userReclassificationsRR, response.reclassification];
+        setUserReclassificationsRR(newReclassifications);
+        
+        // Update parent companyData with new RR data
+        const updatedData = {
+          rrData: response.rr_data,
+          userReclassificationsRR: newReclassifications
+        };
+        onDataUpdate?.(updatedData);
+        
+        // Auto-save to database
+        try {
+          const dataToSave = {
+            ...companyData,
+            ...updatedData,
+            seFileData: {
+              ...companyData.seFileData,
+              rr_data: response.rr_data
+            }
+          };
+          await apiService.saveAnnualReportData({
+            companyData: dataToSave,
+            status: 'submitted'
+          });
+          console.log('✅ RR Reclassification saved to database');
+        } catch (saveError) {
+          console.warn('⚠️ Could not save RR reclassification to database:', saveError);
+        }
+        
+        // Reset reclassification state
+        setReclassAccountRR(null);
+      }
+    } catch (error) {
+      console.error('Failed to apply RR reclassification:', error);
+    } finally {
+      setIsReclassifyingRR(false);
+    }
+  };
+
+  // Get the group for an RR row
+  const getRowGroupRR = (rowId: number): string => {
+    if (!accountGroupsRR?.all_rows) return '';
+    const row = accountGroupsRR.all_rows.find((r: any) => r.row_id === rowId);
+    return row?.group_text || '';
   };
 
   // Calculate dynamic note numbers based on Noter visibility logic
@@ -2257,7 +2368,7 @@ const handleTaxCalculationClick = () => {
                                 VISA
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
+                            <PopoverContent className="w-[520px] p-4 bg-white border shadow-lg">
                               <div className="space-y-3">
                                 <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
                                 <div className="overflow-x-auto">
@@ -2267,6 +2378,7 @@ const handleTaxCalculationClick = () => {
                                         <th className="text-left py-2 w-16">Konto</th>
                                         <th className="text-left py-2">Kontotext</th>
                                         <th className="text-right py-2 w-24" style={{minWidth: '80px'}}>{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
+                                        <th className="text-center py-2 w-8"></th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -2280,6 +2392,123 @@ const handleTaxCalculationClick = () => {
                                               maximumFractionDigits: 0
                                             }).format(detail.balance)} kr
                                           </td>
+                                          <td className="py-2 w-8 text-center">
+                                            {/* Move arrow button for RR reclassification */}
+                                            {accountGroupsRR && (
+                                              <Popover>
+                                                <PopoverTrigger asChild>
+                                                  <button
+                                                    className="p-1 hover:bg-blue-100 rounded text-blue-600 hover:text-blue-800"
+                                                    title="Flytta konto till annan rad"
+                                                    onClick={() => {
+                                                      // Get previous year balance from previous_accounts
+                                                      const accountId = detail.account_id;
+                                                      let balancePrevious = 0;
+                                                      if (seFileData?.previous_accounts && seFileData.previous_accounts[accountId]) {
+                                                        balancePrevious = seFileData.previous_accounts[accountId];
+                                                        // Apply sign reversal for accounts 3000-8999 (RR accounts)
+                                                        const accountNum = parseInt(accountId);
+                                                        if (accountNum >= 3000 && accountNum <= 8999) {
+                                                          balancePrevious = -balancePrevious;
+                                                        }
+                                                      }
+                                                      setReclassAccountRR({
+                                                        account_id: accountId,
+                                                        account_text: detail.account_text || '',
+                                                        balance: detail.balance,
+                                                        balance_previous: balancePrevious,
+                                                        from_row_id: Number(item.id || item.row_id),
+                                                        current_group: getRowGroupRR(Number(item.id || item.row_id))
+                                                      });
+                                                      setSelectedGroupRR(getRowGroupRR(Number(item.id || item.row_id)));
+                                                      setSelectedTargetRowIdRR(null);
+                                                    }}
+                                                  >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                                                    </svg>
+                                                  </button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-80 p-4 bg-white border shadow-lg" side="right" align="start">
+                                                  <PopoverClose className="absolute top-2 right-2 p-1 hover:bg-gray-100 rounded">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                                                    </svg>
+                                                  </PopoverClose>
+                                                  <div className="space-y-3">
+                                                    <h4 className="font-medium text-sm pr-6">Flytta konto {detail.account_id} till rad:</h4>
+
+                                                    <div className="mb-3">
+                                                      <Select
+                                                        value={selectedGroupRR}
+                                                        onValueChange={(value) => {
+                                                          setSelectedGroupRR(value);
+                                                          setSelectedTargetRowIdRR(null);
+                                                        }}
+                                                      >
+                                                        <SelectTrigger className="h-8 text-sm">
+                                                          <SelectValue placeholder="Välj kontogrupp..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="max-h-64">
+                                                          {accountGroupsRR?.groups?.map((group: any) => (
+                                                            <SelectItem key={group.group_text} value={group.group_text} className="text-sm">
+                                                              {group.group_name}
+                                                            </SelectItem>
+                                                          ))}
+                                                        </SelectContent>
+                                                      </Select>
+                                                    </div>
+
+                                                    {selectedGroupRR && (
+                                                      <div className="mb-3">
+                                                        <Select
+                                                          value={selectedTargetRowIdRR?.toString() || ''}
+                                                          onValueChange={(value) => setSelectedTargetRowIdRR(Number(value))}
+                                                        >
+                                                          <SelectTrigger className="h-8 text-sm">
+                                                            <SelectValue placeholder="Välj rad..." />
+                                                          </SelectTrigger>
+                                                          <SelectContent className="max-h-64">
+                                                            {accountGroupsRR?.rows_by_group[selectedGroupRR]?.map((row: any) => (
+                                                              <SelectItem
+                                                                key={row.row_id}
+                                                                value={row.row_id.toString()}
+                                                                className="text-sm"
+                                                              >
+                                                                {row.row_title_popup || row.row_title}
+                                                              </SelectItem>
+                                                            ))}
+                                                          </SelectContent>
+                                                        </Select>
+                                                      </div>
+                                                    )}
+
+                                                    <div className="flex gap-2 justify-end">
+                                                      <button
+                                                        onClick={handleApplyReclassificationRR}
+                                                        disabled={!selectedTargetRowIdRR || isReclassifyingRR || selectedTargetRowIdRR === Number(item.id || item.row_id)}
+                                                        className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                                      >
+                                                        {isReclassifyingRR ? (
+                                                          <>
+                                                            <span className="animate-spin">⏳</span>
+                                                            Flyttar...
+                                                          </>
+                                                        ) : (
+                                                          <>
+                                                            Genomför flytt
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+                                                            </svg>
+                                                          </>
+                                                        )}
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                </PopoverContent>
+                                              </Popover>
+                                            )}
+                                          </td>
                                         </tr>
                                       ))}
                                       {/* Sum row */}
@@ -2290,10 +2519,11 @@ const handleTaxCalculationClick = () => {
                                           {new Intl.NumberFormat('sv-SE', {
                                             minimumFractionDigits: 0,
                                             maximumFractionDigits: 0
-                                          }                                          ).format(
+                                          }).format(
                                             item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0)
                                           )} kr
                                         </td>
+                                        <td className="py-2 w-8"></td>
                                       </tr>
                                     </tbody>
                                   </table>

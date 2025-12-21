@@ -6024,6 +6024,189 @@ async def apply_reclassification(request: ReclassificationRequest):
         raise HTTPException(status_code=500, detail=f"Error applying reclassification: {str(e)}")
 
 
+# ============================================================================
+# RR (Income Statement) Account Reclassification Endpoints
+# ============================================================================
+
+@app.get("/api/account-groups-rr")
+async def get_account_groups_rr():
+    """
+    Get all account groups for RR reclassification.
+    Returns groups organized by category with their rows.
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+
+        # Fetch all RR account groups
+        result = supabase.table('account_groups_rr').select('*').order('row_id').execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="No RR account groups found")
+
+        # Group names for display
+        group_names = {
+            'Intäkter': 'Intäkter',
+            'Rörelsekostnader': 'Rörelsekostnader',
+            'Finansiella poster': 'Finansiella poster',
+            'Bokslutsdispositioner': 'Bokslutsdispositioner',
+            'Skatter': 'Skatter'
+        }
+        
+        # Organize by group_text
+        groups_by_type = {}
+        for row in result.data:
+            group_text = row.get('group_text')
+            if group_text not in groups_by_type:
+                groups_by_type[group_text] = {
+                    'group_text': group_text,
+                    'group_name': group_names.get(group_text, group_text),
+                    'rows': []
+                }
+            groups_by_type[group_text]['rows'].append({
+                'row_id': row.get('row_id'),
+                'row_title': row.get('row_title'),
+                'row_title_popup': row.get('row_title_popup')
+            })
+        
+        # Organize response with all groups
+        response = {
+            'groups': [
+                {'group_text': 'Intäkter', 'group_name': 'Intäkter'},
+                {'group_text': 'Rörelsekostnader', 'group_name': 'Rörelsekostnader'},
+                {'group_text': 'Finansiella poster', 'group_name': 'Finansiella poster'},
+                {'group_text': 'Bokslutsdispositioner', 'group_name': 'Bokslutsdispositioner'},
+                {'group_text': 'Skatter', 'group_name': 'Skatter'},
+            ],
+            'rows_by_group': {g: groups_by_type.get(g, {}).get('rows', []) for g in group_names.keys()},
+            'all_rows': result.data  # Full data for lookup
+        }
+        
+        return {"success": True, "data": response}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching RR account groups: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error fetching RR account groups: {str(e)}")
+
+
+class RRReclassificationRequest(BaseModel):
+    """Request model for applying RR account reclassification"""
+    account_id: str
+    account_text: str
+    from_row_id: int
+    to_row_id: int
+    balance_current: float
+    balance_previous: Optional[float] = 0
+    rr_data: List[Dict]
+    br_data: Optional[List[Dict]] = None
+
+
+@app.post("/api/apply-reclassification-rr")
+async def apply_reclassification_rr(request: RRReclassificationRequest):
+    """
+    Apply a single account reclassification to RR data.
+    Moves an account from one RR row to another and recalculates sums.
+    Returns the updated RR data.
+    """
+    try:
+        from services.database_parser import DatabaseParser
+        
+        account_id = request.account_id
+        from_row_id = request.from_row_id
+        to_row_id = request.to_row_id
+        balance_current = request.balance_current
+        balance_previous = request.balance_previous or 0
+        rr_data = request.rr_data
+        
+        print(f"🔄 [RR] Reclassifying account {account_id} from row {from_row_id} to row {to_row_id}")
+        print(f"   Balance: current={balance_current}, previous={balance_previous}")
+        
+        # Find source and target rows
+        source_row = None
+        target_row = None
+        
+        for row in rr_data:
+            row_id = row.get('row_id') or row.get('id')
+            if row_id == from_row_id or str(row_id) == str(from_row_id):
+                source_row = row
+            if row_id == to_row_id or str(row_id) == str(to_row_id):
+                target_row = row
+        
+        if not source_row:
+            raise HTTPException(status_code=400, detail=f"Source row {from_row_id} not found")
+        if not target_row:
+            raise HTTPException(status_code=400, detail=f"Target row {to_row_id} not found")
+        
+        # Find and remove the account from source row's account_details
+        account_to_move = None
+        source_details = source_row.get('account_details', []) or []
+        
+        for i, detail in enumerate(source_details):
+            if str(detail.get('account_id')) == str(account_id):
+                account_to_move = source_details.pop(i)
+                break
+        
+        if not account_to_move:
+            raise HTTPException(status_code=400, detail=f"Account {account_id} not found in source row {from_row_id}")
+        
+        # Update source row
+        source_row['account_details'] = source_details
+        source_row['current_amount'] = float(source_row.get('current_amount', 0)) - balance_current
+        source_row['previous_amount'] = float(source_row.get('previous_amount', 0)) - balance_previous
+        
+        # Hide source row if no accounts left
+        if not source_details:
+            source_row['show_tag'] = False
+        
+        # Add account to target row's account_details
+        target_details = target_row.get('account_details', []) or []
+        target_details.append(account_to_move)
+        target_row['account_details'] = target_details
+        target_row['current_amount'] = float(target_row.get('current_amount', 0)) + balance_current
+        target_row['previous_amount'] = float(target_row.get('previous_amount', 0)) + balance_previous
+        
+        # Show target row
+        if target_details:
+            target_row['show_tag'] = True
+        
+        # Recalculate sum rows for RR
+        parser = DatabaseParser()
+        rr_data = parser._recalculate_rr_sum_rows(rr_data)
+        
+        # Create reclassification record for storage
+        reclassification = {
+            'account_id': account_id,
+            'account_text': request.account_text or account_to_move.get('account_text', ''),
+            'from_row_id': from_row_id,
+            'to_row_id': to_row_id,
+            'balance_current': balance_current,
+            'balance_previous': balance_previous,
+            'report_type': 'rr'
+        }
+        
+        print(f"✅ [RR] Reclassification complete: {account_id} moved from row {from_row_id} to row {to_row_id}")
+        
+        return {
+            "success": True,
+            "rr_data": rr_data,
+            "reclassification": reclassification,
+            "message": f"Account {account_id} moved from row {from_row_id} to row {to_row_id}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error applying RR reclassification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error applying RR reclassification: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     import os

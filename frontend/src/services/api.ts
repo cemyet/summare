@@ -318,6 +318,47 @@ class ApiService {
       body: JSON.stringify(data),
     });
   }
+
+  // RR Account Reclassification API methods
+  async getAccountGroupsRR(): Promise<{
+    success: boolean;
+    data: {
+      groups: Array<{ group_text: string; group_name: string }>;
+      rows_by_group: Record<string, Array<{ row_id: number; row_title: string; row_title_popup: string }>>;
+      all_rows: Array<{ row_id: number; row_title: string; group_text: string; row_title_popup: string }>;
+    };
+  }> {
+    return this.makeRequest(API_ENDPOINTS.accountGroupsRR);
+  }
+
+  async applyReclassificationRR(data: {
+    account_id: string;
+    account_text: string;
+    from_row_id: number;
+    to_row_id: number;
+    balance_current: number;
+    balance_previous?: number;
+    rr_data: any[];
+    br_data?: any[];
+  }): Promise<{
+    success: boolean;
+    rr_data: any[];
+    reclassification: {
+      account_id: string;
+      account_text: string;
+      from_row_id: number;
+      to_row_id: number;
+      balance_current: number;
+      balance_previous: number;
+      report_type: string;
+    };
+    message: string;
+  }> {
+    return this.makeRequest(API_ENDPOINTS.applyReclassificationRR, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const apiService = new ApiService();

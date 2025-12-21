@@ -25,7 +25,10 @@ export const API_ENDPOINTS = {
   bolagsverketDocuments: `${API_BASE_URL}/bolagsverket/documents`,
   bolagsverketDocument: `${API_BASE_URL}/bolagsverket/document`,
   bolagsverketHealth: `${API_BASE_URL}/bolagsverket/health`,
-  // Account reclassification endpoints
+  // Account reclassification endpoints (BR)
   accountGroups: `${API_BASE_URL}/api/account-groups`,
   applyReclassification: `${API_BASE_URL}/api/apply-reclassification`,
+  // Account reclassification endpoints (RR)
+  accountGroupsRR: `${API_BASE_URL}/api/account-groups-rr`,
+  applyReclassificationRR: `${API_BASE_URL}/api/apply-reclassification-rr`,
 } as const; 
