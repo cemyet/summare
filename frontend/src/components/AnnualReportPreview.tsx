@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger, PopoverClose } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2425,12 +2425,22 @@ const handleTaxCalculationClick = () => {
                                                   </svg>
                                                 </button>
                                               </PopoverTrigger>
-                                              <PopoverContent className="w-64 p-3" side="left" align="start">
-                                                <div className="text-xs font-medium text-gray-900 mb-2">
-                                                  Flytta konto {detail.account_id}
+                                              <PopoverContent className="w-80 p-4 bg-white border shadow-lg" side="left" align="start">
+                                                {/* Header with X button */}
+                                                <div className="flex items-center justify-between mb-3">
+                                                  <div className="text-sm font-medium text-gray-900">
+                                                    Flytta konto {detail.account_id} till rad:
+                                                  </div>
+                                                  <PopoverClose asChild>
+                                                    <button className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-100">
+                                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                      </svg>
+                                                    </button>
+                                                  </PopoverClose>
                                                 </div>
                                                 
-                                                <div className="mb-2">
+                                                <div className="mb-3">
                                                   <Select
                                                     value={selectedGroupType}
                                                     onValueChange={(value) => {
@@ -2438,12 +2448,12 @@ const handleTaxCalculationClick = () => {
                                                       setSelectedTargetRowId(null);
                                                     }}
                                                   >
-                                                    <SelectTrigger className="w-full h-7 text-xs">
+                                                    <SelectTrigger className="w-full h-8 text-sm">
                                                       <SelectValue placeholder="Välj kontogrupp..." />
                                                     </SelectTrigger>
-                                                    <SelectContent className="max-h-40">
+                                                    <SelectContent className="max-h-64">
                                                       {accountGroups[getRowSide(item.id || item.row_id)]?.groups.map((group: any) => (
-                                                        <SelectItem key={group.type} value={group.type} className="text-xs py-1">
+                                                        <SelectItem key={group.type} value={group.type} className="text-sm">
                                                           {group.group_name}
                                                         </SelectItem>
                                                       ))}
@@ -2452,21 +2462,21 @@ const handleTaxCalculationClick = () => {
                                                 </div>
                                                 
                                                 {selectedGroupType && (
-                                                  <div className="mb-2">
+                                                  <div className="mb-3">
                                                     <Select
                                                       value={selectedTargetRowId?.toString() || ''}
                                                       onValueChange={(value) => setSelectedTargetRowId(parseInt(value))}
                                                     >
-                                                      <SelectTrigger className="w-full h-7 text-xs">
+                                                      <SelectTrigger className="w-full h-8 text-sm">
                                                         <SelectValue placeholder="Välj rad..." />
                                                       </SelectTrigger>
-                                                      <SelectContent className="max-h-40">
+                                                      <SelectContent className="max-h-64">
                                                         {accountGroups[getRowSide(item.id || item.row_id)]?.rows_by_type[selectedGroupType]?.map((row: any) => (
                                                           <SelectItem 
                                                             key={row.row_id} 
                                                             value={row.row_id.toString()}
                                                             disabled={row.row_id === (item.id || item.row_id)}
-                                                            className="text-xs py-1"
+                                                            className="text-sm"
                                                           >
                                                             {row.row_title_popup}
                                                           </SelectItem>
@@ -2480,11 +2490,11 @@ const handleTaxCalculationClick = () => {
                                                   <button
                                                     onClick={handleApplyReclassification}
                                                     disabled={!selectedTargetRowId || isReclassifying || selectedTargetRowId === (item.id || item.row_id)}
-                                                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
                                                   >
                                                     {isReclassifying ? (
                                                       <>
-                                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                                                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                                                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                                         </svg>
@@ -2492,7 +2502,7 @@ const handleTaxCalculationClick = () => {
                                                     ) : (
                                                       <>
                                                         Flytta
-                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                                                         </svg>
                                                       </>
