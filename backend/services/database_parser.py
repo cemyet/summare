@@ -1989,6 +1989,8 @@ class DatabaseParser:
         # Accumulators for current and previous year reclassifications
         current_reclass = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
         previous_reclass = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+        # Track amounts that need to be subtracted from liabilities (only if they were included in original sum)
+        previous_reclass_from_dict = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
         current_account_details = {"koncern": [], "intresse": [], "ovriga": []}
         previous_account_details = {"koncern": [], "intresse": [], "ovriga": []}
 
@@ -2009,7 +2011,9 @@ class DatabaseParser:
                     })
             
             # Previous year: check previous_accounts first, then fallback to SIE parsing
-            prev_bal = float((previous_accounts or {}).get(acct_str, 0.0))
+            prev_bal_from_dict = float((previous_accounts or {}).get(acct_str, 0.0))
+            prev_bal = prev_bal_from_dict
+            was_in_dict = abs(prev_bal_from_dict) > 0.5
             
             # If not found in previous_accounts (or is 0), fallback to SIE parsing
             # This handles cases where #UB -1 doesn't exist but #IB 0 does
@@ -2020,6 +2024,10 @@ class DatabaseParser:
                 bucket = _classify_28xx(acct)
                 if bucket:
                     previous_reclass[bucket] += prev_bal
+                    # Only track for liability subtraction if it was in previous_accounts
+                    # (meaning it was included in the original liability calculation)
+                    if was_in_dict:
+                        previous_reclass_from_dict[bucket] += prev_bal
                     previous_account_details[bucket].append({
                         'account_id': acct_str,
                         'account_text': account_names.get(acct, f"Konto {acct}"),
@@ -2068,26 +2076,29 @@ class DatabaseParser:
                     account_movements[row_id_353]['added'].extend(current_account_details["ovriga"])
 
         # Apply previous year reclassification
+        # NOTE: Only subtract from liabilities if the amount was in previous_accounts (was included in original sum)
+        # If it came from SIE fallback (#IB 0), it was never in the liability sum, so don't subtract
         if row_351 and previous_reclass["koncern"] > 0.5:
             prev = float(row_351.get("previous_amount") or 0.0)
             row_351["previous_amount"] = prev + previous_reclass["koncern"]
-            if row_410:
+            # Only subtract from liability if it was in the original previous_accounts dict
+            if row_410 and previous_reclass_from_dict["koncern"] > 0.5:
                 prev_410 = float(row_410.get("previous_amount") or 0.0)
-                row_410["previous_amount"] = prev_410 - previous_reclass["koncern"]
+                row_410["previous_amount"] = prev_410 - previous_reclass_from_dict["koncern"]
 
         if row_352 and previous_reclass["intresse"] > 0.5:
             prev = float(row_352.get("previous_amount") or 0.0)
             row_352["previous_amount"] = prev + previous_reclass["intresse"]
-            if row_411:
+            if row_411 and previous_reclass_from_dict["intresse"] > 0.5:
                 prev_411 = float(row_411.get("previous_amount") or 0.0)
-                row_411["previous_amount"] = prev_411 - previous_reclass["intresse"]
+                row_411["previous_amount"] = prev_411 - previous_reclass_from_dict["intresse"]
 
         if row_353 and previous_reclass["ovriga"] > 0.5:
             prev = float(row_353.get("previous_amount") or 0.0)
             row_353["previous_amount"] = prev + previous_reclass["ovriga"]
-            if row_412:
+            if row_412 and previous_reclass_from_dict["ovriga"] > 0.5:
                 prev_412 = float(row_412.get("previous_amount") or 0.0)
-                row_412["previous_amount"] = prev_412 - previous_reclass["ovriga"]
+                row_412["previous_amount"] = prev_412 - previous_reclass_from_dict["ovriga"]
     
     def _get_level_from_style(self, style: str) -> int:
         """Get hierarchy level from style"""
