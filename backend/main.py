@@ -1174,7 +1174,7 @@ async def upload_two_se_files(
         except Exception as e:
             scraped_company_data = {"error": str(e)}
         
-        rr_data = parser.parse_rr_data(current_accounts, previous_accounts, sie_text=se_content)
+        rr_data = parser.parse_rr_data(current_accounts, previous_accounts, sie_text=current_se_content)
         
         # Pass RR data to BR parsing with two files flag and previous year SE content
         br_data = parser.parse_br_data_with_koncern(
