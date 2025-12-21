@@ -5,6 +5,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -317,6 +319,16 @@ interface CompanyData {
   triggerInk2Approve?: boolean; // Trigger INK2 approval from chat flow
   triggerSigneringSend?: boolean; // Trigger signing send from chat flow
   chatApplied?: Record<string, boolean>; // Track which chat overrides have been applied once
+  
+  // User reclassifications for BR accounts
+  userReclassifications?: Array<{
+    account_id: string;
+    account_text: string;
+    from_row_id: number;
+    to_row_id: number;
+    balance_current: number;
+    balance_previous: number;
+  }>;
 }
 
 interface AnnualReportPreviewProps {
@@ -1031,6 +1043,26 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const [isInk2ManualEdit, setIsInk2ManualEdit] = useState(false);
   const [isRecalcPending, setIsRecalcPending] = useState(false);
   
+  // Account reclassification state
+  const [accountGroups, setAccountGroups] = useState<any>(null);
+  const [reclassDialogOpen, setReclassDialogOpen] = useState(false);
+  const [reclassAccount, setReclassAccount] = useState<{
+    account_id: string;
+    account_text: string;
+    balance: number;
+    balance_previous?: number;
+    from_row_id: number;
+    from_row_title: string;
+    side: 'assets' | 'equity_debt';
+    current_type: string;
+  } | null>(null);
+  const [selectedGroupType, setSelectedGroupType] = useState<string>('');
+  const [selectedTargetRowId, setSelectedTargetRowId] = useState<number | null>(null);
+  const [isReclassifying, setIsReclassifying] = useState(false);
+  const [userReclassifications, setUserReclassifications] = useState<any[]>(
+    () => companyData?.userReclassifications || []
+  );
+  
   // Unified edit gate: works for both taxEditingEnabled and isInk2ManualEdit paths
   const canEdit = Boolean(isEditing || isInk2ManualEdit);
   
@@ -1102,6 +1134,102 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
       (window as any).__originalBrData = originalBrDataRef.current;
     }
   }, [ink2Data, rrData, brData]);
+
+  // Fetch account groups for reclassification on mount
+  useEffect(() => {
+    const fetchAccountGroups = async () => {
+      try {
+        const response = await apiService.getAccountGroups();
+        if (response.success) {
+          setAccountGroups(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch account groups:', error);
+      }
+    };
+    fetchAccountGroups();
+  }, []);
+
+  // Determine which side a row belongs to based on row_id ranges
+  const getRowSide = (rowId: number): 'assets' | 'equity_debt' => {
+    // Asset rows: 315-364 (IAT, MAT, FAT, OT)
+    // Equity/Debt rows: 371-415 (EK, OR, AVS, S)
+    if (rowId >= 315 && rowId <= 364) return 'assets';
+    return 'equity_debt';
+  };
+
+  // Get the type code for a row from account_groups
+  const getRowType = (rowId: number): string => {
+    if (!accountGroups?.all_rows) return '';
+    const row = accountGroups.all_rows.find((r: any) => r.row_id === rowId);
+    return row?.type || '';
+  };
+
+  // Handle opening the reclassification dialog
+  const handleOpenReclassDialog = (
+    account: { account_id: string; account_text: string; balance: number },
+    fromRowId: number,
+    fromRowTitle: string,
+    balancePrevious?: number
+  ) => {
+    const side = getRowSide(fromRowId);
+    const currentType = getRowType(fromRowId);
+    
+    setReclassAccount({
+      account_id: account.account_id,
+      account_text: account.account_text,
+      balance: account.balance,
+      balance_previous: balancePrevious || 0,
+      from_row_id: fromRowId,
+      from_row_title: fromRowTitle,
+      side,
+      current_type: currentType
+    });
+    setSelectedGroupType(currentType);
+    setSelectedTargetRowId(null);
+    setReclassDialogOpen(true);
+  };
+
+  // Handle applying the reclassification
+  const handleApplyReclassification = async () => {
+    if (!reclassAccount || !selectedTargetRowId) return;
+    
+    setIsReclassifying(true);
+    try {
+      const response = await apiService.applyReclassification({
+        account_id: reclassAccount.account_id,
+        account_text: reclassAccount.account_text,
+        from_row_id: reclassAccount.from_row_id,
+        to_row_id: selectedTargetRowId,
+        balance_current: reclassAccount.balance,
+        balance_previous: reclassAccount.balance_previous,
+        br_data: brDataWithNotes.length > 0 ? brDataWithNotes : brData,
+        rr_data: rrDataWithNotes.length > 0 ? rrDataWithNotes : rrData
+      });
+      
+      if (response.success) {
+        // Update BR data with the reclassified data
+        setBrDataWithNotes(response.br_data);
+        
+        // Store the reclassification for saving later
+        setUserReclassifications(prev => [...prev, response.reclassification]);
+        
+        // Update parent companyData with new BR data
+        onDataUpdate?.({
+          brData: response.br_data,
+          userReclassifications: [...userReclassifications, response.reclassification]
+        });
+        
+        // Close the dialog
+        setReclassDialogOpen(false);
+        setReclassAccount(null);
+      }
+    } catch (error) {
+      console.error('Failed to apply reclassification:', error);
+    } finally {
+      setIsReclassifying(false);
+    }
+  };
 
   // Calculate dynamic note numbers based on Noter visibility logic
   const calculateDynamicNoteNumbers = () => {
@@ -2259,7 +2387,7 @@ const handleTaxCalculationClick = () => {
                               VISA
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
+                          <PopoverContent className="w-[550px] p-4 bg-white border shadow-lg">
                             <div className="space-y-3">
                               <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
                               <div className="overflow-x-auto">
@@ -2268,19 +2396,38 @@ const handleTaxCalculationClick = () => {
                                     <tr className="border-b">
                                       <th className="text-left py-2 w-16">Konto</th>
                                       <th className="text-left py-2">Kontotext</th>
-                                      <th className="text-right py-2 w-24" style={{minWidth: '80px'}}>{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
+                                      <th className="text-right py-2 w-28" style={{minWidth: '100px'}}>{seFileData?.company_info?.fiscal_year || 'Belopp'}</th>
+                                      <th className="w-8"></th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     {item.account_details.map((detail: any, detailIndex: number) => (
-                                      <tr key={detailIndex} className="border-b">
+                                      <tr key={detailIndex} className="border-b group">
                                         <td className="py-2 w-16">{detail.account_id}</td>
                                         <td className="py-2 break-words">{detail.account_text || ''}</td>
-                                        <td className="text-right py-2 w-24 whitespace-nowrap" style={{minWidth: '80px'}}>
+                                        <td className="text-right py-2 w-28 whitespace-nowrap" style={{minWidth: '100px'}}>
                                           {new Intl.NumberFormat('sv-SE', {
                                             minimumFractionDigits: 0,
                                             maximumFractionDigits: 0
                                           }).format(detail.balance)} kr
+                                        </td>
+                                        <td className="py-2 w-8 text-center">
+                                          {accountGroups && (
+                                            <button
+                                              onClick={() => handleOpenReclassDialog(
+                                                detail,
+                                                item.id || item.row_id,
+                                                item.label,
+                                                detail.balance_previous
+                                              )}
+                                              className="opacity-60 hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity p-1 rounded hover:bg-blue-50"
+                                              title="Flytta konto till annan kontogrupp"
+                                            >
+                                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                              </svg>
+                                            </button>
+                                          )}
                                         </td>
                                       </tr>
                                     ))}
@@ -2288,7 +2435,7 @@ const handleTaxCalculationClick = () => {
                                     <tr className="border-t border-gray-300 font-semibold">
                                       <td className="py-2 w-16">Summa</td>
                                       <td className="py-2"></td>
-                                      <td className="text-right py-2 w-24 whitespace-nowrap" style={{minWidth: '80px'}}>
+                                      <td className="text-right py-2 w-28 whitespace-nowrap" style={{minWidth: '100px'}}>
                                         {new Intl.NumberFormat('sv-SE', {
                                           minimumFractionDigits: 0,
                                           maximumFractionDigits: 0
@@ -2296,6 +2443,7 @@ const handleTaxCalculationClick = () => {
                                             item.account_details.reduce((sum: number, detail: any) => sum + (detail.balance || 0), 0)
                                           )} kr
                                       </td>
+                                      <td className="w-8"></td>
                                     </tr>
                                   </tbody>
                                 </table>
@@ -2983,6 +3131,117 @@ const handleTaxCalculationClick = () => {
           <div className="h-20"></div>
         </div>
       </Card>
+      
+      {/* Reclassification Dialog */}
+      <Dialog open={reclassDialogOpen} onOpenChange={setReclassDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Flytta konto till annan kontogrupp</DialogTitle>
+            <DialogDescription>
+              Flytta konto {reclassAccount?.account_id} till följande kontogrupp
+            </DialogDescription>
+          </DialogHeader>
+          
+          {reclassAccount && accountGroups && (
+            <div className="space-y-4 py-4">
+              {/* Current account info */}
+              <div className="text-sm bg-gray-50 p-3 rounded-lg">
+                <div className="font-medium mb-1">Konto {reclassAccount.account_id}</div>
+                <div className="text-muted-foreground">{reclassAccount.account_text}</div>
+                <div className="text-muted-foreground mt-1">
+                  Belopp: {new Intl.NumberFormat('sv-SE').format(reclassAccount.balance)} kr
+                </div>
+                <div className="text-muted-foreground text-xs mt-2">
+                  Nuvarande plats: {reclassAccount.from_row_title}
+                </div>
+              </div>
+              
+              {/* Group selection dropdown */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Välj kontogrupp</label>
+                <Select
+                  value={selectedGroupType}
+                  onValueChange={(value) => {
+                    setSelectedGroupType(value);
+                    setSelectedTargetRowId(null); // Reset row selection when group changes
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Välj kontogrupp..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accountGroups[reclassAccount.side]?.groups.map((group: any) => (
+                      <SelectItem key={group.type} value={group.type}>
+                        {group.group_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* Row selection dropdown */}
+              {selectedGroupType && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Välj rad</label>
+                  <Select
+                    value={selectedTargetRowId?.toString() || ''}
+                    onValueChange={(value) => setSelectedTargetRowId(parseInt(value))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Välj rad..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accountGroups[reclassAccount.side]?.rows_by_type[selectedGroupType]?.map((row: any) => (
+                        <SelectItem 
+                          key={row.row_id} 
+                          value={row.row_id.toString()}
+                          disabled={row.row_id === reclassAccount.from_row_id}
+                        >
+                          {row.row_title_popup}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setReclassDialogOpen(false);
+                setReclassAccount(null);
+              }}
+            >
+              Avbryt
+            </Button>
+            <Button
+              onClick={handleApplyReclassification}
+              disabled={!selectedTargetRowId || isReclassifying || selectedTargetRowId === reclassAccount?.from_row_id}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isReclassifying ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Flyttar...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  Genomför flytt
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </span>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

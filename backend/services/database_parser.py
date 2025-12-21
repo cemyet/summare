@@ -2588,6 +2588,65 @@ class DatabaseParser:
         
         return updated_br_data
     
+    def _recalculate_sum_rows(self, br_data: List[Dict[str, Any]], rr_data: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Recalculate all sum rows in BR data after a reclassification.
+        This is a simplified version that works with already-calculated data.
+        
+        Args:
+            br_data: List of BR data items with current/previous amounts
+            rr_data: Optional RR data for cross-referencing variables
+        
+        Returns:
+            Updated BR data with recalculated sum rows
+        """
+        if not self.br_mappings:
+            print("Warning: No BR mappings loaded, cannot recalculate sum rows")
+            return br_data
+        
+        # Get calculated mappings sorted by row_id
+        calculated_mappings = [(mapping) for mapping in self.br_mappings
+                              if mapping.get('is_calculated')]
+        calculated_mappings.sort(key=lambda x: int(x['row_id']))
+        
+        # Recalculate each sum row
+        for mapping in calculated_mappings:
+            formula = mapping.get('calculation_formula', '')
+            if not formula:
+                continue
+            
+            row_id = mapping.get('row_id')
+            
+            # Check if this formula references any RR variables - if so, skip
+            references_rr = False
+            if rr_data:
+                import re
+                var_pattern = r'\b([A-Z][a-zA-Z0-9_]*)\b'
+                formula_vars = re.findall(var_pattern, formula)
+                for var_name in formula_vars:
+                    in_br = any(r.get('variable_name') == var_name for r in br_data)
+                    in_rr = any(r.get('variable_name') == var_name for r in rr_data)
+                    if in_rr and not in_br:
+                        references_rr = True
+                        break
+            
+            if references_rr:
+                continue
+            
+            # Recalculate from results
+            current_amount = self._recalculate_formula_from_results(mapping, br_data, use_previous_year=False, rr_data=rr_data)
+            previous_amount = self._recalculate_formula_from_results(mapping, br_data, use_previous_year=True, rr_data=rr_data)
+            
+            # Update the result
+            for result in br_data:
+                result_id = result.get('id') or result.get('row_id')
+                if str(result_id) == str(row_id):
+                    result['current_amount'] = current_amount
+                    result['previous_amount'] = previous_amount
+                    break
+        
+        return br_data
+    
     def add_note_numbers_to_financial_data(self, br_data: List[Dict[str, Any]], rr_data: List[Dict[str, Any]], dynamic_note_numbers: Dict[str, int] = None) -> Dict[str, List[Dict[str, Any]]]:
         """
         Add note numbers to both BR and RR data based on mappings from noter table.

@@ -272,6 +272,52 @@ class ApiService {
   async listAnnualReportsByUser(username: string): Promise<{ success: boolean; message: string; data: any[] }> {
     return this.makeRequest(`${API_ENDPOINTS.base}/api/annual-report-data/list-by-user?username=${encodeURIComponent(username)}`);
   }
+
+  // Account Reclassification API methods
+  async getAccountGroups(): Promise<{
+    success: boolean;
+    data: {
+      assets: {
+        groups: Array<{ type: string; group_name: string }>;
+        rows_by_type: Record<string, Array<{ row_id: number; row_title: string; row_title_popup: string }>>;
+      };
+      equity_debt: {
+        groups: Array<{ type: string; group_name: string }>;
+        rows_by_type: Record<string, Array<{ row_id: number; row_title: string; row_title_popup: string }>>;
+      };
+      all_rows: Array<{ row_id: number; row_title: string; type: string; group_text: string; row_title_popup: string }>;
+    };
+  }> {
+    return this.makeRequest(API_ENDPOINTS.accountGroups);
+  }
+
+  async applyReclassification(data: {
+    account_id: string;
+    account_text: string;
+    from_row_id: number;
+    to_row_id: number;
+    balance_current: number;
+    balance_previous?: number;
+    br_data: any[];
+    rr_data?: any[];
+  }): Promise<{
+    success: boolean;
+    br_data: any[];
+    reclassification: {
+      account_id: string;
+      account_text: string;
+      from_row_id: number;
+      to_row_id: number;
+      balance_current: number;
+      balance_previous: number;
+    };
+    message: string;
+  }> {
+    return this.makeRequest(API_ENDPOINTS.applyReclassification, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const apiService = new ApiService();

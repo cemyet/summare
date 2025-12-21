@@ -5146,6 +5146,9 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
         sie_content_current = se_file_data.get('sie_content_current')
         sie_content_previous = se_file_data.get('sie_content_previous')
         
+        # Extract user reclassifications if available
+        user_reclassifications = company_data.get('userReclassifications', [])
+        
         # Build data object with all the report sections
         db_data = {
             "organization_number": org_number,
@@ -5159,6 +5162,7 @@ async def save_annual_report_data(request: AnnualReportDataRequest):
             "ink2_data": ink2_data_slim,
             "signering_data": signering_data_slim,
             "company_data": company_data,  # Store full companyData for later retrieval
+            "user_reclassifications": user_reclassifications,  # Store user's manual reclassifications
             "status": request.status,
             "updated_at": datetime.now().isoformat()
         }
@@ -5697,6 +5701,233 @@ async def get_company_info_by_org(organization_number: str):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error getting company info: {str(e)}")
+
+
+# ============================================================================
+# Account Reclassification Endpoints
+# ============================================================================
+
+@app.get("/api/account-groups")
+async def get_account_groups():
+    """
+    Get all account groups for BR reclassification.
+    Returns groups organized by side (assets vs equity/debt) with their rows.
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Fetch all account groups
+        result = supabase.table('account_groups').select('*').order('row_id').execute()
+        
+        if not result.data:
+            raise HTTPException(status_code=404, detail="No account groups found")
+        
+        # Define which types belong to which side
+        asset_types = ['IAT', 'MAT', 'FAT', 'OT']
+        equity_debt_types = ['EK', 'OR', 'AVS', 'S']
+        
+        # Group names for display
+        group_names = {
+            'IAT': 'Immateriella anläggningstillgångar',
+            'MAT': 'Materiella anläggningstillgångar',
+            'FAT': 'Finansiella anläggningstillgångar',
+            'OT': 'Omsättningstillgångar',
+            'EK': 'Eget kapital',
+            'OR': 'Obeskattade reserver',
+            'AVS': 'Avsättningar',
+            'S': 'Skulder'
+        }
+        
+        # Organize by type
+        groups_by_type = {}
+        for row in result.data:
+            type_code = row.get('type')
+            if type_code not in groups_by_type:
+                groups_by_type[type_code] = {
+                    'type': type_code,
+                    'group_name': group_names.get(type_code, type_code),
+                    'side': 'assets' if type_code in asset_types else 'equity_debt',
+                    'rows': []
+                }
+            groups_by_type[type_code]['rows'].append({
+                'row_id': row.get('row_id'),
+                'row_title': row.get('row_title'),
+                'row_title_popup': row.get('row_title_popup')
+            })
+        
+        # Organize response by side
+        response = {
+            'assets': {
+                'groups': [
+                    {'type': 'IAT', 'group_name': group_names['IAT']},
+                    {'type': 'MAT', 'group_name': group_names['MAT']},
+                    {'type': 'FAT', 'group_name': group_names['FAT']},
+                    {'type': 'OT', 'group_name': group_names['OT']},
+                ],
+                'rows_by_type': {t: groups_by_type.get(t, {}).get('rows', []) for t in asset_types}
+            },
+            'equity_debt': {
+                'groups': [
+                    {'type': 'EK', 'group_name': group_names['EK']},
+                    {'type': 'OR', 'group_name': group_names['OR']},
+                    {'type': 'AVS', 'group_name': group_names['AVS']},
+                    {'type': 'S', 'group_name': group_names['S']},
+                ],
+                'rows_by_type': {t: groups_by_type.get(t, {}).get('rows', []) for t in equity_debt_types}
+            },
+            'all_rows': result.data  # Full data for lookup
+        }
+        
+        return {"success": True, "data": response}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching account groups: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error fetching account groups: {str(e)}")
+
+
+class ReclassificationRequest(BaseModel):
+    """Request model for applying account reclassification"""
+    account_id: str
+    account_text: str
+    from_row_id: int
+    to_row_id: int
+    balance_current: float
+    balance_previous: Optional[float] = 0
+    br_data: List[Dict]
+    rr_data: Optional[List[Dict]] = None
+    current_accounts: Optional[Dict] = None
+    previous_accounts: Optional[Dict] = None
+
+
+@app.post("/api/apply-reclassification")
+async def apply_reclassification(request: ReclassificationRequest):
+    """
+    Apply a single account reclassification to BR data.
+    Moves an account from one BR row to another and recalculates sums.
+    Returns the updated BR data.
+    """
+    try:
+        from services.database_parser import DatabaseParser
+        
+        account_id = request.account_id
+        from_row_id = request.from_row_id
+        to_row_id = request.to_row_id
+        balance_current = request.balance_current
+        balance_previous = request.balance_previous or 0
+        br_data = request.br_data
+        
+        print(f"🔄 Reclassifying account {account_id} from row {from_row_id} to row {to_row_id}")
+        print(f"   Balance: current={balance_current}, previous={balance_previous}")
+        
+        # Find source and target rows
+        source_row = None
+        target_row = None
+        
+        for row in br_data:
+            row_id = row.get('row_id') or row.get('id')
+            if row_id == from_row_id or str(row_id) == str(from_row_id):
+                source_row = row
+            if row_id == to_row_id or str(row_id) == str(to_row_id):
+                target_row = row
+        
+        if not source_row:
+            raise HTTPException(status_code=400, detail=f"Source row {from_row_id} not found in BR data")
+        if not target_row:
+            raise HTTPException(status_code=400, detail=f"Target row {to_row_id} not found in BR data")
+        
+        # Remove account from source row's account_details
+        source_details = source_row.get('account_details', [])
+        account_to_move = None
+        new_source_details = []
+        
+        for detail in source_details:
+            if str(detail.get('account_id')) == str(account_id):
+                account_to_move = detail.copy()
+            else:
+                new_source_details.append(detail)
+        
+        if not account_to_move:
+            raise HTTPException(status_code=400, detail=f"Account {account_id} not found in source row {from_row_id}")
+        
+        source_row['account_details'] = new_source_details
+        
+        # Update source row amounts
+        old_source_current = float(source_row.get('current_amount') or 0)
+        old_source_previous = float(source_row.get('previous_amount') or 0)
+        source_row['current_amount'] = old_source_current - balance_current
+        source_row['previous_amount'] = old_source_previous - balance_previous
+        
+        # Add account to target row's account_details
+        target_details = target_row.get('account_details', []) or []
+        
+        # Check if account already exists in target (shouldn't happen, but handle gracefully)
+        account_exists = False
+        for detail in target_details:
+            if str(detail.get('account_id')) == str(account_id):
+                # Update existing
+                detail['balance'] = balance_current
+                account_exists = True
+                break
+        
+        if not account_exists:
+            # Add new account to target
+            target_details.append({
+                'account_id': account_id,
+                'account_text': request.account_text or account_to_move.get('account_text', f'Konto {account_id}'),
+                'balance': balance_current
+            })
+        
+        # Sort target details by account_id
+        target_details = sorted(target_details, key=lambda x: str(x.get('account_id', '')))
+        target_row['account_details'] = target_details
+        
+        # Ensure show_tag is set for target row if it has account_details
+        if target_details:
+            target_row['show_tag'] = True
+        
+        # Update target row amounts
+        old_target_current = float(target_row.get('current_amount') or 0)
+        old_target_previous = float(target_row.get('previous_amount') or 0)
+        target_row['current_amount'] = old_target_current + balance_current
+        target_row['previous_amount'] = old_target_previous + balance_previous
+        
+        # Recalculate sum rows
+        # We need to recalculate all sum rows that include either the source or target row
+        parser = DatabaseParser()
+        br_data = parser._recalculate_sum_rows(br_data)
+        
+        # Create reclassification record for storage
+        reclassification = {
+            'account_id': account_id,
+            'account_text': request.account_text or account_to_move.get('account_text', ''),
+            'from_row_id': from_row_id,
+            'to_row_id': to_row_id,
+            'balance_current': balance_current,
+            'balance_previous': balance_previous
+        }
+        
+        print(f"✅ Reclassification complete: {account_id} moved from row {from_row_id} to row {to_row_id}")
+        
+        return {
+            "success": True,
+            "br_data": br_data,
+            "reclassification": reclassification,
+            "message": f"Account {account_id} moved from row {from_row_id} to row {to_row_id}"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error applying reclassification: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error applying reclassification: {str(e)}")
 
 
 if __name__ == "__main__":
