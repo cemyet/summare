@@ -2389,7 +2389,7 @@ const handleTaxCalculationClick = () => {
                                         </td>
                                         <td className="py-2 w-8 text-center">
                                           {/* Hide move button for protected rows: 366=Balanserat resultat, 380=Årets resultat */}
-                                          {accountGroups && ![366, 380].includes(item.id || item.row_id) && (
+                                          {accountGroups && ![366, 380].includes(Number(item.id || item.row_id)) && (
                                             <Popover>
                                               <PopoverTrigger asChild>
                                                 <button
