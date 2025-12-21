@@ -832,11 +832,33 @@ class DatabaseParser:
                 # Update account_details with adjusted list
                 result['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
         
-        # THIRD PASS: Recalculate all formula-based (sum) rows after reclassification
-        # This ensures sums reflect the updated amounts from reclassification
+        # THIRD PASS: Recalculate ONLY sum rows that don't reference RR data
+        # Skip rows that get values from RR (like AretsResultat) - those are already correct
         for i, mapping in calculated_mappings:
-            # Recalculate using the updated results (which now have reclassified amounts)
-            # Pass rr_data so that references to AretsResultat (from RR) are resolved correctly
+            formula = mapping.get('calculation_formula', '')
+            if not formula:
+                continue
+            
+            # Check if this formula references any RR variables - if so, skip recalculation
+            # to preserve the correct RR->BR transfer (e.g., AretsResultat)
+            references_rr = False
+            if rr_data:
+                import re
+                var_pattern = r'\b([A-Z][a-zA-Z0-9_]*)\b'
+                formula_vars = re.findall(var_pattern, formula)
+                for var_name in formula_vars:
+                    # Check if this variable exists in RR but not in BR
+                    in_br = any(r.get('variable_name') == var_name for r in results)
+                    in_rr = any(r.get('variable_name') == var_name for r in rr_data)
+                    if in_rr and not in_br:
+                        references_rr = True
+                        break
+            
+            if references_rr:
+                # Skip recalculation - keep original value from second pass
+                continue
+            
+            # Safe to recalculate - this is a pure BR sum row
             current_amount = self._recalculate_formula_from_results(mapping, results, use_previous_year=False, rr_data=rr_data)
             previous_amount = self._recalculate_formula_from_results(mapping, results, use_previous_year=True, rr_data=rr_data)
             
