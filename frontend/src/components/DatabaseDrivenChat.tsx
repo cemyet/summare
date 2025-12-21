@@ -2413,24 +2413,16 @@ const selectiveMergeInk2 = (
   };
 
 
-  // Initialize chat on mount
+  // Initialize chat on mount - show immediately, no API wait
   useEffect(() => {
-    // Only start if we have basic setup
-    const initializeChat = async () => {
-      try {
-        // Fetch step 101 from database for consistency
-        const response = await apiService.getChatFlowStep(101) as ChatFlowResponse;
-        addMessage(response.question_text, true, response.question_icon);
-        setShowFileUpload(true);
-      } catch (error) {
-        console.error('❌ Error initializing chat:', error);
-        // Fallback to hardcoded message
-        addMessage('Välkommen till Raketrapport! Ladda upp din SE-fil så börjar vi analysera din årsredovisning.', true, '👋');
-        setShowFileUpload(true);
-      }
-    };
-    
-    initializeChat();
+    // OPTIMIZATION: Show welcome message and file upload immediately
+    // Step 101 is static and never changes, so no need to wait for API
+    addMessage(
+      'Välkommen till Summare, ett smart AI verktyg för att skapa digitala årsredovisningar! På bara några minuter görs din årsredovisning klart för digital signering och uppladdning till Bolagsverket. Exportera SIE filer från ditt bokföringsprogram och ladda upp nedan, så kör vi igång!',
+      true,
+      '🚀'
+    );
+    setShowFileUpload(true);
   }, []);
 
   // Auto-scroll when new messages arrive (only for user messages)
