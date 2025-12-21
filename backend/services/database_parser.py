@@ -800,13 +800,6 @@ class DatabaseParser:
                         previous_accounts=previous_accounts,
                         account_movements=account_movements
                     )
-                # Bidirectional negative balance reclassification (substance over form)
-                # Runs LAST after all other reclassifications to catch any remaining negative balances
-                if USE_NEGATIVE_BALANCE_RECLASS:
-                    self._reclassify_negative_balances_bidirectional(
-                        br_rows=results,
-                        account_movements=account_movements
-                    )
             except Exception as e:
                 print(f"BR reclass skipped due to error: {e}")
         
@@ -862,6 +855,18 @@ class DatabaseParser:
                 
                 # Update account_details with adjusted list
                 result['account_details'] = sorted(account_details_dict.values(), key=lambda x: int(x['account_id']))
+        
+        # Bidirectional negative balance reclassification (substance over form)
+        # Runs AFTER account_details are finalized by all other reclassifications
+        # This ensures we see the correct state and don't double-count
+        if USE_NEGATIVE_BALANCE_RECLASS:
+            try:
+                self._reclassify_negative_balances_bidirectional(
+                    br_rows=results,
+                    account_movements=None  # Don't use account_movements - we modify account_details directly
+                )
+            except Exception as e:
+                print(f"Bidirectional reclass skipped due to error: {e}")
         
         # THIRD PASS: Recalculate ONLY sum rows that don't reference RR data
         # Skip rows that get values from RR (like AretsResultat) - those are already correct
@@ -2226,6 +2231,10 @@ class DatabaseParser:
             asset_details = asset_row.get("account_details", []) or []
             debt_details = debt_row.get("account_details", []) or []
 
+            # Build sets of account IDs already in each row (to avoid double-moving)
+            asset_account_ids = {str(acc.get("account_id")) for acc in asset_details}
+            debt_account_ids = {str(acc.get("account_id")) for acc in debt_details}
+
             # Track accounts to move
             # From debt row: accounts with negative balance (displayed) → move to asset row as positive
             # From asset row: accounts with negative balance (displayed) → move to debt row as positive
@@ -2236,7 +2245,14 @@ class DatabaseParser:
             # Check debt row for negative balances (these are actually claims)
             new_debt_details = []
             for acc in debt_details:
+                acc_id = str(acc.get("account_id"))
                 balance = float(acc.get("balance", 0))
+                
+                # Skip if this account already exists in the asset row (already reclassified by another process)
+                if acc_id in asset_account_ids:
+                    # Don't include in new_debt_details either - it's a duplicate
+                    continue
+                    
                 if balance < -0.5:  # Negative balance in debt row = actually a claim
                     # Move to asset row with negated (positive) balance
                     accounts_to_move_to_asset.append({
@@ -2250,7 +2266,14 @@ class DatabaseParser:
             # Check asset row for negative balances (these are actually debts)
             new_asset_details = []
             for acc in asset_details:
+                acc_id = str(acc.get("account_id"))
                 balance = float(acc.get("balance", 0))
+                
+                # Skip if this account already exists in the debt row (already reclassified by another process)
+                if acc_id in debt_account_ids:
+                    # Don't include in new_asset_details either - it's a duplicate
+                    continue
+                    
                 if balance < -0.5:  # Negative balance in asset row = actually a debt
                     # Move to debt row with negated (positive) balance
                     accounts_to_move_to_debt.append({
@@ -2261,28 +2284,7 @@ class DatabaseParser:
                 else:
                     new_asset_details.append(acc)
 
-            # Calculate amounts to transfer
-            amount_to_asset_current = sum(acc["balance"] for acc in accounts_to_move_to_asset)
-            amount_to_debt_current = sum(acc["balance"] for acc in accounts_to_move_to_debt)
-
-            # Update row amounts (current year)
-            if amount_to_asset_current > 0.5:
-                # Add to asset row
-                cur_asset = float(asset_row.get("current_amount") or 0.0)
-                asset_row["current_amount"] = cur_asset + amount_to_asset_current
-                # Subtract from debt row (the negative accounts were contributing negative, so we add their absolute value back)
-                cur_debt = float(debt_row.get("current_amount") or 0.0)
-                debt_row["current_amount"] = cur_debt + amount_to_asset_current  # Add back (removes the negative contribution)
-
-            if amount_to_debt_current > 0.5:
-                # Add to debt row
-                cur_debt = float(debt_row.get("current_amount") or 0.0)
-                debt_row["current_amount"] = cur_debt + amount_to_debt_current
-                # Subtract from asset row (the negative accounts were contributing negative, so we add their absolute value back)
-                cur_asset = float(asset_row.get("current_amount") or 0.0)
-                asset_row["current_amount"] = cur_asset + amount_to_debt_current  # Add back (removes the negative contribution)
-
-            # Update account_details
+            # Update account_details first
             # Add moved accounts to their new rows
             for acc in accounts_to_move_to_asset:
                 new_asset_details.append(acc)
@@ -2295,6 +2297,14 @@ class DatabaseParser:
             
             asset_row["account_details"] = new_asset_details
             debt_row["account_details"] = new_debt_details
+            
+            # Recalculate row amounts based on final account_details
+            # This ensures the row total matches the sum of account_details shown in popup
+            new_asset_total = sum(float(acc.get("balance", 0)) for acc in new_asset_details)
+            new_debt_total = sum(float(acc.get("balance", 0)) for acc in new_debt_details)
+            
+            asset_row["current_amount"] = new_asset_total
+            debt_row["current_amount"] = new_debt_total
 
             # Track account movements if provided
             if account_movements is not None:
