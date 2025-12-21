@@ -1132,6 +1132,9 @@ interface ChatFlowResponse {
       
       // Handle pension tax adjustments
       if (option.option_value === 'adjust_calculated') {
+        // Clear options immediately so they don't linger during async operations
+        setCurrentOptions([]);
+        
         const delta = (companyData.sarskildLoneskattPensionCalculated || 0)
                     - (companyData.sarskildLoneskattPension || 0);
         
@@ -1157,6 +1160,8 @@ interface ChatFlowResponse {
       }
       
       if (option.option_value === 'keep_current') {
+        // Clear options immediately
+        setCurrentOptions([]);
         // Keep current pension tax
         onDataUpdate({ justeringSarskildLoneskatt: 'current' });
         setTimeout(() => loadChatStep(301), 1000); // Go to underskott question
