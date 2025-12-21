@@ -2309,8 +2309,14 @@ const selectiveMergeInk2 = (
         }
       );
       addMessage(resultText, true, step103Response.question_icon, () => {
-        // Wait for step 103 message to complete before starting tax flow
-        continueTaxFlow();
+        // Follow database flow - load next step from step 103's no_option_next_step
+        const nextStep = step103Response.no_option_next_step;
+        if (nextStep) {
+          loadChatStep(nextStep);
+        } else {
+          // Fallback to old behavior if no next step defined
+          continueTaxFlow();
+        }
       });
     } catch (error) {
       console.error('❌ Error fetching step 103:', error);
