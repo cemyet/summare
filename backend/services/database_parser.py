@@ -2231,7 +2231,7 @@ class DatabaseParser:
             asset_details = asset_row.get("account_details", []) or []
             debt_details = debt_row.get("account_details", []) or []
 
-            # Build sets of account IDs already in each row (to avoid double-moving)
+            # Build sets of account IDs already in each row (to detect duplicates from prior reclassifications)
             asset_account_ids = {str(acc.get("account_id")) for acc in asset_details}
             debt_account_ids = {str(acc.get("account_id")) for acc in debt_details}
 
@@ -2243,14 +2243,15 @@ class DatabaseParser:
             accounts_to_move_to_debt = []   # from asset row
             
             # Check debt row for negative balances (these are actually claims)
+            # Also remove any accounts that already exist in the asset row (they were already moved by 28xx reclass)
             new_debt_details = []
             for acc in debt_details:
                 acc_id = str(acc.get("account_id"))
                 balance = float(acc.get("balance", 0))
                 
                 # Skip if this account already exists in the asset row (already reclassified by another process)
+                # This removes stale duplicates from the debt row
                 if acc_id in asset_account_ids:
-                    # Don't include in new_debt_details either - it's a duplicate
                     continue
                     
                 if balance < -0.5:  # Negative balance in debt row = actually a claim
@@ -2264,23 +2265,26 @@ class DatabaseParser:
                     new_debt_details.append(acc)
 
             # Check asset row for negative balances (these are actually debts)
+            # Keep all accounts that have positive balances (don't remove accounts that exist in debt row)
             new_asset_details = []
             for acc in asset_details:
                 acc_id = str(acc.get("account_id"))
                 balance = float(acc.get("balance", 0))
                 
-                # Skip if this account already exists in the debt row (already reclassified by another process)
-                if acc_id in debt_account_ids:
-                    # Don't include in new_asset_details either - it's a duplicate
-                    continue
+                # For asset row, we DON'T skip accounts that exist in debt row
+                # The asset row is the "correct" location for receivables after 28xx reclass
+                # We only move accounts with NEGATIVE balances (which are actually debts)
                     
                 if balance < -0.5:  # Negative balance in asset row = actually a debt
-                    # Move to debt row with negated (positive) balance
-                    accounts_to_move_to_debt.append({
-                        "account_id": acc["account_id"],
-                        "account_text": acc.get("account_text", ""),
-                        "balance": -balance  # Negate to make positive
-                    })
+                    # Check if this account already exists in debt row (to avoid double-adding)
+                    if acc_id not in debt_account_ids:
+                        # Move to debt row with negated (positive) balance
+                        accounts_to_move_to_debt.append({
+                            "account_id": acc["account_id"],
+                            "account_text": acc.get("account_text", ""),
+                            "balance": -balance  # Negate to make positive
+                        })
+                    # Don't include negative balance accounts in asset row
                 else:
                     new_asset_details.append(acc)
 
