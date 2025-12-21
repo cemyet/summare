@@ -1045,7 +1045,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   
   // Account reclassification state
   const [accountGroups, setAccountGroups] = useState<any>(null);
-  const [reclassDialogOpen, setReclassDialogOpen] = useState(false);
   const [reclassAccount, setReclassAccount] = useState<{
     account_id: string;
     account_text: string;
@@ -1165,40 +1164,6 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     return row?.type || '';
   };
 
-  // Handle opening the reclassification dialog
-  const handleOpenReclassDialog = (
-    account: { account_id: string; account_text: string; balance: number },
-    fromRowId: number,
-    fromRowTitle: string
-  ) => {
-    const side = getRowSide(fromRowId);
-    const currentType = getRowType(fromRowId);
-    
-    // Look up previous year balance from previous_accounts
-    const previousAccounts = seFileData?.previous_accounts || {};
-    const accountIdStr = String(account.account_id);
-    let balancePrevious = previousAccounts[accountIdStr] || 0;
-    
-    // Apply same sign reversal as current year (2000-9999 accounts get reversed)
-    const accountNum = parseInt(accountIdStr, 10);
-    if (!isNaN(accountNum) && accountNum >= 2000 && accountNum <= 9999) {
-      balancePrevious = -balancePrevious;
-    }
-    
-    setReclassAccount({
-      account_id: account.account_id,
-      account_text: account.account_text,
-      balance: account.balance,
-      balance_previous: balancePrevious,
-      from_row_id: fromRowId,
-      from_row_title: fromRowTitle,
-      side,
-      current_type: currentType
-    });
-    setSelectedGroupType(currentType);
-    setSelectedTargetRowId(null);
-    setReclassDialogOpen(true);
-  };
 
   // Handle applying the reclassification
   const handleApplyReclassification = async () => {
@@ -1230,8 +1195,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
           userReclassifications: [...userReclassifications, response.reclassification]
         });
         
-        // Close the dialog
-        setReclassDialogOpen(false);
+        // Reset reclassification state
         setReclassAccount(null);
       }
     } catch (error) {
@@ -2424,20 +2388,119 @@ const handleTaxCalculationClick = () => {
                                           }).format(detail.balance)} kr
                                         </td>
                                         <td className="py-2 w-8 text-center">
-                                          {accountGroups && (
-                                            <button
-                                              onClick={() => handleOpenReclassDialog(
-                                                detail,
-                                                item.id || item.row_id,
-                                                item.label
-                                              )}
-                                              className="opacity-60 hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity p-1 rounded hover:bg-blue-50"
-                                              title="Flytta konto till annan kontogrupp"
-                                            >
-                                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                                              </svg>
-                                            </button>
+                                          {/* Hide move button for protected rows: 366=Balanserat resultat, 380=Årets resultat */}
+                                          {accountGroups && ![366, 380].includes(item.id || item.row_id) && (
+                                            <Popover>
+                                              <PopoverTrigger asChild>
+                                                <button
+                                                  onClick={() => {
+                                                    // Set up reclassification state when popover opens
+                                                    const side = getRowSide(item.id || item.row_id);
+                                                    const currentType = getRowType(item.id || item.row_id);
+                                                    const previousAccounts = seFileData?.previous_accounts || {};
+                                                    const accountIdStr = String(detail.account_id);
+                                                    let balancePrevious = previousAccounts[accountIdStr] || 0;
+                                                    const accountNum = parseInt(accountIdStr, 10);
+                                                    if (!isNaN(accountNum) && accountNum >= 2000 && accountNum <= 9999) {
+                                                      balancePrevious = -balancePrevious;
+                                                    }
+                                                    setReclassAccount({
+                                                      account_id: detail.account_id,
+                                                      account_text: detail.account_text,
+                                                      balance: detail.balance,
+                                                      balance_previous: balancePrevious,
+                                                      from_row_id: item.id || item.row_id,
+                                                      from_row_title: item.label,
+                                                      side,
+                                                      current_type: currentType
+                                                    });
+                                                    setSelectedGroupType(currentType);
+                                                    setSelectedTargetRowId(null);
+                                                  }}
+                                                  className="opacity-60 hover:opacity-100 text-blue-600 hover:text-blue-800 transition-opacity p-1 rounded hover:bg-blue-50"
+                                                  title="Flytta konto"
+                                                >
+                                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                                  </svg>
+                                                </button>
+                                              </PopoverTrigger>
+                                              <PopoverContent className="w-64 p-3" side="left" align="start">
+                                                <div className="text-xs font-medium text-gray-900 mb-2">
+                                                  Flytta konto {detail.account_id}
+                                                </div>
+                                                
+                                                <div className="mb-2">
+                                                  <Select
+                                                    value={selectedGroupType}
+                                                    onValueChange={(value) => {
+                                                      setSelectedGroupType(value);
+                                                      setSelectedTargetRowId(null);
+                                                    }}
+                                                  >
+                                                    <SelectTrigger className="w-full h-7 text-xs">
+                                                      <SelectValue placeholder="Välj kontogrupp..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="max-h-40">
+                                                      {accountGroups[getRowSide(item.id || item.row_id)]?.groups.map((group: any) => (
+                                                        <SelectItem key={group.type} value={group.type} className="text-xs py-1">
+                                                          {group.group_name}
+                                                        </SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                </div>
+                                                
+                                                {selectedGroupType && (
+                                                  <div className="mb-2">
+                                                    <Select
+                                                      value={selectedTargetRowId?.toString() || ''}
+                                                      onValueChange={(value) => setSelectedTargetRowId(parseInt(value))}
+                                                    >
+                                                      <SelectTrigger className="w-full h-7 text-xs">
+                                                        <SelectValue placeholder="Välj rad..." />
+                                                      </SelectTrigger>
+                                                      <SelectContent className="max-h-40">
+                                                        {accountGroups[getRowSide(item.id || item.row_id)]?.rows_by_type[selectedGroupType]?.map((row: any) => (
+                                                          <SelectItem 
+                                                            key={row.row_id} 
+                                                            value={row.row_id.toString()}
+                                                            disabled={row.row_id === (item.id || item.row_id)}
+                                                            className="text-xs py-1"
+                                                          >
+                                                            {row.row_title_popup}
+                                                          </SelectItem>
+                                                        ))}
+                                                      </SelectContent>
+                                                    </Select>
+                                                  </div>
+                                                )}
+                                                
+                                                <div className="flex gap-2 justify-end">
+                                                  <button
+                                                    onClick={handleApplyReclassification}
+                                                    disabled={!selectedTargetRowId || isReclassifying || selectedTargetRowId === (item.id || item.row_id)}
+                                                    className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                                  >
+                                                    {isReclassifying ? (
+                                                      <>
+                                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                        </svg>
+                                                      </>
+                                                    ) : (
+                                                      <>
+                                                        Flytta
+                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                                                        </svg>
+                                                      </>
+                                                    )}
+                                                  </button>
+                                                </div>
+                                              </PopoverContent>
+                                            </Popover>
                                           )}
                                         </td>
                                       </tr>
@@ -3143,109 +3206,6 @@ const handleTaxCalculationClick = () => {
         </div>
       </Card>
       
-      {/* Reclassification Popover - compact overlay */}
-      {reclassDialogOpen && reclassAccount && accountGroups && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/20" 
-            onClick={() => {
-              setReclassDialogOpen(false);
-              setReclassAccount(null);
-            }}
-          />
-          {/* Compact popup */}
-          <div className="relative bg-white rounded-lg shadow-lg border p-4 w-72 z-10">
-            {/* Header */}
-            <div className="text-sm font-medium text-gray-900 mb-3">
-              Flytta konto {reclassAccount.account_id}
-            </div>
-            
-            {/* Group selection */}
-            <div className="mb-2">
-              <Select
-                value={selectedGroupType}
-                onValueChange={(value) => {
-                  setSelectedGroupType(value);
-                  setSelectedTargetRowId(null);
-                }}
-              >
-                <SelectTrigger className="w-full h-8 text-xs">
-                  <SelectValue placeholder="Välj kontogrupp..." />
-                </SelectTrigger>
-                <SelectContent className="max-h-48">
-                  {accountGroups[reclassAccount.side]?.groups.map((group: any) => (
-                    <SelectItem key={group.type} value={group.type} className="text-xs py-1">
-                      {group.group_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {/* Row selection */}
-            {selectedGroupType && (
-              <div className="mb-3">
-                <Select
-                  value={selectedTargetRowId?.toString() || ''}
-                  onValueChange={(value) => setSelectedTargetRowId(parseInt(value))}
-                >
-                  <SelectTrigger className="w-full h-8 text-xs">
-                    <SelectValue placeholder="Välj rad..." />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-48">
-                    {accountGroups[reclassAccount.side]?.rows_by_type[selectedGroupType]?.map((row: any) => (
-                      <SelectItem 
-                        key={row.row_id} 
-                        value={row.row_id.toString()}
-                        disabled={row.row_id === reclassAccount.from_row_id}
-                        className="text-xs py-1"
-                      >
-                        {row.row_title_popup}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            {/* Buttons */}
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setReclassDialogOpen(false);
-                  setReclassAccount(null);
-                }}
-                className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
-              >
-                Avbryt
-              </button>
-              <button
-                onClick={handleApplyReclassification}
-                disabled={!selectedTargetRowId || isReclassifying || selectedTargetRowId === reclassAccount.from_row_id}
-                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-              >
-                {isReclassifying ? (
-                  <>
-                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                    </svg>
-                    Flyttar...
-                  </>
-                ) : (
-                  <>
-                    Flytta
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
