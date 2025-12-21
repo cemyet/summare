@@ -1134,8 +1134,9 @@ interface ChatFlowResponse {
       if (option.option_value === 'adjust_calculated') {
         const delta = (companyData.sarskildLoneskattPensionCalculated || 0)
                     - (companyData.sarskildLoneskattPension || 0);
-        await applyChatOverrides({ sarskild: delta });
         
+        // OPTIMIZATION: Show confirmation message immediately, run calculations in background
+        // This makes the UI feel much snappier
         try {
           const step202Response = await apiService.getChatFlowStep(202) as ChatFlowResponse;
           addMessage(step202Response.question_text, true, step202Response.question_icon, () => {
@@ -1148,6 +1149,12 @@ interface ChatFlowResponse {
             setTimeout(() => loadChatStep(301), 500);
           });
         }
+        
+        // Run heavy calculations in background (don't await)
+        applyChatOverrides({ sarskild: delta }).catch(err => {
+          console.warn('⚠️ Background SLP calculation error:', err);
+        });
+        
         return;
       }
       
