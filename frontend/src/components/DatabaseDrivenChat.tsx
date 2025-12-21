@@ -1135,8 +1135,11 @@ interface ChatFlowResponse {
         const delta = (companyData.sarskildLoneskattPensionCalculated || 0)
                     - (companyData.sarskildLoneskattPension || 0);
         
-        // OPTIMIZATION: Show confirmation message immediately, run calculations in background
-        // This makes the UI feel much snappier
+        // OPTIMIZATION: Wait for INK2 recalculation (so preview updates), 
+        // but RR/BR update runs in background (inside applyChatOverrides)
+        await applyChatOverrides({ sarskild: delta });
+        
+        // Now show confirmation - INK2 is updated, user can see the changes
         try {
           const step202Response = await apiService.getChatFlowStep(202) as ChatFlowResponse;
           addMessage(step202Response.question_text, true, step202Response.question_icon, () => {
@@ -1149,11 +1152,6 @@ interface ChatFlowResponse {
             setTimeout(() => loadChatStep(301), 500);
           });
         }
-        
-        // Run heavy calculations in background (don't await)
-        applyChatOverrides({ sarskild: delta }).catch(err => {
-          console.warn('⚠️ Background SLP calculation error:', err);
-        });
         
         return;
       }
@@ -1701,10 +1699,12 @@ const selectiveMergeInk2 = (
       setGlobalInk2Data?.(merged);
       setGlobalInkBeraknadSkatt?.(skatt);
       
-      // If SLP was injected (including when set to 0), immediately update RR/BR with the SLP changes
-      // This ensures previous SLP effects are reversed when SLP becomes 0
+      // If SLP was injected (including when set to 0), update RR/BR with the SLP changes
+      // OPTIMIZATION: Run in background to not block UI - INK2 is already updated
       if (typeof sarskild === 'number') {
-        await updateRrBrWithSlp(merged);
+        updateRrBrWithSlp(merged).catch(err => {
+          console.warn('⚠️ Background RR/BR update error:', err);
+        });
       }
       
       // Return the updated values for immediate use
