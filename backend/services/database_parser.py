@@ -23,6 +23,7 @@ supabase: Client = create_client(supabase_url, supabase_key)
 USE_168X_RECLASS = os.getenv("USE_168X_RECLASS", "1") == "1"  # default ON
 USE_17XX_RECLASS = os.getenv("USE_17XX_RECLASS", "1") == "1"  # default ON
 USE_296X_RECLASS = os.getenv("USE_296X_RECLASS", "1") == "1"  # default ON
+USE_28XX_POSITIVE_RECLASS = os.getenv("USE_28XX_POSITIVE_RECLASS", "1") == "1"  # default ON - reclassify positive 28xx balances as receivables
 
 class DatabaseParser:
     """Database-driven parser for financial data"""
@@ -721,6 +722,14 @@ class DatabaseParser:
                         sie_text=sie_text,
                         br_rows=results,
                         current_accounts=current_accounts,
+                        account_movements=account_movements
+                    )
+                if USE_28XX_POSITIVE_RECLASS:
+                    self._reclassify_positive_28xx_liabilities_to_receivables(
+                        sie_text=sie_text,
+                        br_rows=results,
+                        current_accounts=current_accounts,
+                        previous_accounts=previous_accounts,
                         account_movements=account_movements
                     )
             except Exception as e:
@@ -1776,6 +1785,228 @@ class DatabaseParser:
                     # All moved accounts come from 296x range
                     for cat_accounts in account_allocations.values():
                         account_movements[row_id_src]['removed'].extend([acc['account_id'] for acc in cat_accounts])
+
+    # ----------------- 28xx POSITIVE BALANCE → 351 BR RECLASS (anomaly handler) -----------------
+    def _reclassify_positive_28xx_liabilities_to_receivables(
+        self, 
+        sie_text: str, 
+        br_rows: List[Dict[str, Any]], 
+        current_accounts: Dict[str, float],
+        previous_accounts: Dict[str, float] = None,
+        account_movements: Dict[int, Dict[str, Any]] = None
+    ) -> None:
+        """
+        Handle anomaly: 28xx liability accounts with POSITIVE (debit) balances.
+        
+        When a 28xx account (normally a liability, credit balance) has a positive 
+        balance, it's actually a receivable that should be shown on the asset side.
+        
+        This commonly happens with intercompany accounts (2860-2869) where the net
+        position flips from owing to being owed.
+        
+        Example from Holtback Equity:
+          - Account 2861 "Kortfristiga skulder interna, RH Property"
+          - Has IB 0 = 1,927,580 (positive/debit = receivable, not payable!)
+          - Should move from row 410 (liabilities) to row 351 (receivables)
+        
+        This fix applies to BOTH current_amount AND previous_amount.
+        """
+        import re, unicodedata
+
+        def _norm(s: str) -> str:
+            if not s: return ""
+            s = unicodedata.normalize("NFKD", s)
+            s = "".join(ch for ch in s if not unicodedata.combining(ch))
+            s = s.lower().replace("\u00a0", " ").replace("\t", " ")
+            return re.sub(r"\s+", " ", s).strip()
+
+        def _find_by_id(rows: List[Dict[str, Any]], rid: int):
+            for r in rows:
+                if str(r.get("id")) == str(rid):
+                    return r
+            return None
+
+        def _find_by_label(rows: List[Dict[str, Any]], text: str):
+            n = _norm(text)
+            for r in rows:
+                lbl = _norm(r.get("label") or r.get("row_title") or "")
+                if lbl == n:
+                    return r
+            for r in rows:
+                lbl = _norm(r.get("label") or r.get("row_title") or "")
+                if n in lbl:
+                    return r
+            return None
+
+        # Parse account names from SIE to understand which 28xx accounts are koncern-related
+        konto_re = re.compile(r'^#KONTO\s+(\d+)\s+"([^"]*)"', re.IGNORECASE)
+        account_names: Dict[int, str] = {}
+        for line in sie_text.splitlines():
+            m = konto_re.match(line.strip())
+            if m:
+                account_names[int(m.group(1))] = m.group(2)
+
+        def _classify_28xx(acct: int) -> str | None:
+            """Classify 28xx account to koncern/intresse/ovriga based on name patterns."""
+            name = _norm(account_names.get(acct, ""))
+            if not name:
+                return None
+            
+            # Check for koncern patterns (most common case for 286x)
+            if re.search(r"\b(koncern|dotter|moder|intern(a)?|group|holding)\b", name):
+                return "koncern"
+            
+            # Check for intresse patterns
+            if re.search(r"\b(intresseföretag|intresseforetag|intresseftg)\b", name):
+                return "intresse"
+            if re.search(r"\bintr\w+\b", name) and re.search(r"\b(företag|foretag|ftg)\b", name):
+                return "intresse"
+            if re.search(r"\bgem\w+\b", name) and re.search(r"\bstyrda\b", name):
+                return "intresse"
+            
+            # Check for övriga with ägarintresse
+            has_ovr = bool(re.search(r"\b(övr|ovr)(iga)?\b", name))
+            has_f = bool(re.search(r"\b(företag|foretag|ftg)\b", name))
+            has_ai = bool(re.search(r"\b(ägarintresse|agarintresse)\b", name))
+            if has_ovr and has_f and has_ai:
+                return "ovriga"
+            
+            # Default for 2860-2869: treat as koncern (most common intercompany case)
+            if 2860 <= acct <= 2869:
+                return "koncern"
+            
+            return None
+
+        # Parse UB balances for previous year from SIE
+        def _get_prev_ub_balance(acct: int) -> float:
+            """Get UB -1 balance for an account. If no UB -1, use IB 0 as proxy."""
+            # First try UB -1
+            ub_rx = re.compile(rf'^#UB\s+-1\s+{acct}\s+(-?[\d\s.,]+)')
+            for line in sie_text.splitlines():
+                m = ub_rx.match(line.strip())
+                if m:
+                    return float(m.group(1).replace(" ", "").replace(",", "."))
+            
+            # Fallback: IB 0 is the same as UB -1 (closing balance of previous year)
+            ib_rx = re.compile(rf'^#IB\s+0\s+{acct}\s+(-?[\d\s.,]+)')
+            for line in sie_text.splitlines():
+                m = ib_rx.match(line.strip())
+                if m:
+                    return float(m.group(1).replace(" ", "").replace(",", "."))
+            
+            return 0.0
+
+        # Find destination and source rows
+        row_351 = _find_by_id(br_rows, 351) or _find_by_label(br_rows, "Kortfristiga fordringar hos koncernföretag")
+        row_352 = _find_by_id(br_rows, 352) or _find_by_label(br_rows, "Kortfristiga fordringar hos intresseföretag och gemensamt styrda företag")
+        row_353 = _find_by_id(br_rows, 353) or _find_by_label(br_rows, "Kortfristiga fordringar hos övriga företag som det finns ett ägarintresse i")
+        
+        row_410 = _find_by_id(br_rows, 410) or _find_by_label(br_rows, "Kortfristiga skulder till koncernföretag")
+        row_411 = _find_by_id(br_rows, 411) or _find_by_label(br_rows, "Kortfristiga skulder till intresseföretag och gemensamt styrda företag")
+        row_412 = _find_by_id(br_rows, 412) or _find_by_label(br_rows, "Kortfristiga skulder till övriga företag som det finns ett ägarintresse i")
+
+        # Accumulators for current and previous year reclassifications
+        current_reclass = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+        previous_reclass = {"koncern": 0.0, "intresse": 0.0, "ovriga": 0.0}
+        current_account_details = {"koncern": [], "intresse": [], "ovriga": []}
+        previous_account_details = {"koncern": [], "intresse": [], "ovriga": []}
+
+        # Check all 28xx accounts (specifically 2860-2899 which are short-term intercompany liabilities)
+        for acct in range(2860, 2900):
+            acct_str = str(acct)
+            
+            # Current year: check current_accounts for positive balance
+            current_bal = float(current_accounts.get(acct_str, 0.0))
+            if current_bal > 0.5:  # Positive = debit = actually a receivable
+                bucket = _classify_28xx(acct)
+                if bucket:
+                    current_reclass[bucket] += current_bal
+                    current_account_details[bucket].append({
+                        'account_id': acct_str,
+                        'account_text': account_names.get(acct, f"Konto {acct}"),
+                        'balance': current_bal
+                    })
+            
+            # Previous year: check previous_accounts or SIE for positive balance
+            prev_bal = 0.0
+            if previous_accounts:
+                prev_bal = float(previous_accounts.get(acct_str, 0.0))
+            else:
+                # No previous_accounts dict, derive from SIE (UB -1 or IB 0)
+                prev_bal = _get_prev_ub_balance(acct)
+            
+            if prev_bal > 0.5:  # Positive = debit = actually a receivable
+                bucket = _classify_28xx(acct)
+                if bucket:
+                    previous_reclass[bucket] += prev_bal
+                    previous_account_details[bucket].append({
+                        'account_id': acct_str,
+                        'account_text': account_names.get(acct, f"Konto {acct}"),
+                        'balance': prev_bal
+                    })
+
+        # Apply current year reclassification
+        if row_351 and current_reclass["koncern"] > 0.5:
+            cur = float(row_351.get("current_amount") or 0.0)
+            row_351["current_amount"] = cur + current_reclass["koncern"]
+            if row_410:
+                cur_410 = float(row_410.get("current_amount") or 0.0)
+                row_410["current_amount"] = cur_410 - current_reclass["koncern"]  # Reduce liability
+            # Track in account_movements
+            if account_movements is not None:
+                row_id_351 = int(row_351.get('id')) if row_351.get('id') is not None else None
+                if row_id_351 is not None:
+                    if row_id_351 not in account_movements:
+                        account_movements[row_id_351] = {'added': [], 'removed': []}
+                    account_movements[row_id_351]['added'].extend(current_account_details["koncern"])
+
+        if row_352 and current_reclass["intresse"] > 0.5:
+            cur = float(row_352.get("current_amount") or 0.0)
+            row_352["current_amount"] = cur + current_reclass["intresse"]
+            if row_411:
+                cur_411 = float(row_411.get("current_amount") or 0.0)
+                row_411["current_amount"] = cur_411 - current_reclass["intresse"]
+            if account_movements is not None:
+                row_id_352 = int(row_352.get('id')) if row_352.get('id') is not None else None
+                if row_id_352 is not None:
+                    if row_id_352 not in account_movements:
+                        account_movements[row_id_352] = {'added': [], 'removed': []}
+                    account_movements[row_id_352]['added'].extend(current_account_details["intresse"])
+
+        if row_353 and current_reclass["ovriga"] > 0.5:
+            cur = float(row_353.get("current_amount") or 0.0)
+            row_353["current_amount"] = cur + current_reclass["ovriga"]
+            if row_412:
+                cur_412 = float(row_412.get("current_amount") or 0.0)
+                row_412["current_amount"] = cur_412 - current_reclass["ovriga"]
+            if account_movements is not None:
+                row_id_353 = int(row_353.get('id')) if row_353.get('id') is not None else None
+                if row_id_353 is not None:
+                    if row_id_353 not in account_movements:
+                        account_movements[row_id_353] = {'added': [], 'removed': []}
+                    account_movements[row_id_353]['added'].extend(current_account_details["ovriga"])
+
+        # Apply previous year reclassification
+        if row_351 and previous_reclass["koncern"] > 0.5:
+            prev = float(row_351.get("previous_amount") or 0.0)
+            row_351["previous_amount"] = prev + previous_reclass["koncern"]
+            if row_410:
+                prev_410 = float(row_410.get("previous_amount") or 0.0)
+                row_410["previous_amount"] = prev_410 - previous_reclass["koncern"]
+
+        if row_352 and previous_reclass["intresse"] > 0.5:
+            prev = float(row_352.get("previous_amount") or 0.0)
+            row_352["previous_amount"] = prev + previous_reclass["intresse"]
+            if row_411:
+                prev_411 = float(row_411.get("previous_amount") or 0.0)
+                row_411["previous_amount"] = prev_411 - previous_reclass["intresse"]
+
+        if row_353 and previous_reclass["ovriga"] > 0.5:
+            prev = float(row_353.get("previous_amount") or 0.0)
+            row_353["previous_amount"] = prev + previous_reclass["ovriga"]
+            if row_412:
+                prev_412 = float(row_412.get("previous_amount") or 0.0)
+                row_412["previous_amount"] = prev_412 - previous_reclass["ovriga"]
     
     def _get_level_from_style(self, style: str) -> int:
         """Get hierarchy level from style"""
