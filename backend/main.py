@@ -1,5 +1,5 @@
-# Summare API - Updated 2025-10-26
-# Reset to stable commit for testing
+# Summare API - Updated 2025-12-21
+# Reverted to stable version with auto-save for reclassifications and tax updates
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
