@@ -114,6 +114,8 @@ interface ChatFlowResponse {
           // NEW: FB data for recalculation when årets resultat changes
           fb_variables: companyData.seFileData?.fb_variables || companyData.fbVariables || null,
           fb_table: companyData.seFileData?.fb_table || companyData.fbTable || null,
+          // NEW: User reclassifications to re-apply after tax update
+          user_reclassifications: companyData.userReclassifications || [],
         };
         
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
@@ -1738,6 +1740,8 @@ const selectiveMergeInk2 = (
         // NEW: FB data for recalculation when årets resultat changes
         fb_variables: companyData.seFileData?.fb_variables || companyData.fbVariables || null,
         fb_table: companyData.seFileData?.fb_table || companyData.fbTable || null,
+        // NEW: User reclassifications to re-apply after tax update
+        user_reclassifications: companyData.userReclassifications || [],
       };
       
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {

@@ -3593,6 +3593,8 @@ class TaxUpdateRequest(BaseModel):
     # NEW: FB data for recalculation when årets resultat changes
     fb_variables: Optional[dict] = None
     fb_table: Optional[List[dict]] = None
+    # NEW: User reclassifications to re-apply after tax updates
+    user_reclassifications: Optional[List[dict]] = None
 
 @app.get("/api/test-tax-endpoint")
 async def test_tax_endpoint():
@@ -4102,6 +4104,71 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
                 fb_variables_out = request.fb_variables
                 fb_table_out = request.fb_table
 
+        # Re-apply user reclassifications if any were provided
+        # This ensures reclassifications are "sticky" across tax updates
+        if request.user_reclassifications and len(request.user_reclassifications) > 0:
+            print(f"🔄 Re-applying {len(request.user_reclassifications)} user reclassifications after tax update")
+            for reclass in request.user_reclassifications:
+                try:
+                    account_id = str(reclass.get('account_id'))
+                    from_row_id = reclass.get('from_row_id')
+                    to_row_id = reclass.get('to_row_id')
+                    balance_current = float(reclass.get('balance_current', 0))
+                    balance_previous = float(reclass.get('balance_previous', 0))
+                    account_text = reclass.get('account_text', '')
+                    
+                    # Find source and target rows
+                    source_row = None
+                    target_row = None
+                    for row in br:
+                        row_id = row.get('row_id') or row.get('id')
+                        if str(row_id) == str(from_row_id):
+                            source_row = row
+                        if str(row_id) == str(to_row_id):
+                            target_row = row
+                    
+                    if not source_row or not target_row:
+                        print(f"⚠️ Could not find rows for reclassification: {from_row_id} -> {to_row_id}")
+                        continue
+                    
+                    # Check if account is still in source (might already be reclassified)
+                    source_details = source_row.get('account_details', []) or []
+                    account_in_source = any(str(d.get('account_id')) == account_id for d in source_details)
+                    
+                    if account_in_source:
+                        # Remove from source
+                        new_source_details = [d for d in source_details if str(d.get('account_id')) != account_id]
+                        source_row['account_details'] = new_source_details
+                        source_row['current_amount'] = float(source_row.get('current_amount', 0)) - balance_current
+                        source_row['previous_amount'] = float(source_row.get('previous_amount', 0)) - balance_previous
+                        
+                        # Add to target
+                        target_details = target_row.get('account_details', []) or []
+                        if not any(str(d.get('account_id')) == account_id for d in target_details):
+                            target_details.append({
+                                'account_id': account_id,
+                                'account_text': account_text,
+                                'balance': balance_current
+                            })
+                            target_details = sorted(target_details, key=lambda x: str(x.get('account_id', '')))
+                            target_row['account_details'] = target_details
+                            if target_details:
+                                target_row['show_tag'] = True
+                        target_row['current_amount'] = float(target_row.get('current_amount', 0)) + balance_current
+                        target_row['previous_amount'] = float(target_row.get('previous_amount', 0)) + balance_previous
+                        
+                        print(f"✅ Re-applied reclassification: {account_id} from row {from_row_id} to {to_row_id}")
+                    else:
+                        # Account already in target or moved elsewhere
+                        print(f"ℹ️ Account {account_id} not in source row {from_row_id}, skipping")
+                        
+                except Exception as reclass_error:
+                    print(f"⚠️ Error re-applying reclassification: {reclass_error}")
+                    continue
+            
+            # Recalculate sum rows after re-applying reclassifications
+            br = parser._recalculate_sum_rows(br, rr)
+        
         # return updated arrays
         response_data = {
             "success": True,
