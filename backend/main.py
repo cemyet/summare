@@ -5899,8 +5899,10 @@ async def apply_reclassification(request: ReclassificationRequest):
         
         # Recalculate sum rows
         # We need to recalculate all sum rows that include either the source or target row
+        # IMPORTANT: Must pass rr_data to preserve RR-driven values like AretsResultat
         parser = DatabaseParser()
-        br_data = parser._recalculate_sum_rows(br_data)
+        rr_data = request.rr_data or []
+        br_data = parser._recalculate_sum_rows(br_data, rr_data)
         
         # Create reclassification record for storage
         reclassification = {
