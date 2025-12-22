@@ -13,7 +13,7 @@ import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from "@
 import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@/utils/seFileCalculations';
 import { apiService } from '@/services/api';
 import { computeCombinedFinancialSig } from '@/utils/financeSig';
-import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 
 // Select accepted SLP difference (positive) from INK2 + companyData
 function getAcceptedSLP(ink2Data: any[], companyData: any) {
@@ -914,8 +914,8 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     return null;
   }
 
-  // const { toast } = useToast(); // Commented out for now
-  
+  const { toast } = useToast();
+
   // Requirement 2: inputs become editable when taxEditingEnabled OR editableAmounts is true
   const isEditing = Boolean(cd.taxEditingEnabled || editableAmounts);
 
@@ -1279,21 +1279,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         const fromRowName = getRowName(reclassAccount.from_row_id);
         const toRowName = getRowName(selectedTargetRowId);
         
-        // Show success toast (custom styling - no icon, normal text weight)
-        toast(`Konto ${reclassAccount.account_id} ${reclassAccount.account_text} har flyttats från ${fromRowName} till ${toRowName}.`, {
+        // Show success toast (matching "Filen bearbetad" style)
+        toast({
+          description: `Konto ${reclassAccount.account_id} ${reclassAccount.account_text} har flyttats från ${fromRowName} till ${toRowName}.`,
           duration: 3000,
-          position: 'bottom-right',
-          style: {
-            background: 'white',
-            border: '1px solid #e5e7eb',
-            borderRadius: '8px',
-            padding: '12px 16px',
-            fontSize: '14px',
-            fontWeight: 'normal',
-            color: '#374151',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-            maxWidth: '400px',
-          },
         });
 
         // Reset reclassification state
@@ -1370,21 +1359,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         const fromRowName = getRowNameRR(reclassAccountRR.from_row_id);
         const toRowName = getRowNameRR(selectedTargetRowIdRR);
         
-        // Show success toast (custom styling - no icon, normal text weight)
-        toast(`Konto ${reclassAccountRR.account_id} ${reclassAccountRR.account_text} har flyttats från ${fromRowName} till ${toRowName}.`, {
+        // Show success toast (matching "Filen bearbetad" style)
+        toast({
+          description: `Konto ${reclassAccountRR.account_id} ${reclassAccountRR.account_text} har flyttats från ${fromRowName} till ${toRowName}.`,
           duration: 3000,
-          position: 'bottom-right',
-          style: {
-            background: 'white',
-            border: '1px solid #e5e7eb',
-            borderRadius: '8px',
-            padding: '12px 16px',
-            fontSize: '14px',
-            fontWeight: 'normal',
-            color: '#374151',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-            maxWidth: '400px',
-          },
         });
 
         // Reset reclassification state
