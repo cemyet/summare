@@ -712,11 +712,31 @@ interface ChatFlowResponse {
           setIsWaitingForUser(true);
         });
 
+        // Auto-scroll to tax module for step 110 (coming from step 103 button click)
+        if (stepNumber === 110) {
+          onDataUpdate({ showTaxPreview: true });
+          setTimeout(() => {
+            const taxModule = document.querySelector('[data-section="tax-calculation"]');
+            const scrollContainer = document.querySelector('.overflow-auto');
+
+            if (taxModule && scrollContainer) {
+              const containerRect = scrollContainer.getBoundingClientRect();
+              const taxRect = taxModule.getBoundingClientRect();
+              // Add 20px padding above INK2 module for better visual spacing
+              const scrollTop = scrollContainer.scrollTop + taxRect.top - containerRect.top - 20;
+
+              scrollContainer.scrollTo({
+                top: scrollTop,
+                behavior: 'smooth'
+              });
+            }
+          }, 500);
+        }
         // Special handling for manual editing step (402):
         // - Ensure editing is enabled in the preview
         // - Suppress chat options to avoid accidental auto-selection
         // - Scroll the preview into view so inputs are visible
-        if (stepNumber === 402) {
+        else if (stepNumber === 402) {
           onDataUpdate({ taxEditingEnabled: true, editableAmounts: true, showTaxPreview: true });
           setCurrentOptions([]);
           setTimeout(() => {
