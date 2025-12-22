@@ -614,6 +614,31 @@ interface ChatFlowResponse {
 
             // Add the message with onDone callback to wait for animation completion
             addMessage(questionText, true, response.question_icon, async () => {
+              // Auto-scroll to tax module for step 110 before continuing
+              if (stepNumber === 110) {
+                onDataUpdate({ showTaxPreview: true });
+                // Wait for DOM to update with tax preview, then scroll
+                await new Promise<void>(resolve => {
+                  setTimeout(() => {
+                    const taxModule = document.querySelector('[data-section="tax-calculation"]');
+                    const scrollContainer = document.querySelector('.overflow-auto');
+
+                    if (taxModule && scrollContainer) {
+                      const containerRect = scrollContainer.getBoundingClientRect();
+                      const taxRect = taxModule.getBoundingClientRect();
+                      const scrollTop = scrollContainer.scrollTop + taxRect.top - containerRect.top - 20;
+
+                      scrollContainer.scrollTo({
+                        top: scrollTop,
+                        behavior: 'smooth'
+                      });
+                    }
+                    // Give scroll time to complete before continuing
+                    setTimeout(resolve, 1500);
+                  }, 300);
+                });
+              }
+              
               // After message is fully revealed, continue with no_option
               await handleOptionSelect(noOption, stepNumber, updatedInk2Data);
             });
