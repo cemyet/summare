@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import {
   Popover,
+  PopoverClose,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
@@ -1083,8 +1084,13 @@ const ReportView = () => {
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-[600px] p-4 bg-white border shadow-lg">
+                            <PopoverClose className="absolute top-2 right-2 p-1 hover:bg-gray-100 rounded">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                              </svg>
+                            </PopoverClose>
                             <div className="space-y-3">
-                              <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
+                              <h4 className="font-medium text-sm pr-6">Detaljer för {item.label}</h4>
                               <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                   <thead>
@@ -1197,8 +1203,13 @@ const ReportView = () => {
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-[600px] p-4 bg-white border shadow-lg">
+                            <PopoverClose className="absolute top-2 right-2 p-1 hover:bg-gray-100 rounded">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                              </svg>
+                            </PopoverClose>
                             <div className="space-y-3">
-                              <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
+                              <h4 className="font-medium text-sm pr-6">Detaljer för {item.label}</h4>
                               <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                   <thead>
@@ -1647,8 +1658,13 @@ const ReportView = () => {
                                     </Button>
                                   </PopoverTrigger>
                                   <PopoverContent className="w-[600px] p-4 bg-white border shadow-lg">
+                                    <PopoverClose className="absolute top-2 right-2 p-1 hover:bg-gray-100 rounded">
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                                      </svg>
+                                    </PopoverClose>
                                     <div className="space-y-3">
-                                      <h4 className="font-medium text-sm">Detaljer för {item.row_title}</h4>
+                                      <h4 className="font-medium text-sm pr-6">Detaljer för {item.row_title}</h4>
                                       <div className="overflow-x-auto">
                                         <table className="w-full text-sm">
                                           <thead>
