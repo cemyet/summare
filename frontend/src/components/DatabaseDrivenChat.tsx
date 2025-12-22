@@ -105,8 +105,9 @@ interface ChatFlowResponse {
           inkBeraknadSkatt,
           inkBokfordSkatt,
           taxDifference,
-          rr_data: companyData.seFileData?.rr_data || [],
-          br_data: companyData.seFileData?.br_data || [],
+          // Use reclassified data if available, fallback to original
+          rr_data: companyData.rrData || companyData.seFileData?.rr_data || [],
+          br_data: companyData.brData || companyData.seFileData?.br_data || [],
           organizationNumber: companyData.organizationNumber,
           fiscalYear: companyData.fiscalYear,
           // NEW: SLP amount
@@ -114,8 +115,6 @@ interface ChatFlowResponse {
           // NEW: FB data for recalculation when årets resultat changes
           fb_variables: companyData.seFileData?.fb_variables || companyData.fbVariables || null,
           fb_table: companyData.seFileData?.fb_table || companyData.fbTable || null,
-          // NEW: User reclassifications to re-apply after tax update
-          user_reclassifications: companyData.userReclassifications || [],
         };
         
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
@@ -1793,8 +1792,9 @@ const selectiveMergeInk2 = (
         inkBeraknadSkatt: inkBokfordSkatt,  // Same as booked, so no tax change
         inkBokfordSkatt,
         taxDifference: 0,  // Explicitly 0 - only SLP should be applied
-        rr_data: companyData.seFileData?.rr_data || [],
-        br_data: companyData.seFileData?.br_data || [],
+        // Use reclassified data if available, fallback to original
+        rr_data: companyData.rrData || companyData.seFileData?.rr_data || [],
+        br_data: companyData.brData || companyData.seFileData?.br_data || [],
         organizationNumber: companyData.organizationNumber,
         fiscalYear: companyData.fiscalYear,
         inkSarskildLoneskatt,
@@ -1802,8 +1802,6 @@ const selectiveMergeInk2 = (
         // NEW: FB data for recalculation when årets resultat changes
         fb_variables: companyData.seFileData?.fb_variables || companyData.fbVariables || null,
         fb_table: companyData.seFileData?.fb_table || companyData.fbTable || null,
-        // NEW: User reclassifications to re-apply after tax update
-        user_reclassifications: companyData.userReclassifications || [],
       };
       
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/update-tax-in-financial-data`, {
@@ -1912,8 +1910,9 @@ const selectiveMergeInk2 = (
           const result = await apiService.recalculateInk2({
             current_accounts: companyData.seFileData.current_accounts || {},
             fiscal_year: companyData.fiscalYear,
-            rr_data: companyData.seFileData.rr_data || [],
-            br_data: companyData.seFileData.br_data || [],
+            // Use reclassified data if available, fallback to original
+            rr_data: companyData.rrData || companyData.seFileData.rr_data || [],
+            br_data: companyData.brData || companyData.seFileData.br_data || [],
             ...substitutedParams
           });
 
