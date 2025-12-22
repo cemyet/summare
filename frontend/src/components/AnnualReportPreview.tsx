@@ -13,7 +13,7 @@ import { Table, TableHeader, TableHead, TableRow, TableBody, TableCell } from "@
 import { calculateRRSums, extractKeyMetrics, formatAmount, type SEData } from '@/utils/seFileCalculations';
 import { apiService } from '@/services/api';
 import { computeCombinedFinancialSig } from '@/utils/financeSig';
-// import { useToast } from '@/hooks/use-toast'; // Commented out for now
+import { toast } from 'sonner';
 
 // Select accepted SLP difference (positive) from INK2 + companyData
 function getAcceptedSLP(ink2Data: any[], companyData: any) {
@@ -1261,9 +1261,33 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
           // Don't fail the operation - the local state is updated
         }
         
+        // Get row names for toast message
+        const getRowName = (rowId: number): string => {
+          if (!accountGroups) return `Rad ${rowId}`;
+          for (const side of ['assets', 'equity_and_debt']) {
+            const sideData = accountGroups[side];
+            if (sideData?.rows_by_type) {
+              for (const groupType of Object.keys(sideData.rows_by_type)) {
+                const row = sideData.rows_by_type[groupType]?.find((r: any) => r.row_id === rowId);
+                if (row) return row.row_title_popup || row.row_title || `Rad ${rowId}`;
+              }
+            }
+          }
+          return `Rad ${rowId}`;
+        };
+        
+        const fromRowName = getRowName(reclassAccount.from_row_id);
+        const toRowName = getRowName(selectedTargetRowId);
+        
+        // Show success toast
+        toast.success(`Konto ${reclassAccount.account_id} ${reclassAccount.account_text} har flyttats från ${fromRowName} till ${toRowName}.`, {
+          duration: 2000,
+          position: 'bottom-right',
+        });
+
         // Reset reclassification state
         setReclassAccount(null);
-        
+
         // Close any open popovers by triggering escape key
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       }
@@ -1324,10 +1348,26 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         } catch (saveError) {
           console.warn('⚠️ Could not save RR reclassification to database:', saveError);
         }
+
+        // Get row names for toast message
+        const getRowNameRR = (rowId: number): string => {
+          if (!accountGroupsRR?.all_rows) return `Rad ${rowId}`;
+          const row = accountGroupsRR.all_rows.find((r: any) => r.row_id === rowId);
+          return row?.row_title_popup || row?.row_title || `Rad ${rowId}`;
+        };
         
+        const fromRowName = getRowNameRR(reclassAccountRR.from_row_id);
+        const toRowName = getRowNameRR(selectedTargetRowIdRR);
+        
+        // Show success toast
+        toast.success(`Konto ${reclassAccountRR.account_id} ${reclassAccountRR.account_text} har flyttats från ${fromRowName} till ${toRowName}.`, {
+          duration: 2000,
+          position: 'bottom-right',
+        });
+
         // Reset reclassification state
         setReclassAccountRR(null);
-        
+
         // Close any open popovers by triggering escape key
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       }
@@ -2469,7 +2509,7 @@ const handleTaxCalculationClick = () => {
                                                         </SelectTrigger>
                                                         <SelectContent className="max-h-64">
                                                           {accountGroupsRR?.groups?.map((group: any) => (
-                                                            <SelectItem key={group.group_text} value={group.group_text} className="text-sm">
+                                                            <SelectItem key={group.group_text} value={group.group_text} className="text-sm pl-2">
                                                               {group.group_name}
                                                             </SelectItem>
                                                           ))}
@@ -2491,7 +2531,7 @@ const handleTaxCalculationClick = () => {
                                                               <SelectItem
                                                                 key={row.row_id}
                                                                 value={row.row_id.toString()}
-                                                                className="text-sm"
+                                                                className="text-sm pl-2"
                                                               >
                                                                 {(row.row_title_popup || row.row_title || '').trim()}
                                                               </SelectItem>
@@ -2750,7 +2790,7 @@ const handleTaxCalculationClick = () => {
                                                     </SelectTrigger>
                                                     <SelectContent className="max-h-64">
                                                       {accountGroups[getRowSide(item.id || item.row_id)]?.groups.map((group: any) => (
-                                                        <SelectItem key={group.type} value={group.type} className="text-sm">
+                                                        <SelectItem key={group.type} value={group.type} className="text-sm pl-2">
                                                           {group.group_name}
                                                         </SelectItem>
                                                       ))}
@@ -2773,7 +2813,7 @@ const handleTaxCalculationClick = () => {
                                                             key={row.row_id} 
                                                             value={row.row_id.toString()}
                                                             disabled={row.row_id === (item.id || item.row_id)}
-                                                            className="text-sm"
+                                                            className="text-sm pl-2"
                                                           >
                                                             {(row.row_title_popup || '').trim()}
                                                           </SelectItem>
