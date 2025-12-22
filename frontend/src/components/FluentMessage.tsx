@@ -16,11 +16,22 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
 
   // Process message to add tooltips for info icons and format keywords
   const processMessageWithTooltips = (text: string) => {
-    // Split by info icons to create JSX elements
-    const parts = text.split(/(\[i1\]|\[i2\])/);
+    // Split by info icons and VISA button to create JSX elements
+    const parts = text.split(/(\[i1\]|\[i2\]|\[VISA\])/);
     
     return parts.map((part, index) => {
-      if (part === '[i1]') {
+      if (part === '[VISA]') {
+        // Render inline VISA button styling (non-interactive, just visual)
+        return (
+          <span 
+            key={index} 
+            className="inline-flex items-center justify-center px-2 py-0.5 mx-0.5 text-xs font-medium border border-gray-300 rounded-full bg-white text-gray-700"
+            style={{ fontSize: '0.7rem', lineHeight: '1.2' }}
+          >
+            VISA
+          </span>
+        );
+      } else if (part === '[i1]') {
         return (
           <TooltipProvider key={index}>
             <Tooltip>
