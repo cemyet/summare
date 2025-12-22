@@ -1324,6 +1324,9 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         
         // Reset reclassification state
         setReclassAccountRR(null);
+        
+        // Close any open popovers by triggering escape key
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       }
     } catch (error) {
       console.error('Failed to apply RR reclassification:', error);
