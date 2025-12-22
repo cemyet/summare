@@ -710,27 +710,32 @@ interface ChatFlowResponse {
           }
           setIsLoading(false);
           setIsWaitingForUser(true);
+          
+          // Auto-scroll to tax module for step 110 (coming from step 103 button click)
+          // Must be inside callback to ensure showTaxPreview has been set and DOM updated
+          if (stepNumber === 110) {
+            setTimeout(() => {
+              const taxModule = document.querySelector('[data-section="tax-calculation"]');
+              const scrollContainer = document.querySelector('.overflow-auto');
+
+              if (taxModule && scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const taxRect = taxModule.getBoundingClientRect();
+                // Add 20px padding above INK2 module for better visual spacing
+                const scrollTop = scrollContainer.scrollTop + taxRect.top - containerRect.top - 20;
+
+                scrollContainer.scrollTo({
+                  top: scrollTop,
+                  behavior: 'smooth'
+                });
+              }
+            }, 500);
+          }
         });
 
-        // Auto-scroll to tax module for step 110 (coming from step 103 button click)
+        // Enable tax preview for step 110
         if (stepNumber === 110) {
           onDataUpdate({ showTaxPreview: true });
-          setTimeout(() => {
-            const taxModule = document.querySelector('[data-section="tax-calculation"]');
-            const scrollContainer = document.querySelector('.overflow-auto');
-
-            if (taxModule && scrollContainer) {
-              const containerRect = scrollContainer.getBoundingClientRect();
-              const taxRect = taxModule.getBoundingClientRect();
-              // Add 20px padding above INK2 module for better visual spacing
-              const scrollTop = scrollContainer.scrollTop + taxRect.top - containerRect.top - 20;
-
-              scrollContainer.scrollTo({
-                top: scrollTop,
-                behavior: 'smooth'
-              });
-            }
-          }, 500);
         }
         // Special handling for manual editing step (402):
         // - Ensure editing is enabled in the preview
