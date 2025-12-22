@@ -27,7 +27,7 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
           <span 
             key={index} 
             className="inline-flex items-center justify-center mx-0.5 rounded"
-            style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '2px 3px' }}
+            style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '3px' }}
           >
             <svg 
               className="w-3 h-3" 
