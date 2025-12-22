@@ -97,8 +97,8 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
       } else {
         // Process formatting tags from SQL messages
         const formatText = (text: string) => {
-          // Process <b>text</b> and <btn>text</btn> tags
-          const parts = text.split(/(<b>.*?<\/b>|<btn>.*?<\/btn>)/);
+          // Process <b>, <btn>, <brown>, <beige> tags for styled text
+          const parts = text.split(/(<b>.*?<\/b>|<btn>.*?<\/btn>|<brown>.*?<\/brown>|<beige>.*?<\/beige>)/);
           return parts.map((textPart, textIndex) => {
             if (textPart.startsWith('<b>') && textPart.endsWith('</b>')) {
               const boldText = textPart.slice(3, -4); // Remove <b> and </b>
@@ -107,6 +107,14 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
             if (textPart.startsWith('<btn>') && textPart.endsWith('</btn>')) {
               const btnText = textPart.slice(5, -6); // Remove <btn> and </btn>
               return <span key={textIndex} className="font-semibold" style={{ color: '#3662E3' }}>{btnText}</span>;
+            }
+            if (textPart.startsWith('<brown>') && textPart.endsWith('</brown>')) {
+              const brownText = textPart.slice(7, -8); // Remove <brown> and </brown>
+              return <span key={textIndex} className="font-semibold" style={{ color: '#957451' }}>{brownText}</span>;
+            }
+            if (textPart.startsWith('<beige>') && textPart.endsWith('</beige>')) {
+              const beigeText = textPart.slice(7, -8); // Remove <beige> and </beige>
+              return <span key={textIndex} className="font-semibold" style={{ color: '#D0C8BF' }}>{beigeText}</span>;
             }
             return <span key={textIndex}>{textPart}</span>;
           });
