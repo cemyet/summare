@@ -1002,12 +1002,10 @@ const ReportView = () => {
                       
                       <table className="w-full max-w-md">
                         <tbody>
-                          {utdelning > 0 && (
-                            <tr>
-                              <td className="py-1">Utdelas till aktieägare</td>
-                              <td className="text-right py-1">{formatAmount(utdelning)}</td>
-                            </tr>
-                          )}
+                          <tr>
+                            <td className="py-1">Utdelas till aktieägare</td>
+                            <td className="text-right py-1">{formatAmount(utdelning)}</td>
+                          </tr>
                           <tr>
                             <td className="py-1">Balanseras i ny räkning</td>
                             <td className="text-right py-1">{formatAmount(balanseras)}</td>
@@ -1084,7 +1082,7 @@ const ReportView = () => {
                               VISA
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
+                          <PopoverContent className="w-[600px] p-4 bg-white border shadow-lg">
                             <div className="space-y-3">
                               <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
                               <div className="overflow-x-auto">
@@ -1093,7 +1091,7 @@ const ReportView = () => {
                                     <tr className="border-b">
                                       <th className="text-left py-2 w-16">Konto</th>
                                       <th className="text-left py-2">Kontotext</th>
-                                      <th className="text-right py-2 w-24">{report.fiscal_year}</th>
+                                      <th className="text-right py-2 w-28">{report.fiscal_year}</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -1101,20 +1099,20 @@ const ReportView = () => {
                                       <tr key={i} className="border-b">
                                         <td className="py-2 w-16">{detail.account_id}</td>
                                         <td className="py-2">{detail.account_text || ""}</td>
-                                        <td className="text-right py-2 w-24">
-                                          {new Intl.NumberFormat("sv-SE").format(detail.balance)} kr
+                                        <td className="text-right py-2 w-28 whitespace-nowrap">
+                                          {new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(detail.balance))} kr
                                         </td>
                                       </tr>
                                     ))}
                                     <tr className="border-t border-gray-300 font-semibold">
                                       <td className="py-2">Summa</td>
                                       <td></td>
-                                      <td className="text-right py-2">
-                                        {new Intl.NumberFormat("sv-SE").format(
-                                          item.account_details.reduce(
+                                      <td className="text-right py-2 whitespace-nowrap">
+                                        {new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
+                                          Math.round(item.account_details.reduce(
                                             (sum: number, d: any) => sum + (d.balance || 0),
                                             0
-                                          )
+                                          ))
                                         )} kr
                                       </td>
                                     </tr>
@@ -1198,7 +1196,7 @@ const ReportView = () => {
                               VISA
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
+                          <PopoverContent className="w-[600px] p-4 bg-white border shadow-lg">
                             <div className="space-y-3">
                               <h4 className="font-medium text-sm">Detaljer för {item.label}</h4>
                               <div className="overflow-x-auto">
@@ -1207,7 +1205,7 @@ const ReportView = () => {
                                     <tr className="border-b">
                                       <th className="text-left py-2 w-16">Konto</th>
                                       <th className="text-left py-2">Kontotext</th>
-                                      <th className="text-right py-2 w-24">{report.fiscal_year}</th>
+                                      <th className="text-right py-2 w-28">{report.fiscal_year}</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -1215,20 +1213,20 @@ const ReportView = () => {
                                       <tr key={i} className="border-b">
                                         <td className="py-2 w-16">{detail.account_id}</td>
                                         <td className="py-2">{detail.account_text || ""}</td>
-                                        <td className="text-right py-2 w-24">
-                                          {new Intl.NumberFormat("sv-SE").format(detail.balance)} kr
+                                        <td className="text-right py-2 w-28 whitespace-nowrap">
+                                          {new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(detail.balance))} kr
                                         </td>
                                       </tr>
                                     ))}
                                     <tr className="border-t border-gray-300 font-semibold">
                                       <td className="py-2">Summa</td>
                                       <td></td>
-                                      <td className="text-right py-2">
-                                        {new Intl.NumberFormat("sv-SE").format(
-                                          item.account_details.reduce(
+                                      <td className="text-right py-2 whitespace-nowrap">
+                                        {new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
+                                          Math.round(item.account_details.reduce(
                                             (sum: number, d: any) => sum + (d.balance || 0),
                                             0
-                                          )
+                                          ))
                                         )} kr
                                       </td>
                                     </tr>
@@ -1648,7 +1646,7 @@ const ReportView = () => {
                                       VISA
                                     </Button>
                                   </PopoverTrigger>
-                                  <PopoverContent className="w-[500px] p-4 bg-white border shadow-lg">
+                                  <PopoverContent className="w-[600px] p-4 bg-white border shadow-lg">
                                     <div className="space-y-3">
                                       <h4 className="font-medium text-sm">Detaljer för {item.row_title}</h4>
                                       <div className="overflow-x-auto">
@@ -1657,7 +1655,7 @@ const ReportView = () => {
                                             <tr className="border-b">
                                               <th className="text-left py-2 w-16">Konto</th>
                                               <th className="text-left py-2">Kontotext</th>
-                                              <th className="text-right py-2 w-24">Belopp</th>
+                                              <th className="text-right py-2 w-28">Belopp</th>
                                             </tr>
                                           </thead>
                                           <tbody>
@@ -1665,20 +1663,20 @@ const ReportView = () => {
                                               <tr key={i} className="border-b">
                                                 <td className="py-2 w-16">{detail.account_id}</td>
                                                 <td className="py-2">{detail.account_text || ""}</td>
-                                                <td className="text-right py-2 w-24">
-                                                  {new Intl.NumberFormat("sv-SE").format(Math.abs(detail.balance))} kr
+                                                <td className="text-right py-2 w-28 whitespace-nowrap">
+                                                  {new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(Math.round(Math.abs(detail.balance)))} kr
                                                 </td>
                                               </tr>
                                             ))}
                                             <tr className="border-t border-gray-300 font-semibold">
                                               <td className="py-2">Summa</td>
                                               <td></td>
-                                              <td className="text-right py-2">
-                                                {new Intl.NumberFormat("sv-SE").format(
-                                                  Math.abs(item.account_details.reduce(
+                                              <td className="text-right py-2 whitespace-nowrap">
+                                                {new Intl.NumberFormat("sv-SE", { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(
+                                                  Math.round(Math.abs(item.account_details.reduce(
                                                     (sum: number, d: any) => sum + (d.balance || 0),
                                                     0
-                                                  ))
+                                                  )))
                                                 )} kr
                                               </td>
                                             </tr>
