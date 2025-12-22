@@ -2685,10 +2685,13 @@ const handleTaxCalculationClick = () => {
                                           }).format(detail.balance)} kr
                                         </td>
                                         <td className="py-2 w-8 text-center">
-                                          {/* Hide move button for protected rows: 366=Balanserat resultat, 380=Årets resultat */}
+                                          {/* Hide move button for protected rows: Balanserat resultat (id=70/row_id=379), Årets resultat (row_id=380) */}
                                           {(() => {
-                                            const rowId = Number(item.id || item.row_id || 0);
-                                            const isProtected = rowId === 366 || rowId === 380;
+                                            const id = Number(item.id || 0);
+                                            const rowId = Number(item.row_id || 0);
+                                            // Balanserat resultat: id=70 OR row_id=379
+                                            // Årets resultat: row_id=380
+                                            const isProtected = id === 70 || rowId === 379 || rowId === 380;
                                             return accountGroups && !isProtected;
                                           })() && (
                                             <Popover>
