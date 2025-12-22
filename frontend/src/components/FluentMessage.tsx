@@ -26,14 +26,14 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
         return (
           <span 
             key={index} 
-            className="inline-flex items-center justify-center mx-0.5 p-1 rounded"
-            style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
+            className="inline-flex items-center justify-center mx-0.5 rounded"
+            style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', padding: '2px 3px' }}
           >
             <svg 
-              className="w-4 h-4" 
+              className="w-3 h-3" 
               fill="none" 
               stroke="#3b82f6" 
-              strokeWidth="2" 
+              strokeWidth="2.5" 
               viewBox="0 0 24 24"
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
