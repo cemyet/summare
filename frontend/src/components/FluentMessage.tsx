@@ -22,20 +22,21 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
     return parts.map((part, index) => {
       if (part === '[PILEN]') {
         // Render inline blue arrow button styling (non-interactive, just visual)
+        // Matches the arrow button style used in the VISA popup
         return (
           <span 
             key={index} 
-            className="inline-flex items-center justify-center w-5 h-5 mx-0.5 rounded-md"
-            style={{ backgroundColor: '#e8eaf6' }}
+            className="inline-flex items-center justify-center mx-0.5 p-1 rounded"
+            style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
           >
             <svg 
-              className="w-3 h-3" 
+              className="w-4 h-4" 
               fill="none" 
-              stroke="#3949ab" 
-              strokeWidth="2.5" 
+              stroke="#3b82f6" 
+              strokeWidth="2" 
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
           </span>
         );
