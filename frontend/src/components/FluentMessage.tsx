@@ -23,21 +23,17 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
       if (part === '[PILEN]') {
         // Render inline blue arrow - matches exactly the popup arrow style
         return (
-          <span 
-            key={index} 
-            className="inline-flex items-center justify-center mx-0.5"
-            style={{ verticalAlign: 'middle', position: 'relative', top: '1px' }}
+          <svg 
+            key={index}
+            className="w-4 h-4 inline-block mx-0.5" 
+            fill="none" 
+            stroke="#3b82f6" 
+            strokeWidth="2" 
+            viewBox="0 0 24 24"
+            style={{ verticalAlign: 'middle' }}
           >
-            <svg 
-              className="w-3.5 h-3.5" 
-              fill="none" 
-              stroke="#3b82f6" 
-              strokeWidth="2" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-          </span>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
         );
       } else if (part === '[VISA]') {
         // Render inline VISA button styling (non-interactive, just visual)
