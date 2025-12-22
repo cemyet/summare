@@ -1279,10 +1279,21 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         const fromRowName = getRowName(reclassAccount.from_row_id);
         const toRowName = getRowName(selectedTargetRowId);
         
-        // Show success toast
-        toast.success(`Konto ${reclassAccount.account_id} ${reclassAccount.account_text} har flyttats från ${fromRowName} till ${toRowName}.`, {
-          duration: 2000,
+        // Show success toast (custom styling - no icon, normal text weight)
+        toast(`Konto ${reclassAccount.account_id} ${reclassAccount.account_text} har flyttats från ${fromRowName} till ${toRowName}.`, {
+          duration: 3000,
           position: 'bottom-right',
+          style: {
+            background: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            fontSize: '14px',
+            fontWeight: 'normal',
+            color: '#374151',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            maxWidth: '400px',
+          },
         });
 
         // Reset reclassification state
@@ -1359,10 +1370,21 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
         const fromRowName = getRowNameRR(reclassAccountRR.from_row_id);
         const toRowName = getRowNameRR(selectedTargetRowIdRR);
         
-        // Show success toast
-        toast.success(`Konto ${reclassAccountRR.account_id} ${reclassAccountRR.account_text} har flyttats från ${fromRowName} till ${toRowName}.`, {
-          duration: 2000,
+        // Show success toast (custom styling - no icon, normal text weight)
+        toast(`Konto ${reclassAccountRR.account_id} ${reclassAccountRR.account_text} har flyttats från ${fromRowName} till ${toRowName}.`, {
+          duration: 3000,
           position: 'bottom-right',
+          style: {
+            background: 'white',
+            border: '1px solid #e5e7eb',
+            borderRadius: '8px',
+            padding: '12px 16px',
+            fontSize: '14px',
+            fontWeight: 'normal',
+            color: '#374151',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            maxWidth: '400px',
+          },
         });
 
         // Reset reclassification state
@@ -2509,7 +2531,7 @@ const handleTaxCalculationClick = () => {
                                                         </SelectTrigger>
                                                         <SelectContent className="max-h-64">
                                                           {accountGroupsRR?.groups?.map((group: any) => (
-                                                            <SelectItem key={group.group_text} value={group.group_text} className="text-sm pl-2">
+                                                            <SelectItem key={group.group_text} value={group.group_text} className="text-sm">
                                                               {group.group_name}
                                                             </SelectItem>
                                                           ))}
@@ -2531,7 +2553,7 @@ const handleTaxCalculationClick = () => {
                                                               <SelectItem
                                                                 key={row.row_id}
                                                                 value={row.row_id.toString()}
-                                                                className="text-sm pl-2"
+                                                                className="text-sm"
                                                               >
                                                                 {(row.row_title_popup || row.row_title || '').trim()}
                                                               </SelectItem>
@@ -2790,7 +2812,7 @@ const handleTaxCalculationClick = () => {
                                                     </SelectTrigger>
                                                     <SelectContent className="max-h-64">
                                                       {accountGroups[getRowSide(item.id || item.row_id)]?.groups.map((group: any) => (
-                                                        <SelectItem key={group.type} value={group.type} className="text-sm pl-2">
+                                                        <SelectItem key={group.type} value={group.type} className="text-sm">
                                                           {group.group_name}
                                                         </SelectItem>
                                                       ))}
@@ -2813,7 +2835,7 @@ const handleTaxCalculationClick = () => {
                                                             key={row.row_id} 
                                                             value={row.row_id.toString()}
                                                             disabled={row.row_id === (item.id || item.row_id)}
-                                                            className="text-sm pl-2"
+                                                            className="text-sm"
                                                           >
                                                             {(row.row_title_popup || '').trim()}
                                                           </SelectItem>
