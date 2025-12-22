@@ -21,17 +21,17 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
     
     return parts.map((part, index) => {
       if (part === '[PILEN]') {
-        // Render inline blue arrow - matches exactly the popup arrow style (no background, 60% opacity)
+        // Render inline blue arrow - matches exactly the popup arrow style
         return (
           <span 
             key={index} 
             className="inline-flex items-center justify-center mx-0.5"
-            style={{ opacity: 0.6 }}
+            style={{ verticalAlign: 'middle', position: 'relative', top: '1px' }}
           >
             <svg 
-              className="w-4 h-4" 
+              className="w-3.5 h-3.5" 
               fill="none" 
-              stroke="#2563eb" 
+              stroke="#3b82f6" 
               strokeWidth="2" 
               viewBox="0 0 24 24"
             >
