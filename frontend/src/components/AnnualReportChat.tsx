@@ -113,7 +113,17 @@ export function AnnualReportChat() {
                 {companyData.companyName ? (
                   <>
                     <h2 className="text-base font-medium text-foreground">{companyData.companyName}</h2>
-                    <p className="text-xs text-muted-foreground">Årsredovisning {companyData.fiscalYear}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Årsredovisning {(() => {
+                        const startDate = companyData.seFileData?.company_info?.start_date;
+                        const endDate = companyData.seFileData?.company_info?.end_date;
+                        if (startDate && endDate && startDate.length === 8 && endDate.length === 8) {
+                          const formatDate = (d: string) => `${d.substring(0, 4)}-${d.substring(4, 6)}-${d.substring(6, 8)}`;
+                          return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+                        }
+                        return companyData.fiscalYear || '';
+                      })()}
+                    </p>
                   </>
                 ) : (
                   <>
