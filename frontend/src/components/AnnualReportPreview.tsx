@@ -2493,7 +2493,7 @@ const handleTaxCalculationClick = () => {
                                                                 value={row.row_id.toString()}
                                                                 className="text-sm"
                                                               >
-                                                                {row.row_title_popup || row.row_title}
+                                                                {(row.row_title_popup || row.row_title || '').trim()}
                                                               </SelectItem>
                                                             ))}
                                                           </SelectContent>
@@ -2782,7 +2782,7 @@ const handleTaxCalculationClick = () => {
                                                             disabled={row.row_id === (item.id || item.row_id)}
                                                             className="text-sm"
                                                           >
-                                                            {row.row_title_popup}
+                                                            {(row.row_title_popup || '').trim()}
                                                           </SelectItem>
                                                         ))}
                                                       </SelectContent>
