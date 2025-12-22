@@ -2309,7 +2309,14 @@ const handleTaxCalculationClick = () => {
             Organisationsnummer: {headerData.organization_number}
           </p>
           <p className="text-sm text-muted-foreground">
-            Räkenskapsår: {headerData.fiscal_year}
+            Räkenskapsår: {(() => {
+              const startDate = (companyInfo as any)?.start_date;
+              const endDate = (companyInfo as any)?.end_date;
+              if (startDate && endDate && startDate.length === 8 && endDate.length === 8) {
+                return `${formatPeriodDate(startDate)} - ${formatPeriodDate(endDate)}`;
+              }
+              return headerData.fiscal_year;
+            })()}
           </p>
         </div>
 
