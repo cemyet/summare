@@ -97,12 +97,16 @@ export const FluentMessage: React.FC<FluentMessageProps> = ({ text, onDone }) =>
       } else {
         // Process formatting tags from SQL messages
         const formatText = (text: string) => {
-          // Process <b>text</b> tags for semibold formatting
-          const boldParts = text.split(/(<b>.*?<\/b>)/);
-          return boldParts.map((textPart, textIndex) => {
+          // Process <b>text</b> and <btn>text</btn> tags
+          const parts = text.split(/(<b>.*?<\/b>|<btn>.*?<\/btn>)/);
+          return parts.map((textPart, textIndex) => {
             if (textPart.startsWith('<b>') && textPart.endsWith('</b>')) {
               const boldText = textPart.slice(3, -4); // Remove <b> and </b>
               return <span key={textIndex} className="font-semibold">{boldText}</span>;
+            }
+            if (textPart.startsWith('<btn>') && textPart.endsWith('</btn>')) {
+              const btnText = textPart.slice(5, -6); // Remove <btn> and </btn>
+              return <span key={textIndex} className="font-semibold" style={{ color: '#3662E3' }}>{btnText}</span>;
             }
             return <span key={textIndex}>{textPart}</span>;
           });
