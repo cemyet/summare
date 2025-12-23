@@ -3081,17 +3081,25 @@ async def resend_signing_invitation(request: dict):
     """
     Resend signing invitation email to a specific signer.
     
-    This creates a new TellusTalk job for the single signer or sends a reminder.
+    This sends a reminder email with the signing link using Resend.
     
     Request body:
         - report_id: The annual report ID
         - email: The email address of the signer to resend to
         - name: The name of the signer (for logging)
+        - company_name: Company name for the email
+        - fiscal_year_start: Start date of fiscal year
+        - fiscal_year_end: End date of fiscal year
     """
     try:
+        from services.email_service import send_email, load_email_template
+        
         report_id = request.get("report_id")
         email = request.get("email")
         name = request.get("name", "Unknown")
+        req_company_name = request.get("company_name", "")
+        req_fiscal_year_start = request.get("fiscal_year_start", "")
+        req_fiscal_year_end = request.get("fiscal_year_end", "")
         
         if not report_id or not email:
             raise HTTPException(status_code=400, detail="report_id and email are required")
@@ -3100,7 +3108,7 @@ async def resend_signing_invitation(request: dict):
         if not supabase:
             raise HTTPException(status_code=503, detail="Database service unavailable")
         
-        # Get the report data to regenerate the PDF and resend
+        # Get the report data
         report_result = supabase.table('annual_report_data').select('*').eq('id', report_id).execute()
         
         if not report_result.data or len(report_result.data) == 0:
@@ -3108,18 +3116,21 @@ async def resend_signing_invitation(request: dict):
         
         report_data = report_result.data[0]
         signering_data = report_data.get('signering_data', {})
-        company_data = report_data.get('company_data', {})
-        company_name = report_data.get('company_name', '')
+        company_name = req_company_name or report_data.get('company_name', '')
         org_number = report_data.get('organization_number', '')
+        fiscal_year_start = req_fiscal_year_start or report_data.get('fiscal_year_start', '')
+        fiscal_year_end = req_fiscal_year_end or report_data.get('fiscal_year_end', '')
         
-        # Find the specific person to resend to
+        # Find the specific person to resend to and get their signing URL
         target_person = None
         is_revisor = False
+        signing_url = ""
         
         if signering_data:
             for person in signering_data.get('befattningshavare', []):
                 if person.get('email', '').lower() == email.lower():
                     target_person = person
+                    signing_url = person.get('signing_url', '')
                     break
             
             if not target_person:
@@ -3127,22 +3138,70 @@ async def resend_signing_invitation(request: dict):
                     if person.get('email', '').lower() == email.lower():
                         target_person = person
                         is_revisor = True
+                        signing_url = person.get('signing_url', '')
                         break
         
         if not target_person:
             raise HTTPException(status_code=404, detail=f"Signer with email {email} not found in report")
         
-        # For now, we log the resend request
-        # In production, this would create a new TellusTalk job or use TellusTalk's reminder API
+        # Get first name and last name from target_person
+        first_name = target_person.get('fornamn', name.split()[0] if name else '')
+        last_name = target_person.get('efternamn', name.split()[-1] if name and len(name.split()) > 1 else '')
+        
+        # If no signing URL, try to find it from signing_status table
+        if not signing_url:
+            try:
+                status_result = supabase.table('signing_status').select('status_data').eq(
+                    'organization_number', org_number
+                ).order('updated_at', desc=True).execute()
+                
+                if status_result.data and len(status_result.data) > 0:
+                    status_data = status_result.data[0].get('status_data', {})
+                    members_list = status_data.get('members', [])
+                    person_name = f"{first_name} {last_name}".strip().lower()
+                    
+                    for member in members_list:
+                        member_name = member.get('name', '').lower().strip()
+                        if member_name == person_name:
+                            signing_url = member.get('url', '')
+                            print(f"📎 Found signing URL from signing_status: {signing_url}")
+                            break
+            except Exception as lookup_error:
+                print(f"⚠️ Could not lookup signing URL: {lookup_error}")
+        
         print(f"📧 Resend signing invitation requested:")
         print(f"   Report: {report_id}")
         print(f"   Company: {company_name} ({org_number})")
-        print(f"   Signer: {name} <{email}>")
+        print(f"   Signer: {first_name} {last_name} <{email}>")
         print(f"   Type: {'Revisor' if is_revisor else 'Företrädare'}")
+        print(f"   Signing URL: {signing_url or 'Not available'}")
         
-        # TODO: Implement actual resend via TellusTalk API
-        # Option 1: Use TellusTalk reminder functionality if the job is still active
-        # Option 2: Create a new signing job for just this person
+        # Send the email using Resend
+        try:
+            # Load and render the signing reminder template
+            variables = {
+                "first_name": first_name,
+                "last_name": last_name,
+                "company_name": company_name,
+                "fiscal_year_start": fiscal_year_start,
+                "fiscal_year_end": fiscal_year_end,
+                "signing_url": signing_url or "https://www.summare.se"
+            }
+            
+            html_content = load_email_template("signing_reminder", variables)
+            subject = f"Påminnelse: Signera årsredovisning för {company_name}"
+            
+            email_sent = await send_email(email, subject, html_content)
+            
+            if email_sent:
+                print(f"✅ Signing reminder email sent to {email}")
+            else:
+                print(f"⚠️ Failed to send signing reminder email to {email}")
+                raise HTTPException(status_code=500, detail="Failed to send email")
+                
+        except FileNotFoundError as template_error:
+            print(f"⚠️ Email template not found: {template_error}")
+            raise HTTPException(status_code=500, detail="Email template not found")
         
         return {
             "success": True,
