@@ -82,6 +82,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
   const [showValidationMessage, setShowValidationMessage] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [originalData, setOriginalData] = useState<SigneringData | null>(null);
+  const [documentsSent, setDocumentsSent] = useState(false);
 
   const updateData = (newData: SigneringData) => {
     setData(newData);
@@ -354,12 +355,12 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
           // Don't fail the flow - signing was still successful
         }
         
-        // CRITICAL FIX: No alert popup needed - removed to avoid duplicate messaging
-        // When triggered from chat, navigate to step 520 which will show the chat message
-        if (triggeredFromChat) {
-          onDataUpdate({ triggerChatStep: 520 });
-        }
-        // For blue button, success is silent (user will get email confirmation)
+        // Mark documents as sent - this hides the Skicka and Ångra buttons
+        setDocumentsSent(true);
+        
+        // Always trigger step 520 to show chat confirmation message
+        // This works for both chat button and blue Skicka button
+        onDataUpdate({ triggerChatStep: 520 });
       } else {
         throw new Error(result.message || 'Failed to send signing invitations');
       }
@@ -677,30 +678,32 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
               När du har fyllt i emailadresserna kan årsredovisningen skickas till samtliga företrädare för digital signering med BankID. Klicka på knappen Skicka när du är klar, så skickas ett mail till alla som ska skriva under med instruktioner om hur de ska göra. Du kommer att få en bekräftelse på mail när alla signerat och kan också logga in under Mina Sidor för att följa processen och se vilka som har signerat.
             </p>
             
-            <div className="flex justify-between items-center gap-4">
-              {originalData && (
+            {!documentsSent && (
+              <div className="flex justify-between items-center gap-4">
+                {originalData && (
+                  <Button 
+                    variant="outline"
+                    onClick={handleUndoChanges}
+                    className="flex items-center gap-2"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 7v6h6"/>
+                      <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+                    </svg>
+                    Ångra ändringar
+                  </Button>
+                )}
                 <Button 
-                  variant="outline"
-                  onClick={handleUndoChanges}
-                  className="flex items-center gap-2"
+                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 ml-auto"
+                  onClick={() => handleSendForSigning(false)}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 7v6h6"/>
-                    <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+                  Skicka
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
                   </svg>
-                  Ångra ändringar
                 </Button>
-              )}
-              <Button 
-                className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 ml-auto"
-                onClick={() => handleSendForSigning(false)}
-              >
-                Skicka
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
-                </svg>
-              </Button>
-            </div>
+              </div>
+            )}
           </div>
 
         </CardContent>
