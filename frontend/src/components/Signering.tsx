@@ -83,6 +83,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [originalData, setOriginalData] = useState<SigneringData | null>(null);
   const [documentsSent, setDocumentsSent] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const updateData = (newData: SigneringData) => {
     setData(newData);
@@ -303,6 +304,9 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       return;
     }
 
+    // Show loading state immediately
+    setIsSending(true);
+
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://api.summare.se'}/api/send-for-digital-signing`, {
         method: 'POST',
@@ -368,6 +372,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       console.error('❌ Error sending for signing:', error);
       const errorMessage = error.message || 'Ett fel uppstod när signeringsinvitationerna skulle skickas. Försök igen.';
       alert(errorMessage);
+      setIsSending(false);  // Reset on error so user can try again
     }
   };
 
@@ -680,7 +685,7 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
             
             {!documentsSent && (
               <div className="flex justify-between items-center gap-4">
-                {originalData && (
+                {originalData && !isSending && (
                   <Button 
                     variant="outline"
                     onClick={handleUndoChanges}
@@ -694,13 +699,23 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                   </Button>
                 )}
                 <Button 
-                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 ml-auto"
+                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 ml-auto disabled:opacity-70"
                   onClick={() => handleSendForSigning(false)}
+                  disabled={isSending}
                 >
-                  Skicka
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
-                  </svg>
+                  {isSending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Skickar...
+                    </>
+                  ) : (
+                    <>
+                      Skicka
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                      </svg>
+                    </>
+                  )}
                 </Button>
               </div>
             )}
