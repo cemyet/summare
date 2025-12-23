@@ -435,88 +435,32 @@ interface ChatFlowResponse {
       }
       
       // Special handling for step 512: Get customer_email for the message
+      // The email should already be in companyData from the payment success event
       let customerEmail: string | null = null;
       let userExists = false;
       if (stepNumber === 512) {
-        // FIRST: Check if customer_email was already stored from payment success
-        // This is the preferred path - no lookups needed!
-        if (companyData.customer_email) {
-          customerEmail = companyData.customer_email;
-          console.log('✅ Step 512: Using customer_email from payment success:', customerEmail);
+        // Use email from payment (stored when payment completed)
+        customerEmail = companyData.customer_email || null;
+        const orgNumber = companyData.organizationNumber || localOrgNumber || null;
+        
+        if (customerEmail) {
+          console.log('✅ Step 512: Using customer_email from payment:', customerEmail);
         } else {
-          // FALLBACK: If email wasn't stored from payment, try to look it up
-          console.log('⚠️ Step 512: customer_email not in companyData, attempting lookup...');
-          
-          // 1) Try to get org nr from the usual places (including local state)
-          let orgNumberRaw = companyData.organizationNumber || 
-                            localOrgNumber || // Check local state first (updated immediately on payment)
-                            companyData.seFileData?.company_info?.organization_number ||
-                            (companyData.seFileData as any)?.organization_number ||
-                            null;
-          
-          // 2) If still missing, recover it from the most recent paid payment (risky if multiple users)
-          if (!orgNumberRaw) {
-            try {
-              console.log('⚠️ Step 512: no org in companyData, fetching most recent paid payment (GLOBAL FALLBACK)...');
-              const latestPayment = await apiService.getMostRecentPayment();
-              if (latestPayment?.success && latestPayment.organization_number) {
-                orgNumberRaw = latestPayment.organization_number;
-                // Store it locally and in parent so later steps see it
-                setLocalOrgNumber(latestPayment.organization_number);
-                onDataUpdate({ organizationNumber: latestPayment.organization_number });
-                console.log('⚠️ Step 512: recovered org from global payment lookup:', latestPayment.organization_number);
-              } else {
-                console.warn('❌ Step 512: could not recover org from payments', latestPayment);
-              }
-            } catch (err) {
-              console.error('❌ Step 512: error fetching most recent payment', err);
-            }
-          }
-          
-          // Normalize organization number (remove dashes/spaces, same as backend does)
-          const orgNumber = orgNumberRaw ? String(orgNumberRaw).replace(/-/g, '').replace(/\s/g, '').trim() : null;
-          
-          if (orgNumber) {
-            console.log('🔍 Step 512: Fetching customer_email for org:', orgNumber);
-            const emailResponse = await apiService.getCustomerEmail(orgNumber);
-            if (emailResponse.success && emailResponse.customer_email) {
-              customerEmail = emailResponse.customer_email;
-              console.log('✅ Step 512: Found email via org lookup:', customerEmail);
-            } else {
-              console.warn('❌ Step 512: No email found for org:', orgNumber);
-            }
-          }
+          console.warn('⚠️ Step 512: No customer_email in companyData - payment flow may have issue');
         }
         
-        // Store the email and org in companyData for future steps
-        if (customerEmail) {
-          const updateData: any = { customer_email: customerEmail };
-          const orgNumber = companyData.organizationNumber || localOrgNumber;
-          if (!companyData.organizationNumber && orgNumber) {
-            updateData.organizationNumber = orgNumber;
-          }
-            
-            // Check if user already exists with this email and org number
-            console.log('🔍 Checking if user exists:', customerEmail);
-            try {
-              const userCheckResponse = await apiService.checkUserExists(customerEmail, orgNumber);
-              if (userCheckResponse.success) {
-                userExists = userCheckResponse.user_exist;
-                updateData.user_exist = userExists;
-                console.log(`✅ User check result: user_exist=${userExists}, org_in_user=${userCheckResponse.org_in_user}`);
-              }
-            } catch (error) {
-              console.error('❌ Error checking user existence:', error);
+        // Check if user already exists
+        if (customerEmail && orgNumber) {
+          try {
+            const userCheckResponse = await apiService.checkUserExists(customerEmail, orgNumber);
+            if (userCheckResponse.success) {
+              userExists = userCheckResponse.user_exist;
+              onDataUpdate({ user_exist: userExists });
+              console.log(`✅ User check: exists=${userExists}`);
             }
-            
-            // Store in companyData for variable substitution (update immediately)
-            onDataUpdate(updateData);
-            console.log('✅ Fetched customer_email for step 512:', customerEmail);
-          } else {
-            console.warn('⚠️ No customer_email found for org:', orgNumber, emailResponse);
+          } catch (error) {
+            console.error('❌ Error checking user existence:', error);
           }
-        } else {
-          console.warn('⚠️ Step 512: still no organization number, cannot fetch customer email.');
         }
       }
       
