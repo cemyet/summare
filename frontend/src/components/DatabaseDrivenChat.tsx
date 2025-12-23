@@ -206,6 +206,8 @@ interface ChatFlowResponse {
     // Local state for organization number - updated immediately when payment succeeds or SE file is processed
     // This ensures step 512 can access it even if parent prop hasn't updated yet
     const [localOrgNumber, setLocalOrgNumber] = useState<string | null>(null);
+    // Ref for customer email - SYNCHRONOUSLY available (unlike React state which is async)
+    const customerEmailRef = useRef<string | null>(null);
     const [currentStep, setCurrentStep] = useState<number>(101); // Start with introduction
   const [currentQuestion, setCurrentQuestion] = useState<ChatStep | null>(null);
   const [currentOptions, setCurrentOptions] = useState<ChatOption[]>([]);
@@ -435,18 +437,19 @@ interface ChatFlowResponse {
       }
       
       // Special handling for step 512: Get customer_email for the message
-      // The email should already be in companyData from the payment success event
+      // Use REF first (synchronous), fall back to state (may not be updated yet)
       let customerEmail: string | null = null;
       let userExists = false;
       if (stepNumber === 512) {
-        // Use email from payment (stored when payment completed)
-        customerEmail = companyData.customer_email || null;
+        // CRITICAL: Use ref first - it's set synchronously when payment completes
+        // React state (companyData.customer_email) may not be updated yet
+        customerEmail = customerEmailRef.current || companyData.customer_email || null;
         const orgNumber = companyData.organizationNumber || localOrgNumber || null;
         
         if (customerEmail) {
-          console.log('✅ Step 512: Using customer_email from payment:', customerEmail);
+          console.log('✅ Step 512: Using customer_email:', customerEmail, '(from ref:', !!customerEmailRef.current, ')');
         } else {
-          console.warn('⚠️ Step 512: No customer_email in companyData - payment flow may have issue');
+          console.warn('⚠️ Step 512: No customer_email available');
         }
         
         // Check if user already exists
@@ -2479,11 +2482,16 @@ const selectiveMergeInk2 = (
   useEffect(() => {
     const onPaymentSuccess = (event: any) => {
       // Store organization number AND customer email from payment
-      // This avoids needing to do complicated lookups at step 512
       const orgNumber = event?.detail?.organizationNumber;
       const customerEmail = event?.detail?.customerEmail;
       
       console.log('✅ Payment success - storing org:', orgNumber, 'email:', customerEmail);
+      
+      // CRITICAL: Store email in REF for synchronous access in step 512
+      // React state updates are async and won't be available when step 512 loads
+      if (customerEmail) {
+        customerEmailRef.current = customerEmail;
+      }
       
       const updateData: any = {};
       if (orgNumber) {
