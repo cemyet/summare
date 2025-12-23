@@ -954,12 +954,11 @@ const ReportView = () => {
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Befattningshavare</h3>
                     
-                    {/* Column Headers - matching Signering module */}
+                    {/* Column Headers */}
                     <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-2">
-                      <div className="col-span-2">Förnamn</div>
-                      <div className="col-span-2">Efternamn</div>
+                      <div className="col-span-3">Namn</div>
                       <div className="col-span-2">Roll</div>
-                      <div className="col-span-3">Email</div>
+                      <div className="col-span-4">Email</div>
                       <div className="col-span-1 text-center">Länk</div>
                       <div className="col-span-1 text-center">Skicka</div>
                       <div className="col-span-1 text-center">Status</div>
@@ -975,14 +974,9 @@ const ReportView = () => {
                             key={`befattning-${index}`}
                             className="grid grid-cols-12 gap-4 items-center"
                           >
-                            {/* Förnamn - plain text */}
-                            <div className="col-span-2">
-                              <span className="text-sm text-gray-900">{person.fornamn || '-'}</span>
-                            </div>
-                            
-                            {/* Efternamn - plain text */}
-                            <div className="col-span-2">
-                              <span className="text-sm text-gray-900">{person.efternamn || '-'}</span>
+                            {/* Namn - combined förnamn + efternamn */}
+                            <div className="col-span-3">
+                              <span className="text-sm text-gray-900">{fullName || '-'}</span>
                             </div>
                             
                             {/* Roll - plain text */}
@@ -991,7 +985,7 @@ const ReportView = () => {
                             </div>
                             
                             {/* Email - editable input */}
-                            <div className="col-span-3">
+                            <div className="col-span-4">
                               <Input
                                 value={person.email || ''}
                                 onChange={(e) => {
@@ -1053,8 +1047,8 @@ const ReportView = () => {
                               <span
                                 className={`text-xs font-medium px-3 py-1.5 rounded ${
                                   isSigned
-                                    ? 'bg-green-600 text-white'
-                                    : 'bg-gray-200 text-gray-600'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
                                 }`}
                               >
                                 {isSigned ? 'Signerad' : 'Skickad'}
@@ -1072,12 +1066,11 @@ const ReportView = () => {
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Revisor</h3>
                     
-                    {/* Column Headers - matching Signering module */}
+                    {/* Column Headers */}
                     <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-2">
-                      <div className="col-span-2">Förnamn</div>
-                      <div className="col-span-2">Efternamn</div>
+                      <div className="col-span-3">Namn</div>
                       <div className="col-span-2">Revisionsbolag</div>
-                      <div className="col-span-3">Email</div>
+                      <div className="col-span-4">Email</div>
                       <div className="col-span-1 text-center">Länk</div>
                       <div className="col-span-1 text-center">Skicka</div>
                       <div className="col-span-1 text-center">Status</div>
@@ -1093,14 +1086,9 @@ const ReportView = () => {
                             key={`revisor-${index}`}
                             className="grid grid-cols-12 gap-4 items-center"
                           >
-                            {/* Förnamn - plain text */}
-                            <div className="col-span-2">
-                              <span className="text-sm text-gray-900">{person.fornamn || '-'}</span>
-                            </div>
-                            
-                            {/* Efternamn - plain text */}
-                            <div className="col-span-2">
-                              <span className="text-sm text-gray-900">{person.efternamn || '-'}</span>
+                            {/* Namn - combined förnamn + efternamn */}
+                            <div className="col-span-3">
+                              <span className="text-sm text-gray-900">{fullName || '-'}</span>
                             </div>
                             
                             {/* Revisionsbolag - plain text */}
@@ -1111,7 +1099,7 @@ const ReportView = () => {
                             </div>
                             
                             {/* Email - editable input */}
-                            <div className="col-span-3">
+                            <div className="col-span-4">
                               <Input
                                 value={person.email || ''}
                                 onChange={(e) => {
@@ -1173,8 +1161,8 @@ const ReportView = () => {
                               <span
                                 className={`text-xs font-medium px-3 py-1.5 rounded ${
                                   isSigned
-                                    ? 'bg-green-600 text-white'
-                                    : 'bg-gray-200 text-gray-600'
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
                                 }`}
                               >
                                 {isSigned ? 'Signerad' : 'Skickad'}
