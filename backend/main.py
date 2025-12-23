@@ -976,19 +976,9 @@ async def upload_se_file(file: UploadFile = File(...)):
         # Round to 0 decimals for consistency with tax module calculation
         sarskild_loneskatt_pension_calculated = round(sarskild_loneskatt_pension_calculated, 0)
         
-        # Store financial data in database (but don't fail if storage fails)
+        # NOTE: store_financial_data disabled - financial_data table is unused
+        # Data is stored in annual_report_data table instead
         stored_ids = {}
-        if company_info.get('organization_number'):
-            company_id = company_info['organization_number']
-            fiscal_year = company_info.get('fiscal_year', datetime.now().year)
-            
-            try:
-                # Store the parsed financial data
-                stored_ids = parser.store_financial_data(company_id, fiscal_year, rr_data, br_data)
-
-            except Exception as e:
-
-                stored_ids = {}
         
         # Rensa upp temporär fil
         os.unlink(temp_path)
@@ -1958,19 +1948,9 @@ async def test_parser(file: UploadFile = File(...)):
         print(f"Parsed {len(current_accounts)} current year accounts, {len(previous_accounts)} previous year accounts")
         print(f"Generated {len(rr_data)} RR items, {len(br_data)} BR items")
         
-        # Store financial data in database (but don't fail if storage fails)
+        # NOTE: store_financial_data disabled - financial_data table is unused
+        # Data is stored in annual_report_data table instead
         stored_ids = {}
-        if company_info.get('organization_number'):
-            company_id = company_info['organization_number']
-            fiscal_year = company_info.get('fiscal_year', datetime.now().year)
-            
-            try:
-                # Store the parsed financial data
-                stored_ids = parser.store_financial_data(company_id, fiscal_year, rr_data, br_data)
-
-            except Exception as e:
-
-                stored_ids = {}
         
         # Rensa upp temporär fil
         os.unlink(temp_path)

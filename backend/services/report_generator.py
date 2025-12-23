@@ -93,17 +93,9 @@ class ReportGenerator:
             
             print(f"📈 Parsed {len(rr_data)} RR items, {len(br_data)} BR items, and {len(ink2_data)} INK2 items")
             
-            # Store financial data in database
-            company_id = request.company_data.organization_number  # Using organization_number as company_id for now
-            fiscal_year = request.company_data.fiscal_year
-            
-            stored_ids = self.database_parser.store_financial_data(
-                company_id, 
-                fiscal_year, 
-                rr_data, 
-                br_data
-            )
-            print(f"💾 Stored financial data: {stored_ids}")
+            # NOTE: store_financial_data disabled - financial_data table is unused
+            # Data is stored in annual_report_data table instead
+            stored_ids = {}
             
             # Convert new parser data to old format for PDF generation
             # This is a temporary bridge until PDF generation is updated
