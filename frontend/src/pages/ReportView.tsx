@@ -452,20 +452,10 @@ const ReportView = () => {
     }
   }, [reportId]);
 
-  // Poll for signing status updates every 30 seconds when on Signeringsstatus section
-  useEffect(() => {
-    if (reportId && activeSection === "signeringsstatus") {
-      const interval = setInterval(() => {
-        fetchSigneringStatus(reportId, true); // silent refresh
-      }, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [reportId, activeSection]);
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
 
-  const fetchSigneringStatus = async (id: string, silent: boolean = false) => {
-    if (!silent) {
-      setSigneringLoading(true);
-    }
+  const fetchSigneringStatus = async (id: string) => {
+    setSigneringLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/signing-status/by-report/${id}`);
       if (response.ok) {
@@ -477,9 +467,30 @@ const ReportView = () => {
     } catch (err) {
       console.error("Error fetching signing status:", err);
     } finally {
-      if (!silent) {
-        setSigneringLoading(false);
+      setSigneringLoading(false);
+    }
+  };
+
+  const handleRefreshStatus = async () => {
+    if (!reportId || isRefreshingStatus) return;
+    setIsRefreshingStatus(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/signing-status/by-report/${reportId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSigneringStatus(data);
+          toast({
+            title: "Status uppdaterad",
+            description: "Signeringsstatus har uppdaterats.",
+            duration: 3000,
+          });
+        }
       }
+    } catch (err) {
+      console.error("Error refreshing signing status:", err);
+    } finally {
+      setIsRefreshingStatus(false);
     }
   };
 
@@ -951,8 +962,18 @@ const ReportView = () => {
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Signeringsstatus</h2>
-              <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+              <div className="flex items-center gap-3 mb-2">
+                <h2 className="text-xl font-semibold text-gray-900">Signeringsstatus</h2>
+                <button
+                  onClick={handleRefreshStatus}
+                  disabled={isRefreshingStatus}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-full hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
+                  Uppdatera status
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 leading-relaxed">
                 Din årsredovisning har skickats iväg för signering till följande befattningshavare och revisor om bolaget har en sådan. Du kan i statuskolumnen följa vilka befattningshavare som har signerat och vilka vi fortfarande inväntar signering ifrån. Du har möjlighet att skicka påminnelse via mail och du kan också kopiera länken <Link2 className="w-3 h-3 inline mx-0.5" /> och skicka som textmeddelande. Kontrollera gärna mailadresser och ändra vid fel och skicka isåfall mail igen genom att klicka på <Send className="w-3 h-3 inline mx-0.5" />
               </p>
             </div>
