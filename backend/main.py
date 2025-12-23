@@ -535,10 +535,21 @@ async def verify_stripe_session(session_id: str):
         metadata = session.get("metadata", {})
         organization_number = metadata.get("organization_number", "")
         
+        # Extract customer email from session
+        # Stripe stores it in customer_email or customer_details.email
+        customer_email = session.get("customer_email") or ""
+        if not customer_email:
+            customer_details = session.get("customer_details", {})
+            if customer_details:
+                customer_email = customer_details.get("email", "")
+        
+        print(f"✅ Stripe verify: paid={paid}, org={organization_number}, email={customer_email}")
+        
         return {
             "paid": paid,
             "id": session["id"],
-            "organization_number": organization_number if organization_number else None
+            "organization_number": organization_number if organization_number else None,
+            "customer_email": customer_email if customer_email else None
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

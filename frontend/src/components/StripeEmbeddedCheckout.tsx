@@ -88,16 +88,14 @@ export default function StripeEmbeddedCheckout({
             const r = await fetch(`${API_BASE}/api/stripe/verify?session_id=${sessionId}`);
             const j = await r.json();
             if (j?.paid) {
-              // Payment successful - store organization number if available
-              if (j?.organization_number && window.dispatchEvent) {
-                // Dispatch custom event with organization number for components that need it
-                window.dispatchEvent(new CustomEvent("summare:paymentSuccess", { 
-                  detail: { organizationNumber: j.organization_number } 
-                }));
-              } else {
-                // Fallback to standard event
-                window.dispatchEvent(new CustomEvent("summare:paymentSuccess"));
-              }
+              // Payment successful - store organization number and customer email
+              // These are passed to step 512 so no lookup is needed
+              window.dispatchEvent(new CustomEvent("summare:paymentSuccess", { 
+                detail: { 
+                  organizationNumber: j.organization_number || null,
+                  customerEmail: j.customer_email || null
+                } 
+              }));
               onComplete?.();
             } else {
               // Payment failed - trigger chat step 508
