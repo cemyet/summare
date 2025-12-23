@@ -2540,30 +2540,10 @@ async def send_for_digital_signing(request: dict):
             print(line)
         print(f"✅ TellusTalk job_uuid: {tellustalk_result.get('job_uuid')}")
         
-        # Build member data with names for storage
-        # TellusTalk response only has member_id and url, we need to add names
-        members_with_names = []
-        tellustalk_members = tellustalk_result.get("members", [])
-        
-        # Create a map from member_id to signer name
-        member_id_to_name = {}
-        for signer in tellustalk_signers:
-            member_id = signer.get("member_id")
-            name = signer.get("name", "")
-            if member_id and name:
-                member_id_to_name[member_id] = name
-        
-        # Merge names with URLs from TellusTalk response
-        for member in tellustalk_members:
-            member_id = member.get("member_id")
-            url = member.get("url")
-            name = member_id_to_name.get(member_id, "")
-            members_with_names.append({
-                "member_id": member_id,
-                "url": url,
-                "name": name
-            })
-            print(f"📌 Member: {name} ({member_id}) -> {url}")
+        # Members with names are now returned directly from send_pdf_for_signing
+        members_with_names = tellustalk_result.get("members", [])
+        for member in members_with_names:
+            print(f"📌 Member: {member.get('name', '')} ({member.get('member_id', '')}) -> {member.get('url', '')}")
         
         # Store initial job info in database (link job_uuid to organization_number)
         # Do this in background thread to not delay the response

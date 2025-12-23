@@ -273,12 +273,34 @@ def send_pdf_for_signing(
                 
                 logger.info(f"TellusTalk response: job_uuid={result.get('job_uuid')}")
                 
+                # Build member_id to name mapping from our local members array
+                member_id_to_name = {}
+                for member in members:
+                    mid = member.get("member_id")
+                    mname = member.get("name", "")
+                    if mid:
+                        member_id_to_name[mid] = mname
+                
+                # Merge names into TellusTalk's response
+                response_members = result.get("members", [])
+                members_with_names = []
+                for resp_member in response_members:
+                    mid = resp_member.get("member_id")
+                    url = resp_member.get("url")
+                    name = member_id_to_name.get(mid, "")
+                    members_with_names.append({
+                        "member_id": mid,
+                        "url": url,
+                        "name": name
+                    })
+                    logger.info(f"Member mapping: {name} ({mid}) -> {url}")
+                
                 return {
                     "success": True,
                     "job_uuid": result.get("job_uuid"),
                     "job_name": result.get("job_name", job_name),
                     "ebox_job_key": result.get("ebox_job_key"),
-                    "members": result.get("members", []),
+                    "members": members_with_names,  # Now includes names!
                     "message": "Document sent for digital signing successfully"
                 }
                 
