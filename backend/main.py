@@ -2983,6 +2983,9 @@ async def get_signing_status_by_report(report_id: str):
             signing_details = signing_status.get("signing_details") or {}
             members_info = signing_details.get("members_info") or {}
             members_signed_ids = signing_details.get("members_signed") or []
+            print(f"🔍 signing_details: {signing_details}")
+            print(f"🔍 members_info keys: {list(members_info.keys()) if members_info else 'empty'}")
+            print(f"🔍 members_signed_ids: {members_signed_ids}")
         
         # Update befattningshavare statuses and URLs
         if signering_data and "befattningshavare" in signering_data:
@@ -3006,6 +3009,7 @@ async def get_signing_status_by_report(report_id: str):
                 if members_info:
                     for member_id, member_data in members_info.items():
                         member_name = member_data.get("name", "")
+                        print(f"🔍 Checking {person_name_lower} vs {member_name.lower().strip()}: has_signed={member_data.get('has_signed')}")
                         
                         if person_name_lower == member_name.lower().strip():
                             has_signed = member_data.get("has_signed")
