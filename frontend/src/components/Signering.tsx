@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Minus, Download } from 'lucide-react';
+import { apiService } from '@/services/api';
 
 // Types based on CSV variable mapping
 interface UnderskriftForetradare {
@@ -317,6 +318,24 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
       const result = await response.json();
       
       if (result.success) {
+        // CRITICAL FIX: Save signering data to database AFTER successful signing
+        // This ensures the signering data is stored (step 514 saves before signering data is entered)
+        try {
+          console.log('💾 Saving signering data to database after successful signing...');
+          const dataToSave = {
+            ...companyData,
+            signeringData: data  // Include the current signering data
+          };
+          await apiService.saveAnnualReportData({
+            companyData: dataToSave,
+            status: 'signed'  // Update status to reflect signing was initiated
+          });
+          console.log('✅ Signering data saved to database');
+        } catch (saveError) {
+          console.warn('⚠️ Could not save signering data to database:', saveError);
+          // Don't fail the flow - signing was still successful
+        }
+        
         // CRITICAL FIX: No alert popup needed - removed to avoid duplicate messaging
         // When triggered from chat, navigate to step 520 which will show the chat message
         if (triggeredFromChat) {
