@@ -1053,6 +1053,7 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
   const [showAllTax, setShowAllTax] = useState(false);
   const [isInk2ManualEdit, setIsInk2ManualEdit] = useState(false);
   const [isRecalcPending, setIsRecalcPending] = useState(false);
+  const [isSavingTax, setIsSavingTax] = useState(false);
   
   // Account reclassification state
   const [accountGroups, setAccountGroups] = useState<any>(null);
@@ -1745,6 +1746,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
 
   // Canonical Approve
   const handleApproveChanges = async () => {
+    // Show loading state immediately
+    setIsSavingTax(true);
+    
+    try {
     // Check if this is the first time the button is clicked
     const isFirstTimeClick = !companyData.taxButtonClickedBefore;
     
@@ -1917,6 +1922,10 @@ export function AnnualReportPreview({ companyData, currentStep, editableAmounts 
     // Update RR/BR with tax changes after approving manual edits
     // recalcWithManuals already updated companyData.ink2Data, so use finalInk2Data directly
     await handleTaxUpdateLogic(nextAccepted, finalInk2Data || updatedInk2Data, true);
+    } finally {
+      // Always reset loading state
+      setIsSavingTax(false);
+    }
   };
 
   // CRITICAL FIX: Listen for trigger from chat flow to approve INK2 changes
@@ -3450,27 +3459,39 @@ const handleTaxCalculationClick = () => {
             {/* Tax Action Buttons */}
             {canEdit && (
               <div className="pt-8 mt-6 border-t border-gray-200 flex justify-between">
-                {/* Undo Button - Left */}
-                <Button 
-                  onClick={handleUndo}
-                  variant="outline"
-                  className="flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                  </svg>
-                  Ångra ändringar
-                </Button>
+                {/* Undo Button - Left (hidden during save) */}
+                {!isSavingTax && (
+                  <Button 
+                    onClick={handleUndo}
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                    </svg>
+                    Ångra ändringar
+                  </Button>
+                )}
                 
                 {/* Update Button - Right */}
                 <Button 
                   onClick={handleApproveChanges}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2 disabled:opacity-70"
+                  disabled={isSavingTax}
                 >
-                  Godkänn och uppdatera skatt
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
-                  </svg>
+                  {isSavingTax ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Sparar...
+                    </>
+                  ) : (
+                    <>
+                      Godkänn och uppdatera skatt
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                      </svg>
+                    </>
+                  )}
                 </Button>
               </div>
             )}
