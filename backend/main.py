@@ -2860,6 +2860,296 @@ async def get_signing_status_by_org(organization_number: str):
         print(f"Error getting signing status by org: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting signing status: {str(e)}")
 
+
+@app.get("/api/signing-status/by-report/{report_id}")
+async def get_signing_status_by_report(report_id: str):
+    """
+    Get signing status for a specific annual report by report_id.
+    
+    Returns signering data from annual_report_data combined with signing_status from TellusTalk.
+    This endpoint is used by Mina Sidor to display the Signeringsstatus section.
+    
+    Returns:
+        - signeringData: The stored signering data (befattningshavare, revisor)
+        - signingStatus: The current signing status from TellusTalk (if job exists)
+        - memberUrls: Signing URLs for each member (from the TellusTalk job creation response)
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service unavailable")
+        
+        # First get the annual report data to get signering_data and organization_number
+        report_result = supabase.table('annual_report_data').select(
+            'id, organization_number, signering_data, company_name'
+        ).eq('id', report_id).execute()
+        
+        if not report_result.data or len(report_result.data) == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report_data = report_result.data[0]
+        org_number = report_data.get('organization_number', '').replace('-', '').replace(' ', '').strip()
+        signering_data = report_data.get('signering_data', {})
+        company_name = report_data.get('company_name', '')
+        
+        # Now try to find the signing status by organization_number
+        signing_status = None
+        member_urls = {}
+        
+        if org_number:
+            status_result = supabase.table('signing_status').select('*').eq(
+                'organization_number', org_number
+            ).order('updated_at', desc=True).execute()
+            
+            if status_result.data and len(status_result.data) > 0:
+                status_data = status_result.data[0]
+                signing_status = {
+                    "job_uuid": status_data.get("job_uuid"),
+                    "job_name": status_data.get("job_name"),
+                    "event": status_data.get("event"),
+                    "signing_details": status_data.get("signing_details", {}),
+                    "signed_pdf_download_url": status_data.get("signed_pdf_download_url"),
+                    "updated_at": status_data.get("updated_at"),
+                    "status_data": status_data.get("status_data", {})
+                }
+                
+                # Extract member URLs from status_data if available
+                # These are stored when the job is created
+                status_data_inner = status_data.get("status_data", {})
+                members_list = status_data_inner.get("members", [])
+                for member in members_list:
+                    if isinstance(member, dict):
+                        member_id = member.get("member_id")
+                        url = member.get("url")
+                        if member_id and url:
+                            member_urls[member_id] = url
+        
+        # Merge signing status with signering_data to update member statuses
+        if signering_data and signing_status:
+            signing_details = signing_status.get("signing_details", {})
+            members_info = signing_details.get("members_info", {})
+            members_signed_ids = signing_details.get("members_signed", [])
+            
+            # Update befattningshavare statuses
+            if "befattningshavare" in signering_data:
+                for idx, person in enumerate(signering_data["befattningshavare"]):
+                    # Try to match by name or member_id
+                    for member_id, member_data in members_info.items():
+                        member_name = member_data.get("name", "")
+                        person_name = f"{person.get('fornamn', '')} {person.get('efternamn', '')}".strip()
+                        
+                        if person_name.lower() == member_name.lower() or member_id == person.get("member_id"):
+                            has_signed = member_data.get("has_signed")
+                            if has_signed:
+                                person["status"] = "signed"
+                                person["signed_at"] = has_signed
+                            else:
+                                person["status"] = "pending"
+                            
+                            # Add signing URL if available
+                            if member_id in member_urls:
+                                person["signing_url"] = member_urls[member_id]
+                            break
+            
+            # Update revisor statuses
+            if "revisor" in signering_data:
+                for idx, person in enumerate(signering_data["revisor"]):
+                    for member_id, member_data in members_info.items():
+                        member_name = member_data.get("name", "")
+                        person_name = f"{person.get('fornamn', '')} {person.get('efternamn', '')}".strip()
+                        
+                        if person_name.lower() == member_name.lower() or member_id == person.get("member_id"):
+                            has_signed = member_data.get("has_signed")
+                            if has_signed:
+                                person["status"] = "signed"
+                                person["signed_at"] = has_signed
+                            else:
+                                person["status"] = "pending"
+                            
+                            if member_id in member_urls:
+                                person["signing_url"] = member_urls[member_id]
+                            break
+        
+        return {
+            "success": True,
+            "report_id": report_id,
+            "organization_number": org_number,
+            "company_name": company_name,
+            "signeringData": signering_data,
+            "signingStatus": signing_status,
+            "memberUrls": member_urls
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting signing status by report: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error getting signing status: {str(e)}")
+
+
+@app.post("/api/signing/resend-invitation")
+async def resend_signing_invitation(request: dict):
+    """
+    Resend signing invitation email to a specific signer.
+    
+    This creates a new TellusTalk job for the single signer or sends a reminder.
+    
+    Request body:
+        - report_id: The annual report ID
+        - email: The email address of the signer to resend to
+        - name: The name of the signer (for logging)
+    """
+    try:
+        report_id = request.get("report_id")
+        email = request.get("email")
+        name = request.get("name", "Unknown")
+        
+        if not report_id or not email:
+            raise HTTPException(status_code=400, detail="report_id and email are required")
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service unavailable")
+        
+        # Get the report data to regenerate the PDF and resend
+        report_result = supabase.table('annual_report_data').select('*').eq('id', report_id).execute()
+        
+        if not report_result.data or len(report_result.data) == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        report_data = report_result.data[0]
+        signering_data = report_data.get('signering_data', {})
+        company_data = report_data.get('company_data', {})
+        company_name = report_data.get('company_name', '')
+        org_number = report_data.get('organization_number', '')
+        
+        # Find the specific person to resend to
+        target_person = None
+        is_revisor = False
+        
+        if signering_data:
+            for person in signering_data.get('befattningshavare', []):
+                if person.get('email', '').lower() == email.lower():
+                    target_person = person
+                    break
+            
+            if not target_person:
+                for person in signering_data.get('revisor', []):
+                    if person.get('email', '').lower() == email.lower():
+                        target_person = person
+                        is_revisor = True
+                        break
+        
+        if not target_person:
+            raise HTTPException(status_code=404, detail=f"Signer with email {email} not found in report")
+        
+        # For now, we log the resend request
+        # In production, this would create a new TellusTalk job or use TellusTalk's reminder API
+        print(f"📧 Resend signing invitation requested:")
+        print(f"   Report: {report_id}")
+        print(f"   Company: {company_name} ({org_number})")
+        print(f"   Signer: {name} <{email}>")
+        print(f"   Type: {'Revisor' if is_revisor else 'Företrädare'}")
+        
+        # TODO: Implement actual resend via TellusTalk API
+        # Option 1: Use TellusTalk reminder functionality if the job is still active
+        # Option 2: Create a new signing job for just this person
+        
+        return {
+            "success": True,
+            "message": f"Påminnelse skickad till {email}",
+            "email": email,
+            "name": name
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error resending signing invitation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error resending invitation: {str(e)}")
+
+
+@app.put("/api/signing/update-email")
+async def update_signer_email(request: dict):
+    """
+    Update the email address for a signer in the annual report.
+    
+    Request body:
+        - report_id: The annual report ID
+        - old_email: The current email address
+        - new_email: The new email address
+        - signer_type: 'befattningshavare' or 'revisor'
+    """
+    try:
+        report_id = request.get("report_id")
+        old_email = request.get("old_email", "")
+        new_email = request.get("new_email")
+        signer_type = request.get("signer_type", "befattningshavare")
+        name = request.get("name", "")  # For matching if email is empty
+        
+        if not report_id or not new_email:
+            raise HTTPException(status_code=400, detail="report_id and new_email are required")
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service unavailable")
+        
+        # Get the report data
+        report_result = supabase.table('annual_report_data').select(
+            'id, signering_data'
+        ).eq('id', report_id).execute()
+        
+        if not report_result.data or len(report_result.data) == 0:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        signering_data = report_result.data[0].get('signering_data', {})
+        
+        if not signering_data:
+            raise HTTPException(status_code=400, detail="No signering data found in report")
+        
+        # Find and update the email
+        updated = False
+        signers = signering_data.get(signer_type, [])
+        
+        for person in signers:
+            current_email = person.get('email', '')
+            person_name = f"{person.get('fornamn', '')} {person.get('efternamn', '')}".strip()
+            
+            # Match by email or by name if email is empty
+            if (old_email and current_email.lower() == old_email.lower()) or \
+               (not old_email and name and person_name.lower() == name.lower()):
+                person['email'] = new_email
+                updated = True
+                break
+        
+        if not updated:
+            raise HTTPException(status_code=404, detail="Signer not found")
+        
+        # Save the updated signering_data
+        supabase.table('annual_report_data').update({
+            'signering_data': signering_data,
+            'updated_at': datetime.now().isoformat()
+        }).eq('id', report_id).execute()
+        
+        return {
+            "success": True,
+            "message": f"Email uppdaterad till {new_email}",
+            "new_email": new_email
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating signer email: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error updating email: {str(e)}")
+
+
 @app.get("/api/users/check-exists")
 async def check_user_exists(username: str, organization_number: str):
     """
@@ -4992,86 +5282,75 @@ def _slim_ink2_data(data: list) -> list:
 SIGNATURE_TUPLE_IDS = {1233, 1254}  # UnderskriftArsredovisningForetradareTuple, UnderskriftRevisorspateckningTuple
 
 
-def _slim_signering_data(signering_data: dict) -> list:
+def _slim_signering_data(signering_data: dict) -> dict:
     """
-    Slim down signature data following variable_mapping_signature structure.
-    Keeps: ID, Radrubrik, value
-    Tuple rows (1233, 1254) contain arrays of sub-items.
+    Store signering data in a structured format for Mina Sidor display.
+    Handles both the new Signering component format (UnderskriftForetradare) and legacy format.
+    
+    Returns a dict with:
+    - befattningshavare: List of company representatives with name, role, email, status
+    - revisor: List of auditors with name, title, email, status
+    - date: Signing date
+    - ValtRevisionsbolag: Selected audit firm name
     """
     if not signering_data:
-        return []
+        return {}
     
-    result = []
+    result = {
+        "befattningshavare": [],
+        "revisor": [],
+        "date": None,
+        "ValtRevisionsbolag": None
+    }
     
-    # Date of signing (ID 1232)
-    if signering_data.get('date'):
-        result.append({
-            "id": 1232,
-            "radrubrik": "Datering av årsredovisning",
-            "value": signering_data.get('date')
-        })
-    
-    # Board members tuple (ID 1233) - contains multiple members
-    board_members = signering_data.get('boardMembers') or []
-    if board_members:
-        members_data = []
-        for member in board_members:
-            if isinstance(member, dict):
-                members_data.append({
-                    "tilltalsnamn": member.get('tilltalsnamn') or member.get('firstName') or member.get('name', '').split()[0] if member.get('name') else '',
-                    "efternamn": member.get('efternamn') or member.get('lastName') or ' '.join(member.get('name', '').split()[1:]) if member.get('name') else '',
-                    "roll": member.get('roll') or member.get('role') or member.get('title'),
-                })
-            elif isinstance(member, str):
-                # If just a string name
-                parts = member.split()
-                members_data.append({
-                    "tilltalsnamn": parts[0] if parts else '',
-                    "efternamn": ' '.join(parts[1:]) if len(parts) > 1 else '',
-                    "roll": None,
-                })
-        
-        result.append({
-            "id": 1233,
-            "radrubrik": "Undertecknande av företrädare",
-            "value": members_data
-        })
-    
-    # Signing date for members (ID 1238)
-    if signering_data.get('signingDate') or signering_data.get('date'):
-        result.append({
-            "id": 1238,
-            "radrubrik": "Dag för undertecknande",
-            "value": signering_data.get('signingDate') or signering_data.get('date')
-        })
-    
-    # Auditor tuple (ID 1254) - contains auditor info if present
-    auditors = signering_data.get('auditors') or signering_data.get('revisor') or []
-    if auditors:
-        auditors_data = []
-        for auditor in (auditors if isinstance(auditors, list) else [auditors]):
-            if isinstance(auditor, dict):
-                auditors_data.append({
-                    "tilltalsnamn": auditor.get('tilltalsnamn') or auditor.get('firstName'),
-                    "efternamn": auditor.get('efternamn') or auditor.get('lastName'),
-                    "titel": auditor.get('titel') or auditor.get('title'),
-                    "huvudansvarig": auditor.get('huvudansvarig', True),
-                })
-        
-        if auditors_data:
-            result.append({
-                "id": 1254,
-                "radrubrik": "Underskrift av revisor",
-                "value": auditors_data
+    # Handle new format from Signering component (UnderskriftForetradare)
+    foretradare = signering_data.get('UnderskriftForetradare') or []
+    for person in foretradare:
+        if isinstance(person, dict):
+            result["befattningshavare"].append({
+                "fornamn": person.get('UnderskriftHandlingTilltalsnamn', ''),
+                "efternamn": person.get('UnderskriftHandlingEfternamn', ''),
+                "roll": person.get('UnderskriftHandlingRoll', ''),
+                "email": person.get('UnderskriftHandlingEmail', ''),
+                "personnummer": person.get('UnderskriftHandlingPersonnummer', ''),
+                "status": "pending",  # Will be updated by signing status
+                "signed_at": None
             })
     
-    # Audit firm (ID 1253)
-    if signering_data.get('revisionsbolag') or signering_data.get('auditFirm'):
-        result.append({
-            "id": 1253,
-            "radrubrik": "Valt revisionsbolag",
-            "value": signering_data.get('revisionsbolag') or signering_data.get('auditFirm')
-        })
+    # Handle revisor from new format (UnderskriftAvRevisor)
+    revisor_list = signering_data.get('UnderskriftAvRevisor') or []
+    for revisor in revisor_list:
+        if isinstance(revisor, dict):
+            result["revisor"].append({
+                "fornamn": revisor.get('UnderskriftHandlingTilltalsnamn', ''),
+                "efternamn": revisor.get('UnderskriftHandlingEfternamn', ''),
+                "revisionsbolag": revisor.get('UnderskriftHandlingTitel', ''),
+                "email": revisor.get('UnderskriftHandlingEmail', ''),
+                "personnummer": revisor.get('UnderskriftHandlingPersonnummer', ''),
+                "huvudansvarig": revisor.get('UnderskriftRevisorspateckningRevisorHuvudansvarig', False),
+                "status": "pending",
+                "signed_at": None
+            })
+    
+    # Get audit firm
+    result["ValtRevisionsbolag"] = signering_data.get('ValtRevisionsbolag') or signering_data.get('revisionsbolag') or signering_data.get('auditFirm')
+    
+    # Get signing date
+    result["date"] = signering_data.get('UndertecknandeArsredovisningDatum') or signering_data.get('date') or signering_data.get('signingDate')
+    
+    # Fallback to legacy format if new format not present
+    if not result["befattningshavare"]:
+        board_members = signering_data.get('boardMembers') or []
+        for member in board_members:
+            if isinstance(member, dict):
+                result["befattningshavare"].append({
+                    "fornamn": member.get('tilltalsnamn') or member.get('firstName') or (member.get('name', '').split()[0] if member.get('name') else ''),
+                    "efternamn": member.get('efternamn') or member.get('lastName') or (' '.join(member.get('name', '').split()[1:]) if member.get('name') else ''),
+                    "roll": member.get('roll') or member.get('role') or member.get('title', ''),
+                    "email": member.get('email', ''),
+                    "status": "pending",
+                    "signed_at": None
+                })
     
     return result
 

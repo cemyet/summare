@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -15,8 +16,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { API_BASE_URL } from "@/config/api";
-import { ChevronDown, User, FileText, Calculator, PenTool, HelpCircle, Download, Settings } from "lucide-react";
+import { ChevronDown, User, FileText, Calculator, PenTool, HelpCircle, Download, Settings, Copy, Check, Send, Link2 } from "lucide-react";
 
 interface ReportData {
   id: string;
@@ -48,6 +55,36 @@ interface FiscalYearOption {
   fiscal_year_start: string;
   fiscal_year_end: string;
   label: string;
+}
+
+interface SignerPerson {
+  fornamn: string;
+  efternamn: string;
+  roll?: string;
+  email: string;
+  personnummer?: string;
+  status: 'pending' | 'signed' | 'sent';
+  signed_at?: string;
+  signing_url?: string;
+  revisionsbolag?: string;
+}
+
+interface SigneringStatusData {
+  signeringData: {
+    befattningshavare: SignerPerson[];
+    revisor: SignerPerson[];
+    date?: string;
+    ValtRevisionsbolag?: string;
+  };
+  signingStatus?: {
+    job_uuid: string;
+    job_name: string;
+    event: string;
+    signing_details?: any;
+    signed_pdf_download_url?: string;
+    updated_at?: string;
+  };
+  memberUrls: Record<string, string>;
 }
 
 const NAV_ITEMS = [
@@ -250,6 +287,17 @@ const ReportView = () => {
   const [noterBlockToggles, setNoterBlockToggles] = useState<Record<string, boolean>>({});
   const [showAllInk2, setShowAllInk2] = useState(false);
   
+  // Signering status
+  const [signeringStatus, setSigneringStatus] = useState<SigneringStatusData | null>(null);
+  const [signeringLoading, setSigneringLoading] = useState(false);
+  const [linkCopiedIndex, setLinkCopiedIndex] = useState<string | null>(null);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [currentSigningLink, setCurrentSigningLink] = useState("");
+  const [currentSignerName, setCurrentSignerName] = useState("");
+  const [resendingEmail, setResendingEmail] = useState<string | null>(null);
+  const [editingEmail, setEditingEmail] = useState<{ type: 'befattningshavare' | 'revisor'; index: number } | null>(null);
+  const [editedEmailValue, setEditedEmailValue] = useState("");
+  
   // Company/fiscal year selection
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [fiscalYears, setFiscalYears] = useState<FiscalYearOption[]>([]);
@@ -405,6 +453,117 @@ const ReportView = () => {
   const handleLogout = () => {
     localStorage.removeItem("summare_user");
     navigate("/");
+  };
+
+  // Fetch signing status when report is loaded
+  useEffect(() => {
+    if (reportId) {
+      fetchSigneringStatus(reportId);
+    }
+  }, [reportId]);
+
+  const fetchSigneringStatus = async (id: string) => {
+    setSigneringLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/signing-status/by-report/${id}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setSigneringStatus(data);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching signing status:", err);
+    } finally {
+      setSigneringLoading(false);
+    }
+  };
+
+  const handleCopyLink = (url: string, signerName: string) => {
+    setCurrentSigningLink(url);
+    setCurrentSignerName(signerName);
+    setLinkDialogOpen(true);
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(currentSigningLink);
+      setLinkCopiedIndex(currentSignerName);
+      setTimeout(() => setLinkCopiedIndex(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  const handleResendInvitation = async (email: string, name: string) => {
+    if (!reportId) return;
+    
+    setResendingEmail(email);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/signing/resend-invitation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report_id: reportId, email, name }),
+      });
+      
+      if (response.ok) {
+        alert(`Påminnelse skickad till ${email}`);
+      } else {
+        throw new Error('Failed to resend');
+      }
+    } catch (err) {
+      console.error("Error resending invitation:", err);
+      alert('Kunde inte skicka påminnelse. Försök igen.');
+    } finally {
+      setResendingEmail(null);
+    }
+  };
+
+  const handleUpdateEmail = async (signerType: 'befattningshavare' | 'revisor', index: number, oldEmail: string, newEmail: string, name: string) => {
+    if (!reportId) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/signing/update-email`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          report_id: reportId,
+          old_email: oldEmail,
+          new_email: newEmail,
+          signer_type: signerType,
+          name,
+        }),
+      });
+      
+      if (response.ok) {
+        // Update local state
+        if (signeringStatus) {
+          const updated = { ...signeringStatus };
+          if (signerType === 'befattningshavare' && updated.signeringData.befattningshavare[index]) {
+            updated.signeringData.befattningshavare[index].email = newEmail;
+          } else if (signerType === 'revisor' && updated.signeringData.revisor[index]) {
+            updated.signeringData.revisor[index].email = newEmail;
+          }
+          setSigneringStatus(updated);
+        }
+        setEditingEmail(null);
+      } else {
+        throw new Error('Failed to update');
+      }
+    } catch (err) {
+      console.error("Error updating email:", err);
+      alert('Kunde inte uppdatera email. Försök igen.');
+    }
+  };
+
+  const startEditEmail = (type: 'befattningshavare' | 'revisor', index: number, currentEmail: string) => {
+    setEditingEmail({ type, index });
+    setEditedEmailValue(currentEmail);
+  };
+
+  const cancelEditEmail = () => {
+    setEditingEmail(null);
+    setEditedEmailValue("");
   };
 
   // Helper functions for display (matching AnnualReportPreview logic)
@@ -772,6 +931,332 @@ const ReportView = () => {
 
         {/* Content Area */}
         <div className="p-6 max-w-5xl mx-auto">
+          {/* Signeringsstatus Section */}
+          <div
+            ref={(el) => (sectionRefs.current["signeringsstatus"] = el)}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
+          >
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Signeringsstatus</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Här kan du se status för signering av årsredovisningen.
+              </p>
+            </div>
+
+            {signeringLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+              </div>
+            ) : signeringStatus?.signeringData?.befattningshavare?.length || signeringStatus?.signeringData?.revisor?.length ? (
+              <div className="space-y-6">
+                {/* Befattningshavare Section */}
+                {signeringStatus.signeringData.befattningshavare?.length > 0 && (
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-800 mb-3">Företrädare</h3>
+                    <div className="space-y-2">
+                      {signeringStatus.signeringData.befattningshavare.map((person, index) => {
+                        const fullName = `${person.fornamn} ${person.efternamn}`.trim();
+                        const isEditing = editingEmail?.type === 'befattningshavare' && editingEmail?.index === index;
+                        const isSigned = person.status === 'signed';
+                        
+                        return (
+                          <div
+                            key={`befattning-${index}`}
+                            className={`grid gap-4 py-3 px-4 rounded-lg border ${
+                              isSigned ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                            }`}
+                            style={{ gridTemplateColumns: '1.2fr 1fr 0.8fr 1.5fr 0.5fr 0.4fr 0.5fr' }}
+                          >
+                            {/* Förnamn - locked */}
+                            <div>
+                              <span className="text-xs text-gray-500 block">Förnamn</span>
+                              <span className="text-sm font-medium text-gray-900">{person.fornamn || '-'}</span>
+                            </div>
+                            
+                            {/* Efternamn - locked */}
+                            <div>
+                              <span className="text-xs text-gray-500 block">Efternamn</span>
+                              <span className="text-sm font-medium text-gray-900">{person.efternamn || '-'}</span>
+                            </div>
+                            
+                            {/* Roll - locked */}
+                            <div>
+                              <span className="text-xs text-gray-500 block">Roll</span>
+                              <span className="text-sm text-gray-700">{person.roll || '-'}</span>
+                            </div>
+                            
+                            {/* Email - editable */}
+                            <div>
+                              <span className="text-xs text-gray-500 block">Email</span>
+                              {isEditing ? (
+                                <div className="flex gap-1">
+                                  <Input
+                                    value={editedEmailValue}
+                                    onChange={(e) => setEditedEmailValue(e.target.value)}
+                                    className="h-7 text-sm"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2"
+                                    onClick={() => handleUpdateEmail('befattningshavare', index, person.email, editedEmailValue, fullName)}
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2"
+                                    onClick={cancelEditEmail}
+                                  >
+                                    ✕
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span
+                                  className="text-sm text-blue-600 cursor-pointer hover:underline"
+                                  onClick={() => startEditEmail('befattningshavare', index, person.email)}
+                                >
+                                  {person.email || 'Lägg till email'}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Länk button */}
+                            <div className="flex items-end">
+                              {person.signing_url ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => handleCopyLink(person.signing_url!, fullName)}
+                                >
+                                  <Link2 className="w-3 h-3 mr-1" />
+                                  Länk
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </div>
+                            
+                            {/* Skicka button */}
+                            <div className="flex items-end">
+                              {!isSigned && person.email && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2"
+                                  onClick={() => handleResendInvitation(person.email, fullName)}
+                                  disabled={resendingEmail === person.email}
+                                >
+                                  {resendingEmail === person.email ? (
+                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                                  ) : (
+                                    <Send className="w-4 h-4 text-gray-600" />
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                            
+                            {/* Status */}
+                            <div className="flex items-end justify-end">
+                              <span
+                                className={`text-xs font-medium px-2 py-1 rounded ${
+                                  isSigned
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }`}
+                              >
+                                {isSigned ? 'Signerad' : 'Skickad'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Revisor Section - only show if company has revisor */}
+                {signeringStatus.signeringData.revisor?.length > 0 && (
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-800 mb-3">Revisor</h3>
+                    {signeringStatus.signeringData.ValtRevisionsbolag && (
+                      <p className="text-sm text-gray-600 mb-2">
+                        Revisionsbolag: {signeringStatus.signeringData.ValtRevisionsbolag}
+                      </p>
+                    )}
+                    <div className="space-y-2">
+                      {signeringStatus.signeringData.revisor.map((person, index) => {
+                        const fullName = `${person.fornamn} ${person.efternamn}`.trim();
+                        const isEditing = editingEmail?.type === 'revisor' && editingEmail?.index === index;
+                        const isSigned = person.status === 'signed';
+                        
+                        return (
+                          <div
+                            key={`revisor-${index}`}
+                            className={`grid gap-4 py-3 px-4 rounded-lg border ${
+                              isSigned ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+                            }`}
+                            style={{ gridTemplateColumns: '1.2fr 1fr 0.8fr 1.5fr 0.5fr 0.4fr 0.5fr' }}
+                          >
+                            {/* Förnamn - locked */}
+                            <div>
+                              <span className="text-xs text-gray-500 block">Förnamn</span>
+                              <span className="text-sm font-medium text-gray-900">{person.fornamn || '-'}</span>
+                            </div>
+                            
+                            {/* Efternamn - locked */}
+                            <div>
+                              <span className="text-xs text-gray-500 block">Efternamn</span>
+                              <span className="text-sm font-medium text-gray-900">{person.efternamn || '-'}</span>
+                            </div>
+                            
+                            {/* Roll / Revisionsbolag - locked */}
+                            <div>
+                              <span className="text-xs text-gray-500 block">Titel</span>
+                              <span className="text-sm text-gray-700">{person.revisionsbolag || 'Revisor'}</span>
+                            </div>
+                            
+                            {/* Email - editable */}
+                            <div>
+                              <span className="text-xs text-gray-500 block">Email</span>
+                              {isEditing ? (
+                                <div className="flex gap-1">
+                                  <Input
+                                    value={editedEmailValue}
+                                    onChange={(e) => setEditedEmailValue(e.target.value)}
+                                    className="h-7 text-sm"
+                                  />
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2"
+                                    onClick={() => handleUpdateEmail('revisor', index, person.email, editedEmailValue, fullName)}
+                                  >
+                                    <Check className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2"
+                                    onClick={cancelEditEmail}
+                                  >
+                                    ✕
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span
+                                  className="text-sm text-blue-600 cursor-pointer hover:underline"
+                                  onClick={() => startEditEmail('revisor', index, person.email)}
+                                >
+                                  {person.email || 'Lägg till email'}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {/* Länk button */}
+                            <div className="flex items-end">
+                              {person.signing_url ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => handleCopyLink(person.signing_url!, fullName)}
+                                >
+                                  <Link2 className="w-3 h-3 mr-1" />
+                                  Länk
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-gray-400">-</span>
+                              )}
+                            </div>
+                            
+                            {/* Skicka button */}
+                            <div className="flex items-end">
+                              {!isSigned && person.email && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2"
+                                  onClick={() => handleResendInvitation(person.email, fullName)}
+                                  disabled={resendingEmail === person.email}
+                                >
+                                  {resendingEmail === person.email ? (
+                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                                  ) : (
+                                    <Send className="w-4 h-4 text-gray-600" />
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                            
+                            {/* Status */}
+                            <div className="flex items-end justify-end">
+                              <span
+                                className={`text-xs font-medium px-2 py-1 rounded ${
+                                  isSigned
+                                    ? 'bg-green-100 text-green-700'
+                                    : 'bg-yellow-100 text-yellow-700'
+                                }`}
+                              >
+                                {isSigned ? 'Signerad' : 'Skickad'}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">
+                  Ingen signeringsinformation tillgänglig än. Signeringsdata sparas när årsredovisningen skickas för signering.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Link Copy Dialog */}
+          <Dialog open={linkDialogOpen} onOpenChange={setLinkDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Signeringslänk för {currentSignerName}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Kopiera länken nedan och dela den med {currentSignerName} för att signera årsredovisningen.
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={currentSigningLink}
+                    readOnly
+                    className="flex-1 text-sm"
+                  />
+                  <Button
+                    onClick={copyToClipboard}
+                    variant="outline"
+                    className="shrink-0"
+                  >
+                    {linkCopiedIndex === currentSignerName ? (
+                      <>
+                        <Check className="w-4 h-4 mr-1 text-green-600" />
+                        Kopierad!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 mr-1" />
+                        Kopiera
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {/* Förvaltningsberättelse Section */}
           <div
             ref={(el) => (sectionRefs.current["forvaltningsberattelse"] = el)}
