@@ -2889,8 +2889,21 @@ async def get_signing_status_by_report(report_id: str):
         
         report_data = report_result.data[0]
         org_number = report_data.get('organization_number', '').replace('-', '').replace(' ', '').strip()
-        signering_data = report_data.get('signering_data', {})
         company_name = report_data.get('company_name', '')
+        
+        # Parse signering_data - might be a JSON string if column is TEXT type
+        signering_data_raw = report_data.get('signering_data', {})
+        if isinstance(signering_data_raw, str):
+            try:
+                signering_data = json.loads(signering_data_raw)
+            except json.JSONDecodeError:
+                signering_data = {}
+        elif signering_data_raw is None:
+            signering_data = {}
+        else:
+            signering_data = signering_data_raw
+        
+        print(f"📋 Fetched signering_data for report {report_id}: {type(signering_data)} - befattningshavare count: {len(signering_data.get('befattningshavare', []))}")
         
         # Now try to find the signing status by organization_number
         signing_status = None
