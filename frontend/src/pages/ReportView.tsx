@@ -276,7 +276,7 @@ const ReportView = () => {
   const [report, setReport] = useState<ReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeSection, setActiveSection] = useState("forvaltningsberattelse");
+  const [activeSection, setActiveSection] = useState("signeringsstatus");
   // Always false since we don't show toggles in Mina Sidor
   const showAllRR = false;
   const showAllBR = false;
@@ -967,14 +967,14 @@ const ReportView = () => {
                 <button
                   onClick={handleRefreshStatus}
                   disabled={isRefreshingStatus}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-full hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-full hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
+                  <RefreshCw className={`w-3 h-3 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
                   Uppdatera status
                 </button>
               </div>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Din årsredovisning har skickats iväg för signering till följande befattningshavare och revisor om bolaget har en sådan. Du kan i statuskolumnen följa vilka befattningshavare som har signerat och vilka vi fortfarande inväntar signering ifrån. Du har möjlighet att skicka påminnelse via mail och du kan också kopiera länken <Link2 className="w-3 h-3 inline mx-0.5" /> och skicka som textmeddelande. Kontrollera gärna mailadresser och ändra vid fel och skicka isåfall mail igen genom att klicka på <Send className="w-3 h-3 inline mx-0.5" />
+                Din årsredovisning har skickats iväg för signering till nedan befattningshavare och revisor om bolaget har en sådan. Du kan i statuskolumnen följa vilka befattningshavare som har signerat och vilka vi fortfarande inväntar signatur ifrån. Du har möjlighet att skicka påminnelse via mail och du kan också kopiera länken och skicka som textmeddelande. Kontrollera gärna mailadresser och ändra vid fel och skicka isåfall mail igen genom att klicka på <Send className="w-3 h-3 inline mx-0.5" />
               </p>
             </div>
 
