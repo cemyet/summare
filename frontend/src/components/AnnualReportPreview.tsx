@@ -3473,10 +3473,10 @@ const handleTaxCalculationClick = () => {
                   </Button>
                 )}
                 
-                {/* Update Button - Right */}
+                {/* Update Button - Right (ml-auto keeps it right even when undo button is hidden) */}
                 <Button 
                   onClick={handleApproveChanges}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2 disabled:opacity-70"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2 disabled:opacity-70 ml-auto"
                   disabled={isSavingTax}
                 >
                   {isSavingTax ? (
