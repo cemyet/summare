@@ -2707,13 +2707,22 @@ async def tellustalk_webhook(request: Request):
                 # Try to upsert signing status - store by job_uuid
                 # Use upsert with on_conflict to handle unique constraint on job_uuid
                 try:
-                    # First try to check if record exists and get existing organization_number
-                    existing = supabase.table('signing_status').select('job_uuid, organization_number').eq('job_uuid', job_uuid).execute()
+                    # First try to check if record exists and get existing data we need to preserve
+                    existing = supabase.table('signing_status').select('job_uuid, organization_number, status_data').eq('job_uuid', job_uuid).execute()
                     
-                    # Preserve organization_number if it exists, otherwise set to None
+                    # Preserve organization_number and members array if they exist
                     existing_org_number = None
+                    existing_members = []
                     if existing.data and len(existing.data) > 0:
                         existing_org_number = existing.data[0].get('organization_number')
+                        existing_status_data = existing.data[0].get('status_data', {}) or {}
+                        existing_members = existing_status_data.get('members', [])
+                    
+                    # Merge: keep existing members array with URLs, add new signing status info
+                    merged_status_data = signing_status.copy()
+                    if existing_members:
+                        merged_status_data['members'] = existing_members
+                        print(f"   🔗 Preserved {len(existing_members)} member URLs from original job")
                     
                     data_to_save = {
                         'job_uuid': job_uuid,
@@ -2723,7 +2732,7 @@ async def tellustalk_webhook(request: Request):
                         'event': event,
                         'signing_details': signing_status.get('signing_details', {}),
                         'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
-                        'status_data': signing_status,
+                        'status_data': merged_status_data,  # Use merged data with preserved members
                         'updated_at': datetime.now().isoformat()
                     }
                     
@@ -2745,11 +2754,19 @@ async def tellustalk_webhook(request: Request):
                     elif '23505' in error_msg or 'duplicate key' in error_msg.lower():
                         # Duplicate key error - try update instead
                         try:
-                            # Get existing organization_number to preserve it
-                            existing_check = supabase.table('signing_status').select('organization_number').eq('job_uuid', job_uuid).execute()
+                            # Get existing data to preserve
+                            existing_check = supabase.table('signing_status').select('organization_number, status_data').eq('job_uuid', job_uuid).execute()
                             existing_org = None
+                            existing_members_fallback = []
                             if existing_check.data and len(existing_check.data) > 0:
                                 existing_org = existing_check.data[0].get('organization_number')
+                                existing_sd = existing_check.data[0].get('status_data', {}) or {}
+                                existing_members_fallback = existing_sd.get('members', [])
+                            
+                            # Merge status data with preserved members
+                            merged_sd = signing_status.copy()
+                            if existing_members_fallback:
+                                merged_sd['members'] = existing_members_fallback
                             
                             supabase.table('signing_status').update({
                                 'organization_number': existing_org,  # Preserve existing
@@ -2758,7 +2775,7 @@ async def tellustalk_webhook(request: Request):
                                 'event': event,
                                 'signing_details': signing_status.get('signing_details', {}),
                                 'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
-                                'status_data': signing_status,
+                                'status_data': merged_sd,  # Use merged data with preserved members
                                 'updated_at': datetime.now().isoformat()
                             }).eq('job_uuid', job_uuid).execute()
                             print(f"   💾 Signing status updated in database (after duplicate key error)")
