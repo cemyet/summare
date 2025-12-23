@@ -939,7 +939,7 @@ const ReportView = () => {
             <div className="mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Signeringsstatus</h2>
               <p className="text-sm text-gray-600 mt-2 leading-relaxed">
-                Din årsredovisning har skickats iväg för signering till följande befattningshavare och revisor om bolaget har en sådan. Du kan i statuskolumnen följa vilka befattningshavare som har signerat och vilka vi fortfarande inväntar signering ifrån. Du har möjlighet att skicka påminnelse via mail och du kan också kopiera länken <Link2 className="w-3 h-3 inline mx-0.5" /> och skicka som textmeddelande. Kontrollera gärna mailadresser och ändra vid fel och skicka isåfall mail igen genom att klicka på <RefreshCw className="w-3 h-3 inline mx-0.5" />
+                Din årsredovisning har skickats iväg för signering till följande befattningshavare och revisor om bolaget har en sådan. Du kan i statuskolumnen följa vilka befattningshavare som har signerat och vilka vi fortfarande inväntar signering ifrån. Du har möjlighet att skicka påminnelse via mail och du kan också kopiera länken <Link2 className="w-3 h-3 inline mx-0.5" /> och skicka som textmeddelande. Kontrollera gärna mailadresser och ändra vid fel och skicka isåfall mail igen genom att klicka på <Send className="w-3 h-3 inline mx-0.5" />
               </p>
             </div>
 
@@ -957,8 +957,8 @@ const ReportView = () => {
                     {/* Column Headers */}
                     <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-2">
                       <div className="col-span-3">Namn</div>
-                      <div className="col-span-2">Roll</div>
-                      <div className="col-span-4">Email</div>
+                      <div className="col-span-3">Roll</div>
+                      <div className="col-span-3">Email</div>
                       <div className="col-span-1 text-center">Länk</div>
                       <div className="col-span-1 text-center">Skicka</div>
                       <div className="col-span-1 text-center">Status</div>
@@ -980,12 +980,12 @@ const ReportView = () => {
                             </div>
                             
                             {/* Roll - plain text */}
-                            <div className="col-span-2">
+                            <div className="col-span-3">
                               <span className="text-sm text-gray-600">{person.roll || '-'}</span>
                             </div>
                             
                             {/* Email - editable input */}
-                            <div className="col-span-4">
+                            <div className="col-span-3">
                               <Input
                                 value={person.email || ''}
                                 onChange={(e) => {
@@ -1034,11 +1034,11 @@ const ReportView = () => {
                                   {resendingEmail === person.email ? (
                                     <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
                                   ) : (
-                                    <RefreshCw className="w-5 h-5" />
+                                    <Send className="w-5 h-5" />
                                   )}
                                 </button>
                               ) : (
-                                <RefreshCw className="w-5 h-5 text-gray-200" />
+                                <Send className="w-5 h-5 text-gray-200" />
                               )}
                             </div>
                             
@@ -1069,8 +1069,8 @@ const ReportView = () => {
                     {/* Column Headers */}
                     <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-2">
                       <div className="col-span-3">Namn</div>
-                      <div className="col-span-2">Revisionsbolag</div>
-                      <div className="col-span-4">Email</div>
+                      <div className="col-span-3">Revisionsbolag</div>
+                      <div className="col-span-3">Email</div>
                       <div className="col-span-1 text-center">Länk</div>
                       <div className="col-span-1 text-center">Skicka</div>
                       <div className="col-span-1 text-center">Status</div>
@@ -1092,14 +1092,14 @@ const ReportView = () => {
                             </div>
                             
                             {/* Revisionsbolag - plain text */}
-                            <div className="col-span-2">
+                            <div className="col-span-3">
                               <span className="text-sm text-gray-600">
                                 {person.revisionsbolag || signeringStatus.signeringData.ValtRevisionsbolag || '-'}
                               </span>
                             </div>
                             
                             {/* Email - editable input */}
-                            <div className="col-span-4">
+                            <div className="col-span-3">
                               <Input
                                 value={person.email || ''}
                                 onChange={(e) => {
@@ -1148,11 +1148,11 @@ const ReportView = () => {
                                   {resendingEmail === person.email ? (
                                     <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
                                   ) : (
-                                    <RefreshCw className="w-5 h-5" />
+                                    <Send className="w-5 h-5" />
                                   )}
                                 </button>
                               ) : (
-                                <RefreshCw className="w-5 h-5 text-gray-200" />
+                                <Send className="w-5 h-5 text-gray-200" />
                               )}
                             </div>
                             
