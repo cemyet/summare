@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { API_BASE_URL } from "@/config/api";
-import { ChevronDown, User, FileText, Calculator, PenTool, HelpCircle, Download, Settings, Copy, Check, Send, Link2 } from "lucide-react";
+import { ChevronDown, User, FileText, Calculator, PenTool, HelpCircle, Download, Settings, Copy, Check, Send, Link2, RefreshCw, X } from "lucide-react";
 
 interface ReportData {
   id: string;
@@ -936,10 +936,10 @@ const ReportView = () => {
             ref={(el) => (sectionRefs.current["signeringsstatus"] = el)}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
-            <div className="mb-4">
+            <div className="mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Signeringsstatus</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Här kan du se status för signering av årsredovisningen.
+              <p className="text-sm text-gray-600 mt-2 leading-relaxed">
+                Din årsredovisning har skickats iväg för signering till följande befattningshavare och revisor om bolaget har en sådan. Du kan i statuskolumnen följa vilka befattningshavare som har signerat och vilka vi fortfarande inväntar signering ifrån. Du har möjlighet att skicka påminnelse via mail och du kan också kopiera länken <Link2 className="w-3 h-3 inline mx-0.5" /> och skicka som textmeddelande. Kontrollera gärna mailadresser och ändra vid fel och skicka isåfall mail igen genom att klicka på <RefreshCw className="w-3 h-3 inline mx-0.5" />
               </p>
             </div>
 
@@ -948,11 +948,26 @@ const ReportView = () => {
                 <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
               </div>
             ) : signeringStatus?.signeringData?.befattningshavare?.length || signeringStatus?.signeringData?.revisor?.length ? (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {/* Befattningshavare Section */}
                 {signeringStatus.signeringData.befattningshavare?.length > 0 && (
                   <div>
-                    <h3 className="text-base font-semibold text-gray-800 mb-3">Företrädare</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Befattningshavare</h3>
+                    
+                    {/* Column Headers */}
+                    <div 
+                      className="grid gap-4 py-2 px-4 text-sm font-medium text-gray-600"
+                      style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1.5fr 0.6fr 0.6fr 0.7fr' }}
+                    >
+                      <div>Förnamn</div>
+                      <div>Efternamn</div>
+                      <div>Roll</div>
+                      <div>Email</div>
+                      <div className="text-center">Länk</div>
+                      <div className="text-center">Skicka</div>
+                      <div className="text-center">Status</div>
+                    </div>
+                    
                     <div className="space-y-2">
                       {signeringStatus.signeringData.befattningshavare.map((person, index) => {
                         const fullName = `${person.fornamn} ${person.efternamn}`.trim();
@@ -962,38 +977,33 @@ const ReportView = () => {
                         return (
                           <div
                             key={`befattning-${index}`}
-                            className={`grid gap-4 py-3 px-4 rounded-lg border ${
-                              isSigned ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-                            }`}
-                            style={{ gridTemplateColumns: '1.2fr 1fr 0.8fr 1.5fr 0.5fr 0.4fr 0.5fr' }}
+                            className="grid gap-4 py-3 px-4 items-center"
+                            style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1.5fr 0.6fr 0.6fr 0.7fr' }}
                           >
-                            {/* Förnamn - locked */}
-                            <div>
-                              <span className="text-xs text-gray-500 block">Förnamn</span>
-                              <span className="text-sm font-medium text-gray-900">{person.fornamn || '-'}</span>
+                            {/* Förnamn - locked (input-style box) */}
+                            <div className="bg-gray-100 border border-gray-200 rounded px-3 py-2">
+                              <span className="text-sm text-gray-500">{person.fornamn || 'Förnamn'}</span>
                             </div>
                             
-                            {/* Efternamn - locked */}
-                            <div>
-                              <span className="text-xs text-gray-500 block">Efternamn</span>
-                              <span className="text-sm font-medium text-gray-900">{person.efternamn || '-'}</span>
+                            {/* Efternamn - locked (input-style box) */}
+                            <div className="bg-gray-100 border border-gray-200 rounded px-3 py-2">
+                              <span className="text-sm text-gray-500">{person.efternamn || 'Efternamn'}</span>
                             </div>
                             
-                            {/* Roll - locked */}
-                            <div>
-                              <span className="text-xs text-gray-500 block">Roll</span>
-                              <span className="text-sm text-gray-700">{person.roll || '-'}</span>
+                            {/* Roll - locked (dropdown-style box) */}
+                            <div className="bg-gray-100 border border-gray-200 rounded px-3 py-2 flex items-center justify-between">
+                              <span className="text-sm text-gray-500 truncate">{person.roll || 'Roll'}</span>
+                              <ChevronDown className="w-4 h-4 text-gray-400 ml-1 flex-shrink-0" />
                             </div>
                             
-                            {/* Email - editable */}
-                            <div>
-                              <span className="text-xs text-gray-500 block">Email</span>
+                            {/* Email - editable (input-style box) */}
+                            <div className="bg-white border border-gray-200 rounded px-3 py-2">
                               {isEditing ? (
-                                <div className="flex gap-1">
+                                <div className="flex gap-1 -mx-2 -my-1">
                                   <Input
                                     value={editedEmailValue}
                                     onChange={(e) => setEditedEmailValue(e.target.value)}
-                                    className="h-7 text-sm"
+                                    className="h-7 text-sm border-0 shadow-none focus-visible:ring-0"
                                   />
                                   <Button
                                     size="sm"
@@ -1001,7 +1011,7 @@ const ReportView = () => {
                                     className="h-7 px-2"
                                     onClick={() => handleUpdateEmail('befattningshavare', index, person.email, editedEmailValue, fullName)}
                                   >
-                                    <Check className="w-4 h-4" />
+                                    <Check className="w-4 h-4 text-green-600" />
                                   </Button>
                                   <Button
                                     size="sm"
@@ -1009,62 +1019,57 @@ const ReportView = () => {
                                     className="h-7 px-2"
                                     onClick={cancelEditEmail}
                                   >
-                                    ✕
+                                    <X className="w-4 h-4 text-red-500" />
                                   </Button>
                                 </div>
                               ) : (
                                 <span
-                                  className="text-sm text-blue-600 cursor-pointer hover:underline"
+                                  className="text-sm text-gray-700 cursor-pointer hover:text-blue-600"
                                   onClick={() => startEditEmail('befattningshavare', index, person.email)}
                                 >
-                                  {person.email || 'Lägg till email'}
+                                  {person.email || 'Email'}
                                 </span>
                               )}
                             </div>
                             
                             {/* Länk button */}
-                            <div className="flex items-end">
-                              {person.signing_url ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-xs"
-                                  onClick={() => handleCopyLink(person.signing_url!, fullName)}
-                                >
-                                  <Link2 className="w-3 h-3 mr-1" />
-                                  Länk
-                                </Button>
-                              ) : (
-                                <span className="text-xs text-gray-400">-</span>
-                              )}
+                            <div className="flex justify-center">
+                              <button
+                                className="text-gray-500 hover:text-blue-600 p-1"
+                                onClick={() => handleCopyLink(person.signing_url || '', fullName)}
+                                title="Kopiera signeringslänk"
+                              >
+                                <Link2 className="w-5 h-5" />
+                              </button>
                             </div>
                             
                             {/* Skicka button */}
-                            <div className="flex items-end">
-                              {!isSigned && person.email && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 px-2"
+                            <div className="flex justify-center">
+                              {!isSigned && person.email ? (
+                                <button
+                                  className="text-gray-500 hover:text-blue-600 p-1"
                                   onClick={() => handleResendInvitation(person.email, fullName)}
                                   disabled={resendingEmail === person.email}
+                                  title="Skicka påminnelse"
                                 >
                                   {resendingEmail === person.email ? (
-                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                                    <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
                                   ) : (
-                                    <Send className="w-4 h-4 text-gray-600" />
+                                    <RefreshCw className="w-5 h-5" />
                                   )}
-                                </Button>
+                                </button>
+                              ) : (
+                                <RefreshCw className="w-5 h-5 text-gray-300" />
                               )}
                             </div>
                             
                             {/* Status */}
-                            <div className="flex items-end justify-end">
+                            <div className="flex justify-center">
                               <span
-                                className={`text-xs font-medium px-2 py-1 rounded ${
+                                className={`text-xs font-medium px-3 py-1.5 rounded ${
                                   isSigned
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-yellow-100 text-yellow-700'
+                                    ? 'bg-green-600 text-white'
+                                    : 'bg-gray-200 text-gray-600'
                                 }`}
                               >
                                 {isSigned ? 'Signerad' : 'Skickad'}
@@ -1080,12 +1085,22 @@ const ReportView = () => {
                 {/* Revisor Section - only show if company has revisor */}
                 {signeringStatus.signeringData.revisor?.length > 0 && (
                   <div>
-                    <h3 className="text-base font-semibold text-gray-800 mb-3">Revisor</h3>
-                    {signeringStatus.signeringData.ValtRevisionsbolag && (
-                      <p className="text-sm text-gray-600 mb-2">
-                        Revisionsbolag: {signeringStatus.signeringData.ValtRevisionsbolag}
-                      </p>
-                    )}
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Revisor</h3>
+                    
+                    {/* Column Headers */}
+                    <div 
+                      className="grid gap-4 py-2 px-4 text-sm font-medium text-gray-600"
+                      style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1.5fr 0.6fr 0.6fr 0.7fr' }}
+                    >
+                      <div>Förnamn</div>
+                      <div>Efternamn</div>
+                      <div>Revisionsbolag</div>
+                      <div>Email</div>
+                      <div className="text-center">Länk</div>
+                      <div className="text-center">Skicka</div>
+                      <div className="text-center">Status</div>
+                    </div>
+                    
                     <div className="space-y-2">
                       {signeringStatus.signeringData.revisor.map((person, index) => {
                         const fullName = `${person.fornamn} ${person.efternamn}`.trim();
@@ -1095,38 +1110,35 @@ const ReportView = () => {
                         return (
                           <div
                             key={`revisor-${index}`}
-                            className={`grid gap-4 py-3 px-4 rounded-lg border ${
-                              isSigned ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
-                            }`}
-                            style={{ gridTemplateColumns: '1.2fr 1fr 0.8fr 1.5fr 0.5fr 0.4fr 0.5fr' }}
+                            className="grid gap-4 py-3 px-4 items-center"
+                            style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1.5fr 0.6fr 0.6fr 0.7fr' }}
                           >
-                            {/* Förnamn - locked */}
-                            <div>
-                              <span className="text-xs text-gray-500 block">Förnamn</span>
-                              <span className="text-sm font-medium text-gray-900">{person.fornamn || '-'}</span>
+                            {/* Förnamn - locked (input-style box) */}
+                            <div className="bg-gray-100 border border-gray-200 rounded px-3 py-2">
+                              <span className="text-sm text-gray-500">{person.fornamn || 'Förnamn'}</span>
                             </div>
                             
-                            {/* Efternamn - locked */}
-                            <div>
-                              <span className="text-xs text-gray-500 block">Efternamn</span>
-                              <span className="text-sm font-medium text-gray-900">{person.efternamn || '-'}</span>
+                            {/* Efternamn - locked (input-style box) */}
+                            <div className="bg-gray-100 border border-gray-200 rounded px-3 py-2">
+                              <span className="text-sm text-gray-500">{person.efternamn || 'Efternamn'}</span>
                             </div>
                             
-                            {/* Roll / Revisionsbolag - locked */}
-                            <div>
-                              <span className="text-xs text-gray-500 block">Titel</span>
-                              <span className="text-sm text-gray-700">{person.revisionsbolag || 'Revisor'}</span>
+                            {/* Revisionsbolag - locked (dropdown-style box) */}
+                            <div className="bg-gray-100 border border-gray-200 rounded px-3 py-2 flex items-center justify-between">
+                              <span className="text-sm text-gray-500 truncate">
+                                {person.revisionsbolag || signeringStatus.signeringData.ValtRevisionsbolag || 'Revisionsbolag'}
+                              </span>
+                              <ChevronDown className="w-4 h-4 text-gray-400 ml-1 flex-shrink-0" />
                             </div>
                             
-                            {/* Email - editable */}
-                            <div>
-                              <span className="text-xs text-gray-500 block">Email</span>
+                            {/* Email - editable (input-style box) */}
+                            <div className="bg-white border border-gray-200 rounded px-3 py-2">
                               {isEditing ? (
-                                <div className="flex gap-1">
+                                <div className="flex gap-1 -mx-2 -my-1">
                                   <Input
                                     value={editedEmailValue}
                                     onChange={(e) => setEditedEmailValue(e.target.value)}
-                                    className="h-7 text-sm"
+                                    className="h-7 text-sm border-0 shadow-none focus-visible:ring-0"
                                   />
                                   <Button
                                     size="sm"
@@ -1134,7 +1146,7 @@ const ReportView = () => {
                                     className="h-7 px-2"
                                     onClick={() => handleUpdateEmail('revisor', index, person.email, editedEmailValue, fullName)}
                                   >
-                                    <Check className="w-4 h-4" />
+                                    <Check className="w-4 h-4 text-green-600" />
                                   </Button>
                                   <Button
                                     size="sm"
@@ -1142,62 +1154,57 @@ const ReportView = () => {
                                     className="h-7 px-2"
                                     onClick={cancelEditEmail}
                                   >
-                                    ✕
+                                    <X className="w-4 h-4 text-red-500" />
                                   </Button>
                                 </div>
                               ) : (
                                 <span
-                                  className="text-sm text-blue-600 cursor-pointer hover:underline"
+                                  className="text-sm text-gray-700 cursor-pointer hover:text-blue-600"
                                   onClick={() => startEditEmail('revisor', index, person.email)}
                                 >
-                                  {person.email || 'Lägg till email'}
+                                  {person.email || 'Email'}
                                 </span>
                               )}
                             </div>
                             
                             {/* Länk button */}
-                            <div className="flex items-end">
-                              {person.signing_url ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 px-2 text-xs"
-                                  onClick={() => handleCopyLink(person.signing_url!, fullName)}
-                                >
-                                  <Link2 className="w-3 h-3 mr-1" />
-                                  Länk
-                                </Button>
-                              ) : (
-                                <span className="text-xs text-gray-400">-</span>
-                              )}
+                            <div className="flex justify-center">
+                              <button
+                                className="text-gray-500 hover:text-blue-600 p-1"
+                                onClick={() => handleCopyLink(person.signing_url || '', fullName)}
+                                title="Kopiera signeringslänk"
+                              >
+                                <Link2 className="w-5 h-5" />
+                              </button>
                             </div>
                             
                             {/* Skicka button */}
-                            <div className="flex items-end">
-                              {!isSigned && person.email && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 px-2"
+                            <div className="flex justify-center">
+                              {!isSigned && person.email ? (
+                                <button
+                                  className="text-gray-500 hover:text-blue-600 p-1"
                                   onClick={() => handleResendInvitation(person.email, fullName)}
                                   disabled={resendingEmail === person.email}
+                                  title="Skicka påminnelse"
                                 >
                                   {resendingEmail === person.email ? (
-                                    <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                                    <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
                                   ) : (
-                                    <Send className="w-4 h-4 text-gray-600" />
+                                    <RefreshCw className="w-5 h-5" />
                                   )}
-                                </Button>
+                                </button>
+                              ) : (
+                                <RefreshCw className="w-5 h-5 text-gray-300" />
                               )}
                             </div>
                             
                             {/* Status */}
-                            <div className="flex items-end justify-end">
+                            <div className="flex justify-center">
                               <span
-                                className={`text-xs font-medium px-2 py-1 rounded ${
+                                className={`text-xs font-medium px-3 py-1.5 rounded ${
                                   isSigned
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-yellow-100 text-yellow-700'
+                                    ? 'bg-green-600 text-white'
+                                    : 'bg-gray-200 text-gray-600'
                                 }`}
                               >
                                 {isSigned ? 'Signerad' : 'Skickad'}

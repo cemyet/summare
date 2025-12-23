@@ -2540,6 +2540,31 @@ async def send_for_digital_signing(request: dict):
             print(line)
         print(f"✅ TellusTalk job_uuid: {tellustalk_result.get('job_uuid')}")
         
+        # Build member data with names for storage
+        # TellusTalk response only has member_id and url, we need to add names
+        members_with_names = []
+        tellustalk_members = tellustalk_result.get("members", [])
+        
+        # Create a map from member_id to signer name
+        member_id_to_name = {}
+        for signer in tellustalk_signers:
+            member_id = signer.get("member_id")
+            name = signer.get("name", "")
+            if member_id and name:
+                member_id_to_name[member_id] = name
+        
+        # Merge names with URLs from TellusTalk response
+        for member in tellustalk_members:
+            member_id = member.get("member_id")
+            url = member.get("url")
+            name = member_id_to_name.get(member_id, "")
+            members_with_names.append({
+                "member_id": member_id,
+                "url": url,
+                "name": name
+            })
+            print(f"📌 Member: {name} ({member_id}) -> {url}")
+        
         # Store initial job info in database (link job_uuid to organization_number)
         # Do this in background thread to not delay the response
         import threading
@@ -2561,7 +2586,7 @@ async def send_for_digital_signing(request: dict):
                                 'event': 'created',
                                 'status_data': {
                                     'created_at': datetime.now().isoformat(),
-                                    'members': tellustalk_result.get("members", [])
+                                    'members': members_with_names  # Store members with names
                                 },
                                 'created_at': datetime.now().isoformat(),
                                 'updated_at': datetime.now().isoformat()
@@ -2592,7 +2617,7 @@ async def send_for_digital_signing(request: dict):
                                         'event': 'created',
                                         'status_data': {
                                             'created_at': datetime.now().isoformat(),
-                                            'members': tellustalk_result.get("members", [])
+                                            'members': members_with_names  # Store members with names
                                         },
                                         'updated_at': datetime.now().isoformat()
                                     }).eq('job_uuid', job_uuid_value).execute()
@@ -2937,21 +2962,55 @@ async def get_signing_status_by_report(report_id: str):
                         if member_id and url:
                             member_urls[member_id] = url
         
+        # Match member URLs to persons by name (regardless of webhook status)
+        # The member_urls dict has member_id as key, we need to match by name
+        # Also build a name-to-url mapping from the raw status_data.members
+        name_to_url = {}
+        if signing_status:
+            status_data_inner = signing_status.get("status_data") or {}
+            members_list = status_data_inner.get("members") or []
+            for member in members_list:
+                if isinstance(member, dict):
+                    member_name = member.get("name", "")
+                    url = member.get("url")
+                    if member_name and url:
+                        name_to_url[member_name.lower().strip()] = url
+                        print(f"📌 Found member URL: {member_name} -> {url}")
+        
         # Merge signing status with signering_data to update member statuses
+        signing_details = {}
+        members_info = {}
+        members_signed_ids = []
+        
         if signering_data and signing_status:
             signing_details = signing_status.get("signing_details") or {}
             members_info = signing_details.get("members_info") or {}
             members_signed_ids = signing_details.get("members_signed") or []
-            
-            # Update befattningshavare statuses
-            if "befattningshavare" in signering_data:
-                for idx, person in enumerate(signering_data["befattningshavare"]):
-                    # Try to match by name or member_id
+        
+        # Update befattningshavare statuses and URLs
+        if signering_data and "befattningshavare" in signering_data:
+            for idx, person in enumerate(signering_data["befattningshavare"]):
+                person_name = f"{person.get('fornamn', '')} {person.get('efternamn', '')}".strip()
+                person_name_lower = person_name.lower()
+                
+                # Try to find signing URL by name
+                if person_name_lower in name_to_url:
+                    person["signing_url"] = name_to_url[person_name_lower]
+                else:
+                    # Also check member_urls dict with member_id
+                    for member_id, url in member_urls.items():
+                        if member_id in members_info:
+                            member_data = members_info[member_id]
+                            if member_data.get("name", "").lower().strip() == person_name_lower:
+                                person["signing_url"] = url
+                                break
+                
+                # Check signing status from webhook
+                if members_info:
                     for member_id, member_data in members_info.items():
                         member_name = member_data.get("name", "")
-                        person_name = f"{person.get('fornamn', '')} {person.get('efternamn', '')}".strip()
                         
-                        if person_name.lower() == member_name.lower() or member_id == person.get("member_id"):
+                        if person_name_lower == member_name.lower().strip():
                             has_signed = member_data.get("has_signed")
                             if has_signed:
                                 person["status"] = "signed"
@@ -2959,19 +3018,34 @@ async def get_signing_status_by_report(report_id: str):
                             else:
                                 person["status"] = "pending"
                             
-                            # Add signing URL if available
-                            if member_id in member_urls:
+                            # Also get URL from member_urls if available
+                            if member_id in member_urls and not person.get("signing_url"):
                                 person["signing_url"] = member_urls[member_id]
                             break
-            
-            # Update revisor statuses
-            if "revisor" in signering_data:
-                for idx, person in enumerate(signering_data["revisor"]):
+        
+        # Update revisor statuses and URLs
+        if signering_data and "revisor" in signering_data:
+            for idx, person in enumerate(signering_data["revisor"]):
+                person_name = f"{person.get('fornamn', '')} {person.get('efternamn', '')}".strip()
+                person_name_lower = person_name.lower()
+                
+                # Try to find signing URL by name
+                if person_name_lower in name_to_url:
+                    person["signing_url"] = name_to_url[person_name_lower]
+                else:
+                    for member_id, url in member_urls.items():
+                        if member_id in members_info:
+                            member_data = members_info[member_id]
+                            if member_data.get("name", "").lower().strip() == person_name_lower:
+                                person["signing_url"] = url
+                                break
+                
+                # Check signing status from webhook
+                if members_info:
                     for member_id, member_data in members_info.items():
                         member_name = member_data.get("name", "")
-                        person_name = f"{person.get('fornamn', '')} {person.get('efternamn', '')}".strip()
                         
-                        if person_name.lower() == member_name.lower() or member_id == person.get("member_id"):
+                        if person_name_lower == member_name.lower().strip():
                             has_signed = member_data.get("has_signed")
                             if has_signed:
                                 person["status"] = "signed"
@@ -2979,7 +3053,7 @@ async def get_signing_status_by_report(report_id: str):
                             else:
                                 person["status"] = "pending"
                             
-                            if member_id in member_urls:
+                            if member_id in member_urls and not person.get("signing_url"):
                                 person["signing_url"] = member_urls[member_id]
                             break
         
