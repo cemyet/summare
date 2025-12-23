@@ -2939,9 +2939,9 @@ async def get_signing_status_by_report(report_id: str):
         
         # Merge signing status with signering_data to update member statuses
         if signering_data and signing_status:
-            signing_details = signing_status.get("signing_details", {})
-            members_info = signing_details.get("members_info", {})
-            members_signed_ids = signing_details.get("members_signed", [])
+            signing_details = signing_status.get("signing_details") or {}
+            members_info = signing_details.get("members_info") or {}
+            members_signed_ids = signing_details.get("members_signed") or []
             
             # Update befattningshavare statuses
             if "befattningshavare" in signering_data:
