@@ -141,6 +141,24 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
             updateData(newData);
             setOriginalData(newData); // Save original state for Ångra button
             setHasPrefilledData(true);
+            
+            // SAVE #1: Save Bolagsverket data to database immediately
+            // This captures namn, personnummer, roll before user enters emails
+            try {
+              console.log('💾 Saving Bolagsverket signering data to database...');
+              const dataToSave = {
+                ...companyData,
+                signeringData: newData  // Include the fetched signering data
+              };
+              await apiService.saveAnnualReportData({
+                companyData: dataToSave,
+                status: 'submitted'
+              });
+              console.log('✅ Bolagsverket signering data saved to database');
+            } catch (saveError) {
+              console.warn('⚠️ Could not save Bolagsverket data to database:', saveError);
+              // Don't fail the flow - data is still displayed
+            }
           }
         }
       } catch (error) {
