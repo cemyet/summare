@@ -2254,13 +2254,16 @@ async def get_next_chat_flow_step(current_step: int):
 async def get_most_recent_payment():
     """
     Get the most recent paid payment (for getting org number when it's missing from frontend)
+    ⚠️ WARNING: This is a GLOBAL fallback - returns ANY user's most recent payment!
+    Only used when frontend has no organization number (should be rare).
     """
+    print("⚠️ get_most_recent_payment called - THIS IS THE GLOBAL FALLBACK (no org filter)")
     try:
         supabase = get_supabase_client()
         if not supabase:
             raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
         
-        # Get most recent paid payment
+        # Get most recent paid payment (WARNING: no org filter!)
         result = supabase.table('payments')\
             .select('customer_email,organization_number,created_at')\
             .eq('payment_status', 'paid')\
@@ -2269,6 +2272,7 @@ async def get_most_recent_payment():
             .execute()
         
         if not result.data or len(result.data) == 0:
+            print("⚠️ get_most_recent_payment: No payment found")
             return {
                 "success": False,
                 "customer_email": None,
@@ -2277,13 +2281,14 @@ async def get_most_recent_payment():
             }
         
         payment = result.data[0]
+        print(f"⚠️ get_most_recent_payment RESULT: org='{payment.get('organization_number')}', email='{payment.get('customer_email')}' - THIS IS GLOBAL, NOT FILTERED BY ORG!")
         return {
             "success": True,
             "customer_email": payment.get('customer_email'),
             "organization_number": payment.get('organization_number')
         }
     except Exception as e:
-        print(f"Error getting most recent payment: {str(e)}")
+        print(f"❌ Error getting most recent payment: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting most recent payment: {str(e)}")
 
 @app.get("/api/payments/get-customer-email")
@@ -2297,7 +2302,10 @@ async def get_customer_email(organization_number: str):
         # Normalize incoming org nr
         org_number = organization_number.replace("-", "").replace(" ", "").strip()
         
+        print(f"📧 get_customer_email called with raw org: '{organization_number}' -> normalized: '{org_number}'")
+        
         if not org_number:
+            print("❌ get_customer_email: Empty organization number after normalization")
             raise HTTPException(status_code=400, detail="Organization number is required")
         
         # Try whichever client is available
@@ -2307,9 +2315,11 @@ async def get_customer_email(organization_number: str):
             client = db.supabase
         
         if not client:
+            print("❌ get_customer_email: No database client available")
             raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
         
         # 1) Try to order by paid_at desc (the column you actually have in payments CSV)
+        print(f"🔍 Querying payments table: organization_number='{org_number}', payment_status='paid', order by paid_at desc")
         result = client.table("payments") \
             .select("customer_email,organization_number,paid_at,created_at") \
             .eq("organization_number", org_number) \
@@ -2319,10 +2329,14 @@ async def get_customer_email(organization_number: str):
             .execute()
         
         payment_row = None
+        lookup_method = None
         if result.data and len(result.data) > 0:
             payment_row = result.data[0]
+            lookup_method = "paid_at desc"
+            print(f"✅ Found payment via paid_at desc: email='{payment_row.get('customer_email')}', org='{payment_row.get('organization_number')}', paid_at='{payment_row.get('paid_at')}'")
         else:
             # 2) Fallback: maybe old rows had no paid_at — sort by created_at
+            print(f"⚠️ No result with paid_at, trying fallback: order by created_at desc")
             fallback = client.table("payments") \
                 .select("customer_email,organization_number,paid_at,created_at") \
                 .eq("organization_number", org_number) \
@@ -2332,8 +2346,13 @@ async def get_customer_email(organization_number: str):
                 .execute()
             if fallback.data and len(fallback.data) > 0:
                 payment_row = fallback.data[0]
+                lookup_method = "created_at desc (fallback)"
+                print(f"✅ Found payment via created_at fallback: email='{payment_row.get('customer_email')}', org='{payment_row.get('organization_number')}', created_at='{payment_row.get('created_at')}'")
+            else:
+                print(f"❌ No payment found for org '{org_number}' in either query")
         
         if not payment_row:
+            print(f"📧 get_customer_email RESULT: No payment found for org '{org_number}'")
             return {
                 "success": False,
                 "customer_email": None,
@@ -2341,15 +2360,18 @@ async def get_customer_email(organization_number: str):
                 "message": "No paid payment found for this organization"
             }
         
+        customer_email = payment_row.get("customer_email")
+        print(f"📧 get_customer_email RESULT: org='{org_number}' -> email='{customer_email}' (lookup method: {lookup_method})")
+        
         return {
             "success": True,
-            "customer_email": payment_row.get("customer_email"),
+            "customer_email": customer_email,
             "organization_number": payment_row.get("organization_number") or org_number,
         }
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error getting customer email: {str(e)}")
+        print(f"❌ Error getting customer email: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting customer email: {str(e)}")
 
 @app.post("/api/chat-flow/process-choice")
