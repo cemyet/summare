@@ -452,8 +452,20 @@ const ReportView = () => {
     }
   }, [reportId]);
 
-  const fetchSigneringStatus = async (id: string) => {
-    setSigneringLoading(true);
+  // Poll for signing status updates every 30 seconds when on Signeringsstatus section
+  useEffect(() => {
+    if (reportId && activeSection === "signeringsstatus") {
+      const interval = setInterval(() => {
+        fetchSigneringStatus(reportId, true); // silent refresh
+      }, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [reportId, activeSection]);
+
+  const fetchSigneringStatus = async (id: string, silent: boolean = false) => {
+    if (!silent) {
+      setSigneringLoading(true);
+    }
     try {
       const response = await fetch(`${API_BASE_URL}/api/signing-status/by-report/${id}`);
       if (response.ok) {
@@ -465,7 +477,9 @@ const ReportView = () => {
     } catch (err) {
       console.error("Error fetching signing status:", err);
     } finally {
-      setSigneringLoading(false);
+      if (!silent) {
+        setSigneringLoading(false);
+      }
     }
   };
 
