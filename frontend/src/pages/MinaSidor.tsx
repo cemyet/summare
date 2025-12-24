@@ -17,6 +17,9 @@ interface Report {
   status: string;
   updated_at: string;
   created_at: string;
+  signing_status?: string;
+  total_signers?: number;
+  signed_count?: number;
 }
 
 interface CompanyData {
@@ -209,6 +212,71 @@ const MinaSidor = () => {
     );
   };
 
+  // Get detailed signing status for a report with partial progress
+  const getReportSigningDisplay = (report: Report) => {
+    const { signing_status, total_signers, signed_count } = report;
+    
+    // If not sent for signing yet, show regular status
+    if (!signing_status || signing_status === 'draft') {
+      return {
+        badge: getStatusBadge(report.status),
+        progressText: null,
+        iconColor: 'text-blue-600',
+        iconBg: 'bg-blue-50'
+      };
+    }
+    
+    // All signed
+    if (signing_status === 'completed' || (total_signers && signed_count === total_signers)) {
+      return {
+        badge: (
+          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+            Signerad
+          </span>
+        ),
+        progressText: null,
+        iconColor: 'text-green-600',
+        iconBg: 'bg-green-50'
+      };
+    }
+    
+    // Partially signed (some but not all)
+    if (signed_count && signed_count > 0 && total_signers && signed_count < total_signers) {
+      return {
+        badge: (
+          <span className="px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-100 to-yellow-100 text-gray-700 border border-gray-200">
+            Skickad
+          </span>
+        ),
+        progressText: `${signed_count} av ${total_signers} befattningshavare har signerat`,
+        iconColor: 'text-yellow-600',
+        iconBg: 'bg-yellow-50'
+      };
+    }
+    
+    // Sent for signing, none signed yet
+    if (signing_status === 'pending' || signing_status === 'sent') {
+      return {
+        badge: (
+          <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+            Skickad
+          </span>
+        ),
+        progressText: total_signers ? `0 av ${total_signers} befattningshavare har signerat` : null,
+        iconColor: 'text-yellow-600',
+        iconBg: 'bg-yellow-50'
+      };
+    }
+    
+    // Default fallback
+    return {
+      badge: getStatusBadge(report.status),
+      progressText: null,
+      iconColor: 'text-blue-600',
+      iconBg: 'bg-blue-50'
+    };
+  };
+
   if (!user) {
     return null;
   }
@@ -296,42 +364,51 @@ const MinaSidor = () => {
                 <CardContent className="p-0">
                   {company.reports && company.reports.length > 0 ? (
                     <div className="divide-y divide-gray-100">
-                      {company.reports.map((report) => (
-                        <div
-                          key={report.id}
-                          className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center">
-                              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
+                      {company.reports.map((report) => {
+                        const signingDisplay = getReportSigningDisplay(report);
+                        
+                        return (
+                          <div
+                            key={report.id}
+                            className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`w-10 h-10 ${signingDisplay.iconBg} rounded-lg flex items-center justify-center`}>
+                                <svg className={`w-5 h-5 ${signingDisplay.iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  Årsredovisning {report.fiscal_year_end?.slice(0, 4)}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                  {formatFiscalYear(report.fiscal_year_start, report.fiscal_year_end)}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-900">
-                                Årsredovisning {report.fiscal_year_end?.slice(0, 4)}
-                              </p>
-                              <p className="text-sm text-gray-500">
-                                {formatFiscalYear(report.fiscal_year_start, report.fiscal_year_end)}
-                              </p>
+                            
+                            <div className="flex items-center gap-3">
+                              {signingDisplay.badge}
+                              {signingDisplay.progressText && (
+                                <span className="text-sm text-gray-600">
+                                  {signingDisplay.progressText}
+                                </span>
+                              )}
+                              <span className="text-sm text-gray-500">
+                                Uppdaterad {formatDateTime(report.updated_at)}
+                              </span>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => navigate(`/report/${report.id}`)}
+                              >
+                                Öppna
+                              </Button>
                             </div>
                           </div>
-                          
-                          <div className="flex items-center gap-4">
-                            {getStatusBadge(report.status)}
-                            <span className="text-sm text-gray-500">
-                              Uppdaterad {formatDateTime(report.updated_at)}
-                            </span>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => navigate(`/report/${report.id}`)}
-                            >
-                              Öppna
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="px-6 py-8 text-center">

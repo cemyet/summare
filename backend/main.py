@@ -5786,13 +5786,57 @@ async def list_annual_reports_by_user(username: str):
                     "company_name": report.get('company_name'),
                     "reports": []
                 }
+            # Get signing status for this report
+            report_id = report.get('id')
+            signing_info = {
+                "signing_status": None,
+                "total_signers": 0,
+                "signed_count": 0
+            }
+            
+            try:
+                signing_result = supabase.table('signing_status')\
+                    .select('status, signing_details, status_data')\
+                    .eq('organization_number', org_number_clean)\
+                    .order('updated_at', desc=True)\
+                    .limit(1)\
+                    .execute()
+                
+                if signing_result.data and len(signing_result.data) > 0:
+                    signing_record = signing_result.data[0]
+                    signing_info["signing_status"] = signing_record.get('status')
+                    
+                    # Count signers from signing_details
+                    signing_details = signing_record.get('signing_details') or {}
+                    members_info = signing_details.get('members_info', {})
+                    
+                    # Also check status_data.members for total count
+                    status_data = signing_record.get('status_data') or {}
+                    members_list = status_data.get('members', [])
+                    
+                    # Total signers from members list or members_info
+                    total_signers = len(members_list) if members_list else len(members_info)
+                    signing_info["total_signers"] = total_signers
+                    
+                    # Count how many have signed
+                    signed_count = 0
+                    for member_id, member_data in members_info.items():
+                        if isinstance(member_data, dict) and member_data.get('signed') == True:
+                            signed_count += 1
+                    signing_info["signed_count"] = signed_count
+            except Exception as sign_err:
+                print(f"Could not fetch signing status for report {report_id}: {sign_err}")
+            
             grouped[org]["reports"].append({
                 "id": report.get('id'),
                 "fiscal_year_start": report.get('fiscal_year_start'),
                 "fiscal_year_end": report.get('fiscal_year_end'),
                 "status": report.get('status'),
                 "updated_at": report.get('updated_at'),
-                "created_at": report.get('created_at')
+                "created_at": report.get('created_at'),
+                "signing_status": signing_info["signing_status"],
+                "total_signers": signing_info["total_signers"],
+                "signed_count": signing_info["signed_count"]
             })
         
         return {
