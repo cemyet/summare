@@ -448,22 +448,22 @@ interface ChatFlowResponse {
         
         if (customerEmail) {
           console.log('✅ Step 512: Using customer_email:', customerEmail, '(from ref:', !!customerEmailRef.current, ')');
-        } else {
+            } else {
           console.warn('⚠️ Step 512: No customer_email available');
         }
         
         // Check if user already exists
         if (customerEmail && orgNumber) {
-          try {
-            const userCheckResponse = await apiService.checkUserExists(customerEmail, orgNumber);
-            if (userCheckResponse.success) {
-              userExists = userCheckResponse.user_exist;
+            try {
+              const userCheckResponse = await apiService.checkUserExists(customerEmail, orgNumber);
+              if (userCheckResponse.success) {
+                userExists = userCheckResponse.user_exist;
               onDataUpdate({ user_exist: userExists });
               console.log(`✅ User check: exists=${userExists}`);
+              }
+            } catch (error) {
+              console.error('❌ Error checking user existence:', error);
             }
-          } catch (error) {
-            console.error('❌ Error checking user existence:', error);
-          }
         }
       }
       
@@ -2333,7 +2333,7 @@ const selectiveMergeInk2 = (
           loadChatStep(step103Response.no_option_next_step);
         } else {
           // Fallback to old behavior if no options and no next step
-          continueTaxFlow();
+        continueTaxFlow();
         }
       });
     } catch (error) {
@@ -2446,7 +2446,7 @@ const selectiveMergeInk2 = (
       true,
       '🚀'
     );
-    setShowFileUpload(true);
+        setShowFileUpload(true);
   }, []);
 
   // Auto-scroll when new messages arrive (only for user messages)

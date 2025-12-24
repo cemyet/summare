@@ -90,12 +90,12 @@ export default function StripeEmbeddedCheckout({
             if (j?.paid) {
               // Payment successful - store organization number and customer email
               // These are passed to step 512 so no lookup is needed
-              window.dispatchEvent(new CustomEvent("summare:paymentSuccess", { 
+                window.dispatchEvent(new CustomEvent("summare:paymentSuccess", { 
                 detail: { 
                   organizationNumber: j.organization_number || null,
                   customerEmail: j.customer_email || null
                 } 
-              }));
+                }));
               onComplete?.();
             } else {
               // Payment failed - trigger chat step 508

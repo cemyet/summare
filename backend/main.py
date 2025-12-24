@@ -978,7 +978,7 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         # NOTE: store_financial_data disabled - financial_data table is unused
         # Data is stored in annual_report_data table instead
-        stored_ids = {}
+                stored_ids = {}
         
         # Rensa upp temporär fil
         os.unlink(temp_path)
@@ -1950,7 +1950,7 @@ async def test_parser(file: UploadFile = File(...)):
         
         # NOTE: store_financial_data disabled - financial_data table is unused
         # Data is stored in annual_report_data table instead
-        stored_ids = {}
+                stored_ids = {}
         
         # Rensa upp temporär fil
         os.unlink(temp_path)
@@ -2745,17 +2745,17 @@ async def tellustalk_webhook(request: Request):
                         print(f"   💾 Signing status updated (preserved status_data with member URLs)")
                     else:
                         # For INSERT: Include full status_data
-                        data_to_save = {
-                            'job_uuid': job_uuid,
+                    data_to_save = {
+                        'job_uuid': job_uuid,
                             'organization_number': existing_org_number,
-                            'job_name': job_name,
-                            'ebox_job_key': ebox_job_key,
-                            'event': event,
-                            'signing_details': signing_status.get('signing_details', {}),
-                            'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
-                            'status_data': signing_status,
-                            'updated_at': datetime.now().isoformat()
-                        }
+                        'job_name': job_name,
+                        'ebox_job_key': ebox_job_key,
+                        'event': event,
+                        'signing_details': signing_status.get('signing_details', {}),
+                        'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
+                        'status_data': signing_status,
+                        'updated_at': datetime.now().isoformat()
+                    }
                         supabase.table('signing_status').insert(data_to_save).execute()
                         print(f"   💾 Signing status saved to database")
                         
@@ -3117,20 +3117,51 @@ async def resend_signing_invitation(request: dict):
         fiscal_year_end = req_fiscal_year_end or report_data.get('fiscal_year_end', '')
         
         # Find the specific person to resend to and get their signing URL
+        # We need to match by BOTH email AND name since multiple signers can have the same email
         target_person = None
         is_revisor = False
         signing_url = ""
         
+        # Parse the name from request to match against person's name
+        request_name_parts = name.lower().strip().split() if name else []
+        
         if signering_data:
             for person in signering_data.get('befattningshavare', []):
-                if person.get('email', '').lower() == email.lower():
+                person_email = person.get('email', '').lower()
+                person_fornamn = person.get('fornamn', '').lower().strip()
+                person_efternamn = person.get('efternamn', '').lower().strip()
+                person_full_name = f"{person_fornamn} {person_efternamn}".strip()
+                
+                # Match by email AND name (to handle multiple signers with same email)
+                email_matches = person_email == email.lower()
+                name_matches = (
+                    person_full_name == name.lower().strip() or
+                    (len(request_name_parts) >= 2 and 
+                     person_fornamn == request_name_parts[0] and 
+                     person_efternamn == request_name_parts[-1])
+                )
+                
+                if email_matches and name_matches:
                     target_person = person
                     signing_url = person.get('signing_url', '')
                     break
             
             if not target_person:
                 for person in signering_data.get('revisor', []):
-                    if person.get('email', '').lower() == email.lower():
+                    person_email = person.get('email', '').lower()
+                    person_fornamn = person.get('fornamn', '').lower().strip()
+                    person_efternamn = person.get('efternamn', '').lower().strip()
+                    person_full_name = f"{person_fornamn} {person_efternamn}".strip()
+                    
+                    email_matches = person_email == email.lower()
+                    name_matches = (
+                        person_full_name == name.lower().strip() or
+                        (len(request_name_parts) >= 2 and 
+                         person_fornamn == request_name_parts[0] and 
+                         person_efternamn == request_name_parts[-1])
+                    )
+                    
+                    if email_matches and name_matches:
                         target_person = person
                         is_revisor = True
                         signing_url = person.get('signing_url', '')
@@ -4539,7 +4570,7 @@ async def update_tax_in_financial_data(request: TaxUpdateRequest):
         # NOTE: Reclassifications are now preserved automatically because
         # the frontend sends already-reclassified data (companyData.rrData/brData)
         # instead of original data (seFileData.rr_data/br_data)
-        
+
         # return updated arrays
         response_data = {
             "success": True,

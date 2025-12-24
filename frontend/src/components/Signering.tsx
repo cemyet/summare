@@ -684,23 +684,23 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
             </p>
             
             {!documentsSent && (
-              <div className="flex justify-between items-center gap-4">
+            <div className="flex justify-between items-center gap-4">
                 {originalData && !isSending && (
-                  <Button 
-                    variant="outline"
-                    onClick={handleUndoChanges}
-                    className="flex items-center gap-2"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 7v6h6"/>
-                      <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
-                    </svg>
-                    Ångra ändringar
-                  </Button>
-                )}
                 <Button 
+                  variant="outline"
+                  onClick={handleUndoChanges}
+                  className="flex items-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 7v6h6"/>
+                    <path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>
+                  </svg>
+                  Ångra ändringar
+                </Button>
+              )}
+              <Button 
                   className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 ml-auto disabled:opacity-70"
-                  onClick={() => handleSendForSigning(false)}
+                onClick={() => handleSendForSigning(false)}
                   disabled={isSending}
                 >
                   {isSending ? (
@@ -710,14 +710,14 @@ export function Signering({ signeringData, onDataUpdate, companyData }: Signerin
                     </>
                   ) : (
                     <>
-                      Skicka
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
-                      </svg>
+                Skicka
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                </svg>
                     </>
                   )}
-                </Button>
-              </div>
+              </Button>
+            </div>
             )}
           </div>
 

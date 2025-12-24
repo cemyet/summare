@@ -3461,16 +3461,16 @@ const handleTaxCalculationClick = () => {
               <div className="pt-8 mt-6 border-t border-gray-200 flex justify-between">
                 {/* Undo Button - Left (hidden during save) */}
                 {!isSavingTax && (
-                  <Button 
-                    onClick={handleUndo}
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                    </svg>
-                    Ångra ändringar
-                  </Button>
+                <Button 
+                  onClick={handleUndo}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                  </svg>
+                  Ångra ändringar
+                </Button>
                 )}
                 
                 {/* Update Button - Right (ml-auto keeps it right even when undo button is hidden) */}
@@ -3486,10 +3486,10 @@ const handleTaxCalculationClick = () => {
                     </>
                   ) : (
                     <>
-                      Godkänn och uppdatera skatt
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
-                      </svg>
+                  Godkänn och uppdatera skatt
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/>
+                  </svg>
                     </>
                   )}
                 </Button>

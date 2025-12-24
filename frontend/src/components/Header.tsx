@@ -225,8 +225,8 @@ const Header = () => {
                   className="hidden md:block text-summare-gray hover:text-summare-navy"
                   onClick={() => setIsLoginOpen(!isLoginOpen)}
                 >
-                  Logga in
-                </Button>
+              Logga in
+            </Button>
                 <LoginPopup
                   isOpen={isLoginOpen}
                   onClose={() => setIsLoginOpen(false)}
