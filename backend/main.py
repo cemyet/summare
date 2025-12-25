@@ -5795,6 +5795,7 @@ async def list_annual_reports_by_user(username: str):
             }
             
             try:
+                print(f"🔍 Querying signing_status for org: {org_number_clean}")
                 signing_result = supabase.table('signing_status')\
                     .select('event, signing_details, status_data')\
                     .eq('organization_number', org_number_clean)\
@@ -5802,6 +5803,7 @@ async def list_annual_reports_by_user(username: str):
                     .limit(1)\
                     .execute()
                 
+                print(f"📊 Signing result for {org_number_clean}: {len(signing_result.data) if signing_result.data else 0} records")
                 if signing_result.data and len(signing_result.data) > 0:
                     signing_record = signing_result.data[0]
                     # Map event to signing_status: job_completed = completed, else pending
