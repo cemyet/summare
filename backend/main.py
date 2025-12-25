@@ -978,7 +978,7 @@ async def upload_se_file(file: UploadFile = File(...)):
         
         # NOTE: store_financial_data disabled - financial_data table is unused
         # Data is stored in annual_report_data table instead
-                stored_ids = {}
+        stored_ids = {}
         
         # Rensa upp temporär fil
         os.unlink(temp_path)
@@ -1950,7 +1950,7 @@ async def test_parser(file: UploadFile = File(...)):
         
         # NOTE: store_financial_data disabled - financial_data table is unused
         # Data is stored in annual_report_data table instead
-                stored_ids = {}
+        stored_ids = {}
         
         # Rensa upp temporär fil
         os.unlink(temp_path)
@@ -2745,17 +2745,17 @@ async def tellustalk_webhook(request: Request):
                         print(f"   💾 Signing status updated (preserved status_data with member URLs)")
                     else:
                         # For INSERT: Include full status_data
-                    data_to_save = {
-                        'job_uuid': job_uuid,
+                        data_to_save = {
+                            'job_uuid': job_uuid,
                             'organization_number': existing_org_number,
-                        'job_name': job_name,
-                        'ebox_job_key': ebox_job_key,
-                        'event': event,
-                        'signing_details': signing_status.get('signing_details', {}),
-                        'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
-                        'status_data': signing_status,
-                        'updated_at': datetime.now().isoformat()
-                    }
+                            'job_name': job_name,
+                            'ebox_job_key': ebox_job_key,
+                            'event': event,
+                            'signing_details': signing_status.get('signing_details', {}),
+                            'signed_pdf_download_url': signing_status.get('signed_pdf_download_url'),
+                            'status_data': signing_status,
+                            'updated_at': datetime.now().isoformat()
+                        }
                         supabase.table('signing_status').insert(data_to_save).execute()
                         print(f"   💾 Signing status saved to database")
                         
