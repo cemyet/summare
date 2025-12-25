@@ -6181,7 +6181,7 @@ async def get_company_info_by_org(organization_number: str):
             .limit(1)\
             .execute()
         
-        signing_info = signing_result.data[0] if signing_result.data else None
+        # signing_info not used at company level - status shown per report instead
         
         return {
             "success": True,
@@ -6190,7 +6190,7 @@ async def get_company_info_by_org(organization_number: str):
             "latest_fiscal_year": f"{report_info.get('fiscal_year_start')} - {report_info.get('fiscal_year_end')}" if report_info else None,
             "report_status": report_info.get('status') if report_info else None,
             "last_updated": report_info.get('updated_at') if report_info else None,
-            "signing_status": signing_info.get('event') if signing_info else None,
+            "signing_status": None,  # Status shown per report, not at company level
             "payment_info": {
                 "email": payment_info.get('customer_email'),
                 "paid_at": payment_info.get('paid_at'),
