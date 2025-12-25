@@ -5811,23 +5811,20 @@ async def list_annual_reports_by_user(username: str):
                     elif event:
                         signing_info["signing_status"] = 'pending'
                     
-                    # Count signers from signing_details
+                    # Get counts directly from signing_details (already computed)
                     signing_details = signing_record.get('signing_details') or {}
-                    members_info = signing_details.get('members_info', {})
                     
-                    # Also check status_data.members for total count
-                    status_data = signing_record.get('status_data') or {}
-                    members_list = status_data.get('members', [])
+                    # Use pre-computed counts from signing_details
+                    signed_count = signing_details.get('signed_count', 0)
+                    expected_count = signing_details.get('expected_count', 0)
                     
-                    # Total signers from members list or members_info
-                    total_signers = len(members_list) if members_list else len(members_info)
-                    signing_info["total_signers"] = total_signers
+                    # Fallback: count from status_data.members if signing_details is empty
+                    if expected_count == 0:
+                        status_data = signing_record.get('status_data') or {}
+                        members_list = status_data.get('members', [])
+                        expected_count = len(members_list)
                     
-                    # Count how many have signed
-                    signed_count = 0
-                    for member_id, member_data in members_info.items():
-                        if isinstance(member_data, dict) and member_data.get('signed') == True:
-                            signed_count += 1
+                    signing_info["total_signers"] = expected_count
                     signing_info["signed_count"] = signed_count
             except Exception as sign_err:
                 print(f"Could not fetch signing status for report {report_id}: {sign_err}")
