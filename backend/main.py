@@ -5796,7 +5796,7 @@ async def list_annual_reports_by_user(username: str):
             
             try:
                 signing_result = supabase.table('signing_status')\
-                    .select('status, signing_details, status_data')\
+                    .select('event, signing_details, status_data')\
                     .eq('organization_number', org_number_clean)\
                     .order('updated_at', desc=True)\
                     .limit(1)\
@@ -5804,7 +5804,12 @@ async def list_annual_reports_by_user(username: str):
                 
                 if signing_result.data and len(signing_result.data) > 0:
                     signing_record = signing_result.data[0]
-                    signing_info["signing_status"] = signing_record.get('status')
+                    # Map event to signing_status: job_completed = completed, else pending
+                    event = signing_record.get('event', '')
+                    if event == 'job_completed':
+                        signing_info["signing_status"] = 'completed'
+                    elif event:
+                        signing_info["signing_status"] = 'pending'
                     
                     # Count signers from signing_details
                     signing_details = signing_record.get('signing_details') or {}
@@ -6172,10 +6177,10 @@ async def get_company_info_by_org(organization_number: str):
         report_info = report_result.data[0] if report_result.data else None
         
         # Get signing status if available
-        signing_result = supabase.table('signing_sessions')\
-            .select('status, created_at')\
+        signing_result = supabase.table('signing_status')\
+            .select('event, updated_at')\
             .eq('organization_number', org_number)\
-            .order('created_at', desc=True)\
+            .order('updated_at', desc=True)\
             .limit(1)\
             .execute()
         
@@ -6188,7 +6193,7 @@ async def get_company_info_by_org(organization_number: str):
             "latest_fiscal_year": f"{report_info.get('fiscal_year_start')} - {report_info.get('fiscal_year_end')}" if report_info else None,
             "report_status": report_info.get('status') if report_info else None,
             "last_updated": report_info.get('updated_at') if report_info else None,
-            "signing_status": signing_info.get('status') if signing_info else None,
+            "signing_status": signing_info.get('event') if signing_info else None,
             "payment_info": {
                 "email": payment_info.get('customer_email'),
                 "paid_at": payment_info.get('paid_at'),
