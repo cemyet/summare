@@ -3735,15 +3735,16 @@ async def update_user_password(request: dict):
         try:
             login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
             
-            # Load email template
-            template = load_email_template('password_changed')
-            
-            if template:
-                html_content = template.replace("{first_name}", username.split('@')[0].title())\
-                    .replace("{username}", username)\
-                    .replace("{password}", new_password)\
-                    .replace("{login_url}", login_url)
-            else:
+            # Load email template with variables
+            try:
+                html_content = load_email_template('password_changed', {
+                    'first_name': username.split('@')[0].title(),
+                    'username': username,
+                    'password': new_password,
+                    'login_url': login_url
+                })
+            except Exception as template_error:
+                print(f"⚠️ Template error: {template_error}, using fallback")
                 # Fallback simple email
                 html_content = f"""
                 <html>

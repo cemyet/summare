@@ -144,7 +144,6 @@ const MinaUppgifterSection = ({
         
         toast({ description: "Email uppdaterad.", duration: 3000 });
         setIsEditingEmail(false);
-        window.location.reload(); // Refresh to update all references
       } else {
         const data = await response.json();
         toast({ description: data.detail || "Kunde inte uppdatera email.", duration: 3000 });
@@ -203,10 +202,7 @@ const MinaUppgifterSection = ({
       ref={sectionRef}
       className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
     >
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">Mina uppgifter</h2>
-      <p className="text-sm text-gray-500 mb-6">
-        Här kan du se och uppdatera dina kontouppgifter.
-      </p>
+      <h2 className="text-xl font-semibold text-gray-900 mb-6">Mina uppgifter</h2>
 
       <div className="space-y-6">
         {/* Username/Email */}
@@ -249,6 +245,7 @@ const MinaUppgifterSection = ({
                 <Button 
                   variant="outline" 
                   size="sm"
+                  className="w-[120px]"
                   onClick={() => {
                     setNewEmail(currentUsername);
                     setIsEditingEmail(true);
@@ -301,6 +298,7 @@ const MinaUppgifterSection = ({
                 <Button 
                   variant="outline" 
                   size="sm"
+                  className="w-[120px]"
                   onClick={handleEditPassword}
                 >
                   Ändra lösenord
