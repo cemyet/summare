@@ -2990,13 +2990,41 @@ async def get_signing_status_by_report(report_id: str):
         if not isinstance(signering_data, dict):
             signering_data = {}
         
-        befattningshavare_count = len(signering_data.get('befattningshavare', [])) if isinstance(signering_data, dict) else 0
-        print(f"📋 Fetched signering_data for report {report_id}: {type(signering_data)} - befattningshavare count: {befattningshavare_count}")
+        # Transform from Signering component format (UnderskriftForetradare/UnderskriftAvRevisor) 
+        # to Mina Sidor format (befattningshavare/revisor) if needed
+        if "UnderskriftForetradare" in signering_data and "befattningshavare" not in signering_data:
+            # Transform befattningshavare
+            signering_data["befattningshavare"] = []
+            for person in signering_data.get("UnderskriftForetradare", []):
+                signering_data["befattningshavare"].append({
+                    "fornamn": person.get("UnderskriftHandlingTilltalsnamn", ""),
+                    "efternamn": person.get("UnderskriftHandlingEfternamn", ""),
+                    "roll": person.get("UnderskriftHandlingRoll", ""),
+                    "email": person.get("UnderskriftHandlingEmail", ""),
+                    "personnummer": person.get("UnderskriftHandlingPersonnummer", ""),
+                    "status": "pending",
+                })
+            
+            # Transform revisor
+            signering_data["revisor"] = []
+            for person in signering_data.get("UnderskriftAvRevisor", []):
+                signering_data["revisor"].append({
+                    "fornamn": person.get("UnderskriftHandlingTilltalsnamn", ""),
+                    "efternamn": person.get("UnderskriftHandlingEfternamn", ""),
+                    "roll": person.get("UnderskriftHandlingTitel", "Revisor"),
+                    "email": person.get("UnderskriftHandlingEmail", ""),
+                    "personnummer": person.get("UnderskriftHandlingPersonnummer", ""),
+                    "revisionsbolag": signering_data.get("ValtRevisionsbolag", ""),
+                    "status": "pending",
+                })
         
-        # Debug: Print emails from signering_data
+        befattningshavare_count = len(signering_data.get('befattningshavare', [])) if isinstance(signering_data, dict) else 0
+        print(f"📋 Fetched signering_data for report {report_id}: befattningshavare count: {befattningshavare_count}")
+        
+        # Debug: Print names from signering_data
         for person in signering_data.get('befattningshavare', []):
             name = f"{person.get('fornamn', '')} {person.get('efternamn', '')}".strip()
-            email = person.get('email', 'NO EMAIL')
+            email = person.get('email', 'NO EMAIL') or 'NO EMAIL'
             print(f"   📧 {name}: {email}")
         
         # Now try to find the signing status by organization_number
