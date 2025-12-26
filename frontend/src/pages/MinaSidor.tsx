@@ -213,65 +213,68 @@ const MinaSidor = () => {
   };
 
   // Get detailed signing status for a report with partial progress
+  // Status levels:
+  // 1. Ej skickad - blue - not sent for signing yet
+  // 2. Skickad - yellow - sent for signing, with progress
+  // 3. Signerad - green - all parties signed, sent to Bolagsverket
+  // 4. Registrerad - dark green - registered at Bolagsverket
   const getReportSigningDisplay = (report: Report) => {
     const { signing_status, total_signers, signed_count } = report;
     
-    // If not sent for signing yet, show regular status
-    if (!signing_status || signing_status === 'draft') {
+    // Level 4: Registrerad (registered at Bolagsverket)
+    if (report.status === 'registered') {
       return {
-        badge: getStatusBadge(report.status),
-        progressText: null,
-        iconColor: 'text-blue-600',
-        iconBg: 'bg-blue-50'
+        badge: (
+          <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-700 text-white">
+            Registrerad
+          </span>
+        ),
+        progressText: "Årsredovisning registrerad hos Bolagsverket",
+        iconColor: 'text-emerald-700',
+        iconBg: 'bg-emerald-100'
       };
     }
     
-    // All signed
-    if (signing_status === 'completed' || (total_signers && signed_count === total_signers)) {
+    // Level 3: Signerad (all signed, sent to Bolagsverket)
+    if (signing_status === 'completed' || (total_signers && total_signers > 0 && signed_count === total_signers)) {
       return {
         badge: (
           <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
             Signerad
           </span>
         ),
-        progressText: null,
+        progressText: "Årsredovisning signerad och skickad till Bolagsverket",
         iconColor: 'text-green-600',
         iconBg: 'bg-green-50'
       };
     }
     
-    // Partially signed (some but not all)
-    if (signed_count && signed_count > 0 && total_signers && signed_count < total_signers) {
-      return {
-        badge: (
-          <span className="px-2 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-green-100 to-yellow-100 text-gray-700 border border-gray-200">
-            Skickad
-          </span>
-        ),
-        progressText: `${signed_count} av ${total_signers} befattningshavare har signerat`,
-        iconColor: 'text-yellow-600',
-        iconBg: 'bg-yellow-50'
-      };
-    }
-    
-    // Sent for signing, none signed yet
+    // Level 2: Skickad (sent for signing - partially signed or waiting)
     if (signing_status === 'pending' || signing_status === 'sent') {
+      const progress = total_signers 
+        ? `${signed_count || 0} av ${total_signers} befattningshavare har signerat`
+        : null;
+      
       return {
         badge: (
           <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
             Skickad
           </span>
         ),
-        progressText: total_signers ? `0 av ${total_signers} befattningshavare har signerat` : null,
+        progressText: progress,
         iconColor: 'text-yellow-600',
         iconBg: 'bg-yellow-50'
       };
     }
     
-    // Default fallback
+    // Level 1: Ej skickad (not sent for signing yet)
     return {
-      badge: getStatusBadge(report.status),
-      progressText: null,
+      badge: (
+        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+          Ej skickad
+        </span>
+      ),
+      progressText: "Har ej skickats för signering",
       iconColor: 'text-blue-600',
       iconBg: 'bg-blue-50'
     };
