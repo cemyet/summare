@@ -3125,7 +3125,7 @@ async def resend_signing_invitation(request: dict):
         fiscal_year_end = req_fiscal_year_end or report_data.get('fiscal_year_end', '')
         
         # Find the specific person to resend to and get their signing URL
-        # We need to match by BOTH email AND name since multiple signers can have the same email
+        # Match by NAME only - names are unique per report, and email might have been changed
         target_person = None
         is_revisor = False
         signing_url = ""
@@ -3135,13 +3135,11 @@ async def resend_signing_invitation(request: dict):
         
         if signering_data:
             for person in signering_data.get('befattningshavare', []):
-                person_email = person.get('email', '').lower()
                 person_fornamn = person.get('fornamn', '').lower().strip()
                 person_efternamn = person.get('efternamn', '').lower().strip()
                 person_full_name = f"{person_fornamn} {person_efternamn}".strip()
                 
-                # Match by email AND name (to handle multiple signers with same email)
-                email_matches = person_email == email.lower()
+                # Match by name only (names are unique per report)
                 name_matches = (
                     person_full_name == name.lower().strip() or
                     (len(request_name_parts) >= 2 and 
@@ -3149,19 +3147,17 @@ async def resend_signing_invitation(request: dict):
                      person_efternamn == request_name_parts[-1])
                 )
                 
-                if email_matches and name_matches:
+                if name_matches:
                     target_person = person
                     signing_url = person.get('signing_url', '')
                     break
             
             if not target_person:
                 for person in signering_data.get('revisor', []):
-                    person_email = person.get('email', '').lower()
                     person_fornamn = person.get('fornamn', '').lower().strip()
                     person_efternamn = person.get('efternamn', '').lower().strip()
                     person_full_name = f"{person_fornamn} {person_efternamn}".strip()
                     
-                    email_matches = person_email == email.lower()
                     name_matches = (
                         person_full_name == name.lower().strip() or
                         (len(request_name_parts) >= 2 and 
@@ -3169,14 +3165,14 @@ async def resend_signing_invitation(request: dict):
                          person_efternamn == request_name_parts[-1])
                     )
                     
-                    if email_matches and name_matches:
+                    if name_matches:
                         target_person = person
                         is_revisor = True
                         signing_url = person.get('signing_url', '')
                         break
         
         if not target_person:
-            raise HTTPException(status_code=404, detail=f"Signer with email {email} not found in report")
+            raise HTTPException(status_code=404, detail=f"Signer with name '{name}' not found in report")
         
         # Get first name and last name from target_person
         first_name = target_person.get('fornamn', name.split()[0] if name else '')
