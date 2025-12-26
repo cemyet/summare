@@ -212,6 +212,9 @@ const MinaSidor = () => {
     );
   };
 
+  // Badge base styles - fixed width for alignment, with border
+  const badgeBase = "w-[90px] text-center px-2 py-1 rounded-full text-xs font-medium border";
+  
   // Get detailed signing status for a report with partial progress
   // Status levels:
   // 1. Ej skickad - blue - not sent for signing yet
@@ -225,13 +228,14 @@ const MinaSidor = () => {
     if (report.status === 'registered') {
       return {
         badge: (
-          <span className="px-2 py-1 rounded-full text-xs font-medium bg-emerald-700 text-white">
+          <span className={`${badgeBase} bg-emerald-700 text-white border-emerald-800`}>
             Registrerad
           </span>
         ),
         progressText: "Årsredovisning registrerad hos Bolagsverket",
         iconColor: 'text-emerald-700',
-        iconBg: 'bg-emerald-100'
+        iconBg: 'bg-emerald-100',
+        iconBorder: 'border border-emerald-200'
       };
     }
     
@@ -239,13 +243,14 @@ const MinaSidor = () => {
     if (signing_status === 'completed' || (total_signers && total_signers > 0 && signed_count === total_signers)) {
       return {
         badge: (
-          <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+          <span className={`${badgeBase} bg-green-100 text-green-700 border-green-200`}>
             Signerad
           </span>
         ),
         progressText: "Årsredovisning signerad och skickad till Bolagsverket",
         iconColor: 'text-green-600',
-        iconBg: 'bg-green-50'
+        iconBg: 'bg-green-50',
+        iconBorder: 'border border-green-200'
       };
     }
     
@@ -257,26 +262,28 @@ const MinaSidor = () => {
       
       return {
         badge: (
-          <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
+          <span className={`${badgeBase} bg-yellow-100 text-yellow-700 border-yellow-200`}>
             Skickad
           </span>
         ),
         progressText: progress,
         iconColor: 'text-yellow-600',
-        iconBg: 'bg-yellow-50'
+        iconBg: 'bg-yellow-50',
+        iconBorder: 'border border-yellow-200'
       };
     }
     
     // Level 1: Ej skickad (not sent for signing yet)
     return {
       badge: (
-        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+        <span className={`${badgeBase} bg-blue-100 text-blue-700 border-blue-200`}>
           Ej skickad
         </span>
       ),
       progressText: "Har ej skickats för signering",
       iconColor: 'text-blue-600',
-      iconBg: 'bg-blue-50'
+      iconBg: 'bg-blue-50',
+      iconBorder: 'border border-blue-200'
     };
   };
 
@@ -377,7 +384,7 @@ const MinaSidor = () => {
                           >
                             {/* Left: Icon + Report info (fixed width) */}
                             <div className="flex items-center gap-4 w-[320px] flex-shrink-0">
-                              <div className={`w-10 h-10 ${signingDisplay.iconBg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                              <div className={`w-10 h-10 ${signingDisplay.iconBg} ${signingDisplay.iconBorder} rounded-lg flex items-center justify-center flex-shrink-0`}>
                                 <svg className={`w-5 h-5 ${signingDisplay.iconColor}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
