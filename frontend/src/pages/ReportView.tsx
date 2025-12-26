@@ -531,7 +531,7 @@ const ReportView = () => {
   // Signering status
   const [signeringStatus, setSigneringStatus] = useState<SigneringStatusData | null>(null);
   const [signeringLoading, setSigneringLoading] = useState(false);
-  const [resendingEmail, setResendingEmail] = useState<string | null>(null);
+  const [resendingEmail, setResendingEmail] = useState<string | null>(null); // Tracks "name|email" for unique identification
   
   // Not sent for signing state - for users who paid but didn't complete signature flow
   const [isNotSentState, setIsNotSentState] = useState(false);
@@ -946,7 +946,8 @@ const ReportView = () => {
   const handleResendInvitation = async (email: string, name: string) => {
     if (!reportId) return;
     
-    setResendingEmail(email);
+    const uniqueId = `${name}|${email}`; // Unique identifier for this specific person
+    setResendingEmail(uniqueId);
     try {
       const response = await fetch(`${API_BASE_URL}/api/signing/resend-invitation`, {
         method: 'POST',
@@ -1668,10 +1669,10 @@ const ReportView = () => {
                                 <button
                                   className="text-gray-400 hover:text-blue-600 p-1"
                                   onClick={() => handleResendInvitation(person.email, fullName)}
-                                  disabled={resendingEmail === person.email}
+                                  disabled={resendingEmail === `${fullName}|${person.email}`}
                                   title="Skicka påminnelse"
                                 >
-                                  {resendingEmail === person.email ? (
+                                  {resendingEmail === `${fullName}|${person.email}` ? (
                                     <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
                                   ) : (
                                     <Send className="w-5 h-5" />
@@ -1782,10 +1783,10 @@ const ReportView = () => {
                                 <button
                                   className="text-gray-400 hover:text-blue-600 p-1"
                                   onClick={() => handleResendInvitation(person.email, fullName)}
-                                  disabled={resendingEmail === person.email}
+                                  disabled={resendingEmail === `${fullName}|${person.email}`}
                                   title="Skicka påminnelse"
                                 >
-                                  {resendingEmail === person.email ? (
+                                  {resendingEmail === `${fullName}|${person.email}` ? (
                                     <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
                                   ) : (
                                     <Send className="w-5 h-5" />
