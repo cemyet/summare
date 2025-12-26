@@ -3769,7 +3769,7 @@ async def update_user_password(request: dict):
             
             await send_email(
                 to_email=username,
-                subject="Ditt lösenord har ändrats - Summare",
+                subject="Ditt lösenord har ändrats",
                 html_content=html_content
             )
             print(f"✅ Password change confirmation email sent to {username}")
@@ -5426,7 +5426,7 @@ async def forgot_password(request: dict):
             
             await send_email(
                 to_email=email,
-                subject="Dina inloggningsuppgifter - Summare",
+                subject="Dina inloggningsuppgifter",
                 html_content=html_content
             )
             print(f"✅ Forgot password email sent to {email}")
