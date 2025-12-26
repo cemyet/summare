@@ -699,20 +699,13 @@ const ReportView = () => {
   // Fetch signing status when report is loaded
   useEffect(() => {
     if (reportId && report) {
-      fetchSigneringStatus(reportId);
+      fetchSigneringStatus(reportId, report.organization_number);
     }
   }, [reportId, report?.id]);
-  
-  // Fetch officers from Bolagsverket when in "not sent" state but no pending signers
-  useEffect(() => {
-    if (isNotSentState && pendingSigners.befattningshavare.length === 0 && report?.organization_number && !fetchingOfficers) {
-      fetchOfficersFromBolagsverket(report.organization_number);
-    }
-  }, [isNotSentState, report?.organization_number]);
 
   const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
 
-  const fetchSigneringStatus = async (id: string) => {
+  const fetchSigneringStatus = async (id: string, orgNumber?: string) => {
     setSigneringLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/signing-status/by-report/${id}`);
@@ -725,12 +718,13 @@ const ReportView = () => {
           
           if (!hasBefattningshavare && !hasSigningJob) {
             // No signering data and no signing job - need to fetch from Bolagsverket
-            console.log('🔍 No signering data found, setting not sent state to trigger Bolagsverket fetch...');
             setIsNotSentState(true);
-            // The useEffect will trigger fetchOfficersFromBolagsverket when report is available
+            // Directly fetch officers from Bolagsverket
+            if (orgNumber) {
+              fetchOfficersFromBolagsverket(orgNumber);
+            }
           } else if (hasBefattningshavare && !hasSigningJob) {
             // Has signering data but no signing job - user entered emails but didn't send
-            console.log('📝 Signering data found but no signing job - showing "not sent" state');
             setIsNotSentState(true);
             // Use the stored befattningshavare data
             setPendingSigners({
