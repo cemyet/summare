@@ -3312,10 +3312,12 @@ async def update_signer_email(request: dict):
             raise HTTPException(status_code=404, detail="Signer not found")
         
         # Save the updated signering_data
+        print(f"💾 Saving updated email for {name}: {old_email} -> {new_email}")
         supabase.table('annual_report_data').update({
             'signering_data': signering_data,
             'updated_at': datetime.now().isoformat()
         }).eq('id', report_id).execute()
+        print(f"✅ Email update saved successfully")
         
         return {
             "success": True,
