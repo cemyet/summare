@@ -5780,6 +5780,7 @@ async def list_annual_reports_by_user(username: str):
         grouped = {}
         for report in all_reports:
             org = report.get('organization_number')
+            org_clean = org.replace("-", "").replace(" ", "").strip() if org else ""
             if org not in grouped:
                 grouped[org] = {
                     "organization_number": org,
@@ -5795,15 +5796,15 @@ async def list_annual_reports_by_user(username: str):
             }
             
             try:
-                print(f"🔍 Querying signing_status for org: {org_number_clean}")
+                print(f"🔍 Querying signing_status for org: {org_clean} (report: {report_id})")
                 signing_result = supabase.table('signing_status')\
                     .select('event, signing_details, status_data')\
-                    .eq('organization_number', org_number_clean)\
+                    .eq('organization_number', org_clean)\
                     .order('updated_at', desc=True)\
                     .limit(1)\
                     .execute()
+                print(f"📊 Signing result for {org_clean}: {len(signing_result.data) if signing_result.data else 0} records")
                 
-                print(f"📊 Signing result for {org_number_clean}: {len(signing_result.data) if signing_result.data else 0} records")
                 if signing_result.data and len(signing_result.data) > 0:
                     signing_record = signing_result.data[0]
                     # Map event to signing_status: job_completed = completed, else pending
