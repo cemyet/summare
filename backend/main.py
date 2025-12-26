@@ -2705,6 +2705,46 @@ async def send_for_digital_signing(request: dict):
                             print(f"⚠️ Could not save initial job to database: {error_msg}")
             except Exception as db_error:
                 print(f"⚠️ Database error when saving initial job: {str(db_error)}")
+            
+            # Also save signering_data with emails to annual_report_data if report_id is provided
+            if report_id:
+                try:
+                    # Transform signering_data to Mina Sidor format with emails
+                    signering_data_to_save = {
+                        "befattningshavare": [],
+                        "revisor": [],
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                        "ValtRevisionsbolag": signering_data.get("ValtRevisionsbolag", "")
+                    }
+                    
+                    for person in signering_data.get("UnderskriftForetradare", []):
+                        signering_data_to_save["befattningshavare"].append({
+                            "fornamn": person.get("UnderskriftHandlingTilltalsnamn", ""),
+                            "efternamn": person.get("UnderskriftHandlingEfternamn", ""),
+                            "roll": person.get("UnderskriftHandlingRoll", ""),
+                            "email": person.get("UnderskriftHandlingEmail", ""),
+                            "personnummer": person.get("UnderskriftHandlingPersonnummer", ""),
+                            "status": "pending",
+                        })
+                    
+                    for person in signering_data.get("UnderskriftAvRevisor", []):
+                        signering_data_to_save["revisor"].append({
+                            "fornamn": person.get("UnderskriftHandlingTilltalsnamn", ""),
+                            "efternamn": person.get("UnderskriftHandlingEfternamn", ""),
+                            "roll": person.get("UnderskriftHandlingTitel", "Revisor"),
+                            "email": person.get("UnderskriftHandlingEmail", ""),
+                            "personnummer": person.get("UnderskriftHandlingPersonnummer", ""),
+                            "revisionsbolag": signering_data.get("ValtRevisionsbolag", ""),
+                            "status": "pending",
+                        })
+                    
+                    supabase.table('annual_report_data').update({
+                        'signering_data': signering_data_to_save,
+                        'updated_at': datetime.now().isoformat()
+                    }).eq('id', report_id).execute()
+                    print(f"✅ Signering data with emails saved to annual_report_data for report {report_id}")
+                except Exception as signering_save_error:
+                    print(f"⚠️ Could not save signering_data to annual_report_data: {str(signering_save_error)}")
         
         # Start background thread for database save (don't wait - return immediately)
         threading.Thread(target=save_job_to_db, daemon=True).start()
