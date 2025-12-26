@@ -1080,10 +1080,10 @@ const ReportView = () => {
                             {/* Status */}
                             <div className="col-span-1 flex justify-center">
                               <span
-                                className={`text-xs font-medium px-3 py-1.5 rounded ${
+                                className={`w-[72px] text-center text-xs font-medium px-2 py-1 rounded-full border ${
                                   isSigned
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-yellow-100 text-yellow-700'
+                                    ? 'bg-green-100 text-green-700 border-green-200'
+                                    : 'bg-yellow-100 text-yellow-700 border-yellow-200'
                                 }`}
                               >
                                 {isSigned ? 'Signerad' : 'Skickad'}
@@ -1194,10 +1194,10 @@ const ReportView = () => {
                             {/* Status */}
                             <div className="col-span-1 flex justify-center">
                               <span
-                                className={`text-xs font-medium px-3 py-1.5 rounded ${
+                                className={`w-[72px] text-center text-xs font-medium px-2 py-1 rounded-full border ${
                                   isSigned
-                                    ? 'bg-green-100 text-green-700'
-                                    : 'bg-yellow-100 text-yellow-700'
+                                    ? 'bg-green-100 text-green-700 border-green-200'
+                                    : 'bg-yellow-100 text-yellow-700 border-yellow-200'
                                 }`}
                               >
                                 {isSigned ? 'Signerad' : 'Skickad'}
