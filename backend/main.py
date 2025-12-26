@@ -3706,7 +3706,7 @@ async def update_user_email(request: dict):
             login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
             
             html_content = load_email_template(
-                "forgot_password",
+                "email_changed",
                 {"username": new_email, "password": password, "login_url": login_url}
             )
             
