@@ -82,6 +82,253 @@ interface SigneringStatusData {
   memberUrls: Record<string, string>;
 }
 
+// Mina uppgifter section component
+const MinaUppgifterSection = ({ 
+  sectionRef, 
+  companies, 
+  toast 
+}: { 
+  sectionRef: (el: HTMLDivElement | null) => void;
+  companies: CompanyOption[];
+  toast: any;
+}) => {
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [isEditingPassword, setIsEditingPassword] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  const storedUser = localStorage.getItem("summare_user");
+  const currentUsername = storedUser ? JSON.parse(storedUser).username : "";
+
+  // Fetch current password when editing
+  const handleEditPassword = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/get-password?username=${encodeURIComponent(currentUsername)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentPassword(data.password || "");
+        setNewPassword(data.password || "");
+        setIsEditingPassword(true);
+      }
+    } catch (err) {
+      console.error("Error fetching password:", err);
+      toast({ description: "Kunde inte hämta lösenord.", duration: 3000 });
+    }
+  };
+
+  const handleSaveEmail = async () => {
+    if (!newEmail || newEmail === currentUsername) {
+      setIsEditingEmail(false);
+      return;
+    }
+    
+    setIsSavingEmail(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/update-email`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          old_email: currentUsername, 
+          new_email: newEmail 
+        }),
+      });
+      
+      if (response.ok) {
+        // Update localStorage
+        const user = JSON.parse(localStorage.getItem("summare_user")!);
+        user.username = newEmail;
+        localStorage.setItem("summare_user", JSON.stringify(user));
+        
+        toast({ description: "Email uppdaterad.", duration: 3000 });
+        setIsEditingEmail(false);
+        window.location.reload(); // Refresh to update all references
+      } else {
+        const data = await response.json();
+        toast({ description: data.detail || "Kunde inte uppdatera email.", duration: 3000 });
+      }
+    } catch (err) {
+      console.error("Error updating email:", err);
+      toast({ description: "Ett fel uppstod.", duration: 3000 });
+    } finally {
+      setIsSavingEmail(false);
+    }
+  };
+
+  const handleSavePassword = async () => {
+    if (!newPassword || newPassword === currentPassword) {
+      setIsEditingPassword(false);
+      return;
+    }
+    
+    setIsSavingPassword(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users/update-password`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          username: currentUsername, 
+          new_password: newPassword 
+        }),
+      });
+      
+      if (response.ok) {
+        toast({ description: "Lösenord uppdaterat. Ett bekräftelsemail har skickats.", duration: 4000 });
+        setIsEditingPassword(false);
+        setCurrentPassword(newPassword);
+      } else {
+        const data = await response.json();
+        toast({ description: data.detail || "Kunde inte uppdatera lösenord.", duration: 3000 });
+      }
+    } catch (err) {
+      console.error("Error updating password:", err);
+      toast({ description: "Ett fel uppstod.", duration: 3000 });
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
+  const formatOrgNumber = (orgNumber: string) => {
+    const clean = orgNumber.replace(/\D/g, "");
+    if (clean.length === 10) {
+      return `${clean.slice(0, 6)}-${clean.slice(6)}`;
+    }
+    return orgNumber;
+  };
+
+  return (
+    <div
+      ref={sectionRef}
+      className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
+    >
+      <h2 className="text-xl font-semibold text-gray-900 mb-4">Mina uppgifter</h2>
+      <p className="text-sm text-gray-500 mb-6">
+        Här kan du se och uppdatera dina kontouppgifter.
+      </p>
+
+      <div className="space-y-6">
+        {/* Username/Email */}
+        <div className="grid grid-cols-3 gap-4 items-center">
+          <label className="text-sm font-medium text-gray-700">Användarnamn (email)</label>
+          <div className="col-span-2">
+            <div className="flex items-center gap-3">
+              <Input
+                type="email"
+                value={isEditingEmail ? newEmail : currentUsername}
+                onChange={(e) => setNewEmail(e.target.value)}
+                disabled={!isEditingEmail}
+                className={isEditingEmail ? "" : "bg-gray-50"}
+              />
+              {isEditingEmail ? (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={handleSaveEmail}
+                    disabled={isSavingEmail}
+                    className="p-2"
+                  >
+                    {isSavingEmail ? (
+                      <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4 text-green-600" />
+                    )}
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setIsEditingEmail(false)}
+                    className="p-2"
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    setNewEmail(currentUsername);
+                    setIsEditingEmail(true);
+                  }}
+                >
+                  Ändra email
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Password */}
+        <div className="grid grid-cols-3 gap-4 items-center">
+          <label className="text-sm font-medium text-gray-700">Lösenord</label>
+          <div className="col-span-2">
+            <div className="flex items-center gap-3">
+              <Input
+                type="text"
+                value={isEditingPassword ? newPassword : "••••••"}
+                onChange={(e) => setNewPassword(e.target.value)}
+                disabled={!isEditingPassword}
+                className={isEditingPassword ? "" : "bg-gray-50"}
+              />
+              {isEditingPassword ? (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={handleSavePassword}
+                    disabled={isSavingPassword}
+                    className="p-2"
+                  >
+                    {isSavingPassword ? (
+                      <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Check className="w-4 h-4 text-green-600" />
+                    )}
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => setIsEditingPassword(false)}
+                    className="p-2"
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleEditPassword}
+                >
+                  Ändra lösenord
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Organizations */}
+        <div className="grid grid-cols-3 gap-4 items-start">
+          <label className="text-sm font-medium text-gray-700 pt-2">Mina företag</label>
+          <div className="col-span-2">
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              {companies.map((company) => (
+                <div key={company.organization_number} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-900">{company.company_name}</span>
+                  <span className="text-gray-500">{formatOrgNumber(company.organization_number)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const NAV_ITEMS = [
   { id: "signeringsstatus", label: "Signeringsstatus", icon: PenTool },
   { id: "forvaltningsberattelse", label: "Förvaltningsberättelse", icon: FileText },
@@ -2231,76 +2478,11 @@ const ReportView = () => {
           </div>
 
           {/* Mina uppgifter Section */}
-          <div
-            ref={(el) => (sectionRefs.current["mina-uppgifter"] = el)}
-            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
-          >
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Mina uppgifter</h2>
-            <p className="text-sm text-gray-500 mb-6">
-              Här kan du se och uppdatera dina kontouppgifter.
-            </p>
-
-            <div className="space-y-6">
-              {/* Username */}
-              <div className="grid grid-cols-3 gap-4 items-center">
-                <label className="text-sm font-medium text-gray-700">Användarnamn (e-post)</label>
-                <div className="col-span-2">
-                  <Input
-                    type="email"
-                    value={localStorage.getItem("summare_user") ? JSON.parse(localStorage.getItem("summare_user")!).username : ""}
-                    disabled
-                    className="bg-gray-50"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Kontakta support för att ändra användarnamn.
-                  </p>
-                </div>
-              </div>
-
-              {/* Password Change */}
-              <div className="grid grid-cols-3 gap-4 items-start">
-                <label className="text-sm font-medium text-gray-700 pt-2">Lösenord</label>
-                <div className="col-span-2 space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Input
-                      type="password"
-                      value="••••••••"
-                      disabled
-                      className="bg-gray-50 flex-1"
-                    />
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        toast({
-                          title: "Ändra lösenord",
-                          description: "Funktionen kommer snart. Kontakta support för att ändra lösenord.",
-                          duration: 4000,
-                        });
-                      }}
-                    >
-                      Ändra lösenord
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Organizations */}
-              <div className="grid grid-cols-3 gap-4 items-start">
-                <label className="text-sm font-medium text-gray-700 pt-2">Mina företag</label>
-                <div className="col-span-2">
-                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                    {companies.map((company) => (
-                      <div key={company.organization_number} className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-gray-900">{company.company_name}</span>
-                        <span className="text-gray-500">{company.organization_number}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <MinaUppgifterSection 
+            sectionRef={(el) => (sectionRefs.current["mina-uppgifter"] = el)}
+            companies={companies}
+            toast={toast}
+          />
         </div>
       </main>
     </div>

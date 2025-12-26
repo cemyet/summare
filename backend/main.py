@@ -3616,6 +3616,179 @@ async def create_user_account(request: dict):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error creating user account: {str(e)}")
 
+
+@app.get("/api/users/get-password")
+async def get_user_password(username: str):
+    """
+    Get user's current password (for display in Mina uppgifter)
+    """
+    try:
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service unavailable")
+        
+        user_result = supabase.table('users')\
+            .select('password')\
+            .eq('username', username)\
+            .execute()
+        
+        if not user_result.data or len(user_result.data) == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "success": True,
+            "password": user_result.data[0].get('password', '')
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error getting user password: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting password: {str(e)}")
+
+
+@app.put("/api/users/update-email")
+async def update_user_email(request: dict):
+    """
+    Update user's email/username
+    """
+    try:
+        old_email = request.get("old_email")
+        new_email = request.get("new_email")
+        
+        if not old_email or not new_email:
+            raise HTTPException(status_code=400, detail="old_email and new_email are required")
+        
+        # Validate new email format
+        import re
+        email_pattern = r'^[^\s@]+@[^\s@]+\.[^\s@]{2,}$'
+        if not re.match(email_pattern, new_email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service unavailable")
+        
+        # Check if new email already exists
+        existing = supabase.table('users')\
+            .select('id')\
+            .eq('username', new_email)\
+            .execute()
+        
+        if existing.data and len(existing.data) > 0:
+            raise HTTPException(status_code=400, detail="Email already in use")
+        
+        # Update the email
+        result = supabase.table('users')\
+            .update({'username': new_email})\
+            .eq('username', old_email)\
+            .execute()
+        
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        print(f"✅ Updated email from {old_email} to {new_email}")
+        
+        return {
+            "success": True,
+            "message": "Email updated successfully",
+            "new_email": new_email
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating user email: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating email: {str(e)}")
+
+
+@app.put("/api/users/update-password")
+async def update_user_password(request: dict):
+    """
+    Update user's password and send confirmation email
+    """
+    try:
+        from services.email_service import send_email, load_email_template
+        
+        username = request.get("username")
+        new_password = request.get("new_password")
+        
+        if not username or not new_password:
+            raise HTTPException(status_code=400, detail="username and new_password are required")
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service unavailable")
+        
+        # Update the password
+        result = supabase.table('users')\
+            .update({'password': new_password})\
+            .eq('username', username)\
+            .execute()
+        
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        print(f"✅ Updated password for {username}")
+        
+        # Send confirmation email
+        try:
+            login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+            
+            # Load email template
+            template = load_email_template('password_changed')
+            
+            if template:
+                html_content = template.replace("{first_name}", username.split('@')[0].title())\
+                    .replace("{username}", username)\
+                    .replace("{password}", new_password)\
+                    .replace("{login_url}", login_url)
+            else:
+                # Fallback simple email
+                html_content = f"""
+                <html>
+                <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+                    <h2>Ditt lösenord har ändrats</h2>
+                    <p>Hej!</p>
+                    <p>Ditt lösenord till Mina sidor har uppdaterats.</p>
+                    <p><strong>Användarnamn:</strong> {username}</p>
+                    <p><strong>Nytt lösenord:</strong> {new_password}</p>
+                    <p><a href="{login_url}">Logga in på Mina sidor</a></p>
+                    <br>
+                    <p>Med vänliga hälsningar,<br>Summare</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="font-size: 12px; color: #666;">
+                        Summare Fintech AB | Org nr: 559086-7932<br>
+                        Brandstorpsvägen 249-9 | 263 91 Höganäs<br>
+                        <a href="https://summare.se">summare.se</a>
+                    </p>
+                </body>
+                </html>
+                """
+            
+            await send_email(
+                to_email=username,
+                subject="Ditt lösenord har ändrats - Summare",
+                html_content=html_content
+            )
+            print(f"✅ Password change confirmation email sent to {username}")
+            
+        except Exception as email_error:
+            print(f"⚠️ Could not send password change email: {str(email_error)}")
+            # Don't fail the request if email fails
+        
+        return {
+            "success": True,
+            "message": "Password updated successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating user password: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating password: {str(e)}")
+
+
 def substitute_variables(data, context):
     """Replace {variable} placeholders with actual values"""
     import json
