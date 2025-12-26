@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { User, ChevronDown } from "lucide-react";
 import { API_BASE_URL } from "@/config/api";
 
 interface UserSession {
@@ -312,9 +314,34 @@ const MinaSidor = () => {
                   {companies.length} {companies.length === 1 ? "företag" : "företag"}
                 </p>
               </div>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                Logga ut
-              </Button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                    <User className="w-5 h-5" />
+                    <ChevronDown className="w-4 h-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-48" align="end">
+                  <div className="space-y-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => navigate("/mina-sidor")}
+                    >
+                      Översikt
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start text-red-600"
+                      onClick={handleLogout}
+                    >
+                      Logga ut
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
         </div>

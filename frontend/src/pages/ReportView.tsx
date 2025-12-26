@@ -245,7 +245,7 @@ const MinaUppgifterSection = ({
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="w-[120px]"
+                  className="min-w-[130px]"
                   onClick={() => {
                     setNewEmail(currentUsername);
                     setIsEditingEmail(true);
@@ -298,7 +298,7 @@ const MinaUppgifterSection = ({
                 <Button 
                   variant="outline" 
                   size="sm"
-                  className="w-[120px]"
+                  className="min-w-[130px]"
                   onClick={handleEditPassword}
                 >
                   Ändra lösenord
