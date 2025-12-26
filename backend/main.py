@@ -2479,10 +2479,34 @@ async def send_for_digital_signing(request: dict):
         signering_data = request.get("signeringData", {})
         organization_number = request.get("organizationNumber")
         company_data = request.get("companyData")
+        report_id = request.get("reportId")  # Optional: for fetching full data from database
         
-        print(f"🖊️ Sending for digital signing: org={organization_number}")
+        print(f"🖊️ Sending for digital signing: org={organization_number}, reportId={report_id}")
         print(f"🖊️ Signering data keys: {list(signering_data.keys()) if signering_data else 'None'}")
         print(f"🖊️ Signering data: {signering_data}")
+        
+        # If reportId is provided, fetch full company_data from database
+        # This ensures we have complete data for PDF generation, especially when called from Mina Sidor
+        if report_id:
+            try:
+                supabase = get_supabase_client()
+                if supabase:
+                    report_result = supabase.table('annual_report_data')\
+                        .select('company_data, company_name, fiscal_year_end, organization_number')\
+                        .eq('id', report_id)\
+                        .execute()
+                    
+                    if report_result.data and len(report_result.data) > 0:
+                        db_company_data = report_result.data[0].get('company_data')
+                        if db_company_data:
+                            print(f"📦 Fetched company_data from database for report {report_id}")
+                            company_data = db_company_data
+                            # Also get organization_number if not provided
+                            if not organization_number:
+                                organization_number = report_result.data[0].get('organization_number', '').replace('-', '')
+            except Exception as db_error:
+                print(f"⚠️ Could not fetch from database, using provided companyData: {db_error}")
+        
         print(f"🖊️ Company data keys: {list(company_data.keys()) if company_data else 'None'}")
         print(f"🖊️ Company data present: {bool(company_data)}")
         
@@ -2990,16 +3014,23 @@ async def get_signing_status_by_report(report_id: str):
         if not isinstance(signering_data, dict):
             signering_data = {}
         
-        # Debug: Log raw signering_data keys to understand the format
-        print(f"🔑 Raw signering_data keys: {list(signering_data.keys()) if signering_data else 'EMPTY'}")
-        if "UnderskriftForetradare" in signering_data:
-            print(f"   Found UnderskriftForetradare with {len(signering_data['UnderskriftForetradare'])} items")
-            if signering_data['UnderskriftForetradare']:
-                print(f"   First item keys: {list(signering_data['UnderskriftForetradare'][0].keys())}")
-        if "befattningshavare" in signering_data:
-            print(f"   Found befattningshavare with {len(signering_data['befattningshavare'])} items")
-            if signering_data['befattningshavare']:
-                print(f"   First item keys: {list(signering_data['befattningshavare'][0].keys())}")
+        # Check if we have valid signering data or just placeholder/chat-flow data
+        # Valid data should have 'fornamn'/'efternamn' or 'UnderskriftHandlingTilltalsnamn' fields
+        # Invalid placeholder data has 'id', 'value', 'radrubrik' fields
+        has_valid_signering_data = False
+        
+        if "befattningshavare" in signering_data and signering_data["befattningshavare"]:
+            first_item = signering_data["befattningshavare"][0]
+            # Check for valid fields - either Mina Sidor format or Signering component format
+            if "fornamn" in first_item or "UnderskriftHandlingTilltalsnamn" in first_item:
+                has_valid_signering_data = True
+            else:
+                # This is placeholder data (id, value, radrubrik) - clear it
+                print(f"⚠️ Found placeholder signering_data (keys: {list(first_item.keys())}), clearing...")
+                signering_data = {"befattningshavare": [], "revisor": []}
+        
+        if "UnderskriftForetradare" in signering_data and signering_data["UnderskriftForetradare"]:
+            has_valid_signering_data = True
         
         # Transform from Signering component format (UnderskriftForetradare/UnderskriftAvRevisor) 
         # to Mina Sidor format (befattningshavare/revisor) if needed

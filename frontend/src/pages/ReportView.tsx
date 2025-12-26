@@ -882,6 +882,7 @@ const ReportView = () => {
           signeringData,
           organizationNumber: report.organization_number,
           companyData,
+          reportId: report.id,  // Pass report ID so backend can fetch full data from database
         }),
       });
       
