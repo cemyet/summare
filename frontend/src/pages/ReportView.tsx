@@ -937,7 +937,15 @@ const ReportView = () => {
                       className="w-full justify-start"
                       onClick={() => navigate("/mina-sidor")}
                     >
-                      Mina sidor
+                      Översikt
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full justify-start"
+                      onClick={() => handleNavClick("mina-uppgifter")}
+                    >
+                      Mina uppgifter
                     </Button>
                     <Button
                       variant="ghost"
@@ -2178,7 +2186,7 @@ const ReportView = () => {
             ref={(el) => (sectionRefs.current["mina-dokument"] = el)}
             className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
           >
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Dokument och filer</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Mina dokument</h2>
             <p className="text-sm text-gray-500 mb-6">
               Här finns alla dokument och filer för nedladdning. Din årsredovisning har skickats för signering, men du kan också ladda ner den som pdf här. Inkomstdeklarationen kan du antingen ladda ner som pdf eller som SRU-filer, som du sen kan ladda upp på Skatteverkets hemsida för att lämna in deklarationen. Dessutom finns en bokföringsinstruktion att ladda ner om justeringar på årets resultat har gjorts.
             </p>
@@ -2219,6 +2227,78 @@ const ReportView = () => {
                 endpoint="bokforing-instruktion"
                 filename="bokforingsinstruktion.pdf"
               />
+            </div>
+          </div>
+
+          {/* Mina uppgifter Section */}
+          <div
+            ref={(el) => (sectionRefs.current["mina-uppgifter"] = el)}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6"
+          >
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Mina uppgifter</h2>
+            <p className="text-sm text-gray-500 mb-6">
+              Här kan du se och uppdatera dina kontouppgifter.
+            </p>
+
+            <div className="space-y-6">
+              {/* Username */}
+              <div className="grid grid-cols-3 gap-4 items-center">
+                <label className="text-sm font-medium text-gray-700">Användarnamn (e-post)</label>
+                <div className="col-span-2">
+                  <Input
+                    type="email"
+                    value={localStorage.getItem("summare_user") ? JSON.parse(localStorage.getItem("summare_user")!).username : ""}
+                    disabled
+                    className="bg-gray-50"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Kontakta support för att ändra användarnamn.
+                  </p>
+                </div>
+              </div>
+
+              {/* Password Change */}
+              <div className="grid grid-cols-3 gap-4 items-start">
+                <label className="text-sm font-medium text-gray-700 pt-2">Lösenord</label>
+                <div className="col-span-2 space-y-3">
+                  <div className="flex items-center gap-3">
+                    <Input
+                      type="password"
+                      value="••••••••"
+                      disabled
+                      className="bg-gray-50 flex-1"
+                    />
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        toast({
+                          title: "Ändra lösenord",
+                          description: "Funktionen kommer snart. Kontakta support för att ändra lösenord.",
+                          duration: 4000,
+                        });
+                      }}
+                    >
+                      Ändra lösenord
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Organizations */}
+              <div className="grid grid-cols-3 gap-4 items-start">
+                <label className="text-sm font-medium text-gray-700 pt-2">Mina företag</label>
+                <div className="col-span-2">
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                    {companies.map((company) => (
+                      <div key={company.organization_number} className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-gray-900">{company.company_name}</span>
+                        <span className="text-gray-500">{company.organization_number}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
