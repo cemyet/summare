@@ -280,7 +280,7 @@ const MinaSidor = () => {
           Ej skickad
         </span>
       ),
-      progressText: "Har ej skickats för signering",
+      progressText: "Har inte skickats för signering ännu",
       iconColor: 'text-blue-600',
       iconBg: 'bg-blue-50',
       iconBorder: 'border border-blue-200'
