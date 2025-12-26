@@ -2933,6 +2933,12 @@ async def get_signing_status_by_report(report_id: str):
         befattningshavare_count = len(signering_data.get('befattningshavare', [])) if isinstance(signering_data, dict) else 0
         print(f"📋 Fetched signering_data for report {report_id}: {type(signering_data)} - befattningshavare count: {befattningshavare_count}")
         
+        # Debug: Print emails from signering_data
+        for person in signering_data.get('befattningshavare', []):
+            name = f"{person.get('fornamn', '')} {person.get('efternamn', '')}".strip()
+            email = person.get('email', 'NO EMAIL')
+            print(f"   📧 {name}: {email}")
+        
         # Now try to find the signing status by organization_number
         signing_status = None
         member_urls = {}
