@@ -17,7 +17,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { API_BASE_URL } from "@/config/api";
-import { ChevronDown, User, FileText, Calculator, PenTool, HelpCircle, Download, Settings, Copy, Check, Send, Link2, RefreshCw, X } from "lucide-react";
+import { ChevronDown, User, FileText, Calculator, PenTool, HelpCircle, Download, Settings, Copy, Check, Send, Link2, RefreshCw, X, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ReportData {
@@ -533,6 +533,12 @@ const ReportView = () => {
   const [signeringLoading, setSigneringLoading] = useState(false);
   const [resendingEmail, setResendingEmail] = useState<string | null>(null);
   
+  // Not sent for signing state - for users who paid but didn't complete signature flow
+  const [isNotSentState, setIsNotSentState] = useState(false);
+  const [pendingSigners, setPendingSigners] = useState<{befattningshavare: SignerPerson[], revisor: SignerPerson[]}>({befattningshavare: [], revisor: []});
+  const [isSendingForSigning, setIsSendingForSigning] = useState(false);
+  const [fetchingOfficers, setFetchingOfficers] = useState(false);
+  
   // Company/fiscal year selection
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [fiscalYears, setFiscalYears] = useState<FiscalYearOption[]>([]);
@@ -692,10 +698,17 @@ const ReportView = () => {
 
   // Fetch signing status when report is loaded
   useEffect(() => {
-    if (reportId) {
+    if (reportId && report) {
       fetchSigneringStatus(reportId);
     }
-  }, [reportId]);
+  }, [reportId, report?.id]);
+  
+  // Fetch officers from Bolagsverket when in "not sent" state but no pending signers
+  useEffect(() => {
+    if (isNotSentState && pendingSigners.befattningshavare.length === 0 && report?.organization_number && !fetchingOfficers) {
+      fetchOfficersFromBolagsverket(report.organization_number);
+    }
+  }, [isNotSentState, report?.organization_number]);
 
   const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
 
@@ -706,7 +719,29 @@ const ReportView = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setSigneringStatus(data);
+          // Check if we have befattningshavare data - if not, user hasn't completed signing flow
+          const hasBefattningshavare = data.signeringData?.befattningshavare?.length > 0;
+          const hasSigningJob = data.signingStatus?.job_uuid;
+          
+          if (!hasBefattningshavare && !hasSigningJob) {
+            // No signering data and no signing job - need to fetch from Bolagsverket
+            console.log('🔍 No signering data found, setting not sent state to trigger Bolagsverket fetch...');
+            setIsNotSentState(true);
+            // The useEffect will trigger fetchOfficersFromBolagsverket when report is available
+          } else if (hasBefattningshavare && !hasSigningJob) {
+            // Has signering data but no signing job - user entered emails but didn't send
+            console.log('📝 Signering data found but no signing job - showing "not sent" state');
+            setIsNotSentState(true);
+            // Use the stored befattningshavare data
+            setPendingSigners({
+              befattningshavare: data.signeringData.befattningshavare || [],
+              revisor: data.signeringData.revisor || [],
+            });
+          } else {
+            // Has signing job - show normal state
+            setIsNotSentState(false);
+            setSigneringStatus(data);
+          }
         }
       }
     } catch (err) {
@@ -736,6 +771,157 @@ const ReportView = () => {
       console.error("Error refreshing signing status:", err);
     } finally {
       setIsRefreshingStatus(false);
+    }
+  };
+
+  // Fetch officers from Bolagsverket API (mirrors Signering component)
+  const fetchOfficersFromBolagsverket = async (orgNumber: string) => {
+    setFetchingOfficers(true);
+    try {
+      const normalizedOrg = orgNumber.replace(/\D/g, '');
+      const response = await fetch(`${API_BASE_URL}/api/bolagsverket/officers/${normalizedOrg}`, { credentials: 'omit' });
+      
+      if (!response.ok) {
+        console.error('Failed to fetch officers from Bolagsverket:', response.status);
+        return;
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.officers) {
+        const officers = result.officers;
+        
+        // Transform UnderskriftForetradare to SignerPerson format
+        const befattningshavare: SignerPerson[] = (officers.UnderskriftForetradare || []).map((o: any) => ({
+          fornamn: o.UnderskriftHandlingTilltalsnamn || '',
+          efternamn: o.UnderskriftHandlingEfternamn || '',
+          roll: o.UnderskriftHandlingRoll || '',
+          email: '',  // User needs to fill in
+          personnummer: o.UnderskriftHandlingPersonnummer || '',
+          status: 'pending' as const,
+        }));
+        
+        // Transform UnderskriftAvRevisor to SignerPerson format  
+        const revisor: SignerPerson[] = (officers.UnderskriftAvRevisor || []).map((r: any) => ({
+          fornamn: r.UnderskriftHandlingTilltalsnamn || '',
+          efternamn: r.UnderskriftHandlingEfternamn || '',
+          roll: r.UnderskriftHandlingTitel || 'Revisor',
+          email: '',  // User needs to fill in
+          personnummer: r.UnderskriftHandlingPersonnummer || '',
+          status: 'pending' as const,
+          revisionsbolag: officers.ValtRevisionsbolag || '',
+        }));
+        
+        setPendingSigners({ befattningshavare, revisor });
+      }
+    } catch (error) {
+      console.error('Error fetching officers from Bolagsverket:', error);
+    } finally {
+      setFetchingOfficers(false);
+    }
+  };
+
+  // Handle sending for signing (mirrors Signering component logic)
+  const handleSendForSigning = async () => {
+    if (!report) return;
+    
+    // Validate all signers have emails
+    const allSigners = [...pendingSigners.befattningshavare, ...pendingSigners.revisor];
+    const missingEmails = allSigners.filter(s => !s.email || s.email.trim() === '');
+    
+    if (missingEmails.length > 0) {
+      toast({
+        title: "Email saknas",
+        description: `Alla befattningshavare måste ha en email-adress. ${missingEmails.map(s => `${s.fornamn} ${s.efternamn}`).join(', ')} saknar email.`,
+        duration: 5000,
+      });
+      return;
+    }
+    
+    setIsSendingForSigning(true);
+    
+    try {
+      // Transform pendingSigners back to UnderskriftForetradare/UnderskriftAvRevisor format
+      const signeringData = {
+        UnderskriftForetradare: pendingSigners.befattningshavare.map(p => ({
+          UnderskriftHandlingTilltalsnamn: p.fornamn,
+          UnderskriftHandlingEfternamn: p.efternamn,
+          UnderskriftHandlingPersonnummer: p.personnummer || '',
+          UnderskriftHandlingEmail: p.email,
+          UnderskriftHandlingRoll: p.roll || '',
+        })),
+        UnderskriftAvRevisor: pendingSigners.revisor.map(r => ({
+          UnderskriftHandlingTilltalsnamn: r.fornamn,
+          UnderskriftHandlingEfternamn: r.efternamn,
+          UnderskriftHandlingPersonnummer: r.personnummer || '',
+          UnderskriftHandlingEmail: r.email,
+          UnderskriftHandlingTitel: r.roll || 'Revisor',
+          UnderskriftRevisorspateckningRevisorHuvudansvarig: true,
+        })),
+      };
+      
+      // Build companyData from report
+      const companyData = {
+        organizationNumber: report.organization_number,
+        companyName: report.company_name,
+        fiscalYear: report.fiscal_year,
+        seFileData: {
+          company_info: {
+            organization_number: report.organization_number,
+            start_date: report.fiscal_year_start?.replace(/-/g, ''),
+            end_date: report.fiscal_year_end?.replace(/-/g, ''),
+          }
+        },
+        rr_data: report.rr_data,
+        br_data: report.br_data,
+        noter_data: report.noter_data,
+        fb_data: report.fb_data,
+        ink2_data: report.ink2_data,
+        signeringData: signeringData,
+        avskrivningstider: report.avskrivningstider,
+      };
+      
+      const response = await fetch(`${API_BASE_URL}/api/send-for-digital-signing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          signeringData,
+          organizationNumber: report.organization_number,
+          companyData,
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.message || 'Failed to send for signing');
+      }
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Årsredovisning skickad",
+          description: "Årsredovisningen har skickats för signering. Du kommer att kunna följa statusen här.",
+          duration: 5000,
+        });
+        
+        // Switch to "sent" state - refresh the status
+        setIsNotSentState(false);
+        if (reportId) {
+          fetchSigneringStatus(reportId);
+        }
+      } else {
+        throw new Error(result.message || 'Failed to send for signing');
+      }
+    } catch (error: any) {
+      console.error('Error sending for signing:', error);
+      toast({
+        title: "Kunde inte skicka",
+        description: error.message || "Ett fel uppstod när årsredovisningen skulle skickas för signering. Försök igen.",
+        duration: 5000,
+      });
+    } finally {
+      setIsSendingForSigning(false);
     }
   };
 
@@ -1217,25 +1403,196 @@ const ReportView = () => {
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-2">
                 <h2 className="text-xl font-semibold text-gray-900">Signeringsstatus</h2>
-                <button
-                  onClick={handleRefreshStatus}
-                  disabled={isRefreshingStatus}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-full hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
-                  Uppdatera status
-                </button>
+                {isNotSentState ? (
+                  <button
+                    onClick={handleSendForSigning}
+                    disabled={isSendingForSigning || pendingSigners.befattningshavare.length === 0}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-blue-600 border border-blue-600 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {isSendingForSigning ? (
+                      <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Mail className="w-3 h-3" />
+                    )}
+                    Skicka för signering
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleRefreshStatus}
+                    disabled={isRefreshingStatus}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-full hover:bg-gray-50 hover:border-gray-400 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isRefreshingStatus ? 'animate-spin' : ''}`} />
+                    Uppdatera status
+                  </button>
+                )}
               </div>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Din årsredovisning har skickats iväg för signering till nedan befattningshavare och revisor om bolaget har en sådan. Du kan i statuskolumnen följa vilka befattningshavare som har signerat och vilka vi fortfarande inväntar signatur ifrån. Du har möjlighet att skicka påminnelse via mail och du kan också kopiera länken och skicka som textmeddelande. Kontrollera gärna mailadresser och ändra vid fel och skicka isåfall mail igen genom att klicka på <Send className="w-3 h-3 inline mx-0.5" />
+                {isNotSentState ? (
+                  <>Din årsredovisning har inte skickats iväg för signering ännu. Nedan ser du alla befattningshavare och revisor om bolaget har en sådan. Fyll i email för alla och klicka sedan på Skicka för signering. Du kan sedan i statuskolumnen följa vilka befattningshavare som har signerat och vilka vi fortfarande inväntar signatur ifrån. Du har möjlighet att skicka påminnelse via mail och du kan också kopiera länken och skicka som textmeddelande.</>
+                ) : (
+                  <>Din årsredovisning har skickats iväg för signering till nedan befattningshavare och revisor om bolaget har en sådan. Du kan i statuskolumnen följa vilka befattningshavare som har signerat och vilka vi fortfarande inväntar signatur ifrån. Du har möjlighet att skicka påminnelse via mail och du kan också kopiera länken och skicka som textmeddelande. Kontrollera gärna mailadresser och ändra vid fel och skicka isåfall mail igen genom att klicka på <Send className="w-3 h-3 inline mx-0.5" /></>
+                )}
               </p>
             </div>
 
-            {signeringLoading ? (
+            {signeringLoading || fetchingOfficers ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-8 h-8 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
               </div>
+            ) : isNotSentState && pendingSigners.befattningshavare.length > 0 ? (
+              /* NOT SENT STATE - Show pending signers with editable emails */
+              <div className="space-y-8">
+                {/* Befattningshavare Section - Not Sent State */}
+                {pendingSigners.befattningshavare.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Befattningshavare</h3>
+                    
+                    {/* Column Headers */}
+                    <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-2">
+                      <div className="col-span-3">Namn</div>
+                      <div className="col-span-3">Roll</div>
+                      <div className="col-span-3">Email</div>
+                      <div className="col-span-1 text-center">Länk</div>
+                      <div className="col-span-1 text-center">Skicka</div>
+                      <div className="col-span-1 text-center">Status</div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {pendingSigners.befattningshavare.map((person, index) => {
+                        const fullName = `${person.fornamn} ${person.efternamn}`.trim();
+                        
+                        return (
+                          <div
+                            key={`pending-befattning-${index}`}
+                            className="grid grid-cols-12 gap-4 items-center"
+                          >
+                            {/* Namn - combined förnamn + efternamn */}
+                            <div className="col-span-3">
+                              <span className="text-sm text-gray-900">{fullName || '-'}</span>
+                            </div>
+                            
+                            {/* Roll - plain text */}
+                            <div className="col-span-3">
+                              <span className="text-sm text-gray-600">{person.roll || '-'}</span>
+                            </div>
+                            
+                            {/* Email - editable input */}
+                            <div className="col-span-3">
+                              <Input
+                                value={person.email || ''}
+                                onChange={(e) => {
+                                  const newBefattningshavare = [...pendingSigners.befattningshavare];
+                                  newBefattningshavare[index] = { ...newBefattningshavare[index], email: e.target.value };
+                                  setPendingSigners({
+                                    ...pendingSigners,
+                                    befattningshavare: newBefattningshavare
+                                  });
+                                }}
+                                placeholder="Ange email"
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            
+                            {/* Länk button - disabled in not sent state */}
+                            <div className="col-span-1 flex justify-center">
+                              <Link2 className="w-5 h-5 text-gray-200" />
+                            </div>
+                            
+                            {/* Skicka button - disabled in not sent state */}
+                            <div className="col-span-1 flex justify-center">
+                              <Send className="w-5 h-5 text-gray-200" />
+                            </div>
+                            
+                            {/* Status - blue "Ej skickad" */}
+                            <div className="col-span-1 flex justify-center">
+                              <span className="min-w-[85px] text-center text-xs font-medium px-3 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200">
+                                Ej skickad
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Revisor Section - Not Sent State */}
+                {pendingSigners.revisor.length > 0 && (
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Revisor</h3>
+                    
+                    {/* Column Headers */}
+                    <div className="grid grid-cols-12 gap-4 text-sm font-medium text-gray-500 mb-2">
+                      <div className="col-span-3">Namn</div>
+                      <div className="col-span-3">Revisionsbolag</div>
+                      <div className="col-span-3">Email</div>
+                      <div className="col-span-1 text-center">Länk</div>
+                      <div className="col-span-1 text-center">Skicka</div>
+                      <div className="col-span-1 text-center">Status</div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {pendingSigners.revisor.map((person, index) => {
+                        const fullName = `${person.fornamn} ${person.efternamn}`.trim();
+                        
+                        return (
+                          <div
+                            key={`pending-revisor-${index}`}
+                            className="grid grid-cols-12 gap-4 items-center"
+                          >
+                            {/* Namn */}
+                            <div className="col-span-3">
+                              <span className="text-sm text-gray-900">{fullName || '-'}</span>
+                            </div>
+                            
+                            {/* Revisionsbolag */}
+                            <div className="col-span-3">
+                              <span className="text-sm text-gray-600">{person.revisionsbolag || '-'}</span>
+                            </div>
+                            
+                            {/* Email - editable input */}
+                            <div className="col-span-3">
+                              <Input
+                                value={person.email || ''}
+                                onChange={(e) => {
+                                  const newRevisor = [...pendingSigners.revisor];
+                                  newRevisor[index] = { ...newRevisor[index], email: e.target.value };
+                                  setPendingSigners({
+                                    ...pendingSigners,
+                                    revisor: newRevisor
+                                  });
+                                }}
+                                placeholder="Ange email"
+                                className="h-8 text-sm"
+                              />
+                            </div>
+                            
+                            {/* Länk button - disabled */}
+                            <div className="col-span-1 flex justify-center">
+                              <Link2 className="w-5 h-5 text-gray-200" />
+                            </div>
+                            
+                            {/* Skicka button - disabled */}
+                            <div className="col-span-1 flex justify-center">
+                              <Send className="w-5 h-5 text-gray-200" />
+                            </div>
+                            
+                            {/* Status - blue "Ej skickad" */}
+                            <div className="col-span-1 flex justify-center">
+                              <span className="min-w-[85px] text-center text-xs font-medium px-3 py-1 rounded-full border bg-blue-100 text-blue-700 border-blue-200">
+                                Ej skickad
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : signeringStatus?.signeringData?.befattningshavare?.length || signeringStatus?.signeringData?.revisor?.length ? (
+              /* SENT STATE - Show normal signing status */
               <div className="space-y-8">
                 {/* Befattningshavare Section */}
                 {signeringStatus.signeringData.befattningshavare?.length > 0 && (
