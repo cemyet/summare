@@ -15,6 +15,8 @@ const LoginPopup = ({ isOpen, onClose, buttonRef }: LoginPopupProps) => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isSendingPassword, setIsSendingPassword] = useState(false);
+  const [passwordSent, setPasswordSent] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -75,6 +77,39 @@ const LoginPopup = ({ isOpen, onClose, buttonRef }: LoginPopupProps) => {
       setError("Ett fel uppstod. Försök igen.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError("Ange din email för att få lösenordet skickat");
+      return;
+    }
+    
+    setError("");
+    setIsSendingPassword(true);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setPasswordSent(true);
+      } else {
+        setError(data.message || "Kunde inte skicka lösenord");
+      }
+    } catch (err) {
+      console.error("Forgot password error:", err);
+      setError("Ett fel uppstod. Försök igen.");
+    } finally {
+      setIsSendingPassword(false);
     }
   };
 
@@ -149,9 +184,22 @@ const LoginPopup = ({ isOpen, onClose, buttonRef }: LoginPopupProps) => {
           </Button>
         </form>
 
-        <p className="mt-4 text-xs text-gray-500 text-center">
-          Lösenordet skickades till din email vid betalning
-        </p>
+        <div className="mt-4 text-center">
+          {passwordSent ? (
+            <p className="text-xs text-green-600">
+              Lösenordet har skickats till din email
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleForgotPassword}
+              disabled={isSendingPassword}
+              className="text-xs text-gray-500 hover:text-summare-navy hover:underline transition-colors disabled:opacity-50"
+            >
+              {isSendingPassword ? "Skickar..." : "Glömt lösenord?"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

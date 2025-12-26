@@ -5386,6 +5386,66 @@ async def login_user(request: LoginRequest):
         raise HTTPException(status_code=500, detail=f"Login error: {str(e)}")
 
 
+@app.post("/api/auth/forgot-password")
+async def forgot_password(request: dict):
+    """
+    Send password to user's email address.
+    """
+    try:
+        email = request.get("email", "").strip().lower()
+        
+        if not email:
+            return {"success": False, "message": "Email krävs"}
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Query users table for matching email
+        user_result = supabase.table('users')\
+            .select('username, password')\
+            .eq('username', email)\
+            .execute()
+        
+        if not user_result.data or len(user_result.data) == 0:
+            # Don't reveal if email exists or not for security
+            return {"success": True, "message": "Om emailadressen finns i vårt system, skickas lösenordet dit"}
+        
+        user = user_result.data[0]
+        password = user.get('password', '')
+        
+        # Send email with password
+        try:
+            from services.email_service import send_email, load_email_template
+            login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+            
+            html_content = load_email_template(
+                "forgot_password",
+                {"username": email, "password": password, "login_url": login_url}
+            )
+            
+            await send_email(
+                to_email=email,
+                subject="Dina inloggningsuppgifter - Summare",
+                html_content=html_content
+            )
+            print(f"✅ Forgot password email sent to {email}")
+            
+        except Exception as email_error:
+            print(f"⚠️ Could not send forgot password email: {str(email_error)}")
+            return {"success": False, "message": "Kunde inte skicka email. Försök igen."}
+        
+        return {"success": True, "message": "Lösenord skickat till din email"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error during forgot password: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Forgot password error: {str(e)}")
+
+
 class AnnualReportDataRequest(BaseModel):
     """Request body for saving annual report data - accepts full companyData like XBRL export"""
     companyData: dict  # Full companyData object - backend extracts what it needs
