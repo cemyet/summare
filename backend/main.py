@@ -2990,6 +2990,17 @@ async def get_signing_status_by_report(report_id: str):
         if not isinstance(signering_data, dict):
             signering_data = {}
         
+        # Debug: Log raw signering_data keys to understand the format
+        print(f"🔑 Raw signering_data keys: {list(signering_data.keys()) if signering_data else 'EMPTY'}")
+        if "UnderskriftForetradare" in signering_data:
+            print(f"   Found UnderskriftForetradare with {len(signering_data['UnderskriftForetradare'])} items")
+            if signering_data['UnderskriftForetradare']:
+                print(f"   First item keys: {list(signering_data['UnderskriftForetradare'][0].keys())}")
+        if "befattningshavare" in signering_data:
+            print(f"   Found befattningshavare with {len(signering_data['befattningshavare'])} items")
+            if signering_data['befattningshavare']:
+                print(f"   First item keys: {list(signering_data['befattningshavare'][0].keys())}")
+        
         # Transform from Signering component format (UnderskriftForetradare/UnderskriftAvRevisor) 
         # to Mina Sidor format (befattningshavare/revisor) if needed
         if "UnderskriftForetradare" in signering_data and "befattningshavare" not in signering_data:
