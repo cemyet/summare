@@ -2920,10 +2920,18 @@ async def get_signing_status_by_report(report_id: str):
                 signering_data = {}
         elif signering_data_raw is None:
             signering_data = {}
+        elif isinstance(signering_data_raw, list):
+            # Handle case where signering_data is a list - wrap in dict
+            signering_data = {"befattningshavare": signering_data_raw}
         else:
             signering_data = signering_data_raw
         
-        print(f"📋 Fetched signering_data for report {report_id}: {type(signering_data)} - befattningshavare count: {len(signering_data.get('befattningshavare', []))}")
+        # Ensure signering_data is a dict
+        if not isinstance(signering_data, dict):
+            signering_data = {}
+        
+        befattningshavare_count = len(signering_data.get('befattningshavare', [])) if isinstance(signering_data, dict) else 0
+        print(f"📋 Fetched signering_data for report {report_id}: {type(signering_data)} - befattningshavare count: {befattningshavare_count}")
         
         # Now try to find the signing status by organization_number
         signing_status = None
@@ -5796,17 +5804,34 @@ async def list_annual_reports_by_user(username: str):
             }
             
             try:
-                print(f"🔍 Querying signing_status for org: {org_clean} (report: {report_id})")
+                # Get fiscal year from report to match with signing_status
+                fiscal_year_end = report.get('fiscal_year_end', '')
+                fiscal_year = fiscal_year_end[:4] if fiscal_year_end else ''
+                
+                print(f"🔍 Querying signing_status for org: {org_clean}, year: {fiscal_year} (report: {report_id})")
+                
+                # Query signing_status and filter by fiscal year in job_name
                 signing_result = supabase.table('signing_status')\
-                    .select('event, signing_details, status_data')\
+                    .select('event, signing_details, status_data, job_name')\
                     .eq('organization_number', org_clean)\
                     .order('updated_at', desc=True)\
-                    .limit(1)\
                     .execute()
-                print(f"📊 Signing result for {org_clean}: {len(signing_result.data) if signing_result.data else 0} records")
                 
-                if signing_result.data and len(signing_result.data) > 0:
-                    signing_record = signing_result.data[0]
+                # Filter results to find the one matching this fiscal year
+                matching_record = None
+                if signing_result.data:
+                    for record in signing_result.data:
+                        job_name = record.get('job_name', '')
+                        # Check if job_name contains the fiscal year (e.g., "Årsredovisning 2024")
+                        if fiscal_year and fiscal_year in job_name:
+                            matching_record = record
+                            break
+                    # If no match by year, don't use any record (prevents wrong year showing)
+                
+                print(f"📊 Signing result for {org_clean}/{fiscal_year}: {'found' if matching_record else 'none'}")
+                
+                if matching_record:
+                    signing_record = matching_record
                     # Map event to signing_status: job_completed = completed, else pending
                     event = signing_record.get('event', '')
                     if event == 'job_completed':
