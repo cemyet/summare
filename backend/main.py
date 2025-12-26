@@ -3678,6 +3678,17 @@ async def update_user_email(request: dict):
         if existing.data and len(existing.data) > 0:
             raise HTTPException(status_code=400, detail="Email already in use")
         
+        # Get current password before updating
+        user_result = supabase.table('users')\
+            .select('password')\
+            .eq('username', old_email)\
+            .execute()
+        
+        if not user_result.data or len(user_result.data) == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        password = user_result.data[0].get('password', '')
+        
         # Update the email
         result = supabase.table('users')\
             .update({'username': new_email})\
@@ -3688,6 +3699,27 @@ async def update_user_email(request: dict):
             raise HTTPException(status_code=404, detail="User not found")
         
         print(f"✅ Updated email from {old_email} to {new_email}")
+        
+        # Send confirmation email to new email with login credentials
+        try:
+            from services.email_service import send_email, load_email_template
+            login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+            
+            html_content = load_email_template(
+                "forgot_password",
+                {"username": new_email, "password": password, "login_url": login_url}
+            )
+            
+            await send_email(
+                to_email=new_email,
+                subject="Dina inloggningsuppgifter",
+                html_content=html_content
+            )
+            print(f"✅ Email change confirmation sent to {new_email}")
+            
+        except Exception as email_error:
+            print(f"⚠️ Could not send email change confirmation: {str(email_error)}")
+            # Don't fail the request if email fails
         
         return {
             "success": True,
