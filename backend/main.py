@@ -10,6 +10,10 @@ import tempfile
 import shutil
 from datetime import datetime
 import json
+import hmac
+import hashlib
+import base64
+import time
 # --- STRIPE INIT (robust) ---
 import os, logging, stripe, requests
 logger = logging.getLogger("uvicorn")
@@ -260,6 +264,62 @@ from models.schemas import (
     ManagementReportRequest, ManagementReportResponse, 
     BolagsverketCompanyInfo, ManagementReportData
 )
+
+# ============================================================================
+# Auto-login token generation and validation
+# ============================================================================
+
+AUTH_TOKEN_SECRET = os.getenv("AUTH_TOKEN_SECRET", "summare-secret-key-2025")
+
+def generate_auth_token(username: str, expires_hours: int = 72) -> str:
+    """Generate a signed token for auto-login from email links"""
+    payload = {
+        "user": username,
+        "exp": int(time.time()) + (expires_hours * 3600)
+    }
+    payload_json = json.dumps(payload, separators=(',', ':'))
+    signature = hmac.new(
+        AUTH_TOKEN_SECRET.encode(),
+        payload_json.encode(),
+        hashlib.sha256
+    ).hexdigest()[:16]
+    token_data = f"{payload_json}.{signature}"
+    return base64.urlsafe_b64encode(token_data.encode()).decode()
+
+def validate_auth_token(token: str) -> Optional[str]:
+    """Validate a signed token and return username if valid, None otherwise"""
+    try:
+        token_data = base64.urlsafe_b64decode(token.encode()).decode()
+        payload_json, signature = token_data.rsplit('.', 1)
+        
+        # Verify signature
+        expected_sig = hmac.new(
+            AUTH_TOKEN_SECRET.encode(),
+            payload_json.encode(),
+            hashlib.sha256
+        ).hexdigest()[:16]
+        
+        if not hmac.compare_digest(signature, expected_sig):
+            print("❌ Token signature invalid")
+            return None
+        
+        payload = json.loads(payload_json)
+        
+        # Check expiry
+        if payload.get("exp", 0) < time.time():
+            print("❌ Token expired")
+            return None
+        
+        return payload.get("user")
+    except Exception as e:
+        print(f"❌ Token validation error: {e}")
+        return None
+
+def get_auto_login_url(username: str) -> str:
+    """Generate a full auto-login URL for email links"""
+    token = generate_auth_token(username)
+    base_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+    return f"{base_url}/mina-sidor?auth={token}"
 
 # ============================================================================
 # Utility functions for freezing original RR values (Bokföringsinstruktion)
@@ -3703,11 +3763,11 @@ async def update_user_email(request: dict):
         # Send confirmation email to new email with login credentials
         try:
             from services.email_service import send_email, load_email_template
-            login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+            auto_login_url = get_auto_login_url(new_email)
             
             html_content = load_email_template(
                 "email_changed",
-                {"username": new_email, "password": password, "login_url": login_url}
+                {"username": new_email, "password": password, "login_url": auto_login_url}
             )
             
             await send_email(
@@ -3765,7 +3825,7 @@ async def update_user_password(request: dict):
         
         # Send confirmation email
         try:
-            login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+            auto_login_url = get_auto_login_url(username)
             
             # Load email template with variables
             try:
@@ -3773,7 +3833,7 @@ async def update_user_password(request: dict):
                     'first_name': username.split('@')[0].title(),
                     'username': username,
                     'password': new_password,
-                    'login_url': login_url
+                    'login_url': auto_login_url
                 })
             except Exception as template_error:
                 print(f"⚠️ Template error: {template_error}, using fallback")
@@ -5449,11 +5509,11 @@ async def forgot_password(request: dict):
         # Send email with password
         try:
             from services.email_service import send_email, load_email_template
-            login_url = os.getenv("MINA_SIDOR_URL", "https://www.summare.se")
+            auto_login_url = get_auto_login_url(email)
             
             html_content = load_email_template(
                 "forgot_password",
-                {"username": email, "password": password, "login_url": login_url}
+                {"username": email, "password": password, "login_url": auto_login_url}
             )
             
             await send_email(
@@ -5476,6 +5536,61 @@ async def forgot_password(request: dict):
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Forgot password error: {str(e)}")
+
+
+@app.post("/api/auth/token-login")
+async def token_login(request: dict):
+    """
+    Validate an auto-login token and return user session.
+    Used for auto-login from email links.
+    """
+    try:
+        token = request.get("token", "")
+        
+        if not token:
+            return {"success": False, "message": "Token krävs"}
+        
+        # Validate token and get username
+        username = validate_auth_token(token)
+        
+        if not username:
+            return {"success": False, "message": "Ogiltig eller utgången länk"}
+        
+        supabase = get_supabase_client()
+        if not supabase:
+            raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+        
+        # Get user info
+        user_result = supabase.table('users')\
+            .select('id, username, organization_number')\
+            .eq('username', username)\
+            .execute()
+        
+        if not user_result.data or len(user_result.data) == 0:
+            return {"success": False, "message": "Användare hittades inte"}
+        
+        user = user_result.data[0]
+        organizations = user.get('organization_number', [])
+        if isinstance(organizations, str):
+            organizations = [organizations]
+        
+        print(f"✅ Token login successful for {username}")
+        
+        return {
+            "success": True,
+            "message": "Inloggning lyckades",
+            "user_id": str(user.get('id')),
+            "username": user.get('username'),
+            "organizations": organizations
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error during token login: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Token login error: {str(e)}")
 
 
 class AnnualReportDataRequest(BaseModel):

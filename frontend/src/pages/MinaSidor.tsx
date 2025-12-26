@@ -45,18 +45,62 @@ const MinaSidor = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // Check if user is logged in
-    const storedUser = localStorage.getItem("summare_user");
-    if (!storedUser) {
-      navigate("/");
-      return;
-    }
+    const initializeUser = async () => {
+      // Check for auto-login token in URL
+      const params = new URLSearchParams(window.location.search);
+      const authToken = params.get('auth');
+      
+      if (authToken) {
+        try {
+          // Validate token with backend
+          const response = await fetch(`${API_BASE_URL}/api/auth/token-login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: authToken })
+          });
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            // Store user session
+            const userSession: UserSession = {
+              userId: data.user_id,
+              username: data.username,
+              organizations: data.organizations
+            };
+            localStorage.setItem("summare_user", JSON.stringify(userSession));
+            setUser(userSession);
+            
+            // Remove token from URL (clean up)
+            window.history.replaceState({}, '', '/mina-sidor');
+            
+            // Fetch user data
+            fetchUserData(userSession);
+            return;
+          }
+        } catch (err) {
+          console.error("Token login failed:", err);
+        }
+        
+        // Token invalid - remove from URL and check normal login
+        window.history.replaceState({}, '', '/mina-sidor');
+      }
+      
+      // Check if user is logged in normally
+      const storedUser = localStorage.getItem("summare_user");
+      if (!storedUser) {
+        navigate("/");
+        return;
+      }
 
-    const parsedUser = JSON.parse(storedUser) as UserSession;
-    setUser(parsedUser);
+      const parsedUser = JSON.parse(storedUser) as UserSession;
+      setUser(parsedUser);
 
-    // Fetch user's companies and reports
-    fetchUserData(parsedUser);
+      // Fetch user's companies and reports
+      fetchUserData(parsedUser);
+    };
+    
+    initializeUser();
   }, [navigate]);
 
   const fetchUserData = async (userSession: UserSession) => {
