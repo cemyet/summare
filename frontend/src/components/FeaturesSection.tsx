@@ -7,7 +7,7 @@ interface FeatureCard {
 
 const features: FeatureCard[] = [
   {
-    image: "/card1.png",
+    image: "/card1 copy.png",
     heading: "Djupsökning med AI förenklar för användaren",
     description: "Vårt smarta AI-verktyg gör en djupsökning i SIE-filerna hela vägen ner på verifikationsnivå och kan utifrån det bygga en detaljerad resultat- och balansräkning, samt bygga helt kompletta noter. Vår princip är enkel — vi frågar inte om det vi kan räkna ut eller ta reda på själva. Allt för att förenkla för dig som användare!",
     imageOnRight: false,
@@ -17,7 +17,7 @@ const features: FeatureCard[] = [
 
 const FeatureCardComponent = ({ image, heading, description, imageOnRight = false }: FeatureCard) => {
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-2 items-center gap-8 lg:gap-12 py-12 lg:py-20`}>
+    <div className={`grid grid-cols-1 lg:grid-cols-2 items-center gap-6 lg:gap-10 py-12 lg:py-20`}>
       {/* Image Section */}
       <div className={`${imageOnRight ? 'lg:order-2' : 'lg:order-1'}`}>
         <img
@@ -49,7 +49,7 @@ const FeatureCardComponent = ({ image, heading, description, imageOnRight = fals
 const FeaturesSection = () => {
   return (
     <section className="bg-white">
-      <div className="max-w-7xl mx-auto px-6 md:px-12 lg:px-16">
+      <div className="max-w-[1600px] mx-auto px-4 md:px-8 lg:px-12">
         {features.map((feature, index) => (
           <FeatureCardComponent
             key={index}
