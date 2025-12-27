@@ -13,7 +13,7 @@ const features: FeatureCard[] = [
     imageOnRight: false,
   },
   {
-    image: "/Card2v3.png",
+    image: "/Card2v5.png",
     heading: "Chatta fram din årsredovisning",
     description: "Din årsredovisning tas fram genom att du chattar med vår smarta AI-agent. Och den frågar bara om det som den själv inte kan räkna fram eller hitta från externa källor. Det enda du som användare behöver ange själv är det outnyttjade underskottet samt årets utdelning. AI-agenten kan till och med upptäcka om du har missat att ta med något, till exempel om du har betalat in pensioner under året, men glömt att bokföra den särskilda löneskatten.",
     imageOnRight: true,
