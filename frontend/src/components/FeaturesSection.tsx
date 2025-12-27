@@ -17,7 +17,7 @@ const features: FeatureCard[] = [
 
 const FeatureCardComponent = ({ image, heading, description, imageOnRight = false }: FeatureCard) => {
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-[65%_35%] items-center gap-6 lg:gap-10 py-12 lg:py-20`}>
+    <div className={`grid grid-cols-1 lg:grid-cols-2 items-center gap-6 lg:gap-10 py-12 lg:py-20`}>
       {/* Image Section */}
       <div className={`${imageOnRight ? 'lg:order-2' : 'lg:order-1'}`}>
         <img
@@ -28,7 +28,7 @@ const FeatureCardComponent = ({ image, heading, description, imageOnRight = fals
       </div>
 
       {/* Text Section */}
-      <div className={`space-y-4 ${imageOnRight ? 'lg:order-1' : 'lg:order-2'}`}>
+      <div className={`space-y-4 px-4 lg:px-12 ${imageOnRight ? 'lg:order-1' : 'lg:order-2'}`}>
         <h3 
           className="text-xl md:text-2xl font-medium text-gray-900 leading-snug"
           style={{ fontFamily: "'Roboto', sans-serif" }}
