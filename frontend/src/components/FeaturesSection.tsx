@@ -9,7 +9,7 @@ const features: FeatureCard[] = [
   {
     image: "/card1v8.png",
     heading: "Djupsökning med AI förenklar för användaren",
-    description: "Vårt smarta AI-verktyg gör en djupsökning i SIE-filerna hela vägen ner på verifikationsnivå och kan utifrån det bygga en detaljerad resultat- och balansräkning, samt bygga helt kompletta noter. Vår princip är enkel — vi frågar inte om det vi kan räkna ut eller ta reda på själva.\n\nAllt för att förenkla för dig som användare. De flesta andra tjänster som säger sig automatisera framtagandet av årsredovisningen, kräver fortfarande oerhört mycket av användaren. Summare är ett smartare verktyg som dessutom kompletterar med extern information till flerårsöversikt och verksamhetsbeskrivning.",
+    description: "Vårt smarta AI-verktyg gör en djupsökning i SIE-filerna hela vägen ner på verifikationsnivå och kan utifrån det bygga en detaljerad resultat- och balansräkning, samt bygga helt kompletta noter. Vår princip är enkel — vi frågar inte om det vi kan räkna ut eller ta reda på själva.\nAllt för att förenkla för dig som användare. De flesta andra tjänster som säger sig automatisera framtagandet av årsredovisningen, kräver fortfarande oerhört mycket av användaren. Summare är ett smartare verktyg som dessutom kompletterar med extern information till flerårsöversikt och verksamhetsbeskrivning.",
     imageOnRight: false,
   },
   {
