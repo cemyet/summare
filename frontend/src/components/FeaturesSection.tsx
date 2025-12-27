@@ -17,7 +17,7 @@ const features: FeatureCard[] = [
 
 const FeatureCardComponent = ({ image, heading, description, imageOnRight = false }: FeatureCard) => {
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-2 items-center gap-6 lg:gap-10 py-12 lg:py-20`}>
+    <div className={`grid grid-cols-1 lg:grid-cols-[65%_35%] items-center gap-6 lg:gap-10 py-12 lg:py-20`}>
       {/* Image Section */}
       <div className={`${imageOnRight ? 'lg:order-2' : 'lg:order-1'}`}>
         <img
