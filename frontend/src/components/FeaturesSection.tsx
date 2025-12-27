@@ -23,12 +23,12 @@ const FeatureCardComponent = ({ image, heading, description, imageOnRight = fals
         <img
           src={image}
           alt={heading}
-          className="w-full h-auto object-contain"
+          className="w-[85%] h-auto object-contain"
         />
       </div>
 
       {/* Text Section */}
-      <div className={`space-y-4 px-4 lg:px-12 ${imageOnRight ? 'lg:order-1' : 'lg:order-2'}`}>
+      <div className={`space-y-4 pl-4 pr-8 lg:pl-12 lg:pr-24 ${imageOnRight ? 'lg:order-1' : 'lg:order-2'}`}>
         <h3 
           className="text-xl md:text-2xl font-medium text-gray-900 leading-snug"
           style={{ fontFamily: "'Roboto', sans-serif" }}
