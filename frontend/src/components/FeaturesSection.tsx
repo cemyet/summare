@@ -13,7 +13,7 @@ const features: FeatureCard[] = [
     imageOnRight: false,
   },
   {
-    image: "/card2.png",
+    image: "/Card2v3.png",
     heading: "Chatta fram din årsredovisning",
     description: "Din årsredovisning tas fram genom att du chattar med vår smarta AI-agent. Och den frågar bara om det som den själv inte kan räkna fram eller hitta från externa källor. Det enda du som användare behöver ange själv är det outnyttjade underskottet samt årets utdelning. AI-agenten kan till och med upptäcka om du har missat att ta med något, till exempel om du har betalat in pensioner under året, men glömt att bokföra den särskilda löneskatten.",
     imageOnRight: true,
@@ -22,7 +22,7 @@ const features: FeatureCard[] = [
 
 const FeatureCardComponent = ({ image, heading, description, imageOnRight = false }: FeatureCard) => {
   return (
-    <div className={`grid grid-cols-1 lg:grid-cols-2 items-center gap-6 lg:gap-10 py-12 lg:py-20`}>
+    <div className={`grid grid-cols-1 lg:grid-cols-2 items-center gap-6 lg:gap-10 py-6 lg:py-10`}>
       {/* Image Section */}
       <div className={`${imageOnRight ? 'pr-4 lg:pr-12 lg:order-2' : 'pl-4 lg:pl-12 lg:order-1'}`}>
         <img
