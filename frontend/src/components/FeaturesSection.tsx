@@ -17,18 +17,19 @@ const features: FeatureCard[] = [
 
 const FeatureCardComponent = ({ image, heading, description, imageOnRight = false }: FeatureCard) => {
   return (
-    <div className={`flex flex-col ${imageOnRight ? 'lg:flex-row-reverse' : 'lg:flex-row'} items-center gap-8 lg:gap-16 py-12 lg:py-20`}>
+    <div className={`flex flex-col ${imageOnRight ? 'lg:flex-row-reverse' : 'lg:flex-row'} items-center gap-8 lg:gap-12 py-12 lg:py-20`}>
       {/* Image Section */}
-      <div className="w-full lg:w-1/2 flex justify-center">
+      <div className="w-full lg:w-[55%] flex justify-start">
         <img
           src={image}
           alt={heading}
           className="w-full object-contain"
+          style={{ transform: 'scale(1.3)', transformOrigin: 'left center' }}
         />
       </div>
 
       {/* Text Section */}
-      <div className="w-full lg:w-1/2 space-y-4">
+      <div className="w-full lg:w-[45%] space-y-4">
         <h3 
           className="text-xl md:text-2xl font-medium text-gray-900 leading-snug"
           style={{ fontFamily: "'Roboto', sans-serif" }}
