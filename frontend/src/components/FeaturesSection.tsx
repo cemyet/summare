@@ -53,7 +53,7 @@ const FeatureCardComponent = ({ image, heading, description, imageOnRight = fals
 
 const FeaturesSection = () => {
   return (
-    <section className="bg-white">
+    <section id="ai-verktyg" className="bg-white scroll-mt-16">
       <div className="max-w-[1600px] mx-auto px-4 md:px-8 lg:px-12">
         {features.map((feature, index) => (
           <FeatureCardComponent

@@ -235,7 +235,7 @@ const Header = () => {
             <a href="#" className="text-summare-gray hover:text-summare-navy transition-colors">
               Priser
             </a>
-            <a href="#" className="text-summare-gray hover:text-summare-navy transition-colors">
+            <a href="#ai-verktyg" className="text-summare-gray hover:text-summare-navy transition-colors">
               AI verktyg
             </a>
             <a href="#" className="text-summare-gray hover:text-summare-navy transition-colors">
