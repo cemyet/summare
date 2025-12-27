@@ -23,7 +23,7 @@ const FeatureCardComponent = ({ image, heading, description, imageOnRight = fals
         <img
           src={image}
           alt={heading}
-          className="w-full max-w-md object-contain"
+          className="w-full max-w-2xl object-contain"
         />
       </div>
 
