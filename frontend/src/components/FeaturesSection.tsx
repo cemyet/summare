@@ -9,7 +9,7 @@ const features: FeatureCard[] = [
   {
     image: "/card1.png",
     heading: "Djupsökning med AI förenklar för användaren",
-    description: "Vårt smarta AI-verktyg gör en djupsökning i SIE-filerna hela vägen ner på verifikationsnivå och kan utifrån det bygga en detaljerad resultat- och balansräkning samt bygga helt kompletta noter. Vår princip är enkel — fråga inte om det vi kan räkna ut eller ta reda på själva. Allt för att förenkla för dig som användare.",
+    description: "Vårt smarta AI-verktyg gör en djupsökning i SIE-filerna hela vägen ner på verifikationsnivå och kan utifrån det bygga en detaljerad resultat- och balansräkning, samt bygga helt kompletta noter. Vår princip är enkel — vi frågar inte om det vi kan räkna ut eller ta reda på själva. Allt för att förenkla för dig som användare!",
     imageOnRight: false,
   },
   // Add more features here as needed
