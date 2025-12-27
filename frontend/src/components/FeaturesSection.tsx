@@ -9,13 +9,13 @@ const features: FeatureCard[] = [
   {
     image: "/card1v8.png",
     heading: "Djupsökning med AI förenklar för användaren",
-    description: "Vårt smarta AI-verktyg gör en djupsökning i SIE-filerna hela vägen ner på verifikationsnivå och kan utifrån det bygga en detaljerad resultat- och balansräkning, samt bygga helt kompletta noter. Vår princip är enkel — vi frågar inte om det vi kan räkna ut eller ta reda på själva. Allt för att förenkla för dig som användare. De flesta andra tjänster som säger sig automatisera framtagandet av årsredovisningen, kräver fortfarande oerhört mycket av användaren. Summare är ett smartare verktyg som dessutom kompletterar med extern information som flerårsöversikt och verksamhetsbeskrivning.",
+    description: "Vårt smarta AI-verktyg gör en djupsökning i SIE-filerna hela vägen ner på verifikationsnivå och kan utifrån det bygga en detaljerad resultat- och balansräkning, samt bygga helt kompletta noter. Vår princip är enkel — vi frågar inte om det vi kan räkna ut eller ta reda på själva.\n\nAllt för att förenkla för dig som användare. De flesta andra tjänster som säger sig automatisera framtagandet av årsredovisningen, kräver fortfarande oerhört mycket av användaren. Summare är ett smartare verktyg som dessutom kompletterar med extern information till flerårsöversikt och verksamhetsbeskrivning.",
     imageOnRight: false,
   },
   {
     image: "/card2v6.png",
     heading: "Chatta fram din årsredovisning",
-    description: "Din årsredovisning tas fram genom att du chattar med vår smarta AI-agent. Och den frågar bara om det som den själv inte kan räkna fram eller hitta från externa källor. Det enda du som användare behöver ange själv är det outnyttjade underskottet samt årets utdelning. AI-agenten kan till och med upptäcka om du har missat att ta med något, till exempel om du har betalat in pensioner under året, men glömt att bokföra den särskilda löneskatten.",
+    description: "Din årsredovisning tas fram genom att du chattar med vår AI-agent. Och den frågar bara efter det, som den själv inte kan räkna fram eller hitta från externa källor. Det enda du behöver ange själv är det outnyttjade underskottet, samt årets utdelning. AI-agenten kan till och med upptäcka om du har missat att ta med något, till exempel om du har betalat in pensioner under året, men glömt att bokföra den särskilda löneskatten.",
     imageOnRight: true,
   },
 ];
@@ -41,7 +41,7 @@ const FeatureCardComponent = ({ image, heading, description, imageOnRight = fals
           {heading}
         </h3>
         <p 
-          className="text-sm md:text-base text-gray-600 leading-relaxed"
+          className="text-sm md:text-base text-gray-600 leading-relaxed whitespace-pre-line"
           style={{ fontFamily: "'Roboto', sans-serif", fontWeight: 400 }}
         >
           {description}
